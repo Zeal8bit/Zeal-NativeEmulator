@@ -3,10 +3,11 @@
 #include <stdint.h>
 #include "hw/device.h"
 
+#define NOR_FLASH_SIZE_KB_MAX (512 * 1024)
 #if CONFIG_NOR_FLASH_512KB
-#define NOR_FLASH_SIZE_KB (512 * 1024)
+#define NOR_FLASH_SIZE_KB NOR_FLASH_SIZE_KB_MAX
 #else
-#define NOR_FLASH_SIZE_KB (256 * 1024)
+#define NOR_FLASH_SIZE_KB (NOR_FLASH_SIZE_KB_MAX / 2)
 #endif
 
 /**
