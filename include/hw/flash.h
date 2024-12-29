@@ -4,9 +4,9 @@
 #include "hw/device.h"
 
 #if CONFIG_NOR_FLASH_512KB
-    #define NOR_FLASH_SIZE_KB 512
+    #define NOR_FLASH_SIZE_KB (512 * 1024)
 #else
-    #define NOR_FLASH_SIZE_KB 256
+    #define NOR_FLASH_SIZE_KB (256 * 1024)
 #endif
 
 /**

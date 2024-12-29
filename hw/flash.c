@@ -37,7 +37,7 @@ int flash_init(flash_t* f)
         return 1;
     }
     memset(f, 0, sizeof(*f));
-    f->size = NOR_FLASH_SIZE_KB*1024;
+    f->size = NOR_FLASH_SIZE_KB;
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     f->data = malloc(f->size);
