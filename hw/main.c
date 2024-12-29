@@ -9,6 +9,7 @@ int main(int argc, char* argv[])
 {
     int opt;
     const char* rom_filename = NULL;
+    int code = 0;
 
     while ((opt = getopt(argc, argv, "r:")) != -1) {
         switch (opt) {
@@ -41,5 +42,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    return 0;
+    code = zeal_run(&machine);
+
+    return code;
 }

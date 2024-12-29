@@ -147,13 +147,17 @@ int zeal_init(zeal_t* machine)
 
     zeal_init_cpu(machine);
 
+    // const mmu = new MMU();
     err = mmu_init(&machine->mmu);
     CHECK_ERR(err);
 
+    // const rom = new ROM(this);
     err = flash_init(&machine->rom);
     CHECK_ERR(err);
 
     // const ram = new RAM(512*KB);
+    err = ram_init(&machine->ram);
+    CHECK_ERR(err);
     // const pio = new PIO(this);
     // const vchip = new VideoChip(this, pio, scale);
     // const uart = new UART(this, pio);
@@ -178,8 +182,23 @@ int zeal_init(zeal_t* machine)
         zeal_add_mem_device(machine, 0x040000, &machine->rom.parent);
     }
 
+    zeal_add_mem_device(machine, 0x08000, &machine->ram.parent);
+
     /* Register the devices in the I/O space */
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+
+    return 0;
+}
+
+int zeal_run(zeal_t* machine)
+{
+    uint8_t i;
+    for (i = 0; i < 32; i++) {
+        z80_step(&machine->cpu);
+#if DEBUG
+        z80_debug_output(&machine->cpu);
+#endif
+    }
 
     return 0;
 }

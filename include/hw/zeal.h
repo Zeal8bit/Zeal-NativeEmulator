@@ -5,6 +5,7 @@
 #include "hw/device.h"
 #include "hw/mmu.h"
 #include "hw/flash.h"
+#include "hw/ram.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -45,9 +46,11 @@ struct zeal_t {
         z80 cpu;
         mmu_t mmu;
         flash_t rom;
+        ram_t ram;
 };
 
 typedef struct zeal_t zeal_t;
 
 
 int zeal_init(zeal_t* machine);
+int zeal_run(zeal_t* machine);

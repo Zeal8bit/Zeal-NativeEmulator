@@ -26,6 +26,8 @@
     "random": "c",
     "istream": "c",
     "mutex": "c",
-    "stdlib.h": "c"
+    "stdlib.h": "c",
+    "cstdint": "c",
+    "cstdlib": "c"
 }
 }
