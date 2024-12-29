@@ -38,13 +38,13 @@ typedef struct {
 } map_entry_t;
 
 struct zeal_t {
-    /* Memory regions related, the I/O space's granularity is a single byte */
-    map_entry_t io_mapping[IO_MAPPING_SIZE];
-    map_entry_t mem_mapping[MEM_MAPPING_SIZE];
+        /* Memory regions related, the I/O space's granularity is a single byte */
+        map_entry_t io_mapping[IO_MAPPING_SIZE];
+        map_entry_t mem_mapping[MEM_MAPPING_SIZE];
 
-    z80 cpu;
-    mmu_t mmu;
-    flash_t rom;
+        z80 cpu;
+        mmu_t mmu;
+        flash_t rom;
 };
 
 typedef struct zeal_t zeal_t;
