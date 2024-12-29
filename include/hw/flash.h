@@ -4,9 +4,9 @@
 #include "hw/device.h"
 
 #if CONFIG_NOR_FLASH_512KB
-    #define NOR_FLASH_SIZE_KB (512 * 1024)
+#define NOR_FLASH_SIZE_KB (512 * 1024)
 #else
-    #define NOR_FLASH_SIZE_KB (256 * 1024)
+#define NOR_FLASH_SIZE_KB (256 * 1024)
 #endif
 
 /**
@@ -14,12 +14,12 @@
  */
 
 typedef struct {
-    device_t    parent;
-    size_t      size;   // in bytes
+        device_t parent;
+        size_t size; // in bytes
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
-    uint8_t*    data;
+        uint8_t* data;
 #else
-    uint8_t     data[NOR_FLASH_SIZE_KB];
+        uint8_t data[NOR_FLASH_SIZE_KB];
 #endif
 } flash_t;
 

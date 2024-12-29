@@ -8,17 +8,17 @@ zeal_t machine;
 int main(int argc, char* argv[])
 {
     int opt;
-    const char *rom_filename = NULL;
+    const char* rom_filename = NULL;
 
     while ((opt = getopt(argc, argv, "r:")) != -1) {
         switch (opt) {
-        case 'r':
-            rom_filename = optarg; // Store the filename
-            break;
-        case '?':
-            // Handle unknown options
-            fprintf(stderr, "Unknown option: -%c\n", optopt);
-            return 1;
+            case 'r':
+                rom_filename = optarg; // Store the filename
+                break;
+            case '?':
+                // Handle unknown options
+                fprintf(stderr, "Unknown option: -%c\n", optopt);
+                return 1;
         }
     }
 

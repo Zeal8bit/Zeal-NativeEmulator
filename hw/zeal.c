@@ -4,18 +4,22 @@
 #include <stdint.h>
 #include "hw/zeal.h"
 
-#define CHECK_ERR(err)      do { if (err) return err; } while (0)
+#define CHECK_ERR(err)  \
+    do {                \
+        if (err)        \
+            return err; \
+    } while (0)
 
 /**
  * @brief Callback invoked when the CPU tries to read a byte in memory space
  */
 static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
 {
-    const zeal_t* machine = (zeal_t*) opaque;
-    const int phys_addr = mmu_get_phys_addr(&machine->mmu, virt_addr);
+    const zeal_t* machine    = (zeal_t*) opaque;
+    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
     const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMMU_PAGE_SIZE];
-    device_t* device = entry->dev;
-    const int start_addr = entry->page_from * MMMU_PAGE_SIZE;
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMMU_PAGE_SIZE;
 
     if (device) {
         return device->mem_region.read(device, phys_addr - start_addr);
@@ -27,11 +31,11 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
 
 static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
-    const zeal_t* machine = (zeal_t*) opaque;
-    const int phys_addr = mmu_get_phys_addr(&machine->mmu, virt_addr);
+    const zeal_t* machine    = (zeal_t*) opaque;
+    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
     const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMMU_PAGE_SIZE];
-    device_t* device = entry->dev;
-    const int start_addr = entry->page_from * MMMU_PAGE_SIZE;
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMMU_PAGE_SIZE;
 
     if (device) {
         device->mem_region.write(device, phys_addr - start_addr, data);
@@ -42,10 +46,10 @@ static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 
 static uint8_t zeal_io_read(void* opaque, uint16_t addr)
 {
-    zeal_t* machine = (zeal_t*) opaque;
-    const int low = addr & 0xff;
+    zeal_t* machine          = (zeal_t*) opaque;
+    const int low            = addr & 0xff;
     const map_entry_t* entry = &machine->io_mapping[low];
-    device_t* device = entry->dev;
+    device_t* device         = entry->dev;
 
     if (device) {
         return device->io_region.read(device, low - entry->page_from);
@@ -57,10 +61,10 @@ static uint8_t zeal_io_read(void* opaque, uint16_t addr)
 
 static void zeal_io_write(void* opaque, uint16_t addr, uint8_t data)
 {
-    zeal_t* machine = (zeal_t*) opaque;
-    const int low = addr & 0xff;
+    zeal_t* machine          = (zeal_t*) opaque;
+    const int low            = addr & 0xff;
     const map_entry_t* entry = &machine->io_mapping[low];
-    device_t* device = entry->dev;
+    device_t* device         = entry->dev;
 
     if (device) {
         device->io_region.write(device, low - entry->page_from, data);
@@ -87,50 +91,31 @@ static void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
 {
     /* Start and end address of the region mapped for the device */
     const int region_size = dev->io_region.size;
-    const int region_end = region_start + region_size - 1;
-    if (region_start >= IO_MAPPING_SIZE ||
-        region_end >= IO_MAPPING_SIZE   ||
-        region_size == 0)
-    {
-        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n",
-                __func__,
-                region_start,
-                region_size);
+    const int region_end  = region_start + region_size - 1;
+    if (region_start >= IO_MAPPING_SIZE || region_end >= IO_MAPPING_SIZE || region_size == 0) {
+        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
 
     /* Register the device in the array */
     for (int i = region_start; i <= region_end; i++) {
-        machine->io_mapping[i] = (map_entry_t) {
-            .dev = dev,
-            .page_from = region_start
-        };
+        machine->io_mapping[i] = (map_entry_t) {.dev = dev, .page_from = region_start};
     }
 }
 
 static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_t* dev)
 {
     const int region_size = dev->mem_region.size;
-    const int region_end = region_start + region_size - 1;
-    if (region_start >= MEM_SPACE_SIZE ||
-        region_end >= MEM_SPACE_SIZE       ||
-        region_size == 0)
-    {
-        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n",
-                __func__,
-                region_start,
-                region_size);
+    const int region_end  = region_start + region_size - 1;
+    if (region_start >= MEM_SPACE_SIZE || region_end >= MEM_SPACE_SIZE || region_size == 0) {
+        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
 
     /* Make sure the alignment is correct too! */
-    if ((region_start & (MEM_SPACE_ALIGN - 1)) != 0 ||
-        (region_size & (MEM_SPACE_ALIGN - 1)) != 0)
-    {
-        printf("%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n",
-                __func__,
-                region_start,
-                region_size);
+    if ((region_start & (MEM_SPACE_ALIGN - 1)) != 0 || (region_size & (MEM_SPACE_ALIGN - 1)) != 0) {
+        printf("%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
+               region_size);
         return;
     }
 
@@ -139,10 +124,7 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
     const int page_count = region_size / MEM_SPACE_ALIGN;
 
     for (int i = 0; i < page_count; i++) {
-        machine->mem_mapping[start_page + i] = (map_entry_t) {
-            .dev = dev,
-            .page_from = start_page
-        };
+        machine->mem_mapping[start_page + i] = (map_entry_t) {.dev = dev, .page_from = start_page};
     }
 }
 
@@ -184,7 +166,7 @@ int zeal_init(zeal_t* machine)
 
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
-    if (machine->rom.size < 512*1024) {
+    if (machine->rom.size < 512 * 1024) {
         /* Create a mirror in the upper 256KB */
         zeal_add_mem_device(machine, 0x040000, &machine->rom.parent);
     }

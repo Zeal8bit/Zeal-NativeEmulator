@@ -1,0 +1,31 @@
+{
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/include",
+    "${env:ZVB_SDK_PATH}/include",
+    "${env:ZVB_SDK_PATH}/sdcc",
+    "${env:ZOS_PATH}/kernel_headers/sdcc/include",
+    "${env:ZGDK_PATH}/include"
+  ],
+  "C_Cpp.clang_format_sortIncludes": false,
+  "C_Cpp.clang_format_style": "file:${ZDE_PATH}/.clang-format",
+  "files.insertFinalNewline": true,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "files.associations": {
+    "*.asm": "z80-macroasm",
+    "stdint.h": "c",
+    "string.h": "c",
+    "memory_resource": "c",
+    "__hash_table": "c",
+    "bitset": "c",
+    "memory": "c",
+    "locale": "c",
+    "optional": "c",
+    "ostream": "c",
+    "random": "c",
+    "istream": "c",
+    "mutex": "c",
+    "stdlib.h": "c"
+}
+}

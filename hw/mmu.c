@@ -7,7 +7,7 @@
 
 static uint8_t mmu_read(device_t* dev, uint32_t addr)
 {
-    mmu_t* mmu = (mmu_t*) dev;
+    mmu_t* mmu    = (mmu_t*) dev;
     const int idx = (addr >> 14) & 3;
     return mmu->pages[idx];
 }
@@ -15,8 +15,8 @@ static uint8_t mmu_read(device_t* dev, uint32_t addr)
 
 static void mmu_write(device_t* dev, uint32_t addr, uint8_t data)
 {
-    mmu_t* mmu = (mmu_t*) dev;
-    const int idx = addr & 0x3;
+    mmu_t* mmu      = (mmu_t*) dev;
+    const int idx   = addr & 0x3;
     mmu->pages[idx] = data;
 }
 
@@ -40,7 +40,7 @@ int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr)
         return -1;
     }
     /* Get 22-bit address from 16-bit address */
-    const int idx = (virt_addr >> 14) & 0x3;
+    const int idx     = (virt_addr >> 14) & 0x3;
     const int highest = mmu->pages[idx];
     /* Highest bits are from the page, remaining 16KB are from address */
     return (highest << 14) | (virt_addr & (MMMU_PAGE_SIZE - 1));
