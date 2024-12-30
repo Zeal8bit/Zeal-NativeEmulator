@@ -166,7 +166,7 @@ int zeal_init(zeal_t* machine)
 
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
-    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX)) {
+    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
         /* Create a mirror in the upper 256KB */
         zeal_add_mem_device(machine, 0x040000, &machine->rom.parent);
     }
