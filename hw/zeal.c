@@ -124,7 +124,14 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
     const int page_count = region_size / MEM_SPACE_ALIGN;
 
     for (int i = 0; i < page_count; i++) {
-        machine->mem_mapping[start_page + i] = (map_entry_t) {.dev = dev, .page_from = start_page};
+        const int page = start_page + i;
+        map_entry_t* entry = &machine->mem_mapping[page];
+
+        if (entry->dev != NULL) {
+            printf("%s: cannot register device %s in page %d, device %s is already mapped\n",
+                __func__, dev->name, page, entry->dev->name);
+        }
+        *entry = (map_entry_t) {.dev = dev, .page_from = start_page};
     }
 }
 
