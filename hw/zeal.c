@@ -17,9 +17,9 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
 {
     const zeal_t* machine    = (zeal_t*) opaque;
     const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMMU_PAGE_SIZE];
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMMU_PAGE_SIZE;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
 
     if (device) {
         return device->mem_region.read(device, phys_addr - start_addr);
@@ -33,9 +33,9 @@ static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
     const zeal_t* machine    = (zeal_t*) opaque;
     const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMMU_PAGE_SIZE];
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMMU_PAGE_SIZE;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
 
     if (device) {
         device->mem_region.write(device, phys_addr - start_addr, data);

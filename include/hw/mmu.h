@@ -2,7 +2,7 @@
 
 #include "hw/device.h"
 
-#define MMMU_PAGE_SIZE (16 * 1024)
+#define MMU_PAGE_SIZE (16 * 1024)
 
 typedef struct {
         device_t parent;

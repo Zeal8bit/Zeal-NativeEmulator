@@ -43,5 +43,5 @@ int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr)
     const int idx     = (virt_addr >> 14) & 0x3;
     const int highest = mmu->pages[idx];
     /* Highest bits are from the page, remaining 16KB are from address */
-    return (highest << 14) | (virt_addr & (MMMU_PAGE_SIZE - 1));
+    return (highest << 14) | (virt_addr & (MMU_PAGE_SIZE - 1));
 }
