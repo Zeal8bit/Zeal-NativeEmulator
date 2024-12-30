@@ -15,12 +15,12 @@
  */
 
 typedef struct {
-        device_t parent;
-        size_t size; // in bytes
+    device_t parent;
+    size_t size; // in bytes
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
-        uint8_t* data;
+    uint8_t* data;
 #else
-        uint8_t data[NOR_FLASH_SIZE_KB];
+    uint8_t data[NOR_FLASH_SIZE_KB];
 #endif
 } flash_t;
 

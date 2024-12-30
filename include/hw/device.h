@@ -8,15 +8,15 @@ typedef struct device_t device_t;
  * @brief Structure defining a region in memory
  */
 typedef struct {
-        uint8_t (*read)(device_t* dev, uint32_t addr);
-        void (*write)(device_t* dev, uint32_t addr, uint8_t data);
-        int size;
+    uint8_t (*read)(device_t* dev, uint32_t addr);
+    void (*write)(device_t* dev, uint32_t addr, uint8_t data);
+    int size;
 } region_t;
 
 struct device_t {
-        const char* name; // Used for debugging
-        region_t io_region;
-        region_t mem_region;
+    const char* name; // Used for debugging
+    region_t io_region;
+    region_t mem_region;
 };
 
 
