@@ -1,8 +1,10 @@
 bin = zeal.elf
-src = $(wildcard hw/*.c)
+src = $(wildcard hw/*.c hw/zvb/*.c)
 obj = $(patsubst hw/%.c, build/%.o, $(src))
 
-CFLAGS = $(CFLAGS_EXTRA) -g -Wall -Wextra -O2 -std=c99 -pedantic -Iinclude/ -D_POSIX_C_SOURCE=200809L
+RAYLIB_PATH = $(shell pwd)/raylib
+CFLAGS = $(CFLAGS_EXTRA) -g -Wall -Wextra -O2 -std=c99 -Iinclude/ -I$(RAYLIB_PATH)/include -D_POSIX_C_SOURCE=200809L
+LDFLAGS = -L$(RAYLIB_PATH)/lib -lraylib
 CC = gcc
 
 .PHONY: all clean
@@ -15,7 +17,7 @@ $(bin): $(obj)
 
 # Rule for compiling object files into the build directory
 build/%.o: hw/%.c
-	@mkdir -p build
+	@mkdir -p build $(shell dirname $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

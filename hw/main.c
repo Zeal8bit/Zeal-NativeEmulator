@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include "hw/zeal.h"
 
-zeal_t machine;
+static zeal_t machine;
 
 int main(int argc, char* argv[])
 {

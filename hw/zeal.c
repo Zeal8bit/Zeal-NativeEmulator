@@ -160,6 +160,10 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
     // const pio = new PIO(this);
     // const vchip = new VideoChip(this, pio, scale);
+    err = zvb_init(&machine->zvb);
+    CHECK_ERR(err);
+
+    // const pio = new PIO(this);
     // const uart = new UART(this, pio);
     // const uart_web_serial = new UART_WebSerial(this, pio);
     // const i2c = new I2C(this, pio);
@@ -183,22 +187,30 @@ int zeal_init(zeal_t* machine)
     }
 
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
+    zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+    zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
 
     return 0;
 }
 
+
 int zeal_run(zeal_t* machine)
-{
-    uint8_t i;
-    for (i = 0; i < 32; i++) {
-        z80_step(&machine->cpu);
+{    
+
+    while (zvb_window_opened(&machine->zvb)) {
+        const int elapsed_tstates = z80_step(&machine->cpu);
+        /* TODO: Go through all the devices that have a tick function */
+        zvb_tick(&machine->zvb, elapsed_tstates);
 #if DEBUG
         z80_debug_output(&machine->cpu);
 #endif
     }
 
+    zvb_deinit(&machine->zvb);
+
     return 0;
 }
+

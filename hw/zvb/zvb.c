@@ -1,0 +1,245 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include "hw/zvb/zvb.h"
+#include "hw/zvb/default_font.h"
+#include "raylib.h"
+
+
+#define BENCHMARK           0
+
+#define WIN_VISIBLE_WIDTH   640
+#define WIN_VISIBLE_HEIGHT  480
+#define WIN_NAME            "Zeal 8-bit Computer"
+#define WIN_LOG_LEVEL       LOG_WARNING
+
+#define ZVB_IO_SIZE         (3 * 16)
+/* The video board occupies 128KB of memory, but the VRAM is not that big  */
+#define ZVB_MEM_SIZE        (128 * 1024)
+
+/* Mapping for all the different types of memory, relative to the VRAM */
+#define LAYER0_ADDR_START         (0x00000U)
+#define LAYER0_ADDR_END           (0x00C80U)
+
+#define PALETTE_ADDR_START        (0x00E00U)
+#define PALETTE_ADDR_END          (0x01000U)
+
+#define LAYER1_ADDR_START         (0x01000U)
+#define LAYER1_ADDR_END           (0x01C80U)
+
+#define SPRITES_ADDR_START        (0x02800U)
+#define SPRITES_ADDR_END          (0x02C00U)
+
+#define FONT_ADDR_START           (0x03000U)
+#define FONT_ADDR_END             (0x03C00U)
+
+#define TILESET_ADDR_START        (0x10000U)
+#define TILESET_ADDR_END          (0x20000U)
+
+
+/**
+ * @brief Helper for checking a range, END not being included!
+ */
+#define IN_RANGE(START, END, VAL)   ((START) <= (VAL) && (VAL) < (END))
+
+
+/**
+ * @brief Names of the variables in the shader
+ */
+#define SHADER_PALETTE_NAME         "palette"
+#define SHADER_FONT_NAME            "font"
+#define SHADER_TIMELAPS_NAME        "tilemaps"
+
+
+static const long s_tstates_remaining[STATE_COUNT] = {
+    /* The raster spends 15.253 ms in the visible area */
+    [STATE_IDLE]         = US_TO_TSTATES(15253),
+    /* The raster stays in V-Blank during 1.430ms  */
+    [STATE_VBLANK]       = US_TO_TSTATES(1430), 
+};
+
+static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
+{
+    (void) dev;
+    (void) addr;
+    return 0;
+}
+
+
+static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
+{
+    zvb_t* zvb = (zvb_t*) dev;
+    /* Prevent a compilation warning, since LAYER0_ADDR_START is 0 */
+    if (addr < LAYER0_ADDR_END) {
+        zvb_tilemap_write(&zvb->layers, 0, addr, data);
+    } else if (IN_RANGE(LAYER1_ADDR_START, LAYER1_ADDR_END, addr)) {
+        zvb_tilemap_write(&zvb->layers, 1, addr - LAYER1_ADDR_START, data);
+    } else if(IN_RANGE(PALETTE_ADDR_START, PALETTE_ADDR_END, addr)) {
+        zvb_palette_write(&zvb->palette, addr - PALETTE_ADDR_START, data);
+    } else if(IN_RANGE(SPRITES_ADDR_START, SPRITES_ADDR_END, addr)) {
+        // TODO
+        printf("[ZVB] Sprites not supaddred yet\n");
+    } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
+        zvb_font_write(&zvb->font, addr - FONT_ADDR_START, data);
+    } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
+        printf("[ZVB] Tileset not supaddred yet\n");
+    }
+}
+
+
+static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
+{
+    (void) dev;
+    (void) addr;
+    return 0;
+}
+
+
+static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
+{
+    zvb_t* zvb = (zvb_t*) dev;
+    /* Video Board configuraiton goes from 0x00 to 0x0F included */
+    if (addr == ZVB_IO_BANK_REG) {
+        zvb->io_bank = data;
+    } else if (addr == ZVB_MEM_START_REG) {
+        printf("[WARNING] zvb memory mapping register is not supported\n");
+    } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
+        // if (addr == 0x1c)
+        //     updateModeData(canvas, canvas_layer1, value);
+        if (addr == ZVB_IO_CONF_START + 0xd) {
+            zvb->screen_enabled = (data >> 7) & 1;
+        }
+    } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
+        const uint32_t subaddr = addr - ZVB_IO_BANK_START;
+        if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
+            zvb_text_write(&zvb->text, subaddr, data, &zvb->layers);
+            // textConfigWrite(subaddr, data);
+        } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
+            // peri_crc32.io_write(subaddr, data);
+        } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
+            // peri_sound.io_write(subaddr, data);
+        }
+    }
+}
+
+
+int zvb_init(zvb_t* dev)
+{
+    if (dev == NULL) {
+        return 1;
+    }
+    /* Initialize the structure and register it on both the memory and I/O buses */
+    memset(dev, 0, sizeof(zvb_t));
+    device_init_mem(DEVICE(dev), "zvb_dev", zvb_mem_read, zvb_mem_write, ZVB_MEM_SIZE);
+    device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
+
+    /* Initialize the window. It must be done before any sahder is created! */
+    dev->mode = MODE_DEFAULT;
+    SetTraceLogLevel(WIN_LOG_LEVEL); 
+    InitWindow(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT, WIN_NAME);
+
+    /* Initialize the sub-components */
+    dev->text_shader = LoadShader(NULL, TextFormat("./hw/zvb/text_shader.glsl"));
+    zvb_palette_init(&dev->palette);
+    zvb_font_init(&dev->font);
+    zvb_tilemap_init(&dev->layers);
+    zvb_text_init(&dev->text);
+
+#if !BENCHMARK
+    SetTargetFPS(60);
+#endif
+
+    dev->tex_dummy = LoadRenderTexture(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
+
+    /* Set the state to STATE_IDLE, waiting for the next event */
+    dev->state = STATE_IDLE;
+    dev->tstates_counter = s_tstates_remaining[dev->state];
+
+    return 0;
+}
+
+
+static void zvb_render(zvb_t* zvb)
+{
+#if BENCHMARK
+    double startTime = GetTime();
+    static double average = 0;
+    static int counter = 0;
+#endif
+    
+    /* Update the palette to flush the changes to the shader */
+    const Shader shader = zvb->text_shader;
+
+    const int tilemaps_idx = GetShaderLocation(shader, SHADER_TIMELAPS_NAME);
+    const int font_idx     = GetShaderLocation(shader, SHADER_FONT_NAME);
+    const int palette_idx  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+
+    zvb_palette_update(&zvb->palette, &zvb->text_shader, palette_idx);
+    zvb_font_update(&zvb->font);
+    zvb_tilemap_update(&zvb->layers);
+
+
+    BeginDrawing();
+        ClearBackground(BLACK);
+        BeginShaderMode(shader);
+
+            SetShaderValue(shader, GetShaderLocation(shader, "video_mode"), &zvb->mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
+            SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
+
+            /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
+            DrawTextureRec(zvb->tex_dummy.texture,
+                           (Rectangle){ 0, 0, WIN_VISIBLE_WIDTH, -WIN_VISIBLE_HEIGHT },
+                           (Vector2){ 0, 0 },
+                           WHITE);
+
+        EndShaderMode();
+    EndDrawing();
+
+
+#if BENCHMARK
+    double endTime = GetTime();
+    double elapsedTime = endTime - startTime;
+    average += elapsedTime;
+    if (++counter == 600) {
+        printf("Time taken : %f ms\n", (average / 600) * 1000);
+        counter = 0;
+        average = 0;
+    }
+#endif
+}
+
+void zvb_force_render(zvb_t* zvb)
+{
+    zvb_render(zvb);
+}
+
+void zvb_tick(zvb_t* zvb, const int tstates)
+{
+    zvb->tstates_counter -= tstates;
+
+    if (zvb->tstates_counter <= 0) {
+        /* Go to the next state */
+        zvb->state = (zvb->state + 1) % STATE_COUNT;
+        zvb->tstates_counter = s_tstates_remaining[zvb->state];
+        /* If the new state is V-blank (i.e. we reached blank), render the screen */
+        if (zvb->state == STATE_VBLANK) {
+            zvb_render(zvb);
+        }
+    }
+}
+
+
+bool zvb_window_opened(zvb_t* zvb)
+{
+    (void) zvb;
+    return !WindowShouldClose();
+}
+
+
+void zvb_deinit(zvb_t* zvb)
+{
+    UnloadRenderTexture(zvb->tex_dummy); 
+    CloseWindow();
+}
