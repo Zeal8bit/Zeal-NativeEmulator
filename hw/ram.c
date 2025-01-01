@@ -2,13 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-/* Required for file operations */
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-/* **** */
 #include "hw/ram.h"
+
 
 static uint8_t ram_read(device_t* dev, uint32_t addr) {
     ram_t* r = (ram_t*)dev;
@@ -19,6 +14,7 @@ static uint8_t ram_read(device_t* dev, uint32_t addr) {
     return r->data[addr];
 }
 
+
 static void ram_write(device_t* dev, uint32_t addr, uint8_t data) {
     ram_t* r = (ram_t*)dev;
     if(addr >= r->size) {
@@ -27,6 +23,7 @@ static void ram_write(device_t* dev, uint32_t addr, uint8_t data) {
     }
     r->data[addr] = data;
 }
+
 
 int ram_init(ram_t *r) {
     if(r == NULL) {
