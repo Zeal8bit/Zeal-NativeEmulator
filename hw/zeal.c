@@ -182,7 +182,7 @@ int zeal_init(zeal_t* machine)
         zeal_add_mem_device(machine, 0x040000, &machine->rom.parent);
     }
 
-    zeal_add_mem_device(machine, 0x08000, &machine->ram.parent);
+    zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
 
     /* Register the devices in the I/O space */
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
