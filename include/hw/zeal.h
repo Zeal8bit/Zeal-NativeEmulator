@@ -7,6 +7,7 @@
 #include "hw/flash.h"
 #include "hw/ram.h"
 #include "hw/zvb/zvb.h"
+#include "hw/pio.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -49,6 +50,7 @@ struct zeal_t {
     flash_t rom;
     ram_t   ram;
     zvb_t   zvb;
+    pio_t   pio;
 };
 
 typedef struct zeal_t zeal_t;

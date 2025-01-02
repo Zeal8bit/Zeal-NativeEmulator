@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+
 #include "hw/zeal.h"
 
 #define CHECK_ERR(err)  \
@@ -158,7 +159,11 @@ int zeal_init(zeal_t* machine)
     // const ram = new RAM(512*KB);
     err = ram_init(&machine->ram);
     CHECK_ERR(err);
+
     // const pio = new PIO(this);
+    err = pio_init(machine, &machine->pio);
+    CHECK_ERR(err);
+
     // const vchip = new VideoChip(this, pio, scale);
     err = zvb_init(&machine->zvb);
     CHECK_ERR(err);
@@ -192,6 +197,7 @@ int zeal_init(zeal_t* machine)
     /* Register the devices in the I/O space */
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
     zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
+    zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
 
     return 0;
 }

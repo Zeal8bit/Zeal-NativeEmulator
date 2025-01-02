@@ -22,3 +22,4 @@ build/%.o: hw/%.c
 
 clean:
 	-rm -rf build
+	-rm -rf $(bin)

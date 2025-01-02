@@ -43,6 +43,7 @@
     "tuple": "c",
     "type_traits": "c",
     "utility": "c",
-    "zvb.h": "c"
+    "zvb.h": "c",
+    "stat.h": "c"
 }
 }
