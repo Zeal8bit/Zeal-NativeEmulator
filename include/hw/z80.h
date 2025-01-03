@@ -48,4 +48,8 @@ void z80_debug_output(z80* const z);
 void z80_gen_nmi(z80* const z);
 void z80_gen_int(z80* const z, uint8_t data);
 
+/* Helpers to manipulate the flag register */
+uint8_t z80_get_f(z80* const z);
+void z80_set_f(z80* const z, uint8_t val);
+
 #endif // Z80_Z80_H_

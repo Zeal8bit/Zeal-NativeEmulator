@@ -10,9 +10,13 @@ int main(int argc, char* argv[])
     int opt;
     const char* rom_filename = NULL;
     int code = 0;
+    bool debug_serv = false;
 
-    while ((opt = getopt(argc, argv, "r:")) != -1) {
+    while ((opt = getopt(argc, argv, "gr:")) != -1) {
         switch (opt) {
+            case 'g':
+                debug_serv = true;
+                break;
             case 'r':
                 rom_filename = optarg; // Store the filename
                 break;
@@ -33,7 +37,7 @@ int main(int argc, char* argv[])
         printf("Non-option argument: %s\n", argv[i]);
     }
 
-    if (zeal_init(&machine)) {
+    if (zeal_init(&machine, debug_serv)) {
         printf("Error initializing the machine\n");
         return 1;
     }
@@ -44,5 +48,6 @@ int main(int argc, char* argv[])
 
     code = zeal_run(&machine);
 
+    zeal_close(&machine);
     return code;
 }

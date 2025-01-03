@@ -28,6 +28,18 @@
     "mutex": "c",
     "stdlib.h": "c",
     "cstdint": "c",
-    "cstdlib": "c"
-}
+    "cstdlib": "c",
+    "zeal.h": "c",
+    "zvb_palette.h": "c",
+    "thread": "c",
+    "zvb_font.h": "c",
+    "array": "c",
+    "string": "c",
+    "string_view": "c",
+    "zvb_tilemap.h": "c",
+    "gdbstub.h": "c",
+    "zeal_dbg.h": "c",
+    "device.h": "c",
+    "complex": "c"
+  },
 }

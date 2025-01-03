@@ -6,6 +6,20 @@
 #include "hw/mmu.h"
 #include "hw/flash.h"
 #include "hw/ram.h"
+#include "hw/zvb/zvb.h"
+#if CONFIG_ENABLE_GDB_SERVER
+   #include "dbg/zeal_dbg.h"
+
+   #define ZEAL_MAX_BREAKPOINTS 256
+
+    /**
+     * @brief Type to store the breakpoints
+    */
+    typedef struct {
+        uint8_t     type;
+        uint16_t    addr;
+    } zeal_breakpoint_t;
+#endif
 
 typedef uint8_t dev_idx_t;
 
@@ -39,18 +53,34 @@ typedef struct {
 } map_entry_t;
 
 struct zeal_t {
-        /* Memory regions related, the I/O space's granularity is a single byte */
-        map_entry_t io_mapping[IO_MAPPING_SIZE];
-        map_entry_t mem_mapping[MEM_MAPPING_SIZE];
+    /* Memory regions related, the I/O space's granularity is a single byte */
+    map_entry_t io_mapping[IO_MAPPING_SIZE];
+    map_entry_t mem_mapping[MEM_MAPPING_SIZE];
 
-        z80 cpu;
-        mmu_t mmu;
-        flash_t rom;
-        ram_t ram;
+    z80     cpu;
+    mmu_t   mmu;
+    flash_t rom;
+    ram_t   ram;
+    zvb_t   zvb;
+#if CONFIG_ENABLE_GDB_SERVER
+    volatile bool       brk_exec;
+    gdbstub_t           dbg_serv;
+    arch_info_t         dbg_arch;
+    target_ops          dbg_ops;
+    zeal_breakpoint_t   breakpoints[ZEAL_MAX_BREAKPOINTS];
+#endif
 };
 
 typedef struct zeal_t zeal_t;
 
+/**
+ * @brief Initialize Zeal 8-bit Comptuer virtual machine
+ * 
+ * @param machine Zeal 8-bit virtual machine to initialize
+ * @param debug_server When true, initializes the debug server
+ */
+int zeal_init(zeal_t* machine, bool debug_server);
 
-int zeal_init(zeal_t* machine);
 int zeal_run(zeal_t* machine);
+
+void zeal_close(zeal_t* machine);

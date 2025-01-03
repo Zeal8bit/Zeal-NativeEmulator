@@ -126,7 +126,7 @@ static inline void set_hl(z80* const z, uint16_t val)
     z->l = val & 0xFF;
 }
 
-static inline uint8_t get_f(z80* const z)
+uint8_t z80_get_f(z80* const z)
 {
     uint8_t val  = 0;
     val         |= z->cf << 0;
@@ -140,7 +140,12 @@ static inline uint8_t get_f(z80* const z)
     return val;
 }
 
-static inline void set_f(z80* const z, uint8_t val)
+static inline uint8_t get_f(z80* const z)
+{
+    return z80_get_f(z);
+}
+
+void z80_set_f(z80* const z, uint8_t val)
 {
     z->cf = (val >> 0) & 1;
     z->nf = (val >> 1) & 1;
@@ -151,6 +156,12 @@ static inline void set_f(z80* const z, uint8_t val)
     z->zf = (val >> 6) & 1;
     z->sf = (val >> 7) & 1;
 }
+
+static inline void set_f(z80* const z, uint8_t val)
+{
+    z80_set_f(z, val);
+}
+
 
 // increments R, keeping the highest byte intact
 static inline void inc_r(z80* const z)
