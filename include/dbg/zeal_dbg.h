@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "hw/zeal.h"
 #include "dbg/gdbstub.h"
 #define DEBUG_PORT  "5555"
 
@@ -17,8 +16,24 @@
 #define ZEAL_Z80_NUM_REGS   13
 
 
+/**
+ * @brief Type to represent a breakpoint
+*/
+typedef struct {
+    uint8_t     type;
+    uint16_t    addr;
+} zeal_breakpoint_t;
+
+
+/**
+ * @brief Alias for the target GDB operations
+ */
 typedef struct target_ops target_ops;
 
+
+/**
+ * @brief Enumaeration of all the registers pair, as expected by GDB
+ */
 typedef enum
 {
     Z80_AF_REG  = 0,
@@ -38,50 +53,13 @@ typedef enum
 } zeal_z80_reg_t;
 
 
-static int zeal_dbg_init(void* machine);
+/**
+ * @brief Initialize the debug-related structure in the given Zeal machine
+ */
+int zeal_dbg_init(void* machine);
+
 
 /**
- * @brief Callback invoked when a register needs to be read
+ * @brief Run the debug server with the given Zeal machine
  */
-static int zeal_dbg_read_reg(void *args, int regno, size_t *reg_value);
-
-/**
- * @brief Callback invoked when a register needs to be written
- */
-static int zeal_dbg_write_reg(void *args, int regno, size_t data);
-
-/**
- * @brief Callback invoked when a byte in memory needs to be read
- */
-static int zeal_dbg_read_mem(void *args, size_t addr, size_t len, void *val);
-
-/**
- * @brief Callback invoked when a byte in memory needs to be modified
- */
-static int zeal_dbg_write_mem(void *args, size_t addr, size_t len, void *val);
-
-/**
- * @brief Callback invoked when the debugger wants to continue execution
- */
-static gdb_action_t zeal_dbg_cont(void *args);
-
-/**
- * @brief Callback invoked when the debugger wants to single step an instruction
- */
-static gdb_action_t zeal_dbg_stepi(void *args);
-
-/**
- * @brief Callback invoked when the debugger adds a breakpoint
- */
-static bool zeal_dbg_set_bp(void *args, size_t addr, bp_type_t type);
-
-/**
- * @brief Callback invoked when the debugger deletes a breakpoint
- */
-static bool zeal_dbg_del_bp(void *args, size_t addr, bp_type_t type);
-
-/**
- * @brief Callback invoked when the debugger interrupts the current CPU execution
- */
-static void zeal_dbg_on_interrupt(void *args);
-
+int zeal_run_dbg(void* machine);

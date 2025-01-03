@@ -6,19 +6,9 @@
 #include "hw/mmu.h"
 #include "hw/flash.h"
 #include "hw/ram.h"
-#include "hw/zvb/zvb.h"
 #if CONFIG_ENABLE_GDB_SERVER
-   #include "dbg/zeal_dbg.h"
-
-   #define ZEAL_MAX_BREAKPOINTS 256
-
-    /**
-     * @brief Type to store the breakpoints
-    */
-    typedef struct {
-        uint8_t     type;
-        uint16_t    addr;
-    } zeal_breakpoint_t;
+#include "dbg/zeal_dbg.h"
+#define ZEAL_MAX_BREAKPOINTS 256
 #endif
 
 typedef uint8_t dev_idx_t;
@@ -61,8 +51,8 @@ struct zeal_t {
     mmu_t   mmu;
     flash_t rom;
     ram_t   ram;
-    zvb_t   zvb;
 #if CONFIG_ENABLE_GDB_SERVER
+    bool                dbg_mode;
     volatile bool       brk_exec;
     gdbstub_t           dbg_serv;
     arch_info_t         dbg_arch;
