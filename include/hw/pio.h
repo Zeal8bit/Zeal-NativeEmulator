@@ -55,8 +55,6 @@ typedef struct {
 
 int pio_init(void *machine, pio_t *pio);
 
-void pio_listen_pin(port_t *port, uint8_t pin, pio_listener_callback cb);
-
 void pio_set_a_pin(pio_t* pio, uint8_t pin, uint8_t value);
 uint8_t pio_get_a_pin(pio_t* pio, uint8_t pin);
 
