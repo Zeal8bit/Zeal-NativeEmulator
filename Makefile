@@ -2,7 +2,10 @@ bin = zeal.elf
 src = $(wildcard hw/*.c hw/zvb/*.c)
 obj = $(patsubst hw/%.c, build/%.o, $(src))
 
-RAYLIB_PATH = $(shell pwd)/raylib
+ifeq ($(RAYLIB_PATH),)
+RAYLIB_PATH := $(shell pwd)/raylib
+endif
+
 CFLAGS = $(CFLAGS_EXTRA) -g -Wall -Wextra -O2 -std=c99 -Iinclude/ -I$(RAYLIB_PATH)/include -D_POSIX_C_SOURCE=200809L
 LDFLAGS = -L$(RAYLIB_PATH)/lib -lraylib
 CC = gcc
