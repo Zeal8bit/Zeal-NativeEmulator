@@ -821,16 +821,20 @@ void z80_init(z80* const z)
 }
 
 // executes the next instruction in memory + handles interrupts
-void z80_step(z80* const z)
+int z80_step(z80* const z)
 {
+    int cycles = 0;
     if (z->halted) {
         exec_opcode(z, 0x00);
+        cycles = cyc_00[0];
     } else {
         const uint8_t opcode = nextb(z);
         exec_opcode(z, opcode);
+        cycles = cyc_00[opcode];
     }
 
     process_interrupts(z);
+    return cycles;
 }
 
 // outputs to stdout a debug trace of the emulator
