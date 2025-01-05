@@ -619,7 +619,7 @@ static inline void cpd(z80* const z)
 
 static void in_r_c(z80* const z, uint8_t* r)
 {
-    *r    = z->port_in(z->userdata, z->c);
+    *r    = z->port_in(z->userdata, (z->b << 8) | z->c);
     z->zf = *r == 0;
     z->sf = *r >> 7;
     z->pf = parity(*r);
@@ -629,7 +629,7 @@ static void in_r_c(z80* const z, uint8_t* r)
 
 static void ini(z80* const z)
 {
-    uint8_t val = z->port_in(z->userdata, z->c);
+    uint8_t val = z->port_in(z->userdata, (z->b << 8) | z->c);
     wb(z, get_hl(z), val);
     set_hl(z, get_hl(z) + 1);
     z->b       -= 1;
@@ -1267,7 +1267,7 @@ void exec_opcode(z80* const z, uint8_t opcode)
         case 0xDB: {
             const uint8_t port = nextb(z);
             const uint8_t a    = z->a;
-            z->a               = z->port_in(z->userdata, port);
+            z->a               = z->port_in(z->userdata, (z->a << 8) | port);
             z->mem_ptr         = (a << 8) | (z->a + 1);
         } break; // in a,(n)
 
