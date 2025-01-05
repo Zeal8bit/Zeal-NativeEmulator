@@ -13,6 +13,7 @@ typedef struct {
     uint8_t (*read)(device_t* dev, uint32_t addr);
     void (*write)(device_t* dev, uint32_t addr, uint8_t data);
     int size;
+    uint8_t upper_addr;
 } region_t;
 
 struct device_t {

@@ -53,6 +53,7 @@ static uint8_t zeal_io_read(void* opaque, uint16_t addr)
     device_t* device         = entry->dev;
 
     if (device) {
+        device->io_region.upper_addr = addr >> 8;
         return device->io_region.read(device, low - entry->page_from);
     }
 

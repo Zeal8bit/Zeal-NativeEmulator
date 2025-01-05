@@ -8,7 +8,8 @@
 static uint8_t mmu_read(device_t* dev, uint32_t addr)
 {
     mmu_t* mmu    = (mmu_t*) dev;
-    const int idx = (addr >> 14) & 3;
+    const int idx = (dev->io_region.upper_addr >> 6) & 3;
+
     return mmu->pages[idx];
 }
 
