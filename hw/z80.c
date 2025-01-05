@@ -848,6 +848,21 @@ void z80_debug_output(z80* const z)
            z->cyc);
 }
 
+void z80_get_debug_output(z80* const z, char *s)
+{
+    sprintf(s,
+        "PC: %04X AF: %04X\n"
+        "BC: %04X DE: %04X\n"
+        "HL: %04X SP: %04X\n"
+        "IX: %04X IY: %04X\n"
+        " I: %02X    R: %02X\n"
+        "(%02X %02X %02X %02X)\n"
+        "cyc: %lu",
+        z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r,
+        rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
+        z->cyc);
+}
+
 // function to call when an NMI is to be serviced
 void z80_gen_nmi(z80* const z)
 {

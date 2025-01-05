@@ -138,6 +138,27 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 }
 
 
+static uint8_t RAYLIB_KEYS[384];
+static void zeal_read_keyboard(zeal_t* machine, int delta) {
+    int keyCode;
+    // look for newly pressed keys
+    while((keyCode = GetKeyPressed())) {
+        RAYLIB_KEYS[keyCode] = 1;
+        key_pressed(&machine->keyboard, keyCode);
+    }
+
+    // look for newly released keys
+    for(uint16_t i = 0; i < sizeof(RAYLIB_KEYS); i++) {
+        if(RAYLIB_KEYS[i] && IsKeyReleased(i)) {
+            RAYLIB_KEYS[i] = 0;
+            key_released(&machine->keyboard, i);
+        }
+    }
+
+    keyboard_send_next(&machine->keyboard, &machine->pio, delta);
+}
+
+
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -170,14 +191,23 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
 
     // const pio = new PIO(this);
+
     // const uart = new UART(this, pio);
+    err = uart_init(&machine->uart, &machine->pio);
+    CHECK_ERR(err);
     // const uart_web_serial = new UART_WebSerial(this, pio);
+
     // const i2c = new I2C(this, pio);
+
     // const keyboard = new Keyboard(this, pio);
-    // // const keyboard = new Keyboard(this);
+    err = keyboard_init(&machine->keyboard, &machine->pio);
+    CHECK_ERR(err);
+
     // const ds1307 = new I2C_DS1307(this, i2c);
+
     // /* Extensions */
     // const compactflash = new CompactFlash(this);
+
     // /* We could pass an initial content to the EEPROM, but set it to null for the moment */
     // const eeprom = new I2C_EEPROM(this, i2c, null);
 
@@ -199,21 +229,31 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
     zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
+    zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
 
     return 0;
 }
 
 
 int zeal_run(zeal_t* machine)
-{    
-
+{
     while (zvb_window_opened(&machine->zvb)) {
         const int elapsed_tstates = z80_step(&machine->cpu);
         /* TODO: Go through all the devices that have a tick function */
         zvb_tick(&machine->zvb, elapsed_tstates);
-#if DEBUG
-        z80_debug_output(&machine->cpu);
-#endif
+
+        zeal_read_keyboard(machine, elapsed_tstates);
+
+// #if DEBUG
+//         z80_debug_output(&machine->cpu);
+// #endif
+
+// #if DEBUG
+//         char text[256];
+//         z80_get_debug_output(&machine->cpu, text);
+//         // DrawTextEx(Font font, const char *text, Vector2 position, float fontSize, float spacing, Color tint)
+//         DrawTextEx(font, text, (Vector2){ .x = 10, .y = 100}, 48, 0, RAYWHITE);
+// #endif
     }
 
     zvb_deinit(&machine->zvb);

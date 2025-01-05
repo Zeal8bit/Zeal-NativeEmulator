@@ -8,6 +8,8 @@
 #include "hw/ram.h"
 #include "hw/zvb/zvb.h"
 #include "hw/pio.h"
+#include "hw/keyboard.h"
+#include "hw/uart.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -51,6 +53,8 @@ struct zeal_t {
     ram_t   ram;
     zvb_t   zvb;
     pio_t   pio;
+    keyboard_t keyboard;
+    uart_t uart;
 };
 
 typedef struct zeal_t zeal_t;

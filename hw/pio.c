@@ -205,7 +205,7 @@ uint8_t pio_get_b_pin(pio_t *pio, uint8_t pin)
     return pio_get_pin(&pio->port_b, pin);
 }
 
-void pio_listen_pin(port_t* port, uint8_t pin, pio_listener_callback cb)
+static void pio_listen_pin(port_t* port, uint8_t pin, pio_listener_callback cb)
 {
     if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners[pin])) {
         return;
