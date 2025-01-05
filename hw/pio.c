@@ -6,7 +6,6 @@
 #include "hw/z80.h"
 #include "hw/device.h"
 
-static void* zeal;
 
 static uint8_t io_read(device_t* dev, uint32_t addr)
 {
@@ -128,9 +127,8 @@ int pio_init(void* machine, pio_t* pio)
         pio->port_b.listeners_change[i].state = 0;
     }
 
-    zeal = machine;
-
     pio->size = 0x10;
+    pio->machine = machine;
 
     device_init_io(DEVICE(pio), "pio_dev", io_read, io_write, pio->size);
     return 0;
@@ -158,7 +156,7 @@ uint8_t pio_check_bitctrl_interrupt(port_t* port, uint8_t pin, uint8_t value)
 /**
  * Set the pin of a port to a certain value: 0 or 1.
  */
-void pio_set_pin(port_t* port, uint8_t pin, uint8_t value)
+static void pio_set_pin(port_t* port, uint8_t pin, uint8_t value, z80* cpu)
 {
     uint8_t previous_state = port->state;
     if (value == 0) {
@@ -172,8 +170,7 @@ void pio_set_pin(port_t* port, uint8_t pin, uint8_t value)
     /* Check if an interrupt need to be generated */
     if (port->int_enable && changed && port->mode != MODE_OUTPUT &&
         (port->mode != MODE_BITCTRL || pio_check_bitctrl_interrupt(port, pin, value))) {
-        zeal_t *machine = (zeal_t*)zeal;
-        z80_gen_int(&machine->cpu, port->int_vector);
+        z80_gen_int(cpu, port->int_vector);
     }
 }
 
@@ -181,14 +178,15 @@ void pio_set_pin(port_t* port, uint8_t pin, uint8_t value)
  * Get the pin of a port.
  * Returns 0 or 1.
  */
-uint8_t pio_get_pin(port_t* port, uint8_t pin)
+static inline uint8_t pio_get_pin(port_t* port, uint8_t pin)
 {
     return BIT(port->state, pin);
 }
 
 void pio_set_a_pin(pio_t *pio, uint8_t pin, uint8_t value)
 {
-    pio_set_pin(&pio->port_a, pin, value);
+    zeal_t *machine = (zeal_t*) (pio->machine);
+    pio_set_pin(&pio->port_a, pin, value, &machine->cpu);
 }
 
 uint8_t pio_get_a_pin(pio_t *pio, uint8_t pin)
@@ -198,7 +196,8 @@ uint8_t pio_get_a_pin(pio_t *pio, uint8_t pin)
 
 void pio_set_b_pin(pio_t *pio, uint8_t pin, uint8_t value)
 {
-    pio_set_pin(&pio->port_b, pin, value);
+    zeal_t *machine = (zeal_t*) (pio->machine);
+    pio_set_pin(&pio->port_a, pin, value, &machine->cpu);
 }
 
 uint8_t pio_get_b_pin(pio_t *pio, uint8_t pin)

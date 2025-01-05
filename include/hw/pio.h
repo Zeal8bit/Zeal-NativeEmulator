@@ -25,7 +25,7 @@ typedef struct {
 } listener_change_t;
 
 typedef struct {
-    char port; // a,b
+    char    port; // a,b
     uint8_t mode;
     uint8_t state;
     uint8_t dir;
@@ -49,19 +49,19 @@ typedef struct {
     // pio specific
     port_t port_a;
     port_t port_b;
+    void*  machine;
 } pio_t;
 
 
 int pio_init(void *machine, pio_t *pio);
-void pio_set_pin(port_t *port, uint8_t pin, uint8_t value);
-uint8_t pio_get_pin(port_t *port, uint8_t pin);
+
 void pio_listen_pin(port_t *port, uint8_t pin, pio_listener_callback cb);
 
 void pio_set_a_pin(pio_t* pio, uint8_t pin, uint8_t value);
 uint8_t pio_get_a_pin(pio_t* pio, uint8_t pin);
+
 void pio_set_b_pin(pio_t* pio, uint8_t pin, uint8_t value);
 uint8_t pio_get_b_pin(pio_t* pio, uint8_t pin);
-
 
 void pio_listen_a_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb);
 void pio_unlisten_a_pin(pio_t* pio, uint8_t pin);
