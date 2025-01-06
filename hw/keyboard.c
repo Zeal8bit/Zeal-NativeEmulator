@@ -123,9 +123,6 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     keyboard_t* keyboard = (keyboard_t*) dev;
     (void) addr;
 
-#if DEBUG
-    printf("keyboard:io_read: %02x\n", keyboard->shift_register);
-#endif
     return keyboard->shift_register;
 }
 
@@ -163,9 +160,6 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
         keyboard->pin_state = 0;
         pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
-#if DEBUG
-        printf("keyboard_send_next:0: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
-#endif
         return;
     }
 
@@ -173,17 +167,11 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
 
     keyboard->pin_state = 1;
     pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-#if DEBUG
-    printf("keyboard_send_next:1: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
-#endif
 
     // /* reached the end? */
     if (keyboard->fifo_position > keyboard->fifo_length) {
         keyboard->fifo_length = 0;
         keyboard->fifo_position = 0;
-#if DEBUG
-        printf("keyboard_send_next: clear fifo\n");
-#endif
     }
 
     elapsed_tstates = 0;
