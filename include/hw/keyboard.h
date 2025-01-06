@@ -20,6 +20,7 @@ typedef struct {
         uint8_t fifo_queue[FIFO_SIZE];
         size_t fifo_length;
         size_t fifo_position;
+        uint8_t pin_state;
 } keyboard_t;
 
 int keyboard_init(keyboard_t* keyboard, pio_t* pio);

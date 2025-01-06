@@ -13,7 +13,6 @@ static unsigned long PS2_SCANCODE_DURATION = 0;
 static unsigned long PS2_KEY_TIMING = 0;
 static unsigned long PS2_RELEASE_DELAY = 0;
 static unsigned long elapsed_tstates;
-static uint8_t pin_state = 0;
 
 static const uint16_t TABLE[384] = {
     [KEY_BACKSPACE]    = 0x66,
@@ -123,6 +122,9 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     keyboard_t* keyboard = (keyboard_t*) dev;
     (void) addr;
 
+#if DEBUG
+    printf("keyboard:io_read: %02x\n", keyboard->shift_register);
+#endif
     return keyboard->shift_register;
 }
 
@@ -135,44 +137,54 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     keyboard->size = 0x10;
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
 
-    pio_set_b_pin(pio, IO_KEYBOARD_PIN, 1);
+    keyboard->pin_state = 1;
     keyboard->fifo_length = 0;
+    keyboard->fifo_position = 0;
+
+    pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
     return 0;
 }
 
 void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
 {
-    if(keyboard->fifo_length == 0) return; // nothing to process
+    if(keyboard->fifo_length == 0) {
+        return; // nothing to process
+    }
 
     /* wait */
     elapsed_tstates += delta;
-    if(pin_state == 0) {
-        if(elapsed_tstates < PS2_KEY_TIMING + PS2_SCANCODE_DURATION) return;
-        pin_state = 1;
-        pio_set_b_pin(pio, IO_KEYBOARD_PIN, pin_state);
-        elapsed_tstates = 0;
+
+    if(keyboard->pin_state == 1) {
+        if(elapsed_tstates < PS2_KEY_TIMING) return;
+
+        // shift in the next code
+        keyboard->shift_register = keyboard->fifo_queue[keyboard->fifo_position++];
+        keyboard->pin_state = 0;
+        pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+
+#if DEBUG
+        printf("keyboard_send_next:0: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
+#endif
         return;
     }
 
-    if(elapsed_tstates < PS2_KEY_TIMING) return;
+    if(elapsed_tstates < PS2_KEY_TIMING + PS2_SCANCODE_DURATION) return;
 
-    /* reached the end? */
-    size_t p = ++keyboard->fifo_position;
-    if (p > keyboard->fifo_length) {
+    keyboard->pin_state = 1;
+    pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+#if DEBUG
+    printf("keyboard_send_next:1: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
+#endif
+
+    // /* reached the end? */
+    if (keyboard->fifo_position > keyboard->fifo_length) {
         keyboard->fifo_length = 0;
         keyboard->fifo_position = 0;
-        pin_state = 0;
-        return;
+#if DEBUG
+        printf("keyboard_send_next: clear fifo\n");
+#endif
     }
-
-    keyboard->shift_register = keyboard->fifo_queue[p];
-// #if DEBUG
-//     printf("Keycode: %02x\n", keyboard->shift_register); fflush(stdout);
-// #endif
-    keyboard->fifo_position = p;
-
-    pio_set_b_pin(pio, IO_KEYBOARD_PIN, pin_state);
 
     elapsed_tstates = 0;
 }
@@ -218,6 +230,7 @@ uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
     if (keyboard->fifo_length >= FIFO_SIZE)
         return 1;
 
+    // printf("key_pressed: fifo_length %zu\n", keyboard->fifo_length);
     uint8_t codes[MAX_KEYCODES];
     uint8_t n_codes = get_ps2_code(keycode, codes);
     for (uint8_t i = 0; i < n_codes; i++) {
