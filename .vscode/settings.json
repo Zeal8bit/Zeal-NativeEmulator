@@ -1,6 +1,7 @@
 {
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/include",
+    "${workspaceFolder}/raygui/src",
     "${env:ZVB_SDK_PATH}/include",
     "${env:ZVB_SDK_PATH}/sdcc",
     "${env:ZOS_PATH}/kernel_headers/sdcc/include",
@@ -45,6 +46,9 @@
     "utility": "c",
     "zvb.h": "c",
     "stat.h": "c",
-    "stdbool.h": "c"
+    "stdbool.h": "c",
+    "typeinfo": "c",
+    "chrono": "c",
+    "text_encoding": "c"
 }
 }

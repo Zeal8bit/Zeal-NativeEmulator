@@ -5,12 +5,15 @@
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
 #include "raylib.h"
-
+#include "raygui.h"
+#include "../../raygui/styles/lavanda/style_lavanda.h"
 
 #define BENCHMARK           0
 
-#define WIN_VISIBLE_WIDTH   640
-#define WIN_VISIBLE_HEIGHT  480
+#define WIN_VISIBLE_WIDTH   1280
+#define WIN_VISIBLE_HEIGHT  1024
+#define WIN_PHSYICAL_WIDTH  640
+#define WIN_PHYSICAL_HEIGHT 480
 #define WIN_NAME            "Zeal 8-bit Computer"
 #define WIN_LOG_LEVEL       LOG_WARNING
 
@@ -50,6 +53,11 @@
 #define SHADER_PALETTE_NAME         "palette"
 #define SHADER_FONT_NAME            "font"
 #define SHADER_TIMELAPS_NAME        "tilemaps"
+
+Rectangle panelRec = { 0, 0, WIN_PHSYICAL_WIDTH/2, WIN_PHYSICAL_HEIGHT/2 };
+Rectangle panelContentRec = {0, 0, WIN_PHSYICAL_WIDTH, WIN_PHYSICAL_HEIGHT };
+Rectangle panelView = { 0, 0, 320, 240 };
+Vector2 panelScroll = { 0, 0 };
 
 
 static const long s_tstates_remaining[STATE_COUNT] = {
@@ -150,7 +158,9 @@ int zvb_init(zvb_t* dev)
     SetTargetFPS(60);
 #endif
 
-    dev->tex_dummy = LoadRenderTexture(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
+    GuiLoadStyleLavanda();
+
+    dev->tex_dummy = LoadRenderTexture(WIN_PHSYICAL_WIDTH, WIN_PHYSICAL_HEIGHT);
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_IDLE;
@@ -180,21 +190,34 @@ static void zvb_render(zvb_t* zvb)
     zvb_tilemap_update(&zvb->layers);
 
 
+
     BeginDrawing();
-        ClearBackground(BLACK);
+        ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
+
+        GuiScrollPanel(panelRec, "Video Display", panelContentRec, &panelScroll, &panelView);
+
         BeginShaderMode(shader);
 
             SetShaderValue(shader, GetShaderLocation(shader, "video_mode"), &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
 
-            /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
+            // Draw the custom texture within the content area of the scroll panel
             DrawTextureRec(zvb->tex_dummy.texture,
-                           (Rectangle){ 0, 0, WIN_VISIBLE_WIDTH, -WIN_VISIBLE_HEIGHT },
-                           (Vector2){ 0, 0 },
-                           WHITE);
+                            (Rectangle){ -panelScroll.x, panelScroll.y, panelView.width, -panelView.height },
+                            (Vector2){ panelRec.x, panelRec.y + 24},
+                            WHITE);
+
+            // just  draw the texture on the bottom left
+            DrawTextureRec(zvb->tex_dummy.texture,
+                            (Rectangle){ 0, 0, WIN_PHSYICAL_WIDTH, -WIN_PHYSICAL_HEIGHT },
+                            (Vector2){ 0, WIN_PHYSICAL_HEIGHT },
+                            WHITE);
 
         EndShaderMode();
+
+        // GuiSliderBar((Rectangle){ 720, 385, 145, 15}, "WIDTH", TextFormat("%i", (int)panelContentRec.width), &panelContentRec.width, 1, WIN_PHSYICAL_WIDTH);
+        // GuiSliderBar((Rectangle){ 720, 410, 145, 15 }, "HEIGHT", TextFormat("%i", (int)panelContentRec.height), &panelContentRec.height, 1, WIN_PHYSICAL_HEIGHT);
     EndDrawing();
 
 
