@@ -1,5 +1,5 @@
 # RAYLIB_PATH = $(shell pwd)/raylib
-RAYGUI_PATH = raygui/src
+RAYGUI_PATH = raygui
 
 bin = zeal.elf
 src = $(wildcard hw/*.c hw/zvb/*.c utils/*.c)
