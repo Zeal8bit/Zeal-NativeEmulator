@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
+#include <string.h>
 
-#include "string.h"
 #include "raylib.h"
 #include "hw/helpers.h"
 #include "hw/keyboard.h"
@@ -123,9 +123,6 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     keyboard_t* keyboard = (keyboard_t*) dev;
     (void) addr;
 
-#if DEBUG
-    printf("keyboard:io_read: %02x\n", keyboard->shift_register);
-#endif
     return keyboard->shift_register;
 }
 
@@ -163,9 +160,6 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
         keyboard->pin_state = 0;
         pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
-#if DEBUG
-        printf("keyboard_send_next:0: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
-#endif
         return;
     }
 
@@ -173,18 +167,6 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
 
     keyboard->pin_state = 1;
     pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-#if DEBUG
-    printf("keyboard_send_next:1: toggle pin_state %d at %zu [%zu]\n", keyboard->pin_state, keyboard->fifo_position, elapsed_tstates);
-#endif
-
-    // /* reached the end? */
-    if (keyboard->fifo_position > keyboard->fifo_length) {
-        keyboard->fifo_length = 0;
-        keyboard->fifo_position = 0;
-#if DEBUG
-        printf("keyboard_send_next: clear fifo\n");
-#endif
-    }
 
     elapsed_tstates = 0;
 }
@@ -226,7 +208,6 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 {
-    // printf("key_pressed: fifo_length %zu\n", keyboard->fifo_length);
     uint8_t codes[MAX_KEYCODES];
     int n_codes = get_ps2_code(keycode, codes);
     for (int i = 0; i < n_codes; i++) {
@@ -241,11 +222,6 @@ uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
     /* PAUSE has no break code */
     if (keycode == KEY_PAUSE) {
         return 0;
-    }
-
-    // TODO: notify caller that the result wasn't handled?
-    if (keyboard->fifo_length >= FIFO_SIZE) {
-        return 1;
     }
 
     uint8_t codes[MAX_KEYCODES];
