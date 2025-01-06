@@ -16,12 +16,10 @@ typedef struct {
     // device_t
     device_t parent;
     size_t size; // in bytes
+
     // keyboard specific
     uint8_t shift_register;
-
     fifo_t queue;
-    size_t fifo_length;
-    size_t fifo_position;
     uint8_t pin_state;
 } keyboard_t;
 

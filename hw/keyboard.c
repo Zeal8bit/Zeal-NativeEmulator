@@ -168,12 +168,6 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
     keyboard->pin_state = 1;
     pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
-    // /* reached the end? */
-    if (keyboard->fifo_position > keyboard->fifo_length) {
-        keyboard->fifo_length = 0;
-        keyboard->fifo_position = 0;
-    }
-
     elapsed_tstates = 0;
 }
 
@@ -214,7 +208,6 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 {
-    // printf("key_pressed: fifo_length %zu\n", keyboard->fifo_length);
     uint8_t codes[MAX_KEYCODES];
     int n_codes = get_ps2_code(keycode, codes);
     for (int i = 0; i < n_codes; i++) {
@@ -229,11 +222,6 @@ uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
     /* PAUSE has no break code */
     if (keycode == KEY_PAUSE) {
         return 0;
-    }
-
-    // TODO: notify caller that the result wasn't handled?
-    if (keyboard->fifo_length >= FIFO_SIZE) {
-        return 1;
     }
 
     uint8_t codes[MAX_KEYCODES];
