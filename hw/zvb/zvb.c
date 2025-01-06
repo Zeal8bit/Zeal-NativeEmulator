@@ -1,3 +1,5 @@
+#define RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT 24
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,7 +196,11 @@ static void zvb_render(zvb_t* zvb)
     BeginDrawing();
         ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
 
+        // show the panel
         GuiScrollPanel(panelRec, "Video Display", panelContentRec, &panelScroll, &panelView);
+        // show the scroll offset
+        DrawText(TextFormat("[%f, %f]", panelScroll.x, panelScroll.y), panelRec.width + 24, 24, 20, RED);
+
 
         BeginShaderMode(shader);
 
@@ -204,8 +210,8 @@ static void zvb_render(zvb_t* zvb)
 
             // Draw the custom texture within the content area of the scroll panel
             DrawTextureRec(zvb->tex_dummy.texture,
-                            (Rectangle){ -panelScroll.x, panelScroll.y, panelView.width, -panelView.height },
-                            (Vector2){ panelRec.x, panelRec.y + 24},
+                            (Rectangle){ -panelScroll.x, -panelScroll.y, panelView.width, -panelView.height },
+                            (Vector2){ panelRec.x, panelRec.y + RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT}, // title is 24
                             WHITE);
 
             // just  draw the texture on the bottom left
@@ -215,9 +221,6 @@ static void zvb_render(zvb_t* zvb)
                             WHITE);
 
         EndShaderMode();
-
-        // GuiSliderBar((Rectangle){ 720, 385, 145, 15}, "WIDTH", TextFormat("%i", (int)panelContentRec.width), &panelContentRec.width, 1, WIN_PHSYICAL_WIDTH);
-        // GuiSliderBar((Rectangle){ 720, 410, 145, 15 }, "HEIGHT", TextFormat("%i", (int)panelContentRec.height), &panelContentRec.height, 1, WIN_PHYSICAL_HEIGHT);
     EndDrawing();
 
 
