@@ -127,8 +127,8 @@ static void print_and_increment(zvb_text_t* text, uint8_t value, zvb_tilemap_t* 
     }
 
     /* Make sure the current cursor are not out of bounds */
-    const uint32_t cursor_x = (text->cursor_pos.x + text->scroll.x) % text->visible_lines;
-    const uint32_t cursor_y = (text->cursor_pos.y + text->scroll.y) % text->visible_columns;
+    const uint32_t cursor_x = (text->cursor_pos.x + text->scroll.x) % text->visible_columns;
+    const uint32_t cursor_y = (text->cursor_pos.y + text->scroll.y) % text->visible_lines;
     const uint32_t index = cursor_y * TEXT_MAXIMUM_COLUMNS + cursor_x;
     zvb_tilemap_write(tilemap, 0, index, value);
     zvb_tilemap_write(tilemap, 1, index, text->color);
