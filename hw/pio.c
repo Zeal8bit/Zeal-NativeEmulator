@@ -197,7 +197,7 @@ uint8_t pio_get_a_pin(pio_t *pio, uint8_t pin)
 void pio_set_b_pin(pio_t *pio, uint8_t pin, uint8_t value)
 {
     zeal_t *machine = (zeal_t*) (pio->machine);
-    pio_set_pin(&pio->port_a, pin, value, &machine->cpu);
+    pio_set_pin(&pio->port_b, pin, value, &machine->cpu);
 }
 
 uint8_t pio_get_b_pin(pio_t *pio, uint8_t pin)
