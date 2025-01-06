@@ -1,6 +1,6 @@
 bin = zeal.elf
-src = $(wildcard hw/*.c hw/zvb/*.c)
-obj = $(patsubst hw/%.c, build/%.o, $(src))
+src = $(wildcard hw/*.c hw/zvb/*.c utils/*.c)
+obj = $(patsubst hw/%.c, build/%.o, $(patsubst utils/%.c, build/utils/%.o, $(src)))
 
 ifeq ($(RAYLIB_PATH),)
 RAYLIB_PATH := $(shell pwd)/raylib
@@ -22,6 +22,12 @@ $(bin): $(obj)
 build/%.o: hw/%.c
 	@mkdir -p build $(shell dirname $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+
+build/utils/%.o: utils/%.c
+	@mkdir -p build $(shell dirname $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 
 clean:
 	-rm -rf build

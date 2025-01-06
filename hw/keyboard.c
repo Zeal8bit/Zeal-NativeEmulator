@@ -1,9 +1,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "string.h"
 #include <inttypes.h>
+#include <assert.h>
 
+#include "string.h"
 #include "raylib.h"
 #include "hw/helpers.h"
 #include "hw/keyboard.h"
@@ -138,8 +139,7 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
 
     keyboard->pin_state = 1;
-    keyboard->fifo_length = 0;
-    keyboard->fifo_position = 0;
+    assert(fifo_init(&keyboard->queue, FIFO_SIZE));
 
     pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
@@ -148,7 +148,7 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 
 void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
 {
-    if(keyboard->fifo_length == 0) {
+    if(fifo_size(&keyboard->queue) == 0) {
         return; // nothing to process
     }
 
@@ -158,8 +158,8 @@ void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
     if(keyboard->pin_state == 1) {
         if(elapsed_tstates < PS2_KEY_TIMING) return;
 
-        // shift in the next code
-        keyboard->shift_register = keyboard->fifo_queue[keyboard->fifo_position++];
+        /* Shift in the next code */
+        assert(fifo_pop(&keyboard->queue, &keyboard->shift_register));
         keyboard->pin_state = 0;
         pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
 
@@ -226,15 +226,11 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 {
-    // TODO: notify caller that the result wasn't handled?
-    if (keyboard->fifo_length >= FIFO_SIZE)
-        return 1;
-
     // printf("key_pressed: fifo_length %zu\n", keyboard->fifo_length);
     uint8_t codes[MAX_KEYCODES];
-    uint8_t n_codes = get_ps2_code(keycode, codes);
-    for (uint8_t i = 0; i < n_codes; i++) {
-        keyboard->fifo_queue[keyboard->fifo_length++] = codes[i];
+    int n_codes = get_ps2_code(keycode, codes);
+    for (int i = 0; i < n_codes; i++) {
+        fifo_push(&keyboard->queue, codes[i]);
     }
 
     return 0;
@@ -243,31 +239,31 @@ uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
 {
     /* PAUSE has no break code */
-    if (keycode == KEY_PAUSE)
+    if (keycode == KEY_PAUSE) {
         return 0;
+    }
 
     // TODO: notify caller that the result wasn't handled?
-    if (keyboard->fifo_length >= FIFO_SIZE)
+    if (keyboard->fifo_length >= FIFO_SIZE) {
         return 1;
+    }
 
     uint8_t codes[MAX_KEYCODES];
-    uint8_t released[MAX_KEYCODES + 1];
-    uint8_t n_codes = get_ps2_code(keycode, codes);
-    if (n_codes < 1)
+    int n_codes = get_ps2_code(keycode, codes);
+    if (n_codes < 1) {
         return 1;
-
-    // make a copy, so we can shift it over
-    memcpy(&released[1], codes, MAX_KEYCODES);
-    n_codes += 1; // add the release code
-
-    if (codes[0] == 0xE0) {
-        released[0] = codes[0];
-        released[1] = BREAK_CODE;
-    } else {
-        released[0] = BREAK_CODE;
     }
-    for (uint8_t i = 0; i < n_codes; i++) {
-        keyboard->fifo_queue[keyboard->fifo_length++] = released[i];
+
+    /* If the first keycode is `0xE0`, we have to send `0E0` before BREAK_CODE */
+    uint8_t* from = codes;
+    if (codes[0] == 0xE0) {
+        fifo_push(&keyboard->queue, codes[0]);
+        n_codes--;
+        from++;
+    }
+    fifo_push(&keyboard->queue, BREAK_CODE);
+    for (int i = 0; i < n_codes; i++) {
+        fifo_push(&keyboard->queue, from[i]);
     }
 
     return 0;
