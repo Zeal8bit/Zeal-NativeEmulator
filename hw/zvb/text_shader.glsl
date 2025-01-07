@@ -14,6 +14,9 @@
 #define SCREEN_WIDTH    (640)
 #define SCREEN_HEIGHT   (480)
 
+#define MAX_X           (80)
+#define MAX_Y           (40)
+
 #define TILEMAP_ENTRIES  3199
 
 
@@ -27,6 +30,13 @@ uniform sampler2D   font;
 uniform vec3        palette[PALETTE_SIZE]; 
 uniform int         video_mode; 
 
+/* Cursor display related */
+uniform ivec2       curpos;
+uniform ivec2       curcolor; // .x is the background color, .y is the foreground
+uniform int         curchar;
+uniform ivec2       scroll;
+
+
 out vec4 finalColor;
 
 vec4 text_mode(vec2 flipped, bool mode_320) {
@@ -37,15 +47,32 @@ vec4 text_mode(vec2 flipped, bool mode_320) {
     }
 
     ivec2 char_pos = ivec2(int(flipped.x) / CHAR_WIDTH, int(flipped.y) / CHAR_HEIGHT);
-    int   char_idx = char_pos.x + char_pos.y * 80;
-    /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-    float float_idx = float(char_idx) / (TILEMAP_ENTRIES + 0.1);
-    vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
+    float tile_idx;
+    int bg_color;
+    int fg_color;
 
-    // Get the address of the pixel to show, the tile number is in the RED attribute ([0.0,1.0])
+    if (char_pos == curpos) {
+        tile_idx = float(curchar) / 255.01;
+        bg_color = curcolor.x;
+        fg_color = curcolor.y;
+    } else {
+        /* Take scrolling into account */
+        char_pos.x = (char_pos.x + scroll.x) % MAX_X;
+        char_pos.y = (char_pos.t + scroll.y) % MAX_Y;
+        int char_idx = char_pos.x + char_pos.y * MAX_X;
+        /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
+        float float_idx = float(char_idx) / (TILEMAP_ENTRIES + 0.1);
+        vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
+         /* The tile number is in the RED attribute ([0.0,1.0]) */
+        tile_idx = attr.r;
+        fg_color = int(attr.a * 255);
+        bg_color = int(attr.b * 255);
+    }
+    
+    // Get the address of the pixel to show
     ivec2 in_tile = ivec2(int(flipped.x) % CHAR_WIDTH, int(flipped.y) % CHAR_HEIGHT);
     // As the address will be used to get a pixel from the texture, it must also be between 0.0 and 1.0
-    vec2 addr = (vec2(attr.r * (CHAR_COUNT -  1) * CHAR_WIDTH, 0.0) + in_tile)
+    vec2 addr = (vec2(tile_idx * (CHAR_COUNT -  1) * CHAR_WIDTH, 0.0) + in_tile)
                / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
 
     // Check whether the color to show is foreground or background
@@ -55,10 +82,10 @@ vec4 text_mode(vec2 flipped, bool mode_320) {
         // Alpha channel (.w) for foreground color. In the texture,
         // the colors are between 0f and 1f, so to get back the original data,
         // multiply by 255 (0 becomes 0 and 1 becomes 255).
-        return vec4(palette[int(attr.a * 255)], 1.0f);
+        return vec4(palette[fg_color], 1.0f);
     } else {
         // Blue channel (.z) for background color
-        return vec4(palette[int(attr.b * 255)], 1.0f);
+        return vec4(palette[bg_color], 1.0f);
     }
 }
 

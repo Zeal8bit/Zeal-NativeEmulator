@@ -48,9 +48,14 @@
 /**
  * @brief Names of the variables in the shader
  */
+#define SHADER_VIDMODE_NAME         "video_mode"
 #define SHADER_PALETTE_NAME         "palette"
 #define SHADER_FONT_NAME            "font"
-#define SHADER_TIMELAPS_NAME        "tilemaps"
+#define SHADER_TILEMAPS_NAME        "tilemaps"
+#define SHADER_CURPOS_NAME          "curpos"
+#define SHADER_CURCOLOR_NAME        "curcolor"
+#define SHADER_CURCHAR_NAME         "curchar"
+#define SHADER_TSCROLL_NAME         "scroll"
 
 
 static const long s_tstates_remaining[STATE_COUNT] = {
@@ -59,6 +64,7 @@ static const long s_tstates_remaining[STATE_COUNT] = {
     /* The raster stays in V-Blank during 1.430ms  */
     [STATE_VBLANK]       = US_TO_TSTATES(1430), 
 };
+
 
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
@@ -80,19 +86,37 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
         zvb_palette_write(&zvb->palette, addr - PALETTE_ADDR_START, data);
     } else if(IN_RANGE(SPRITES_ADDR_START, SPRITES_ADDR_END, addr)) {
         // TODO
-        printf("[ZVB] Sprites not supaddred yet\n");
+        printf("[ZVB] Sprites not supported yet\n");
     } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
         zvb_font_write(&zvb->font, addr - FONT_ADDR_START, data);
     } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
-        printf("[ZVB] Tileset not supaddred yet\n");
+        printf("[ZVB] Tileset not supported yet\n");
     }
 }
 
 
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
-    (void) dev;
-    (void) addr;
+    zvb_t* zvb = (zvb_t*) dev;
+
+    /* Video Board configuraiton goes from 0x00 to 0x0F included */
+    if (addr == ZVB_IO_BANK_REG) {
+    } else if (addr == ZVB_MEM_START_REG) {
+    } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
+        if (addr == ZVB_IO_CONF_START + 0xd) {
+            return (zvb->screen_enabled & 1) << 7;
+        }
+    } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
+        const uint32_t subaddr = addr - ZVB_IO_BANK_START;
+        if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
+            return zvb_text_read(&zvb->text, subaddr);
+        } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
+            // peri_crc32.io_write(subaddr, data);
+        } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
+            // peri_sound.io_write(subaddr, data);
+        }
+    }
+
     return 0;
 }
 
@@ -115,7 +139,6 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
         if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
             zvb_text_write(&zvb->text, subaddr, data, &zvb->layers);
-            // textConfigWrite(subaddr, data);
         } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
             // peri_crc32.io_write(subaddr, data);
         } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
@@ -172,22 +195,37 @@ static void zvb_render(zvb_t* zvb)
     /* Update the palette to flush the changes to the shader */
     const Shader shader = zvb->text_shader;
 
-    const int tilemaps_idx = GetShaderLocation(shader, SHADER_TIMELAPS_NAME);
+    const int mode_idx     = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
+    const int tilemaps_idx = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
     const int font_idx     = GetShaderLocation(shader, SHADER_FONT_NAME);
     const int palette_idx  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    /* Text mode related */
+    const int cursor_pos_idx   = GetShaderLocation(shader, SHADER_CURPOS_NAME);
+    const int cursor_color_idx = GetShaderLocation(shader, SHADER_CURCOLOR_NAME);
+    const int cursor_char_idx  = GetShaderLocation(shader, SHADER_CURCHAR_NAME);
+    const int scroll_idx       = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
 
     zvb_palette_update(&zvb->palette, &zvb->text_shader, palette_idx);
     zvb_font_update(&zvb->font);
     zvb_tilemap_update(&zvb->layers);
 
+    /* Get the cursor position and its color */
+    zvb_text_info_t info;
+    zvb_text_update(&zvb->text, &info);
 
     BeginDrawing();
         ClearBackground(BLACK);
         BeginShaderMode(shader);
 
-            SetShaderValue(shader, GetShaderLocation(shader, "video_mode"), &zvb->mode, SHADER_UNIFORM_INT);
+            /* Transfer all the texture to the GPU */
+            SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
+            /* Transfer the text-related variables */
+            SetShaderValue(shader, cursor_pos_idx,   &info.pos, SHADER_UNIFORM_IVEC2);
+            SetShaderValue(shader, cursor_color_idx, &info.color, SHADER_UNIFORM_IVEC2);
+            SetShaderValue(shader, cursor_char_idx,  &info.charidx, SHADER_UNIFORM_INT);
+            SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
 
             /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
             DrawTextureRec(zvb->tex_dummy.texture,
@@ -203,8 +241,8 @@ static void zvb_render(zvb_t* zvb)
     double endTime = GetTime();
     double elapsedTime = endTime - startTime;
     average += elapsedTime;
-    if (++counter == 600) {
-        printf("Time taken : %f ms\n", (average / 600) * 1000);
+    if (++counter == 60) {
+        printf("Time taken : %f ms\n", (average / 60) * 1000);
         counter = 0;
         average = 0;
     }

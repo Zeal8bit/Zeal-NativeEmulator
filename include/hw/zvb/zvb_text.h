@@ -75,7 +75,20 @@ typedef struct {
     bool    wait_for_next_char;
     uint8_t visible_lines;
     uint8_t visible_columns;
+    int     frame_counter;
+    bool    cursor_shown;
 } zvb_text_t;
+
+
+/**
+ * @brief Information about the cursor and scrolling
+ */
+typedef struct {
+    int pos[2];
+    int color[2];
+    int charidx;
+    int scroll[2];
+} zvb_text_info_t;
 
 
 /**
@@ -100,3 +113,11 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
  * @param layer Layer to read from (0 or 1)
  */
 uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr);
+
+
+/**
+ * @brief Update the text, must be called once per frame. The info structure will be filled.
+ * 
+ * @returns true if the cursor is shown, false else.
+ */
+bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info);

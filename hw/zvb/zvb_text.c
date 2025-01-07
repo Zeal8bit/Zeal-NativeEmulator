@@ -54,6 +54,8 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
 
         case TEXT_REG_CURSOR_TIME:
             text->cursor_time = value;
+            text->frame_counter = 0;
+            text->cursor_shown = false;
             break;
 
         case TEXT_REG_CURSOR_CHAR:
@@ -115,6 +117,37 @@ uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr)
             return text->flags.val;
     }
     return 0;
+}
+
+
+bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
+{
+    if (text == NULL || info == NULL) {
+        return false;
+    }
+
+    /* Check if we have to blink the cursor */
+    if (text->cursor_time != 0 && text->cursor_time != 0xff) {
+        if (++text->frame_counter == text->cursor_time) {
+            text->cursor_shown = !text->cursor_shown;
+            text->frame_counter = 0;   
+        }
+    }
+
+    *info = (zvb_text_info_t) {
+        .pos   = { text->cursor_pos.x, text->cursor_pos.y },
+        .color = { (text->cursor_color >> 4) & 0xf,
+                    text->cursor_color & 0xf },
+        .charidx = text->cursor_char,
+        .scroll = { text->scroll.x, text->scroll.y },
+    };
+
+    if (!text->cursor_shown) {
+        /* Hide the cursor by making the X coordinate out of bounds */
+        info->pos[0] |= 0x80;  
+    }
+
+    return text->cursor_shown;
 }
 
 
