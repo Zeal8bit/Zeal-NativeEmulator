@@ -12,6 +12,12 @@
   "editor.tabSize": 4,
   "editor.insertSpaces": true,
   "editor.detectIndentation": false,
+  "glsllint.additionalStageAssociations": {
+    ".fs": "frag",
+    ".glsl": "frag",
+    ".vs": "vert"
+  },
+  "glsllint.fallBackStage": "frag",
   "files.associations": {
     "*.asm": "z80-macroasm",
     "stdint.h": "c",
@@ -47,5 +53,5 @@
     "stat.h": "c",
     "stdbool.h": "c",
     "helpers.h": "c"
-}
+  }
 }
