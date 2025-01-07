@@ -1,7 +1,5 @@
 #pragma once
 
-#define US_TO_TSTATES(v)    ((v) * 10)
-
 #define DEVICE(dev) &dev->parent
 
 typedef struct device_t device_t;

@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "raylib.h"
-#include "hw/helpers.h"
+#include "utils/helpers.h"
 #include "hw/keyboard.h"
 #include "hw/pio.h"
 

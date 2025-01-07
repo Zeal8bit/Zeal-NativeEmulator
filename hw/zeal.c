@@ -190,8 +190,6 @@ int zeal_init(zeal_t* machine)
     err = zvb_init(&machine->zvb);
     CHECK_ERR(err);
 
-    // const pio = new PIO(this);
-
     // const uart = new UART(this, pio);
     err = uart_init(&machine->uart, &machine->pio);
     CHECK_ERR(err);

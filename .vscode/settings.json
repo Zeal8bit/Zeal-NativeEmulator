@@ -45,6 +45,7 @@
     "utility": "c",
     "zvb.h": "c",
     "stat.h": "c",
-    "stdbool.h": "c"
+    "stdbool.h": "c",
+    "helpers.h": "c"
 }
 }

@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "raylib.h"
+#include "utils/helpers.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
-#include "raylib.h"
 
 
 #define BENCHMARK           0
