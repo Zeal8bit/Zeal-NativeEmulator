@@ -75,6 +75,7 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
         rgb565 = (data << 0) | (pal->raw_palette[addr + 1] << 8);
     }
     palette_rgb565_to_color(rgb565, &pal->vec_palette[addr / 2]);
+    pal->dirty = 1;
 }
 
 
