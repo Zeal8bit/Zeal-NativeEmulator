@@ -5,6 +5,7 @@
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
 #include "hw/zvb/zvb_tilemap.h"
+#include "hw/zvb/zvb_tileset.h"
 #include "hw/zvb/zvb_text.h"
 
 /**
@@ -18,6 +19,8 @@
 #define ZVB_IO_BANK_REG     0x0e
 #define ZVB_MEM_START_REG   0x0f
 #define ZVB_IO_CONF_START   0x10
+    #define ZVB_IO_CONFIG_MODE_REG      ((ZVB_IO_CONF_START) + 0xc)
+    #define ZVB_IO_CONFIG_STATUS_REG    ((ZVB_IO_CONF_START) + 0xd)
 #define ZVB_IO_CONF_END     0x20
 #define ZVB_IO_BANK_START   0x20
 #define ZVB_IO_BANK_END     0x30
@@ -51,11 +54,26 @@ typedef enum {
 } zvb_video_mode_t;
 
 
+/**
+ * @brief Status register in the configuration "bank"
+ */
+typedef union {
+    struct {
+        uint8_t h_blank : 1;
+        uint8_t v_blank : 1;
+        uint8_t rsvd    : 5;
+        uint8_t vid_ena : 1;
+    };
+    uint8_t raw;
+} zvb_status_t;
+
+
 typedef struct {
     device_t         parent;
     zvb_video_mode_t mode;
     zvb_tilemap_t    layers;
     zvb_font_t       font;
+    zvb_tileset_t    tileset;
     zvb_palette_t    palette;
 
     /* I/O controllers */
@@ -63,9 +81,11 @@ typedef struct {
 
     /* Internally used to make the shader work on the whole screen */
     Shader           text_shader;
+    Shader           gfx_shader;
     RenderTexture    tex_dummy;
 
     /* Internal values */
+    zvb_status_t     status;
     bool             screen_enabled;
     uint8_t          io_bank;
     int              state; // Any of the STATE_* macros 

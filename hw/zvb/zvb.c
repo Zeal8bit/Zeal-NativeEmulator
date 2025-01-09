@@ -52,6 +52,7 @@
 #define SHADER_PALETTE_NAME         "palette"
 #define SHADER_FONT_NAME            "font"
 #define SHADER_TILEMAPS_NAME        "tilemaps"
+#define SHADER_TILESET_NAME         "tileset"
 #define SHADER_CURPOS_NAME          "curpos"
 #define SHADER_CURCOLOR_NAME        "curcolor"
 #define SHADER_CURCHAR_NAME         "curchar"
@@ -90,7 +91,7 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
         zvb_font_write(&zvb->font, addr - FONT_ADDR_START, data);
     } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
-        printf("[ZVB] Tileset not supported yet\n");
+        zvb_tileset_write(&zvb->tileset, addr - TILESET_ADDR_START, data);
     }
 }
 
@@ -103,8 +104,10 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
     if (addr == ZVB_IO_BANK_REG) {
     } else if (addr == ZVB_MEM_START_REG) {
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
-        if (addr == ZVB_IO_CONF_START + 0xd) {
-            return (zvb->screen_enabled & 1) << 7;
+        if (addr == ZVB_IO_CONFIG_MODE_REG) {
+            return zvb->mode;
+        } else if (addr == ZVB_IO_CONFIG_STATUS_REG) {
+            return zvb->status.raw;
         }
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
@@ -130,10 +133,12 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if (addr == ZVB_MEM_START_REG) {
         printf("[WARNING] zvb memory mapping register is not supported\n");
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
-        // if (addr == 0x1c)
-        //     updateModeData(canvas, canvas_layer1, value);
-        if (addr == ZVB_IO_CONF_START + 0xd) {
-            zvb->screen_enabled = (data >> 7) & 1;
+        if (addr == ZVB_IO_CONFIG_MODE_REG) {
+            zvb->mode = data;
+        } else if (addr == ZVB_IO_CONFIG_STATUS_REG) {
+            const zvb_status_t status = { .raw = data };
+            /* Only the video_enable is writable */
+            zvb->status.vid_ena = status.vid_ena;
         }
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
@@ -165,9 +170,11 @@ int zvb_init(zvb_t* dev)
 
     /* Initialize the sub-components */
     dev->text_shader = LoadShader(NULL, TextFormat("./hw/zvb/text_shader.glsl"));
+    dev->gfx_shader  = LoadShader(NULL, TextFormat("./hw/zvb/gfx_shader.glsl"));
     zvb_palette_init(&dev->palette);
     zvb_font_init(&dev->font);
     zvb_tilemap_init(&dev->layers);
+    zvb_tileset_init(&dev->tileset);
     zvb_text_init(&dev->text);
 
 #if !BENCHMARK
@@ -184,14 +191,23 @@ int zvb_init(zvb_t* dev)
 }
 
 
-static void zvb_render(zvb_t* zvb)
+/**
+ * @brief Render the screen when `vid_ena` is set (screen disabled)
+ */
+static void zvb_render_disabled_mode(zvb_t* zvb)
 {
-#if BENCHMARK
-    double startTime = GetTime();
-    static double average = 0;
-    static int counter = 0;
-#endif
-    
+    (void) zvb;
+    BeginDrawing();
+        ClearBackground(BLACK);
+    EndDrawing();
+}
+
+
+/**
+ * @brief Render the screen in text mode (80x40 and 40x20)
+ */
+static void zvb_render_text_mode(zvb_t* zvb)
+{
     /* Update the palette to flush the changes to the shader */
     const Shader shader = zvb->text_shader;
 
@@ -205,7 +221,6 @@ static void zvb_render(zvb_t* zvb)
     const int cursor_char_idx  = GetShaderLocation(shader, SHADER_CURCHAR_NAME);
     const int scroll_idx       = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
 
-    zvb_palette_update(&zvb->palette, &zvb->text_shader, palette_idx);
     zvb_font_update(&zvb->font);
     zvb_tilemap_update(&zvb->layers);
 
@@ -217,6 +232,7 @@ static void zvb_render(zvb_t* zvb)
         ClearBackground(BLACK);
         BeginShaderMode(shader);
 
+            zvb_palette_update(&zvb->palette, &zvb->text_shader, palette_idx);
             /* Transfer all the texture to the GPU */
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
@@ -235,7 +251,65 @@ static void zvb_render(zvb_t* zvb)
 
         EndShaderMode();
     EndDrawing();
+}
 
+
+/**
+ * @brief Render the screen in graphics mode
+ */
+static void zvb_render_gfx_mode(zvb_t* zvb)
+{
+    const Shader shader = zvb->gfx_shader;
+
+    const int mode_idx     = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
+    const int tilemaps_idx = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
+    const int tileset_idx  = GetShaderLocation(shader, SHADER_TILESET_NAME);
+    const int palette_idx  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    // const int scroll_idx   = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
+
+    zvb_tileset_update(&zvb->tileset);
+    zvb_tilemap_update(&zvb->layers);
+    zvb_palette_update(&zvb->palette, &zvb->gfx_shader, palette_idx);
+
+    BeginDrawing();
+        ClearBackground(BLACK);
+        BeginShaderMode(shader);
+
+            /* Transfer all the texture to the GPU */
+            SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
+            SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
+            /* Transfer the text-related variables */
+            // SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
+
+            /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
+            DrawTextureRec(zvb->tex_dummy.texture,
+                           (Rectangle){ 0, 0, WIN_VISIBLE_WIDTH, -WIN_VISIBLE_HEIGHT },
+                           (Vector2){ 0, 0 },
+                           WHITE);
+
+        EndShaderMode();
+    EndDrawing();
+}
+
+
+static void zvb_render(zvb_t* zvb)
+{
+#if BENCHMARK
+    double startTime = GetTime();
+    static double average = 0;
+    static int counter = 0;
+#endif
+
+    if (zvb->status.vid_ena) {
+        if (zvb->mode == MODE_TEXT_640 || zvb->mode == MODE_TEXT_320) {
+            zvb_render_text_mode(zvb);
+        } else {
+            zvb_render_gfx_mode(zvb);
+        }
+    } else {
+        zvb_render_disabled_mode(zvb);
+    }
 
 #if BENCHMARK
     double endTime = GetTime();
@@ -264,7 +338,10 @@ void zvb_tick(zvb_t* zvb, const int tstates)
         zvb->tstates_counter = s_tstates_remaining[zvb->state];
         /* If the new state is V-blank (i.e. we reached blank), render the screen */
         if (zvb->state == STATE_VBLANK) {
+            zvb->status.v_blank = 1;
             zvb_render(zvb);
+        } else {
+            zvb->status.v_blank = 0;
         }
     }
 }
