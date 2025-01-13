@@ -10,6 +10,7 @@
 #include "hw/pio.h"
 #include "hw/keyboard.h"
 #include "hw/uart.h"
+#include "hw/hostfs.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -55,6 +56,8 @@ struct zeal_t {
     pio_t   pio;
     keyboard_t keyboard;
     uart_t uart;
+
+    zeal_hostfs_t hostfs;
 };
 
 typedef struct zeal_t zeal_t;

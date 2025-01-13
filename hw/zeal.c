@@ -5,6 +5,7 @@
 
 #include "hw/zeal.h"
 
+
 #define CHECK_ERR(err)  \
     do {                \
         if (err)        \
@@ -26,7 +27,7 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
         return device->mem_region.read(device, phys_addr - start_addr);
     }
 
-    printf("[INFO] No device replied to memory read: 0x%04x\n", phys_addr);
+    printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
     return 0;
 }
 
@@ -211,6 +212,14 @@ int zeal_init(zeal_t* machine)
 
     // /* Create a HostFS to ease the file and directory access for the VM */
     // const hostfs = new HostFS(this.mem_read, this.mem_write);
+    const memory_op_t ops = {
+        .read_byte = zeal_mem_read,
+        .write_byte = zeal_mem_write,
+        .opaque = machine
+    };
+    err = hostfs_init(&machine->hostfs, &ops);
+    CHECK_ERR(err);
+
     // const virtdisk = new VirtDisk(512, this.mem_read, this.mem_write);
 
     /* Register the devices in the memory space */
@@ -224,10 +233,11 @@ int zeal_init(zeal_t* machine)
     zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
-    zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
     zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
+    zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
+    zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
 
     return 0;
 }

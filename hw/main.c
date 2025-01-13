@@ -9,12 +9,16 @@ int main(int argc, char* argv[])
 {
     int opt;
     const char* rom_filename = NULL;
+    const char* hostfs_path = NULL;
     int code = 0;
 
-    while ((opt = getopt(argc, argv, "r:")) != -1) {
+    while ((opt = getopt(argc, argv, "r:h:")) != -1) {
         switch (opt) {
             case 'r':
                 rom_filename = optarg; // Store the filename
+                break;
+            case 'h':
+                hostfs_path = optarg; // Store the filename
                 break;
             case '?':
                 // Handle unknown options
@@ -25,7 +29,11 @@ int main(int argc, char* argv[])
 
     if (rom_filename == NULL) {
         printf("No ROM file specified. Use -r <filename>.\n");
-        // return 1;
+        return 1;
+    }
+
+    if (hostfs_path == NULL) {
+        printf("No HostFS path specified.\n");
     }
 
     // Process non-option arguments, if needed
@@ -39,6 +47,10 @@ int main(int argc, char* argv[])
     }
 
     if (flash_load_from_file(&machine.rom, rom_filename)) {
+        return 1;
+    }
+
+    if (hostfs_load_path(&machine.hostfs, hostfs_path)) {
         return 1;
     }
 
