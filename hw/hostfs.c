@@ -227,6 +227,7 @@ static void fs_close(zeal_hostfs_t *host) {
         set_status(host, ZOS_SUCCESS);
     } else if (descriptor_valid(dir)) {
         closedir(dir);
+        host->directories[desc] = NULL;
         set_status(host, ZOS_SUCCESS);
     } else {
         set_status(host, ZOS_FAILURE); 
