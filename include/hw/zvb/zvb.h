@@ -7,6 +7,7 @@
 #include "hw/zvb/zvb_tilemap.h"
 #include "hw/zvb/zvb_tileset.h"
 #include "hw/zvb/zvb_text.h"
+#include "hw/zvb/zvb_sprites.h"
 
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
@@ -75,6 +76,7 @@ typedef struct {
     zvb_font_t       font;
     zvb_tileset_t    tileset;
     zvb_palette_t    palette;
+    zvb_sprites_t    sprites;
 
     /* I/O controllers */
     zvb_text_t       text;
@@ -88,7 +90,7 @@ typedef struct {
     zvb_status_t     status;
     bool             screen_enabled;
     uint8_t          io_bank;
-    int              state; // Any of the STATE_* macros 
+    int              state; // Any of the STATE_* macros
     long             tstates_counter;
 } zvb_t;
 

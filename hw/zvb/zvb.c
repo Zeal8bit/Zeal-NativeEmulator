@@ -57,13 +57,14 @@
 #define SHADER_CURCOLOR_NAME        "curcolor"
 #define SHADER_CURCHAR_NAME         "curchar"
 #define SHADER_TSCROLL_NAME         "scroll"
+#define SHADER_SPRITES_NAME         "sprites"
 
 
 static const long s_tstates_remaining[STATE_COUNT] = {
     /* The raster spends 15.253 ms in the visible area */
     [STATE_IDLE]         = US_TO_TSTATES(15253),
     /* The raster stays in V-Blank during 1.430ms  */
-    [STATE_VBLANK]       = US_TO_TSTATES(1430), 
+    [STATE_VBLANK]       = US_TO_TSTATES(1430),
 };
 
 
@@ -86,8 +87,7 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if(IN_RANGE(PALETTE_ADDR_START, PALETTE_ADDR_END, addr)) {
         zvb_palette_write(&zvb->palette, addr - PALETTE_ADDR_START, data);
     } else if(IN_RANGE(SPRITES_ADDR_START, SPRITES_ADDR_END, addr)) {
-        // TODO
-        printf("[ZVB] Sprites not supported yet\n");
+        zvb_sprites_write(&zvb->sprites, addr - SPRITES_ADDR_START, data);
     } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
         zvb_font_write(&zvb->font, addr - FONT_ADDR_START, data);
     } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
@@ -165,7 +165,7 @@ int zvb_init(zvb_t* dev)
 
     /* Initialize the window. It must be done before any sahder is created! */
     dev->mode = MODE_DEFAULT;
-    SetTraceLogLevel(WIN_LOG_LEVEL); 
+    SetTraceLogLevel(WIN_LOG_LEVEL);
     InitWindow(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT, WIN_NAME);
 
     /* Initialize the sub-components */
@@ -176,6 +176,7 @@ int zvb_init(zvb_t* dev)
     zvb_tilemap_init(&dev->layers);
     zvb_tileset_init(&dev->tileset);
     zvb_text_init(&dev->text);
+    zvb_sprites_init(&dev->sprites);
 
 #if !BENCHMARK
     SetTargetFPS(60);
@@ -265,11 +266,13 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int tilemaps_idx = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
     const int tileset_idx  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     const int palette_idx  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    const int sprites_idx  = GetShaderLocation(shader, SHADER_SPRITES_NAME);
     // const int scroll_idx   = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
 
     zvb_tileset_update(&zvb->tileset);
     zvb_tilemap_update(&zvb->layers);
     zvb_palette_update(&zvb->palette, &zvb->gfx_shader, palette_idx);
+    zvb_sprites_update(&zvb->sprites);
 
     BeginDrawing();
         ClearBackground(BLACK);
@@ -279,6 +282,7 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
+            SetShaderValueTexture(shader, sprites_idx, *zvb_sprites_texture(&zvb->sprites));
             /* Transfer the text-related variables */
             // SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
 
@@ -356,6 +360,6 @@ bool zvb_window_opened(zvb_t* zvb)
 
 void zvb_deinit(zvb_t* zvb)
 {
-    UnloadRenderTexture(zvb->tex_dummy); 
+    UnloadRenderTexture(zvb->tex_dummy);
     CloseWindow();
 }
