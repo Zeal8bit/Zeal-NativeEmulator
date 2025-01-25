@@ -188,6 +188,9 @@ int zvb_init(zvb_t* dev)
     dev->state = STATE_IDLE;
     dev->tstates_counter = s_tstates_remaining[dev->state];
 
+    /* Enable the screen by default */
+    dev->status.vid_ena = 1;
+
     return 0;
 }
 
