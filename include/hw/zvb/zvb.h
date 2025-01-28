@@ -20,8 +20,20 @@
 #define ZVB_IO_BANK_REG     0x0e
 #define ZVB_MEM_START_REG   0x0f
 #define ZVB_IO_CONF_START   0x10
-    #define ZVB_IO_CONFIG_MODE_REG      ((ZVB_IO_CONF_START) + 0xc)
-    #define ZVB_IO_CONFIG_STATUS_REG    ((ZVB_IO_CONF_START) + 0xd)
+    #define ZVB_IO_CONFIG_VPOS_LOW      0x00
+    #define ZVB_IO_CONFIG_VPOS_HIGH     0x01
+    #define ZVB_IO_CONFIG_HPOS_LOW      0x02
+    #define ZVB_IO_CONFIG_HPOS_HIGH     0x03
+    #define ZVB_IO_CONFIG_L0_SCR_Y_LOW  0x04
+    #define ZVB_IO_CONFIG_L0_SCR_Y_HIGH 0x05
+    #define ZVB_IO_CONFIG_L0_SCR_X_LOW  0x06
+    #define ZVB_IO_CONFIG_L0_SCR_X_HIGH 0x07
+    #define ZVB_IO_CONFIG_L1_SCR_Y_LOW  0x08
+    #define ZVB_IO_CONFIG_L1_SCR_Y_HIGH 0x09
+    #define ZVB_IO_CONFIG_L1_SCR_X_LOW  0x0a
+    #define ZVB_IO_CONFIG_L1_SCR_X_HIGH 0x0b
+    #define ZVB_IO_CONFIG_MODE_REG      0x0c
+    #define ZVB_IO_CONFIG_STATUS_REG    0x0d
 #define ZVB_IO_CONF_END     0x20
 #define ZVB_IO_BANK_START   0x20
 #define ZVB_IO_BANK_END     0x30
@@ -70,6 +82,16 @@ typedef union {
 
 
 typedef struct {
+    uint32_t l0_latch;
+    uint32_t l1_latch;
+    uint32_t l0_scroll_x;
+    uint32_t l0_scroll_y;
+    uint32_t l1_scroll_x;
+    uint32_t l1_scroll_y;
+} zvb_ctrl_t;
+
+
+typedef struct {
     device_t         parent;
     zvb_video_mode_t mode;
     zvb_tilemap_t    layers;
@@ -88,6 +110,7 @@ typedef struct {
 
     /* Internal values */
     zvb_status_t     status;
+    zvb_ctrl_t       ctrl;
     bool             screen_enabled;
     uint8_t          io_bank;
     int              state; // Any of the STATE_* macros

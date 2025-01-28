@@ -18,6 +18,8 @@
 #define SCREEN_WIDTH    (640)
 #define SCREEN_HEIGHT   (480)
 
+#define MAX_PIXEL_X     (1280)
+#define MAX_PIXEL_Y     (640)
 #define MAX_X           (80)
 #define MAX_Y           (40)
 
@@ -39,8 +41,8 @@ uniform sampler2D   sprites;
 uniform sampler2D   tileset;
 uniform vec3        palette[PALETTE_SIZE];
 uniform int         video_mode;
-
-// uniform ivec2       scroll;
+uniform ivec2       scroll_l0;
+uniform ivec2       scroll_l1;
 
 
 out vec4 finalColor;
@@ -68,28 +70,41 @@ float color_from_idx(int idx, int offset)
     }
 }
 
-vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
-    ivec2 tile_pos = ivec2(int(flipped.x) / TILE_WIDTH, int(flipped.y) / TILE_HEIGHT);
-    // TODO: implement scrolling
-    ivec2 scroll = ivec2(0, 0);
+
+vec4 get_attr(vec2 flipped, ivec2 scroll) {
+    ivec2 orig = ivec2(int(flipped.x), int(flipped.y));
+    ivec2 pix_pos = orig + scroll;
+
     /* Take scrolling into account */
-    tile_pos.x = (tile_pos.x + scroll.x) % MAX_X;
-    tile_pos.y = (tile_pos.t + scroll.y) % MAX_Y;
+    pix_pos.x = (pix_pos.x % MAX_PIXEL_X);
+    pix_pos.y = (pix_pos.y % MAX_PIXEL_Y);
+
+    ivec2 tile_pos = ivec2(int(pix_pos.x) / TILE_WIDTH, int(pix_pos.y) / TILE_HEIGHT);
     int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
 
     /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
-    int in_tile = (int(flipped.x) % TILE_WIDTH) + ((int(flipped.y) % TILE_HEIGHT) * TILE_WIDTH);
+    int in_tile = (int(pix_pos.x) % TILE_WIDTH) + ((int(pix_pos.y) % TILE_HEIGHT) * TILE_WIDTH);
 
     /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
     float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
-    vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
+    vec4 ret = texture(tilemaps, vec2(float_idx, 1.0));
+
+    /* Replace unused B aatribute with in_tile value */
+    ret.b = float(in_tile);
+    return ret;
+}
+
+
+vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
+    vec4 attr_l0 = get_attr(flipped, scroll_l0);
+    vec4 attr_l1 = get_attr(flipped, scroll_l1);
 
     /* Get the two indexes */
-    int l0_idx = int(attr.r * (TILE_COUNT - 1));
-    int l1_idx = int(attr.g * (TILE_COUNT - 1));
+    int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
+    int l1_idx = int(attr_l1.g * (TILE_COUNT - 1));
 
-    float l0_color = color_from_idx(l0_idx, in_tile);
-    float l1_color = color_from_idx(l1_idx, in_tile);
+    float l0_color = color_from_idx(l0_idx, int(attr_l0.b));
+    float l1_color = color_from_idx(l1_idx, int(attr_l1.b));
 
     int l0_icolor = int(l0_color * 255);
     int l1_icolor = int(l1_color * 255);
@@ -101,6 +116,7 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
         return vec4(palette[l1_icolor], 1.0f);
     }
 }
+
 
 void main() {
     // Create absolute coordinates, with (0,0) at the top-left

@@ -58,6 +58,9 @@
 #define SHADER_CURCHAR_NAME         "curchar"
 #define SHADER_TSCROLL_NAME         "scroll"
 #define SHADER_SPRITES_NAME         "sprites"
+/* Scrolling vlaues for GFX mode */
+#define SHADER_SCROLL0_NAME         "scroll_l0"
+#define SHADER_SCROLL1_NAME         "scroll_l1"
 
 
 static const long s_tstates_remaining[STATE_COUNT] = {
@@ -96,6 +99,30 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
+static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
+{
+    switch(addr) {
+        case ZVB_IO_CONFIG_L0_SCR_Y_LOW:    return (zvb->ctrl.l0_scroll_y >> 0) & 0xff;
+        case ZVB_IO_CONFIG_L0_SCR_Y_HIGH:   return (zvb->ctrl.l0_scroll_y >> 8) & 0xff;
+        case ZVB_IO_CONFIG_L0_SCR_X_LOW:    return (zvb->ctrl.l0_scroll_x >> 0) & 0xff;
+        case ZVB_IO_CONFIG_L0_SCR_X_HIGH:   return (zvb->ctrl.l0_scroll_x >> 8) & 0xff;
+
+        case ZVB_IO_CONFIG_L1_SCR_Y_LOW:    return (zvb->ctrl.l1_scroll_y >> 0) & 0xff;
+        case ZVB_IO_CONFIG_L1_SCR_Y_HIGH:   return (zvb->ctrl.l1_scroll_y >> 8) & 0xff;
+        case ZVB_IO_CONFIG_L1_SCR_X_LOW:    return (zvb->ctrl.l1_scroll_x >> 0) & 0xff;
+        case ZVB_IO_CONFIG_L1_SCR_X_HIGH:   return (zvb->ctrl.l1_scroll_x >> 8) & 0xff;
+
+        case ZVB_IO_CONFIG_MODE_REG:        return zvb->mode;
+        case ZVB_IO_CONFIG_STATUS_REG:      return zvb->status.raw;
+        default:
+            printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            break;
+    }
+
+    return 0;
+}
+
+
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
@@ -104,11 +131,8 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
     if (addr == ZVB_IO_BANK_REG) {
     } else if (addr == ZVB_MEM_START_REG) {
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
-        if (addr == ZVB_IO_CONFIG_MODE_REG) {
-            return zvb->mode;
-        } else if (addr == ZVB_IO_CONFIG_STATUS_REG) {
-            return zvb->status.raw;
-        }
+        const uint32_t subaddr = addr - ZVB_IO_CONF_START;
+        return zvb_io_read_control(zvb, subaddr);
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
         if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
@@ -124,22 +148,58 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 }
 
 
+static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
+{
+    /* We may need to interpret the data as a status below */
+    const zvb_status_t status = { .raw = value };
+
+    switch(addr) {
+        case ZVB_IO_CONFIG_L0_SCR_Y_LOW:
+        case ZVB_IO_CONFIG_L0_SCR_X_LOW:
+            zvb->ctrl.l0_latch = value;
+            break;
+        case ZVB_IO_CONFIG_L0_SCR_Y_HIGH:
+            zvb->ctrl.l0_scroll_y = (value << 8) + zvb->ctrl.l0_latch;
+            break;
+        case ZVB_IO_CONFIG_L0_SCR_X_HIGH:
+            zvb->ctrl.l0_scroll_x = (value << 8) + zvb->ctrl.l0_latch;
+            break;
+
+        case ZVB_IO_CONFIG_L1_SCR_Y_LOW:
+        case ZVB_IO_CONFIG_L1_SCR_X_LOW:
+            zvb->ctrl.l1_latch = value;
+            break;
+        case ZVB_IO_CONFIG_L1_SCR_Y_HIGH:
+            zvb->ctrl.l1_scroll_y = (value << 8) + zvb->ctrl.l1_latch;
+            break;
+        case ZVB_IO_CONFIG_L1_SCR_X_HIGH:
+            zvb->ctrl.l1_scroll_x = (value << 8) + zvb->ctrl.l1_latch;
+            break;
+
+        case ZVB_IO_CONFIG_MODE_REG:
+            zvb->mode = value;
+            break;
+        case ZVB_IO_CONFIG_STATUS_REG:
+            zvb->status.vid_ena = status.vid_ena;
+            break;
+        default:
+            printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            break;
+    }
+}
+
+
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    /* Video Board configuraiton goes from 0x00 to 0x0F included */
+    /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_BANK_REG) {
         zvb->io_bank = data;
     } else if (addr == ZVB_MEM_START_REG) {
         printf("[WARNING] zvb memory mapping register is not supported\n");
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
-        if (addr == ZVB_IO_CONFIG_MODE_REG) {
-            zvb->mode = data;
-        } else if (addr == ZVB_IO_CONFIG_STATUS_REG) {
-            const zvb_status_t status = { .raw = data };
-            /* Only the video_enable is writable */
-            zvb->status.vid_ena = status.vid_ena;
-        }
+        const uint32_t subaddr = addr - ZVB_IO_CONF_START;
+        zvb_io_write_control(zvb, subaddr, data);
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
         if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
@@ -270,7 +330,8 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int tileset_idx  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     const int palette_idx  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
     const int sprites_idx  = GetShaderLocation(shader, SHADER_SPRITES_NAME);
-    // const int scroll_idx   = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
+    const int scroll0_idx  = GetShaderLocation(shader, SHADER_SCROLL0_NAME);
+    const int scroll1_idx  = GetShaderLocation(shader, SHADER_SCROLL1_NAME);
 
     zvb_tileset_update(&zvb->tileset);
     zvb_tilemap_update(&zvb->layers);
@@ -287,7 +348,8 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
             SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
             SetShaderValueTexture(shader, sprites_idx, *zvb_sprites_texture(&zvb->sprites));
             /* Transfer the text-related variables */
-            // SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
+            SetShaderValue(shader, scroll0_idx,  &zvb->ctrl.l0_scroll_x, SHADER_UNIFORM_IVEC2);
+            SetShaderValue(shader, scroll1_idx,  &zvb->ctrl.l1_scroll_x, SHADER_UNIFORM_IVEC2);
 
             /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
             DrawTextureRec(zvb->tex_dummy.texture,
