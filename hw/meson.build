@@ -12,7 +12,8 @@ sources += files([
         'i2c.c',
         'i2c/ds1307.c',
         'i2c/at24c512.c',
-        'compactflash.c' ])
+        'compactflash.c',
+        'userport/snes_adapter.c'])
 
 if get_option('enable_debugger')
     sources += files(['zeal_debugger.c', 'zeal_input.c'])
