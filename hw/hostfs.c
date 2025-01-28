@@ -556,24 +556,41 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
     struct stat path_stat;
 
     if (root_path == NULL) {
-        return 0;
+        // assume the current working directory
+        root_path = "./";
     }
 
-    if (stat(root_path, &path_stat) != 0) {
-        printf("[HostFS] Path %s does not exist or is not accessible\n", root_path);
+    const char* resolved_path = NULL;
+    #ifdef _WIN32
+    char resolved_path_buffer[_MAX_PATH];
+    resolved_path = _fullpath(resolved_path_buffer, root_path, _MAX_PATH)
+    #else
+    char resolved_path_buffer[PATH_MAX];
+    resolved_path = realpath(root_path, resolved_path_buffer);
+    #endif
+
+    if(resolved_path == NULL) {
+        printf("[HostFS] Error resolving path %s\n", root_path);
+        return 1;
+    }
+
+    if (stat(resolved_path, &path_stat) != 0) {
+        printf("[HostFS] Path %s does not exist or is not accessible\n", resolved_path);
         return 1;
     }
 
     if (!S_ISDIR(path_stat.st_mode)) {
-        printf("[HostFS] Path %s must be a directory!\n", root_path);
+        printf("[HostFS] Path %s must be a directory!\n", resolved_path);
         return 1;
     }
 
-    if (access(root_path, R_OK | W_OK) != 0) {
-        printf("[HostFS] Path %s must be accessible in both read and write!\n", root_path);
+    if (access(resolved_path, R_OK | W_OK) != 0) {
+        printf("[HostFS] Path %s must be accessible in both read and write!\n", resolved_path);
         return 1;
     }
 
-    hostfs->root_path = root_path;
+    hostfs->root_path = (const char *)calloc(strlen(resolved_path), sizeof(char));
+    memcpy((void *)hostfs->root_path, resolved_path, strlen(resolved_path));
+
     return 0;
 }
