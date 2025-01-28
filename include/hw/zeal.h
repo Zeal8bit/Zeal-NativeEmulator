@@ -25,6 +25,7 @@
 #include "hw/semihost.h"
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
+#include "hw/userport/snes_adapter.h"
 
 #include "hw/i2c.h"
 #include "hw/i2c/ds1307.h"
@@ -89,6 +90,7 @@ struct zeal_t {
     ds1307_t rtc;
     at24c512_t eeprom;
     compactflash_t compactflash;
+    snes_adapter_t snes_adapter;
 
     /* Renderer */
     RenderTexture2D  zvb_out;

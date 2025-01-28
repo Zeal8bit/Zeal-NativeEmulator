@@ -395,10 +395,16 @@ int zeal_init(zeal_t* machine)
 #ifndef PLATFORM_WEB
         SetWindowFocused(); // force focus on the window to capture keypresses
 #endif
+
 #if !BENCHMARK
         SetTargetFPS(60);
 #endif
         notif_reset();
+
+        /* Force rendering the window, to allow Raylib periphs to attach (ie; gamepads) */
+        BeginDrawing();
+            ClearBackground(BLACK);
+        EndDrawing();
 
         /* Since we want to enable scaling, make the ZVB output always go to a texture first */
         machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
@@ -446,6 +452,9 @@ int zeal_init(zeal_t* machine)
 
     // const keyboard = new Keyboard(this, pio);
     err = keyboard_init(&machine->keyboard, &machine->pio);
+    CHECK_ERR(err);
+
+    err = snes_adapter_init(&machine->snes_adapter, &machine->pio);
     CHECK_ERR(err);
 
     // const ds1307 = new I2C_DS1307(this, i2c);

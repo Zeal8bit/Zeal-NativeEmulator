@@ -4,3 +4,5 @@ tmp/
 roms/*
 *.ini
 .vscode
+external/
+tests/*

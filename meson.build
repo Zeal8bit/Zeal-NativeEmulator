@@ -44,6 +44,7 @@ subdir('hw')
 subdir('utils')
 subdir('assets')
 
+
 run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)
 res = run_command(
     'cp',
