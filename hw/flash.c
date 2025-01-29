@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 /* Required for file operations */
 #include <unistd.h>
 #include <sys/types.h>
@@ -9,6 +10,7 @@
 #include <fcntl.h>
 /* **** */
 #include "hw/flash.h"
+#include "utils/paths.h"
 
 
 static uint8_t flash_read(device_t* dev, uint32_t addr)
@@ -54,11 +56,20 @@ int flash_init(flash_t* f)
 
 int flash_load_from_file(flash_t* flash, const char* name)
 {
-    if (flash == NULL || name == NULL) {
+    if (flash == NULL /* || name == NULL */) {
         return -1;
     }
 
-    int fd = open(name, O_RDONLY);
+    char rom_path[PATH_MAX];
+    if(name != NULL) {
+        snprintf(rom_path, sizeof(rom_path), "%s", name);
+    } else {
+        char path_buffer[PATH_MAX];
+        get_executable_dir(path_buffer, sizeof(path_buffer));
+        snprintf(rom_path, sizeof(rom_path), "%s/%s", path_buffer, "roms/default.img");
+    }
+
+    int fd = open(rom_path, O_RDONLY);
     if (fd < 0) {
         perror("[FLASH] Could not open file to load");
         return fd;
@@ -71,7 +82,7 @@ int flash_load_from_file(flash_t* flash, const char* name)
         return rd;
     }
 
-    printf("[FLASH] %s loaded successfully\n", name);
+    printf("[FLASH] %s loaded successfully\n", rom_path);
 
     close(fd);
     return 0;

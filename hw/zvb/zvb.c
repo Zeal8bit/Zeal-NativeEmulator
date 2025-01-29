@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include "raylib.h"
 #include "utils/helpers.h"
+#include "utils/paths.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
 
@@ -229,8 +231,15 @@ int zvb_init(zvb_t* dev)
     InitWindow(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT, WIN_NAME);
 
     /* Initialize the sub-components */
-    dev->text_shader = LoadShader(NULL, TextFormat("./hw/zvb/text_shader.glsl"));
-    dev->gfx_shader  = LoadShader(NULL, TextFormat("./hw/zvb/gfx_shader.glsl"));
+    char text_shader_path[PATH_MAX];
+    char gfx_shader_path[PATH_MAX];
+    char path_buffer[PATH_MAX];
+    get_executable_dir(path_buffer, sizeof(path_buffer));
+    snprintf(text_shader_path, sizeof(text_shader_path), "%s/%s", path_buffer, "hw/zvb/text_shader.glsl");
+    snprintf(gfx_shader_path, sizeof(gfx_shader_path), "%s/%s", path_buffer, "hw/zvb/gfx_shader.glsl");
+
+    dev->text_shader = LoadShader(NULL, text_shader_path);
+    dev->gfx_shader  = LoadShader(NULL, gfx_shader_path);
     zvb_palette_init(&dev->palette);
     zvb_font_init(&dev->font);
     zvb_tilemap_init(&dev->layers);
