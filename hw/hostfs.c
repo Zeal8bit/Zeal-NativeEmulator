@@ -93,7 +93,7 @@ static char *resolve_path(const char *path) {
     char *resolved = calloc(1, PATH_MAX);
     if (resolved == NULL) {
         return NULL;
-    } 
+    }
 
     char *copy = strdup(path);
     if (!copy) {
@@ -230,7 +230,7 @@ static void fs_close(zeal_hostfs_t *host) {
         host->directories[desc] = NULL;
         set_status(host, ZOS_SUCCESS);
     } else {
-        set_status(host, ZOS_FAILURE); 
+        set_status(host, ZOS_FAILURE);
     }
 }
 
@@ -246,7 +246,7 @@ static void fs_stat(zeal_hostfs_t *host) {
     int fd = -1;
 
     if (descriptor_valid(file)) {
-        fd = fileno(file);        
+        fd = fileno(file);
     } else if (descriptor_valid(dir)) {
         is_dir = 1;
     } else {
@@ -314,11 +314,11 @@ static void fs_read(zeal_hostfs_t *host) {
     while (bytes_remaining > 0) {
         size_t bytes_to_read = MIN(bytes_remaining, sizeof(buffer));
         size_t bytes_read = fread(buffer, 1, bytes_to_read, file);
-        
+
         if (bytes_read == 0) {
             break;
         }
-        
+
         memory_write_bytes(&host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_read);
 
         total_bytes_written += bytes_read;
@@ -553,6 +553,7 @@ int hostfs_init(zeal_hostfs_t* hostfs, const memory_op_t* ops)
 
 int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
 {
+    char resolved_path_buffer[PATH_MAX];
     struct stat path_stat;
 
     if (root_path == NULL) {
@@ -561,13 +562,11 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
     }
 
     const char* resolved_path = NULL;
-    #ifdef _WIN32
-    char resolved_path_buffer[_MAX_PATH];
+#ifdef _WIN32
     resolved_path = _fullpath(resolved_path_buffer, root_path, _MAX_PATH)
-    #else
-    char resolved_path_buffer[PATH_MAX];
+#else
     resolved_path = realpath(root_path, resolved_path_buffer);
-    #endif
+#endif
 
     if(resolved_path == NULL) {
         printf("[HostFS] Error resolving path %s\n", root_path);
@@ -589,8 +588,11 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
         return 1;
     }
 
-    hostfs->root_path = (const char *)calloc(strlen(resolved_path), sizeof(char));
-    memcpy((void *)hostfs->root_path, resolved_path, strlen(resolved_path));
+    hostfs->root_path = strdup(resolved_path);
+    if (hostfs->root_path == NULL) {
+        printf("[HostFS] Could not allocate memory!\n");
+        return 1;
+    }
 
     return 0;
 }
