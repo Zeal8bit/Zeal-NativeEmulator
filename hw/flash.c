@@ -56,7 +56,7 @@ int flash_init(flash_t* f)
 
 int flash_load_from_file(flash_t* flash, const char* name)
 {
-    if (flash == NULL /* || name == NULL */) {
+    if (flash == NULL) {
         return -1;
     }
 
@@ -64,9 +64,12 @@ int flash_load_from_file(flash_t* flash, const char* name)
     if(name != NULL) {
         snprintf(rom_path, sizeof(rom_path), "%s", name);
     } else {
-        char path_buffer[PATH_MAX];
-        get_executable_dir(path_buffer, sizeof(path_buffer));
-        snprintf(rom_path, sizeof(rom_path), "%s/%s", path_buffer, "roms/default.img");
+        const char* default_name = "roms/default.img";
+        printf("[FLASH] Trying to load %s\n", default_name);
+        if (get_install_dir_file(rom_path, default_name) == 0) {
+            printf("[FLASH] Could not get %s\n", default_name);
+            return -1;
+        }
     }
 
     int fd = open(rom_path, O_RDONLY);

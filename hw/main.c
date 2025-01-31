@@ -28,8 +28,7 @@ int main(int argc, char* argv[])
     }
 
     if (rom_filename == NULL) {
-        printf("No ROM file specified. Use -r <filename>.\n");
-        // return 1;
+        printf("No ROM file specified.\n");
     }
 
     if (hostfs_path == NULL) {

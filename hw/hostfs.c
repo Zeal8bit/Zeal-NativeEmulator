@@ -12,6 +12,7 @@
 #include <libgen.h>
 
 #include "hw/hostfs.h"
+#include "utils/paths.h"
 
 #define MIN(a,b)    ((a) < (b) ? (a) : (b))
 

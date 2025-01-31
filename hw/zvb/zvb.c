@@ -233,10 +233,8 @@ int zvb_init(zvb_t* dev)
     /* Initialize the sub-components */
     char text_shader_path[PATH_MAX];
     char gfx_shader_path[PATH_MAX];
-    char path_buffer[PATH_MAX];
-    get_executable_dir(path_buffer, sizeof(path_buffer));
-    snprintf(text_shader_path, sizeof(text_shader_path), "%s/%s", path_buffer, "hw/zvb/text_shader.glsl");
-    snprintf(gfx_shader_path, sizeof(gfx_shader_path), "%s/%s", path_buffer, "hw/zvb/gfx_shader.glsl");
+    (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.glsl");
+    (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.glsl");
 
     dev->text_shader = LoadShader(NULL, text_shader_path);
     dev->gfx_shader  = LoadShader(NULL, gfx_shader_path);
