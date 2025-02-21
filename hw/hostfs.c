@@ -294,6 +294,19 @@ static void fs_stat(zeal_hostfs_t *host) {
 }
 
 
+static int seek_file(zeal_hostfs_t *host, uint16_t struct_addr, FILE* file)
+{
+    /* Get the 32-bit offset to start reading from */
+    uint8_t offset[4] = { 0 };
+    memory_read_bytes(&host->host_ops, struct_addr + ZOS_FD_OFFSET_T, offset, sizeof(offset));
+    const long seek_to = offset[3] << 24 |
+                         offset[2] << 16 |
+                         offset[1] << 8  |
+                         offset[0];
+    return fseek(file, seek_to, SEEK_SET);
+}
+
+
 static void fs_read(zeal_hostfs_t *host) {
     uint8_t buffer[1024];
 
@@ -311,6 +324,8 @@ static void fs_read(zeal_hostfs_t *host) {
         set_status(host, ZOS_FAILURE);
         return;
     }
+
+    seek_file(host, struct_addr, file);
 
     while (bytes_remaining > 0) {
         size_t bytes_to_read = MIN(bytes_remaining, sizeof(buffer));
@@ -349,6 +364,8 @@ static void fs_write(zeal_hostfs_t *host) {
         set_status(host, ZOS_FAILURE);
         return;
     }
+
+    seek_file(host, struct_addr, file);
 
     while (bytes_remaining > 0) {
         size_t bytes_to_write = MIN(bytes_remaining, sizeof(buffer));
