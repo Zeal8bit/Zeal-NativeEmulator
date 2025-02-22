@@ -31,7 +31,9 @@
 
 void get_executable_dir(char *buffer, size_t size) {
     get_executable_path(buffer, size);
-    strcpy(buffer, dirname(buffer));  // Get the directory part of the path
+    const char* dir = dirname(buffer);
+    /* strcpy doesn't handle overlapping pointers properly */
+    memmove(buffer, dir, strlen(dir));
 }
 
 
