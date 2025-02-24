@@ -115,7 +115,8 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
          * of the first half */
         int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
-        l0_idx += attr_l0.a >= 0.5 ? 256 : 0;
+        int tileset_offset = ((int(attr_l0.a * 15) & 1) != 0) ? 256 : 0;
+        l0_idx += tileset_offset;
         /* Get the color out of that tile's pixel, between 0 and 15 */
         int color = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
         /* If the layer1's lowest bit was 1, we need to get the right pixel (lowest nibble) */

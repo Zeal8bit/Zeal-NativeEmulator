@@ -75,8 +75,7 @@ static void tilemap_update_img(zvb_tilemap_t* tilemap, int layer, uint32_t addr,
     } else {
         pixel->g = data;
         pixel->b = (data >> 4) & 0xf;
-        /* Keep the lowest bit only, which is bit 9 of the tile */
-        pixel->a = (data & 1);
+        pixel->a = (data >> 0) & 0xf;
     }
 
     tilemap->dirty = 1;
