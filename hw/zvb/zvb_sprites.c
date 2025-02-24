@@ -68,6 +68,7 @@ static void sprites_update_img(zvb_sprites_t* sprites, uint32_t idx)
     fsprite->f_behind_fg = sprite->flags.bitmap.behind_fg;
     fsprite->f_flip_x = sprite->flags.bitmap.flip_x;
     fsprite->f_flip_y = sprite->flags.bitmap.flip_y;
-    fsprite->palette = sprite->flags.bitmap.palette;
+    /* Store the palette as a mask to simplify the calculation in the shader */
+    fsprite->palette = sprite->flags.bitmap.palette << 4;
     sprites->dirty = 1;
 }

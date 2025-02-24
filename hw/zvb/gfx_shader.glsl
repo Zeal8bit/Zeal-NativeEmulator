@@ -51,22 +51,34 @@ out vec4 finalColor;
  * @param idx Index of the tile to render (from a tilemap layer)
  * @param offset Offset within the tile to get the pixel
  *
+ * @returns color as an index in the palette (integer)
  */
-float color_from_idx(int idx, int offset)
+int color_from_idx(int idx, int offset, bool color_4bit)
 {
+    bool lsb = true;
     int final_idx = (idx * TILESET_SIZE + offset);
-    int rem_idx = final_idx % SIZEOF_COLOR;
+
+    if (color_4bit) {
+        lsb = (final_idx % 2) != 0;
+        /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
+        final_idx = final_idx / 2;
+    }
     vec2 addr = vec2((final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
-    if (rem_idx == 0) {
-        return set.r;
-    } else if (rem_idx == 1) {
-        return set.g;
-    } else if (rem_idx == 2) {
-        return set.b;
-    } else if (rem_idx == 3) {
-        return set.a;
+    int channel = final_idx % SIZEOF_COLOR;
+    float byte_value = (channel == 0) ? set.r :
+                        (channel == 1) ? set.g :
+                        (channel == 2) ? set.b : set.a;
+    if (color_4bit) {
+        /* Convert to 8-bit (0-255 range) */
+        int byte_int = int(byte_value * 255.0);
+        /* Extract 4-bit value */
+        int color_4bit = lsb ? (byte_int & 0x0F) : (byte_int >> 4);
+        /* Normalize 4-bit color to 0-1 range */
+        return color_4bit;
+    } else {
+        return int(byte_value * 255);
     }
 }
 
@@ -89,7 +101,7 @@ vec4 get_attr(vec2 flipped, ivec2 scroll) {
     float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
     vec4 ret = texture(tilemaps, vec2(float_idx, 1.0));
 
-    /* Replace unused B aatribute with in_tile value */
+    /* Replace unused B attribute with in_tile value */
     ret.b = float(in_tile);
     return ret;
 }
@@ -99,21 +111,33 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
     vec4 attr_l0 = get_attr(flipped, scroll_l0);
     vec4 attr_l1 = get_attr(flipped, scroll_l1);
 
-    /* Get the two indexes */
-    int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
-    int l1_idx = int(attr_l1.g * (TILE_COUNT - 1));
-
-    float l0_color = color_from_idx(l0_idx, int(attr_l0.b));
-    float l1_color = color_from_idx(l1_idx, int(attr_l1.b));
-
-    int l0_icolor = int(l0_color * 255);
-    int l1_icolor = int(l1_color * 255);
-
-    /* If layer1 color index is 0, count it as transparent */
-    if (l1_color == 0) {
-        return vec4(palette[l0_icolor], 0.0f);
+    if (color_4bit) {
+        /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
+         * of the first half */
+        int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
+        l0_idx += attr_l0.a >= 0.5 ? 256 : 0;
+        /* Get the color out of that tile's pixel, between 0 and 15 */
+        int color = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
+        /* If the layer1's lowest bit was 1, we need to get the right pixel (lowest nibble) */
+        /* The color is between 0 and 15, append the palette index to it */
+        int palette_idx = int(attr_l0.g * 255) & 0xf0;
+        /* No transparency in 4-bit mode */
+        return vec4(palette[color + palette_idx], 1.0f);
     } else {
-        return vec4(palette[l1_icolor], 1.0f);
+        /* 8-bit color mode */
+        /* Get the two indexes */
+        int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
+        int l1_idx = int(attr_l1.g * (TILE_COUNT - 1));
+
+        int l0_icolor = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
+        int l1_icolor = color_from_idx(l1_idx, int(attr_l1.b), color_4bit);
+
+        /* If layer1 color index is 0, count it as transparent */
+        if (l1_icolor == 0) {
+            return vec4(palette[l0_icolor], 0.0f);
+        } else {
+            return vec4(palette[l1_icolor], 1.0f);
+        }
     }
 }
 
@@ -123,7 +147,7 @@ void main() {
     vec2 flipped   = vec2(fragTexCoord.x, 1.0 - fragTexCoord.y)
                    * vec2(SCREEN_WIDTH, SCREEN_HEIGHT);
     bool mode_320   = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
-    bool color_4bit = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
+    bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
     if (mode_320) {
         flipped.x = flipped.x / 2;
@@ -141,10 +165,15 @@ void main() {
 
         vec2 sprite_pos   = fst_attr.xy - vec2(TILE_WIDTH, TILE_HEIGHT);
         int tile_number   = int(fst_attr.z);
-        // float palette     = fst_attr.w;
+        int palette_msk   = int(fst_attr.w);
         float f_behind_fg = snd_attr.x;
         float f_flip_y    = snd_attr.y;
         float f_flip_x    = snd_attr.z;
+
+        /* Ignore the palette in 8-bit mode */
+        if (!color_4bit) {
+            palette_msk = 0;
+        }
 
         /* Check if the sprite is in bounds! */
         if (flipped.x >= sprite_pos.x &&
@@ -164,11 +193,10 @@ void main() {
                 pix_pos.x = TILE_WIDTH - 1 - pix_pos.x;
             }
             /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
-            int   in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;
-            float color = color_from_idx(tile_number, in_tile);
-            int   icolor = int(color * 255);
+            int in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;
+            int icolor = color_from_idx(tile_number, in_tile, color_4bit);
             if (icolor != 0) {
-                sprite_color = vec4(palette[icolor], 1.0);
+                sprite_color = vec4(palette[palette_msk + icolor], 1.0);
             }
         }
     }
