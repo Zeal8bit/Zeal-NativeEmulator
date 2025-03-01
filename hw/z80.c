@@ -5,7 +5,8 @@
  * SPDX-License-Identifier: MIT
  *
  * Original source code comes from https://github.com/superzazu/z80
- * Modifications made by @zeal8bit: make I/O port operations on 16-bit addresses.
+ * Modifications made by @zeal8bit: make I/O port operations on 16-bit addresses; make operations on F register public;
+ * make step function return the number of clock cycles elapsed;
  */
 
 #include "hw/z80.h"
@@ -126,7 +127,7 @@ static inline void set_hl(z80* const z, uint16_t val)
     z->l = val & 0xFF;
 }
 
-static inline uint8_t get_f(z80* const z)
+uint8_t z80_get_f(z80* const z)
 {
     uint8_t val  = 0;
     val         |= z->cf << 0;
@@ -140,7 +141,12 @@ static inline uint8_t get_f(z80* const z)
     return val;
 }
 
-static inline void set_f(z80* const z, uint8_t val)
+static inline uint8_t get_f(z80* const z)
+{
+    return z80_get_f(z);
+}
+
+void z80_set_f(z80* const z, uint8_t val)
 {
     z->cf = (val >> 0) & 1;
     z->nf = (val >> 1) & 1;
@@ -151,6 +157,12 @@ static inline void set_f(z80* const z, uint8_t val)
     z->zf = (val >> 6) & 1;
     z->sf = (val >> 7) & 1;
 }
+
+static inline void set_f(z80* const z, uint8_t val)
+{
+    z80_set_f(z, val);
+}
+
 
 // increments R, keeping the highest byte intact
 static inline void inc_r(z80* const z)
@@ -823,18 +835,16 @@ void z80_init(z80* const z)
 // executes the next instruction in memory + handles interrupts
 int z80_step(z80* const z)
 {
-    int cycles = 0;
+    int cycles = z->cyc;
     if (z->halted) {
         exec_opcode(z, 0x00);
-        cycles = cyc_00[0];
     } else {
         const uint8_t opcode = nextb(z);
         exec_opcode(z, opcode);
-        cycles = cyc_00[opcode];
     }
 
     process_interrupts(z);
-    return cycles;
+    return z->cyc - cycles;
 }
 
 // outputs to stdout a debug trace of the emulator

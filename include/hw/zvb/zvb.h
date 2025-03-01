@@ -13,6 +13,8 @@
  * @file Emulation for the Zeal 8-bit VideoBoard
  */
 
+#define ZVB_MAX_RES_WIDTH   640
+#define ZVB_MAX_RES_HEIGHT  480
 
 /**
  * @brief Macros for the I/O registers
@@ -53,6 +55,32 @@
 #define STATE_IDLE          0     // Raster in non-vblank area
 #define STATE_VBLANK        1
 #define STATE_COUNT         2
+
+
+/**
+ * @brief Macros listing of all the objects in the shaders
+ */
+#define TEXT_SHADER_VIDMODE_IDX     0
+#define TEXT_SHADER_TILEMAPS_IDX    1
+#define TEXT_SHADER_FONT_IDX        2
+#define TEXT_SHADER_PALETTE_IDX     3
+#define TEXT_SHADER_CURPOS_IDX      4
+#define TEXT_SHADER_CURCOLOR_IDX    5
+#define TEXT_SHADER_CURCHAR_IDX     6
+#define TEXT_SHADER_TSCROLL_IDX     7
+
+#define TEXT_SHADER_IDX_COUNT       8
+
+
+#define GFX_SHADER_VIDMODE_IDX      0
+#define GFX_SHADER_TILEMAPS_IDX     1
+#define GFX_SHADER_TILESET_IDX      2
+#define GFX_SHADER_SPRITES_IDX      3
+#define GFX_SHADER_SCROLL0_IDX      4
+#define GFX_SHADER_SCROLL1_IDX      5
+#define GFX_SHADER_PALETTE_IDX      6
+
+#define GFX_SHADER_IDX_COUNT        7
 
 
 typedef enum {
@@ -115,13 +143,23 @@ typedef struct {
     uint8_t          io_bank;
     int              state; // Any of the STATE_* macros
     long             tstates_counter;
+    bool             need_render;
+    /* When rendering to the screen directly, Y must be flipped,
+     * But when rendering to a texture (debugger UI), it must not be*/
+    bool             flipped_y;
+    /* Array containing the indexes of our objects in the shaders */
+    int              text_shader_idx[TEXT_SHADER_IDX_COUNT];
+    int              gfx_shader_idx[GFX_SHADER_IDX_COUNT];
 } zvb_t;
 
 
 /**
  * @brief Initialize the video board
+ *
+ * @param zvb Context to fill and return
+ * @param flipped_y Whether to render the screen mirrored in Y axis
  */
-int zvb_init(zvb_t* zvb);
+int zvb_init(zvb_t* zvb, bool flipped_y);
 
 
 /**
@@ -132,18 +170,27 @@ void zvb_tick(zvb_t* zvb, const int tstates);
 
 
 /**
- * @brief Check whether the window is still opened (i.e. should not be closed)
+ * @brief Prepare the rendering, this will update the textures and images.
+ * Must be called before `zvb_render`!
+ *
+ * @returns true if ZVB is ready to render (display reached refresh state), false else
  */
-bool zvb_window_opened(zvb_t* zvb);
+bool zvb_prepare_render(zvb_t* zvb);
+
+
+/**
+ * @brief Perform any rendering operation if necessary
+ */
+void zvb_render(zvb_t* zvb);
+
+
+/**
+ * @brief Used for debugging purpose to show the current rendering when the CPU is stopped
+ */
+void zvb_force_render(zvb_t* zvb);
 
 
 /**
  * @brief Deinitialize the video board, closing the window and unloading all assets
  */
 void zvb_deinit(zvb_t* zvb);
-
-
-/**
- * @brief Used for debugging purpose
- */
-void zvb_force_render(zvb_t* zvb);

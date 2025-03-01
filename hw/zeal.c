@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-
 #include "hw/zeal.h"
 
+int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
 #define CHECK_ERR(err)  \
     do {                \
@@ -138,9 +138,8 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
     }
 }
 
-
-static uint8_t RAYLIB_KEYS[384];
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
+    static uint8_t RAYLIB_KEYS[384];
     int keyCode;
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
@@ -160,7 +159,7 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
 }
 
 
-int zeal_init(zeal_t* machine)
+int zeal_init(zeal_t* machine, zeal_opt_t* options)
 {
     int err = 0;
     if (machine == NULL) {
@@ -168,6 +167,37 @@ int zeal_init(zeal_t* machine)
     }
 
     memset(machine, 0, sizeof(*machine));
+    /* Set the debug mode in the machine structure as soon as possible */
+    if (options != NULL) {
+        machine->dbg_enabled = options->dbg;
+    }
+
+    /* Initialize the UI. It must be done before any shader is created! */
+    SetTraceLogLevel(WIN_LOG_LEVEL);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+
+    if (machine->dbg_enabled) {
+        InitWindow(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT, WIN_NAME);
+    } else {
+        /* Not in debug mode, create the window as big as the emulated screen */
+        InitWindow(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, WIN_NAME);
+    }
+#if !BENCHMARK
+    SetTargetFPS(60);
+#endif
+
+    /* Since we want to enable scaling, make the ZVB output always go to a texture first */
+    machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+    if (machine->dbg_enabled) {
+        zeal_debugger_init(machine, &machine->dbg);
+        debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
+        machine->dbg_state = ST_RUNNING;
+
+        /* Load symbols if provided */
+        if (options && options->map_file) {
+            debugger_load_symbols(&machine->dbg, options->map_file);
+        }
+    }
 
     zeal_init_cpu(machine);
 
@@ -187,8 +217,8 @@ int zeal_init(zeal_t* machine)
     err = pio_init(machine, &machine->pio);
     CHECK_ERR(err);
 
-    // const vchip = new VideoChip(this, pio, scale);
-    err = zvb_init(&machine->zvb);
+    /* Flip the rendering if we are not in debug mode (since we will draw directly to the screen) */
+    err = zvb_init(&machine->zvb, false);
     CHECK_ERR(err);
 
     // const uart = new UART(this, pio);
@@ -243,29 +273,140 @@ int zeal_init(zeal_t* machine)
 }
 
 
-int zeal_run(zeal_t* machine)
+static void zeal_dbg_mode_display(zeal_t* machine)
 {
-    while (zvb_window_opened(&machine->zvb)) {
-        const int elapsed_tstates = z80_step(&machine->cpu);
-        /* TODO: Go through all the devices that have a tick function */
-        zvb_tick(&machine->zvb, elapsed_tstates);
+    /**
+     * Prepare the rendering, if the returned value is true, we can
+     * proceed to rendering, else, we don't need to update the view.
+     * However, if the CPU is paused (breakpoint/step), force the rendering.
+     */
+    if (zvb_prepare_render(&machine->zvb)) {
+        /* Display all the devices that have a render function */
+        BeginTextureMode(machine->zvb_out);
+            zvb_render(&machine->zvb);
+        EndTextureMode();
+    } else if (machine->dbg_state == ST_PAUSED) {
+        /* No need for `prepare` in this case */
+        BeginTextureMode(machine->zvb_out);
+            zvb_force_render(&machine->zvb);
+        EndTextureMode();
+    } else {
+        /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
+        return;
+    }
 
+    debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);
+    BeginDrawing();
+        /* Grey brackground */
+        ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
+        debugger_ui_render(machine->dbg_ui, &machine->dbg);
+    EndDrawing();
+}
+
+
+/**
+ * @brief Run Zeal 8-bit Computer VM in debug mode
+ */
+static int zeal_dbg_mode_run(zeal_t* machine)
+{
+    while (!WindowShouldClose()) {
+        if (machine->dbg_state != ST_PAUSED) {
+            const int elapsed_tstates = z80_step(&machine->cpu);
+            /* Go through all the devices that have a tick function */
+            zvb_tick(&machine->zvb, elapsed_tstates);
+            /* Send keyboard keys to Zeal MV only if its window is focused */
+            if (debugger_ui_main_view_focused(machine->dbg_ui)) {
+                zeal_read_keyboard(machine, elapsed_tstates);
+            }
+
+            /* Check if we reached a breakpoint or if we have to do a single step */
+            if (machine->dbg_state == ST_REQ_STEP ||
+                debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc))
+            {
+                machine->dbg_state = ST_PAUSED;
+            }
+        }
+
+        zeal_dbg_mode_display(machine);
+    }
+    return 0;
+}
+
+
+/**
+ * @brief Run Zeal 8-bit Computer VM in normal mode
+ */
+static int zeal_normal_mode_run(zeal_t* machine)
+{
+    while (!WindowShouldClose()) {
+        const int elapsed_tstates = z80_step(&machine->cpu);
+        /* Go through all the devices that have a tick function */
+        zvb_tick(&machine->zvb, elapsed_tstates);
+        /* Send keyboard keys to Zeal MV only if its window is focused */
         zeal_read_keyboard(machine, elapsed_tstates);
 
-// #if DEBUG
-//         z80_debug_output(&machine->cpu);
-// #endif
+        if (zvb_prepare_render(&machine->zvb)) {
+            const int screen_w = GetScreenWidth();
+            const int screen_h = GetScreenHeight();
+            const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
+            const float screen_ratio  = (float)screen_w / screen_h;
 
-// #if DEBUG
-//         char text[256];
-//         z80_get_debug_output(&machine->cpu, text);
-//         // DrawTextEx(Font font, const char *text, Vector2 position, float fontSize, float spacing, Color tint)
-//         DrawTextEx(font, text, (Vector2){ .x = 10, .y = 100}, 48, 0, RAYWHITE);
-// #endif
+            int pos_x = 0;
+            int pos_y = 0;
+
+            int draw_w = ZVB_MAX_RES_WIDTH;
+            int draw_h = ZVB_MAX_RES_HEIGHT;
+
+            if (texture_ratio > screen_ratio) {
+                /* Texture is "wider" than the screen, add bars on top/bottom */
+                draw_w = screen_w;
+                draw_h = (int)(screen_w / texture_ratio);
+                pos_y = (screen_h - draw_h) / 2;
+            } else {
+                /* Texture is "taller" than the screen, add bars on left/right */
+                draw_h = screen_h;
+                draw_w = (int)(screen_h * texture_ratio);
+                pos_x = (screen_w - draw_w) / 2;
+            }
+
+            BeginTextureMode(machine->zvb_out);
+                zvb_render(&machine->zvb);
+            EndTextureMode();
+
+            BeginDrawing();
+                ClearBackground(DARKGRAY);
+                DrawTexturePro(machine->zvb_out.texture,
+                                (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
+                                (Rectangle){ pos_x, pos_y, draw_w, draw_h },
+                                (Vector2){ 0, 0 },
+                                0.0f,
+                                WHITE);
+                // zvb_render(&machine->zvb);
+            EndDrawing();
+        }
+    }
+    return 0;
+}
+
+
+int zeal_run(zeal_t* machine)
+{
+    int ret = 0;
+
+    if (machine == NULL) {
+        return -1;
+    }
+
+    if (machine->dbg_enabled) {
+        ret = zeal_dbg_mode_run(machine);
+        debugger_ui_deinit(machine->dbg_ui);
+    } else {
+        ret = zeal_normal_mode_run(machine);
     }
 
     zvb_deinit(&machine->zvb);
+    CloseWindow();
 
-    return 0;
+    return ret;
 }
 

@@ -1,5 +1,5 @@
 bin = zeal.elf
-src = $(wildcard hw/*.c hw/zvb/*.c utils/*.c)
+src = $(wildcard hw/*.c hw/zvb/*.c hw/debugger/*.c utils/*.c)
 obj = $(patsubst hw/%.c, build/%.o, $(patsubst utils/%.c, build/utils/%.o, $(src)))
 
 ifeq ($(RAYLIB_PATH),)
@@ -7,7 +7,7 @@ RAYLIB_PATH := $(shell pwd)/raylib
 endif
 
 CFLAGS = $(CFLAGS_EXTRA) -g -Wall -Wextra -O2 -std=c99 -Iinclude/ -I$(RAYLIB_PATH)/include -D_POSIX_C_SOURCE=200809L -D_DARWIN_C_SOURCE
-LDFLAGS = -L$(RAYLIB_PATH)/lib -lraylib
+LDFLAGS = -L$(RAYLIB_PATH)/lib -lraylib -lm
 CC = gcc
 
 .PHONY: all clean

@@ -52,6 +52,12 @@
     "zvb.h": "c",
     "stat.h": "c",
     "stdbool.h": "c",
-    "helpers.h": "c"
-  }
+    "helpers.h": "c",
+    "debugger_types.h": "c",
+    "raylib-nuklear.h": "c",
+    "debugger.h": "c",
+    "debugger_ui.h": "c",
+    "initializer_list": "c",
+    "unistd.h": "c"
+}
 }
