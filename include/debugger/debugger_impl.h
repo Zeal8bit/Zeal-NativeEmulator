@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "debugger/debugger_types.h"
 
 #define DBG_MAX_POINTS  128

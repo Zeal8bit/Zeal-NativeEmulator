@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "raylib.h"
 #include "hw/z80.h"
 #include "hw/device.h"
@@ -97,3 +98,12 @@ int zeal_init(zeal_t* machine, zeal_opt_t* options);
  * @brief Run the virtual machine, won't return until the emulation is terminated
  */
 int zeal_run(zeal_t* machine);
+
+/**
+ * @brief Enable Zeal Debugger View
+ */
+int zeal_debug_enable(zeal_t* machine);
+/**
+ * @brief Disable Zeal Debugger View
+ */
+int zeal_debug_disable(zeal_t* machine);

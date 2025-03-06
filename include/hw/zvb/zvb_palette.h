@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "raylib.h"
 
 #define ZVB_COLOR_PALETTE_COUNT     (256)

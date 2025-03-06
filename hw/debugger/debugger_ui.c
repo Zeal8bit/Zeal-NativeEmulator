@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
@@ -270,7 +271,6 @@ static void ui_memory_viewer(struct dbg_ui_t* dctx, dbg_t* dbg)
     struct nk_context* ctx = dctx->ctx;
 
     struct nk_rect win_size = {0, 530, 640 + CPU_CTRL_WIDTH, 300};
-    const bool paused = debugger_is_paused(dbg);
 
     if (nk_begin(ctx, "Memory Viewer", win_size,
         NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
@@ -278,7 +278,7 @@ static void ui_memory_viewer(struct dbg_ui_t* dctx, dbg_t* dbg)
         nk_layout_row_dynamic(ctx, win_size.h - BOTTOM_HEIGHT, 1);
 
         /* Scrollable region */
-        if (paused && nk_group_begin(ctx, "Memory_Scroll", NK_WINDOW_BORDER)) {
+        if (nk_group_begin(ctx, "Memory_Scroll", NK_WINDOW_BORDER)) {
             nk_layout_row_dynamic(ctx, 10, 1);
 
             char hex_left[25] = {0};
@@ -318,10 +318,10 @@ static void ui_memory_viewer(struct dbg_ui_t* dctx, dbg_t* dbg)
         nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, len, NULL);
 
         /**
-         * Show a 'View' button to dump the memory when the CPU is paused
+         * Show a 'View' button to dump the memory
          * Parse the typed address if Enter was pressed or the buttonw as clicked
          */
-        if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED)) && paused) {
+        if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED))) {
             /* Make sure it is a hex value */
             int addr = 0;
             if (sscanf(edit_addr, "%x", &addr) == 1) {

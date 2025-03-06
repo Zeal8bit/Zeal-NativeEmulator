@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include "debugger/debugger.h"
 
 #define MAX_LINE_LENGTH     256

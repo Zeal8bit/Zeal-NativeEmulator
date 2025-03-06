@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "hw/zvb/zvb_tilemap.h"
 
 /**
