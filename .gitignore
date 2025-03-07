@@ -1,3 +1,5 @@
 build/*
 tmp/
 *.elf
+roms/*
+*.ini

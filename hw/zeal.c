@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/zeal.h"
+#include "utils/config.h"
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
@@ -165,7 +166,7 @@ int zeal_debug_enable(zeal_t* machine)
     int ret = 0;
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
-    SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
+    if(config.debugger.enabled <= DEBUGGER_STATE_DISABLED) SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
     if(machine->dbg_ui == NULL) {
         ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
     }
@@ -177,7 +178,7 @@ int zeal_debug_disable(zeal_t* machine)
 {
     machine->dbg_enabled = false;
     machine->dbg_state = ST_RUNNING;
-    SetWindowSize(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+    SetWindowSize(config.window.width, config.window.height);
     return 0;
 }
 
@@ -192,7 +193,7 @@ static void zeal_debug_toggle(zeal_t* machine)
 }
 
 
-int zeal_init(zeal_t* machine, zeal_opt_t* options)
+int zeal_init(zeal_t* machine, config_t* config)
 {
     int err = 0;
     if (machine == NULL) {
@@ -201,8 +202,8 @@ int zeal_init(zeal_t* machine, zeal_opt_t* options)
 
     memset(machine, 0, sizeof(*machine));
     /* Set the debug mode in the machine structure as soon as possible */
-    if (options != NULL) {
-        machine->dbg_enabled = options->dbg;
+    if (config != NULL) {
+        machine->dbg_enabled = config->debugger.enabled > DEBUGGER_STATE_DISABLED;
     }
 
     /* Initialize the UI. It must be done before any shader is created! */
@@ -210,7 +211,9 @@ int zeal_init(zeal_t* machine, zeal_opt_t* options)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     /* Not in debug mode, create the window as big as the emulated screen */
-    InitWindow(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, WIN_NAME);
+    InitWindow(config->window.width, config->window.height, WIN_NAME);
+    config_window_set();
+
 #if !BENCHMARK
     SetTargetFPS(60);
 #endif
@@ -221,8 +224,8 @@ int zeal_init(zeal_t* machine, zeal_opt_t* options)
     /* initialize the debugger */
     zeal_debugger_init(machine, &machine->dbg);
     /* Load symbols if provided */
-    if (options && options->map_file) {
-        debugger_load_symbols(&machine->dbg, options->map_file);
+    if (config && config->arguments.map_file) {
+        debugger_load_symbols(&machine->dbg, config->arguments.map_file);
     }
     if (machine->dbg_enabled) {
         zeal_debug_enable(machine);
@@ -424,7 +427,14 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!WindowShouldClose()) {
+    bool running = true;
+    while (running) {
+        if(WindowShouldClose()) {
+            config_window_update(machine->dbg_enabled);
+            running = false;
+            break;
+        }
+
         if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
             debug_key_pressed = true;
             zeal_debug_toggle(machine);

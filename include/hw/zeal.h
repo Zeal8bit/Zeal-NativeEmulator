@@ -13,6 +13,7 @@
 #include "hw/keyboard.h"
 #include "hw/uart.h"
 #include "hw/hostfs.h"
+#include "utils/config.h"
 #include "debugger/debugger_ui.h"
 
 typedef uint8_t dev_idx_t;
@@ -82,16 +83,10 @@ struct zeal_t {
 typedef struct zeal_t zeal_t;
 
 
-typedef struct {
-    bool dbg;
-    const char* map_file;
-} zeal_opt_t;
-
-
 /**
  * @brief Initialize the Zeal 8-bit Computer virtual machine with optional parameters
  */
-int zeal_init(zeal_t* machine, zeal_opt_t* options);
+int zeal_init(zeal_t* machine, config_t* config);
 
 
 /**

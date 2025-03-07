@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <libgen.h>  // For dirname on Linux/macOS
+#include <sys/stat.h>
 #include "utils/paths.h"
 
 #ifdef _WIN32
@@ -46,4 +47,9 @@ int get_install_dir_file(char dst[PATH_MAX], const char* name) {
     }
     const int wrote = snprintf(dst, PATH_MAX, "%s/%s", path_buffer, name);
     return wrote < PATH_MAX;
+}
+
+int path_exists(const char *path) {
+    struct stat buffer;
+    return (stat(path, &buffer) == 0);
 }

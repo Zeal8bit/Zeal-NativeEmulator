@@ -17,3 +17,5 @@ void get_executable_path(char *buffer, size_t size);
 void get_executable_dir(char *buffer, size_t size);
 
 int get_install_dir_file(char dst[PATH_MAX], const char* name);
+
+int path_exists(const char *path);
