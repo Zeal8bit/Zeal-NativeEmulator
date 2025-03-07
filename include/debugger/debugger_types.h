@@ -54,8 +54,8 @@ typedef struct {
 
 
 typedef struct {
-    const char* fmt;
-    const char* fmt_lab;
+    char*       fmt;
+    char*       fmt_lab;
     uint32_t    size : 3;
     uint32_t    label : 1;
 } instr_data_t;

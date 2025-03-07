@@ -143,6 +143,37 @@ static void zeal_debugger_step_over_cb(dbg_t* dbg) {
  */
 
 extern const instr_data_t disassembled_z80_opcodes[256];
+extern const instr_data_t disassembled_cb_opcodes[256];
+extern const instr_data_t disassembled_ed_opcodes[256];
+
+
+static const instr_data_t* process_ed_instr(uint8_t snd)
+{
+    static char fmt[2][64];
+    static instr_data_t opcode = {
+        .fmt = fmt[0],
+        .fmt_lab = fmt[1],
+        .size = 4,
+        .label = true
+    };
+    const char* regs_16[] = { "bc", "de", "hl", "sp"};
+    const int reg_idx = (snd >> 4) & 3;
+    const char* pair = regs_16[reg_idx];
+
+
+    if ((snd & 0x4B) == 0x4B) {
+        /* Special case for LD dd, (nn) */
+        sprintf(opcode.fmt, "ld     %s, (0x%%04x)", pair);
+        sprintf(opcode.fmt_lab, "ld     %s, (%%s)", pair);
+    } else if ((snd & 0x43) == 0x43) {
+        /* Special case for LD (nn), dd */
+        sprintf(opcode.fmt, "ld     (0x%%04x), %s", pair);
+        sprintf(opcode.fmt_lab, "ld     (%%s), %s", pair);
+    }
+
+    return &opcode;
+}
+
 
 int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 {
@@ -160,16 +191,38 @@ int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* i
     }
     memcpy(mem, instr->opcodes, 4);
 
+    /* By default, clear the returned instruction */
+    instr->instruction[0] = 0;
+
     /* Get the opcode */
+    bool no_param_instr = false;
+    const bool is_cb = (mem[0] == 0xcb);
+    const bool is_ed = (mem[0] == 0xed);
     const size_t max_len = sizeof(instr->instruction);
-    const instr_data_t* opcode = disassembled_z80_opcodes + mem[0];
+    const instr_data_t* opcode;
+
+    if (is_ed) {
+        opcode = disassembled_ed_opcodes + mem[1];
+        /* Check if the array entry is populated */
+        if (opcode->fmt == NULL) {
+            opcode = process_ed_instr(mem[1]);
+        } else {
+            no_param_instr = true;
+        }
+    } else if (is_cb) {
+        opcode = disassembled_cb_opcodes + mem[1];
+        /* CB instructions mus tnot be treated like other 2-byte instructions */
+        no_param_instr = true;
+    } else {
+        opcode = disassembled_z80_opcodes + mem[0];
+    }
 
     if (opcode->fmt == NULL) {
         /* Not implemented, return 4 */
         return 4;
     }
 
-    if (opcode->size == 1) {
+    if (opcode->size == 1 || no_param_instr) {
         strncpy(instr->instruction, opcode->fmt, max_len - 1);
         instr->instruction[max_len - 1] = 0;
     } else if (opcode->size == 2) {
@@ -180,9 +233,15 @@ int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* i
         } else {
             snprintf(instr->instruction, max_len, opcode->fmt, mem[1]);
         }
-    } else if (opcode->size == 3) {
+    } else {
         /* Check if the instruction could have a label */
-        const uint16_t dest = MAKE16(mem[2], mem[1]);
+        uint16_t dest = 0;
+        if (opcode->size == 3) {
+            dest = MAKE16(mem[2], mem[1]);
+        } else {
+            /* Size == 4 */
+            dest = MAKE16(mem[3], mem[2]);
+        }
         if (opcode->label && (label = debugger_get_symbol(dbg, dest))) {
             snprintf(instr->instruction, max_len, opcode->fmt_lab, label);
         } else {
