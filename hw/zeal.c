@@ -138,6 +138,7 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
     }
 }
 
+
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
     static uint8_t RAYLIB_KEYS[384];
     int keyCode;
@@ -158,6 +159,7 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
     keyboard_send_next(&machine->keyboard, &machine->pio, delta);
 }
 
+
 int zeal_debug_enable(zeal_t* machine)
 {
     int ret = 0;
@@ -166,10 +168,10 @@ int zeal_debug_enable(zeal_t* machine)
     SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
     if(machine->dbg_ui == NULL) {
         ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
-        machine->dbg_state = ST_RUNNING;
     }
     return ret;
 }
+
 
 int zeal_debug_disable(zeal_t* machine)
 {
@@ -177,6 +179,16 @@ int zeal_debug_disable(zeal_t* machine)
     machine->dbg_state = ST_RUNNING;
     SetWindowSize(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
     return 0;
+}
+
+
+static void zeal_debug_toggle(zeal_t* machine)
+{
+    if (machine->dbg_enabled) {
+        zeal_debug_disable(machine);
+    } else {
+        zeal_debug_enable(machine);
+    }
 }
 
 
@@ -214,6 +226,8 @@ int zeal_init(zeal_t* machine, zeal_opt_t* options)
     }
     if (machine->dbg_enabled) {
         zeal_debug_enable(machine);
+        /* Force the machine in RUNNING mode */
+        machine->dbg_state = ST_RUNNING;
     }
 
     zeal_init_cpu(machine);
@@ -395,36 +409,28 @@ static int zeal_normal_mode_run(zeal_t* machine)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
-            // zvb_render(&machine->zvb);
         EndDrawing();
     }
     return 0;
 }
 
 
-static bool _debugModeKeyPressDebounce = 0;
 int zeal_run(zeal_t* machine)
 {
     int ret = 0;
+    bool debug_key_pressed = false;
 
     if (machine == NULL) {
         return -1;
     }
 
     while (!WindowShouldClose()) {
-        if(!_debugModeKeyPressDebounce && IsKeyPressed(KEY_F12)) {
-            _debugModeKeyPressDebounce = true;
-            if(machine->dbg_enabled) {
-                printf("debug disabled\n");
-                zeal_debug_disable(machine);
-            } else {
-                printf("debug enabled\n");
-                zeal_debug_enable(machine);
-            }
+        if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
+            debug_key_pressed = true;
+            zeal_debug_toggle(machine);
         } else if(IsKeyReleased(KEY_F12)) {
-            _debugModeKeyPressDebounce = false;
+            debug_key_pressed = false;
         }
-
 
         if (machine->dbg_enabled) {
             ret = zeal_dbg_mode_run(machine);
@@ -432,7 +438,7 @@ int zeal_run(zeal_t* machine)
             ret = zeal_normal_mode_run(machine);
         }
         if(ret != 0) {
-            printf("user requested break?\n");
+            /* TODO: Process emulated program request */
         }
     }
 
