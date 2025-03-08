@@ -145,17 +145,33 @@ void config_parse_file(const char* file) {
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
-    config.window.width = rini_get_config_value_fallback(ini, "WIN_WIDTH", ZVB_MAX_RES_WIDTH);
-    config.window.height = rini_get_config_value_fallback(ini, "WIN_HEIGHT", ZVB_MAX_RES_HEIGHT);
-    config.window.display = rini_get_config_value_fallback(ini, "WIN_DISPLAY", 0);
 
-    // calculate the center of the preferred display for fallback
-    Vector2 position;
-    position.x = (GetMonitorWidth(config.window.display) - config.window.width) / 2;
-    position.y = (GetMonitorHeight(config.window.display) - config.window.height) / 2;
+    Vector2 aspect = { .x = 4, .y = 3 };
+    Vector2 window_size = {
+        .x = rini_get_config_value_fallback(ini, "WIN_WIDTH", -1),
+        .y = rini_get_config_value_fallback(ini, "WIN_HEIGHT", -1)
+    };
 
-    config.window.x = rini_get_config_value_fallback(ini, "WIN_POS_X", position.x);
-    config.window.y = rini_get_config_value_fallback(ini, "WIN_POS_Y", position.y);
+    if(window_size.x < 0 && window_size.y < 0) {
+        // default
+        if(config_debugger_enabled()) {
+            window_size.x = (ZVB_MAX_RES_WIDTH * 2);
+            window_size.y = (ZVB_MAX_RES_HEIGHT * 2);
+        } else {
+            window_size.x = ZVB_MAX_RES_WIDTH;
+            window_size.y = ZVB_MAX_RES_HEIGHT;
+        }
+    } else {
+        // calculate aspect for missing size
+        if(window_size.x < 0) window_size.x = (window_size.y * aspect.x) / aspect.y;
+        if(window_size.y < 0) window_size.y = (window_size.x * aspect.y) / aspect.x;
+    }
+    printf("  size: %d %d\n", (int)window_size.x, (int)window_size.y);
+    config.window.width = window_size.x;
+    config.window.height = window_size.y;
+    config.window.display = rini_get_config_value_fallback(ini, "WIN_DISPLAY", -1);
+    config.window.x = rini_get_config_value_fallback(ini, "WIN_POS_X", -1);
+    config.window.y = rini_get_config_value_fallback(ini, "WIN_POS_Y", -1);
 
     rini_unload_config(&ini);
 }
@@ -201,9 +217,11 @@ int config_save() {
     return 0; // TODO: error checking to ensure things worked?
 }
 
-void config_window_update(bool debug_enabled) {
-    // only update the window size/position if the debugger state matches the config state
-    bool update_rect = (config.debugger.enabled && debug_enabled) || (!config.debugger.enabled && !debug_enabled);
+void config_window_update(bool user_enabled) {
+    bool config_enabled = config.debugger.enabled == DEBUGGER_STATE_CONFIG;
+    bool update_rect = user_enabled == config_enabled;
+    if(user_enabled && config.arguments.config_save && config.debugger.enabled == DEBUGGER_STATE_ARG) update_rect = true;
+
     if(update_rect) {
         config.window.width = GetScreenWidth();
         config.window.height = GetScreenHeight();
@@ -215,6 +233,20 @@ void config_window_update(bool debug_enabled) {
 }
 
 void config_window_set(void) {
-    SetWindowPosition(config.window.x, config.window.y);
-    if(config.window.display >= 0) SetWindowMonitor(config.window.display);
+    int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
+    SetWindowMonitor(d);
+
+    Vector2 screen_offset = GetMonitorPosition(d);
+    Vector2 screen = {
+        .x = GetMonitorWidth(d),
+        .y = GetMonitorHeight(d),
+    };
+
+    int x = config.window.x;
+    int y = config.window.y;
+
+    // calculate center if either coordinate is not set
+    if(x < 0) x = screen_offset.x + ((screen.x - config.window.width) / 2);
+    if(y < 0) y = screen_offset.y + ((screen.y - config.window.height) / 2);
+    SetWindowPosition(x, y);
 }

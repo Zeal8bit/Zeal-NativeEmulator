@@ -86,7 +86,7 @@ typedef struct zeal_t zeal_t;
 /**
  * @brief Initialize the Zeal 8-bit Computer virtual machine with optional parameters
  */
-int zeal_init(zeal_t* machine, config_t* config);
+int zeal_init(zeal_t* machine);
 
 
 /**

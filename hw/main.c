@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
         printf("Non-option argument: %s\n", argv[i]);
     }
 
-    if (zeal_init(&machine, &config)) {
+    if (zeal_init(&machine)) {
         printf("Error initializing the machine\n");
         return 1;
     }

@@ -166,7 +166,7 @@ int zeal_debug_enable(zeal_t* machine)
     int ret = 0;
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
-    if(config.debugger.enabled <= DEBUGGER_STATE_DISABLED) SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
+    if(!config_debugger_enabled()) SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
     if(machine->dbg_ui == NULL) {
         ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
     }
@@ -193,7 +193,7 @@ static void zeal_debug_toggle(zeal_t* machine)
 }
 
 
-int zeal_init(zeal_t* machine, config_t* config)
+int zeal_init(zeal_t* machine)
 {
     int err = 0;
     if (machine == NULL) {
@@ -202,16 +202,15 @@ int zeal_init(zeal_t* machine, config_t* config)
 
     memset(machine, 0, sizeof(*machine));
     /* Set the debug mode in the machine structure as soon as possible */
-    if (config != NULL) {
-        machine->dbg_enabled = config->debugger.enabled > DEBUGGER_STATE_DISABLED;
-    }
+    machine->dbg_enabled = config_debugger_enabled();
+
 
     /* Initialize the UI. It must be done before any shader is created! */
     SetTraceLogLevel(WIN_LOG_LEVEL);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     /* Not in debug mode, create the window as big as the emulated screen */
-    InitWindow(config->window.width, config->window.height, WIN_NAME);
+    InitWindow(config.window.width, config.window.height, WIN_NAME);
     config_window_set();
 
 #if !BENCHMARK
@@ -224,8 +223,8 @@ int zeal_init(zeal_t* machine, config_t* config)
     /* initialize the debugger */
     zeal_debugger_init(machine, &machine->dbg);
     /* Load symbols if provided */
-    if (config && config->arguments.map_file) {
-        debugger_load_symbols(&machine->dbg, config->arguments.map_file);
+    if (config.arguments.map_file) {
+        debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
     if (machine->dbg_enabled) {
         zeal_debug_enable(machine);
@@ -427,14 +426,7 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    bool running = true;
-    while (running) {
-        if(WindowShouldClose()) {
-            config_window_update(machine->dbg_enabled);
-            running = false;
-            break;
-        }
-
+    while (!WindowShouldClose()) {
         if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
             debug_key_pressed = true;
             zeal_debug_toggle(machine);
@@ -457,6 +449,9 @@ int zeal_run(zeal_t* machine)
     }
 
     zvb_deinit(&machine->zvb);
+
+    config_window_update(machine->dbg_enabled);
+
     CloseWindow();
 
     return ret;

@@ -18,10 +18,10 @@ typedef enum {
     DEBUGGER_STATE_DISABLED    = 0,
     DEBUGGER_STATE_CONFIG      = 1,
     DEBUGGER_STATE_ARG         = 2,
-} DebuggerState;
+} debugger_state_t;
 
 typedef struct {
-    DebuggerState enabled;
+    debugger_state_t enabled;
     bool config_enabled;
 } config_debugger_t;
 
@@ -73,3 +73,11 @@ void config_window_update(bool debug_enabled);
  * @brief Set the Window to the current config settings
  */
 void config_window_set(void);
+
+/**
+ * @brief Determine if debugger is enabled
+ */
+static inline bool config_debugger_enabled(void) {
+    // enum uses <= DEBUGGER_STATE_DISABLED for disabled
+    return config.debugger.enabled > DEBUGGER_STATE_DISABLED;
+}
