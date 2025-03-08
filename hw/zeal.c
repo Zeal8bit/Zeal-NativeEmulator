@@ -210,7 +210,7 @@ int zeal_init(zeal_t* machine)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     /* Not in debug mode, create the window as big as the emulated screen */
-    InitWindow(config.window.width, config.window.height, WIN_NAME);
+    InitWindow(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, WIN_NAME);
     config_window_set();
 
 #if !BENCHMARK

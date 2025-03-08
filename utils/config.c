@@ -19,8 +19,8 @@ config_t config = {
     },
 
     .window = {
-        .width = ZVB_MAX_RES_WIDTH,
-        .height = ZVB_MAX_RES_HEIGHT,
+        .width = -1,
+        .height = -1,
         .x = -1,
         .y = -1,
         .display = -1,
@@ -146,29 +146,8 @@ void config_parse_file(const char* file) {
         config.debugger.enabled = config.debugger.config_enabled;
 
 
-    Vector2 aspect = { .x = 4, .y = 3 };
-    Vector2 window_size = {
-        .x = rini_get_config_value_fallback(ini, "WIN_WIDTH", -1),
-        .y = rini_get_config_value_fallback(ini, "WIN_HEIGHT", -1)
-    };
-
-    if(window_size.x < 0 && window_size.y < 0) {
-        // default
-        if(config_debugger_enabled()) {
-            window_size.x = (ZVB_MAX_RES_WIDTH * 2);
-            window_size.y = (ZVB_MAX_RES_HEIGHT * 2);
-        } else {
-            window_size.x = ZVB_MAX_RES_WIDTH;
-            window_size.y = ZVB_MAX_RES_HEIGHT;
-        }
-    } else {
-        // calculate aspect for missing size
-        if(window_size.x < 0) window_size.x = (window_size.y * aspect.x) / aspect.y;
-        if(window_size.y < 0) window_size.y = (window_size.x * aspect.y) / aspect.x;
-    }
-    printf("  size: %d %d\n", (int)window_size.x, (int)window_size.y);
-    config.window.width = window_size.x;
-    config.window.height = window_size.y;
+    config.window.width = rini_get_config_value_fallback(ini, "WIN_WIDTH", -1);
+    config.window.height = rini_get_config_value_fallback(ini, "WIN_HEIGHT", -1);
     config.window.display = rini_get_config_value_fallback(ini, "WIN_DISPLAY", -1);
     config.window.x = rini_get_config_value_fallback(ini, "WIN_POS_X", -1);
     config.window.y = rini_get_config_value_fallback(ini, "WIN_POS_Y", -1);
@@ -236,6 +215,28 @@ void config_window_set(void) {
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);
 
+    Vector2 aspect = { .x = 4, .y = 3 };
+    Vector2 window_size = {
+        .x = config.window.width,
+        .y = config.window.height,
+    };
+
+    if(window_size.x < 0 && window_size.y < 0) {
+        // default
+        if(config_debugger_enabled()) {
+            window_size.x = (ZVB_MAX_RES_WIDTH * 2);
+            window_size.y = (ZVB_MAX_RES_HEIGHT * 2);
+        } else {
+            window_size.x = ZVB_MAX_RES_WIDTH;
+            window_size.y = ZVB_MAX_RES_HEIGHT;
+        }
+    } else {
+        // calculate aspect for missing size
+        if(window_size.x < 0) window_size.x = (window_size.y * aspect.x) / aspect.y;
+        if(window_size.y < 0) window_size.y = (window_size.x * aspect.y) / aspect.x;
+    }
+    SetWindowSize(window_size.x, window_size.y);
+
     Vector2 screen_offset = GetMonitorPosition(d);
     Vector2 screen = {
         .x = GetMonitorWidth(d),
@@ -246,7 +247,7 @@ void config_window_set(void) {
     int y = config.window.y;
 
     // calculate center if either coordinate is not set
-    if(x < 0) x = screen_offset.x + ((screen.x - config.window.width) / 2);
-    if(y < 0) y = screen_offset.y + ((screen.y - config.window.height) / 2);
+    if(x < 0) x = screen_offset.x + ((screen.x - window_size.x) / 2);
+    if(y < 0) y = screen_offset.y + ((screen.y - window_size.y) / 2);
     SetWindowPosition(x, y);
 }
