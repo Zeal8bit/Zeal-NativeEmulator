@@ -57,6 +57,12 @@ void config_debug(void) {
     printf("      y: %d\n", config.window.y);
     printf("display: %d\n", config.window.display);
 
+    printf("\n");
+    printf("=== debugger ===\n");
+    printf("  width: %d\n", config.debugger.width);
+    printf(" height: %d\n", config.debugger.height);
+    printf("      x: %d\n", config.debugger.x);
+    printf("      y: %d\n", config.debugger.y);
     printf("\n\n");
 }
 
@@ -138,7 +144,12 @@ int parse_command_args(int argc, char* argv[])
 }
 
 void config_parse_file(const char* file) {
-    if(!path_exists(file)) return;
+    if(!path_exists(file)) {
+        config.window.width = ZVB_MAX_RES_WIDTH;
+        config.window.height = ZVB_MAX_RES_HEIGHT;
+        config.debugger.width = ZVB_MAX_RES_WIDTH * 2;
+        config.debugger.height = ZVB_MAX_RES_HEIGHT * 2;
+    }
 
     config.ini = rini_load_config(file);
 
