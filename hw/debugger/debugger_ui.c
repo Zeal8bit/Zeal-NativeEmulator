@@ -278,47 +278,49 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view)
 }
 
 
-void debugger_ui_deinit(struct dbg_ui_t* ctx)
+void debugger_ui_deinit(struct dbg_ui_t* dctx)
 {
-    UnloadNuklearImage(ctx->view);
-    UnloadNuklear(ctx->ctx);
-    MemFree(ctx);
+    UnloadNuklearImage(dctx->view);
+    UnloadNuklear(dctx->ctx);
+    MemFree(dctx);
 }
 
-void debugger_ui_prepare_render(struct dbg_ui_t* ctx, dbg_t* dbg)
+void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
-    UpdateNuklear(ctx->ctx);
+    UpdateNuklear(dctx->ctx);
 
     for(size_t i = 0; i < dbg_panels_size; i++) {
         struct dbg_ui_panel_t *panel = &dbg_panels[i];
         if(panel->render == NULL) continue;
 
         struct nk_window *win;
-        if(nk_begin(ctx->ctx, panel->title, panel->rect, panel->flags)) {
-            panel->render(panel, ctx, dbg);
-            panel->rect = nk_window_get_bounds(ctx->ctx);
+        if(nk_begin(dctx->ctx, panel->title, panel->rect, panel->flags)) {
+            panel->render(panel, dctx, dbg);
+            panel->rect = nk_window_get_bounds(dctx->ctx);
         }
-        win = ctx->ctx->current;
-        nk_end(ctx->ctx);
+        win = dctx->ctx->current;
+        nk_end(dctx->ctx);
 
-        panel->flags = win->flags;
-        if(win->bounds.y < MENUBAR_HEIGHT) {
-            win->bounds.y = MENUBAR_HEIGHT;
+        if(win != NULL) {
+            panel->flags = win->flags;
+            if(win->bounds.y < MENUBAR_HEIGHT) {
+                win->bounds.y = MENUBAR_HEIGHT;
+            }
         }
     }
 
-    ui_menubar(ctx, dbg, dbg_panels, dbg_panels_size);
+    ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
 }
 
 
-void debugger_ui_render(struct dbg_ui_t* ctx, dbg_t* dbg)
+void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     (void) dbg;
-    DrawNuklear(ctx->ctx);
+    DrawNuklear(dctx->ctx);
 }
 
 
-bool debugger_ui_main_view_focused(const struct dbg_ui_t* ctx)
+bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx)
 {
-    return nk_window_is_active(ctx->ctx, PANEL_VIDEO->title);
+    return nk_window_is_active(dctx->ctx, PANEL_VIDEO->title);
 }

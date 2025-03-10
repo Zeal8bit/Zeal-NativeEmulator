@@ -47,12 +47,12 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 
 int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view);
-void debugger_ui_deinit(struct dbg_ui_t* ctx);
+void debugger_ui_deinit(struct dbg_ui_t* dctx);
 int dbg_ui_config_save(rini_config *config);
 
-void debugger_ui_prepare_render(struct dbg_ui_t* ctx, dbg_t* dbg);
-void debugger_ui_render(struct dbg_ui_t* ctx, dbg_t* dbg);
-bool debugger_ui_main_view_focused(const struct dbg_ui_t* ctx);
+void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg);
+void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg);
+bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx);
 
 
 /** Helpers */
