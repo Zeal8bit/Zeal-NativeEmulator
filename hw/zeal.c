@@ -201,6 +201,7 @@ int zeal_init(zeal_t* machine)
     }
 
     memset(machine, 0, sizeof(*machine));
+    machine->dbg.running = true;
     /* Set the debug mode in the machine structure as soon as possible */
     machine->dbg_enabled = config_debugger_enabled();
 
@@ -427,6 +428,8 @@ int zeal_run(zeal_t* machine)
     }
 
     while (!WindowShouldClose()) {
+        if(!machine->dbg.running) break;
+
         if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
             debug_key_pressed = true;
             zeal_debug_toggle(machine);

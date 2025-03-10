@@ -2,6 +2,7 @@
 #define RINI_IMPLEMENTATION
 
 #include "utils/config.h"
+#include "debugger/debugger_ui.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "raylib.h"
@@ -16,6 +17,10 @@ config_t config = {
 
     .debugger = {
         .enabled = false,
+        .width = -1,
+        .height = -1,
+        .x = -1,
+        .y = -1,
     },
 
     .window = {
@@ -135,24 +140,22 @@ int parse_command_args(int argc, char* argv[])
 void config_parse_file(const char* file) {
     if(!path_exists(file)) return;
 
-    rini_config ini = rini_load_config(file);
+    config.ini = rini_load_config(file);
 
     if(config.arguments.rom_filename == NULL) {
-        config.arguments.rom_filename = rini_get_config_value_text_fallback(ini, "ROM_FILENAME", NULL);
+        config.arguments.rom_filename = rini_get_config_value_text_fallback(config.ini, "ROM_FILENAME", NULL);
     }
 
-    config.debugger.config_enabled = rini_get_config_value_fallback(ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
+    config.debugger.config_enabled = rini_get_config_value_fallback(config.ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
 
-    config.window.width = rini_get_config_value_fallback(ini, "WIN_WIDTH", -1);
-    config.window.height = rini_get_config_value_fallback(ini, "WIN_HEIGHT", -1);
-    config.window.display = rini_get_config_value_fallback(ini, "WIN_DISPLAY", -1);
-    config.window.x = rini_get_config_value_fallback(ini, "WIN_POS_X", -1);
-    config.window.y = rini_get_config_value_fallback(ini, "WIN_POS_Y", -1);
-
-    rini_unload_config(&ini);
+    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
+    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
+    config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
+    config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
+    config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
 }
 
 int config_save() {
@@ -177,11 +180,6 @@ int config_save() {
         }
     }
 
-    if(config.debugger.enabled) {
-        rini_set_config_value(&ini, "DEBUG_ENABLED", config.debugger.config_enabled, "Debug Enabled");
-    }
-
-    // config.window header
     config_window_t *window = &config.window;
     rini_set_config_comment_line(&ini, "Main Window");
     rini_set_config_value(&ini, "WIN_WIDTH", window->width, "Width");
@@ -190,10 +188,41 @@ int config_save() {
     rini_set_config_value(&ini, "WIN_POS_Y", window->y, "Y Position");
     rini_set_config_value(&ini, "WIN_DISPLAY", window->display, "Display Number");
 
+    config_debugger_t *debugger = &config.debugger;
+    rini_set_config_comment_line(&ini, "Debugger");
+    rini_set_config_value(&ini, "DEBUG_WIDTH", debugger->width, "Width");
+    rini_set_config_value(&ini, "DEBUG_HEIGHT", debugger->height, "Height");
+    rini_set_config_value(&ini, "DEBUG_POS_X", debugger->x, "X Position");
+    rini_set_config_value(&ini, "DEBUG_POS_Y", debugger->y, "Y Position");
+    rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
+
+    debugger_ui_config_save(&ini);
+
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);
 
     return 0; // TODO: error checking to ensure things worked?
+}
+
+void config_unload(void)
+{
+    if(config.ini.values != NULL) {
+        rini_unload_config(&config.ini);
+    }
+}
+
+int config_get(const char *key, int defaultValue) {
+    return rini_get_config_value_fallback(config.ini, key, defaultValue);
+}
+const char* config_get_text(const char *key, const char *defaultValue) {
+    return rini_get_config_value_text_fallback(config.ini, key, defaultValue);
+}
+
+void config_set(const char *key, int value, const char *desc) {
+    rini_set_config_value(&config.ini, key, value, desc);
+}
+void config_set_text(const char *key, const char *value, const char *desc) {
+    rini_set_config_value_text(&config.ini, key, value, desc);
 }
 
 void config_window_update(bool user_enabled) {

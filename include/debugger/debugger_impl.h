@@ -67,7 +67,7 @@ typedef struct symbols_t {
 } symbols_t;
 
 struct dbg_t {
-    bool            running;
+    bool            running; // should the emulator continue running?
     hwaddr          breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];
     symbols_t       symbols;

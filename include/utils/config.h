@@ -23,6 +23,11 @@ typedef enum {
 typedef struct {
     debugger_state_t enabled;
     bool config_enabled;
+
+    int width;
+    int height;
+    int x;
+    int y;
 } config_debugger_t;
 
 typedef struct {
@@ -38,6 +43,7 @@ typedef struct {
     config_debugger_t debugger;
     config_window_t window; // main window options
     config_arguments_t arguments;
+    rini_config ini;
 } config_t;
 
 extern config_t config;
@@ -59,9 +65,20 @@ int parse_command_args(int argc, char* argv[]);
 void config_parse_file(const char* file);
 
 /**
+ * @brief Free/unload the rini_config
+ */
+void config_unload(void);
+
+/**
  * @brief Save config file
  */
 int config_save();
+
+int config_get(const char *key, int defaultValue);
+const char* config_get_text(const char *key, const char *defaultValue);
+
+void config_set(const char *key, int value, const char *desc);
+void config_set_text(const char *key, const char *value, const char *desc);
 
 /**
  * @brief Update the configs values for window settings
