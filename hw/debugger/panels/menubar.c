@@ -1,3 +1,4 @@
+#include "hw/zeal.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 
@@ -9,21 +10,28 @@
 #define PANEL_FLAGS (NK_WINDOW_NO_SCROLLBAR)
 #define ROW_HEIGHT  30
 
-
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size)
 {
     struct nk_context* ctx = dctx->ctx;
+    zeal_t* machine = (zeal_t*) (dbg->arg);
     char buffer[60];
+
+    // menus will clip their height, so just allow them to be as tall as possible
+    int windowHeight = GetScreenHeight();
 
     if (nk_begin(ctx, "Menubar", nk_rect(0, 0, GetScreenWidth(), MENUBAR_HEIGHT), PANEL_FLAGS)) {
 
         nk_menubar_begin(ctx);
-        /* menu #1 */
+        /* File Menu */
         nk_layout_row_begin(ctx, NK_STATIC, MENUBAR_HEIGHT, 5);
         nk_layout_row_push(ctx, 45);
-        if (nk_menu_begin_label(ctx, "File", NK_TEXT_LEFT, nk_vec2(120, 200)))
+        if (nk_menu_begin_label(ctx, "File", NK_TEXT_LEFT, nk_vec2(120, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
+
+            if (nk_menu_item_label(ctx, "Debugger Off", NK_TEXT_LEFT)) {
+                zeal_debug_disable(machine);
+            }
 
             if (nk_menu_item_label(ctx, "Save Config", NK_TEXT_LEFT)) {
                 config_window_update(true);
@@ -35,9 +43,37 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             }
             nk_menu_end(ctx);
         }
-        /* menu #2 */
+
+
+        /* CPU Menu */
+        if (nk_menu_begin_label(ctx, "CPU", NK_TEXT_LEFT, nk_vec2(260, windowHeight)))
+        {
+            nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
+            if (nk_menu_item_label(ctx, "Pause                  Meta+F6", NK_TEXT_LEFT)) {
+                debugger_pause(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Continue               Meta+F5", NK_TEXT_LEFT)) {
+                debugger_continue(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Restart         Meta+ Shift+F6", NK_TEXT_LEFT)) {
+                debugger_restart(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Step Over             Meta+F10", NK_TEXT_LEFT)) {
+                debugger_step_over(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Step                  Meta+F11", NK_TEXT_LEFT)) {
+                debugger_step(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Toggle Breakpoint      Meta+F9", NK_TEXT_LEFT)) {
+                debugger_toggle_breakpoint(dbg, machine->cpu.pc);
+            }
+            nk_menu_end(ctx);
+        }
+
+
+        /* View Menu */
         nk_layout_row_push(ctx, 60);
-        if (nk_menu_begin_label(ctx, "View", NK_TEXT_LEFT, nk_vec2(200, 600)))
+        if (nk_menu_begin_label(ctx, "View", NK_TEXT_LEFT, nk_vec2(200, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
             for(int i = 0; i < panels_size; i++) {

@@ -78,8 +78,7 @@ void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, 
 
         if (button_clicked) {
             /* Button was clicked, toggle the breakpoint! */
-            if (is_breakpoint) debugger_clear_breakpoint(dbg, current_addr);
-            else debugger_set_breakpoint(dbg, current_addr);
+            debugger_toggle_breakpoint(dbg, current_addr);
         }
 
         nk_layout_row_push(ctx, 370);

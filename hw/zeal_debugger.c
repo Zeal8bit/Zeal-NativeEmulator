@@ -123,6 +123,12 @@ static void zeal_debugger_continue_cb(dbg_t* dbg) {
     machine->dbg_state = ST_RUNNING;
 }
 
+static void zeal_debugger_restart_cb(dbg_t* dbg) {
+    zeal_t* machine = (zeal_t*) (dbg->arg);
+    (void)machine; // unreferenced
+    // machine->dbg_state = ST_RUNNING;
+}
+
 
 static void zeal_debugger_step_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
@@ -133,6 +139,14 @@ static void zeal_debugger_step_cb(dbg_t* dbg) {
 static void zeal_debugger_step_over_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
     machine->dbg_state = ST_REQ_STEP_OVER;
+}
+
+static void zeal_debugger_breakpoint_cb(dbg_t* dbg) {
+    zeal_t* machine = (zeal_t*) (dbg->arg);
+
+    if(machine->dbg_state != ST_RUNNING) {
+        debugger_toggle_breakpoint(dbg, machine->cpu.pc);
+    }
 }
 
 
@@ -267,8 +281,10 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
     dbg->pause_cb = zeal_debugger_pause_cb;
     dbg->is_paused_cb = zeal_debugger_is_paused_cb;
     dbg->continue_cb = zeal_debugger_continue_cb;
+    dbg->restart_cb = zeal_debugger_restart_cb;
     dbg->step_cb = zeal_debugger_step_cb;
     dbg->step_over_cb = zeal_debugger_step_over_cb;
+    dbg->breakpoint_cb = zeal_debugger_breakpoint_cb;
     dbg->get_regs_cb = zeal_debugger_get_regs;
     dbg->set_regs_cb = zeal_debugger_set_regs;
     dbg->get_mem_cb = zeal_debugger_get_mem;

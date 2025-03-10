@@ -10,6 +10,12 @@
 
 char DEBUG_BUFFER[256];
 
+/**
+ * ===========================================================
+ *                  PANEL CONFIG
+ * ===========================================================
+ */
+
 #define PANEL_DEFAULT_FLAGS ( NK_WINDOW_CLOSABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_MOVABLE )
 
 struct dbg_ui_panel_t dbg_panels[] = {
@@ -52,7 +58,7 @@ struct dbg_ui_panel_t dbg_panels[] = {
     },
 };
 size_t dbg_panels_size = sizeof(dbg_panels) / sizeof(struct dbg_ui_panel_t);
-dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[0];
+dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[0]; // the panel containing ZVB output
 
 /**
  * ===========================================================

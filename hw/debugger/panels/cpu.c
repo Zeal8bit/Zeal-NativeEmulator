@@ -228,10 +228,10 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 
 
     if (nk_button_label(ctx, ">>|")) {
-        printf("Step Over pressed\n");
+        debugger_step_over(dbg);
     }
 
     if (nk_button_label(ctx, "[ ]")) {
-        printf("Restart pressed\n");
+        debugger_restart(dbg);
     }
 }
