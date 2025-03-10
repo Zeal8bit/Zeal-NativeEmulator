@@ -24,7 +24,12 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
         if (nk_menu_begin_label(ctx, "File", NK_TEXT_LEFT, nk_vec2(120, 200)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
-            // if (nk_menu_item_label(ctx, "About", NK_TEXT_LEFT));
+
+            if (nk_menu_item_label(ctx, "Save Config", NK_TEXT_LEFT)) {
+                config_window_update(true);
+                config_save();
+            }
+
             if (nk_menu_item_label(ctx, "Quit", NK_TEXT_LEFT)) {
                 dbg->running = false;
             }
@@ -51,6 +56,14 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                     panel->flags &= ~NK_WINDOW_HIDDEN;
                 }
             }
+
+            nk_bool aspect_forced = config.window.aspect_force;
+            nk_checkbox_label(ctx, "Forced Aspect", &aspect_forced);
+            config.window.aspect_force = aspect_forced;
+
+            nk_bool keyboard_passthru = config.debugger.keyboard_passthru;
+            nk_checkbox_label(ctx, "KB Passthru", &keyboard_passthru);
+            config.debugger.keyboard_passthru = keyboard_passthru;
 
             if (nk_menu_item_label(ctx, "Reset Layout", NK_TEXT_LEFT)) {
                 SetWindowSize(1280, 960);

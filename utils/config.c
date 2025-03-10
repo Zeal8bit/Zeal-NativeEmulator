@@ -17,6 +17,7 @@ config_t config = {
 
     .debugger = {
         .enabled = false,
+        .keyboard_passthru = false,
         .width = -1,
         .height = -1,
         .x = -1,
@@ -159,9 +160,10 @@ void config_parse_file(const char* file) {
 
     config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
     config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
-    config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
     config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
     config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
+    config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
+    config.window.aspect_force = rini_get_config_value_fallback(config.ini, "WIN_ASPECT_FORCE", true);
 
     config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", -1);
     config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
@@ -169,9 +171,7 @@ void config_parse_file(const char* file) {
     config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
 }
 
-int config_save(bool dbg_enabled) {
-    (void)dbg_enabled;
-
+int config_save() {
     rini_config ini = rini_load_config(NULL);
 
     // main header
@@ -200,6 +200,7 @@ int config_save(bool dbg_enabled) {
     rini_set_config_value(&ini, "WIN_POS_X", window->x, "X Position");
     rini_set_config_value(&ini, "WIN_POS_Y", window->y, "Y Position");
     rini_set_config_value(&ini, "WIN_DISPLAY", window->display, "Display Number");
+    rini_set_config_value(&ini, "WIN_ASPECT_FORCE", window->aspect_force, "Forced Aspect Ratio");
 
     config_debugger_t *debugger = &config.debugger;
     rini_set_config_comment_line(&ini, "Debugger");
@@ -256,11 +257,28 @@ void config_window_update(bool dbg_enabled) {
     config.window.display = GetCurrentMonitor();
 }
 
+Vector2 config_aspect_force(Vector2 size) {
+    Vector2 aspect = { .x = 4, .y = 3 };
+    // calculate aspect for missing size
+
+    if(size.x >= size.y) {
+        size.y = (size.x * aspect.y) / aspect.x;
+    } else {
+        size.x = (size.y * aspect.x) / aspect.y;
+    }
+
+    return size;
+}
+
+bool config_keyboard_passthru(bool dbg_enabled) {
+    if(!dbg_enabled) return false; // only enable passthru in debugger ui
+    return config.debugger.keyboard_passthru;
+}
+
 void config_window_set(bool dbg_enabled) {
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);
 
-    Vector2 aspect = { .x = 4, .y = 3 };
     Vector2 window_size = {
         .x = config.window.width,
         .y = config.window.height,
@@ -280,11 +298,12 @@ void config_window_set(bool dbg_enabled) {
             window_size.x = ZVB_MAX_RES_WIDTH;
             window_size.y = ZVB_MAX_RES_HEIGHT;
         }
-    } else {
-        // calculate aspect for missing size
-        if(window_size.x < 0) window_size.x = (window_size.y * aspect.x) / aspect.y;
-        if(window_size.y < 0) window_size.y = (window_size.x * aspect.y) / aspect.x;
     }
+
+    if(!dbg_enabled && config.window.aspect_force) {
+        window_size = config_aspect_force(window_size);
+    }
+
     SetWindowSize(window_size.x, window_size.y);
 
     Vector2 screen_offset = GetMonitorPosition(d);

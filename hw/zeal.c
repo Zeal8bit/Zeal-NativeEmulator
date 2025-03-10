@@ -212,9 +212,10 @@ int zeal_init(zeal_t* machine)
     SetTraceLogLevel(WIN_LOG_LEVEL);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
-    /* Not in debug mode, create the window as big as the emulated screen */
+    /* initialize raylib window */
     InitWindow(0, 0, WIN_NAME);
     config_window_set(machine->dbg_enabled);
+    SetExitKey(KEY_NULL);
 
 #if !BENCHMARK
     SetTargetFPS(60);
@@ -419,11 +420,21 @@ static int zeal_normal_mode_run(zeal_t* machine)
     return 0;
 }
 
+void zeal_ui_input(zeal_t* machine) {
+    static bool debug_key_pressed = false;
+    if(!config_keyboard_passthru(machine->dbg_enabled)) {
+        if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
+            debug_key_pressed = true;
+            zeal_debug_toggle(machine);
+        } else if(IsKeyReleased(KEY_F12)) {
+            debug_key_pressed = false;
+        }
+    }
+}
 
 int zeal_run(zeal_t* machine)
 {
     int ret = 0;
-    bool debug_key_pressed = false;
 
     if (machine == NULL) {
         return -1;
@@ -432,12 +443,7 @@ int zeal_run(zeal_t* machine)
     while (!WindowShouldClose()) {
         if(!machine->dbg.running) break;
 
-        if(!debug_key_pressed && IsKeyPressed(KEY_F12)) {
-            debug_key_pressed = true;
-            zeal_debug_toggle(machine);
-        } else if(IsKeyReleased(KEY_F12)) {
-            debug_key_pressed = false;
-        }
+        zeal_ui_input(machine);
 
         if (machine->dbg_enabled) {
             ret = zeal_dbg_mode_run(machine);
