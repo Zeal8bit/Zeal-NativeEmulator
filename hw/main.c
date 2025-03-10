@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 
     code = zeal_run(&machine);
 
-    int saved = config_save();
+    int saved = config_save(machine.dbg_enabled);
     config_unload();
     if(!saved && code == 0) return saved; // ???
 

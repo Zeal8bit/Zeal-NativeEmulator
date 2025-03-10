@@ -151,14 +151,21 @@ void config_parse_file(const char* file) {
         config.debugger.enabled = config.debugger.config_enabled;
 
 
-    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
-    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
+    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", ZVB_MAX_RES_WIDTH);
+    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", ZVB_MAX_RES_HEIGHT);
     config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
     config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
     config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
+
+    config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", ZVB_MAX_RES_WIDTH * 2);
+    config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", ZVB_MAX_RES_HEIGHT * 2);
+    config.debugger.x = rini_get_config_value_fallback(config.ini, "DEBUG_POS_X", -1);
+    config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
 }
 
-int config_save() {
+int config_save(bool dbg_enabled) {
+    (void)dbg_enabled;
+
     rini_config ini = rini_load_config(NULL);
 
     // main header
@@ -196,7 +203,7 @@ int config_save() {
     rini_set_config_value(&ini, "DEBUG_POS_Y", debugger->y, "Y Position");
     rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
 
-    debugger_ui_config_save(&ini);
+    dbg_ui_config_save(&ini);
 
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);
@@ -225,12 +232,15 @@ void config_set_text(const char *key, const char *value, const char *desc) {
     rini_set_config_value_text(&config.ini, key, value, desc);
 }
 
-void config_window_update(bool user_enabled) {
-    bool config_enabled = config.debugger.enabled == DEBUGGER_STATE_CONFIG;
-    bool update_rect = user_enabled == config_enabled;
-    if(user_enabled && config.arguments.config_save && config.debugger.enabled == DEBUGGER_STATE_ARG) update_rect = true;
+void config_window_update(bool dbg_enabled) {
 
-    if(update_rect) {
+    if(dbg_enabled && config_debugger_enabled()) {
+        config.debugger.width = GetScreenWidth();
+        config.debugger.height = GetScreenHeight();
+        Vector2 position = GetWindowPosition();
+        config.debugger.x = position.x;
+        config.debugger.y = position.y;
+    } else if (!dbg_enabled) {
         config.window.width = GetScreenWidth();
         config.window.height = GetScreenHeight();
         Vector2 position = GetWindowPosition();
@@ -240,7 +250,7 @@ void config_window_update(bool user_enabled) {
     config.window.display = GetCurrentMonitor();
 }
 
-void config_window_set(void) {
+void config_window_set(bool dbg_enabled) {
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);
 
@@ -249,10 +259,14 @@ void config_window_set(void) {
         .x = config.window.width,
         .y = config.window.height,
     };
+    if(dbg_enabled) {
+        window_size.x = config.debugger.width;
+        window_size.y = config.debugger.height;
+    }
 
     if(window_size.x < 0 && window_size.y < 0) {
         // default
-        if(config_debugger_enabled()) {
+        if(dbg_enabled) {
             window_size.x = (ZVB_MAX_RES_WIDTH * 2);
             window_size.y = (ZVB_MAX_RES_HEIGHT * 2);
         } else {

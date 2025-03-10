@@ -18,6 +18,7 @@ typedef enum {
     DEBUGGER_STATE_DISABLED    = 0,
     DEBUGGER_STATE_CONFIG      = 1,
     DEBUGGER_STATE_ARG         = 2,
+    DEBUGGER_STATE_USER        = 3,
 } debugger_state_t;
 
 typedef struct {
@@ -72,7 +73,7 @@ void config_unload(void);
 /**
  * @brief Save config file
  */
-int config_save();
+int config_save(bool dbg_enabled);
 
 int config_get(const char *key, int defaultValue);
 const char* config_get_text(const char *key, const char *defaultValue);
@@ -82,14 +83,14 @@ void config_set_text(const char *key, const char *value, const char *desc);
 
 /**
  * @brief Update the configs values for window settings
- * @param debug_enabled Whether the user is in debug mode
+ * @param dbg_enabled Whether the user is in debug mode
  */
-void config_window_update(bool debug_enabled);
+void config_window_update(bool dbg_enabled);
 
 /**
  * @brief Set the Window to the current config settings
  */
-void config_window_set(void);
+void config_window_set(bool dbg_enabled);
 
 /**
  * @brief Determine if debugger is enabled

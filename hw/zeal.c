@@ -166,7 +166,7 @@ int zeal_debug_enable(zeal_t* machine)
     int ret = 0;
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
-    if(!config_debugger_enabled()) SetWindowSize(WIN_VISIBLE_WIDTH, WIN_VISIBLE_HEIGHT);
+    SetWindowSize(config.debugger.width, config.debugger.height);
     if(machine->dbg_ui == NULL) {
         ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
     }
@@ -212,7 +212,7 @@ int zeal_init(zeal_t* machine)
 
     /* Not in debug mode, create the window as big as the emulated screen */
     InitWindow(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, WIN_NAME);
-    config_window_set();
+    config_window_set(machine->dbg_enabled);
 
 #if !BENCHMARK
     SetTargetFPS(60);

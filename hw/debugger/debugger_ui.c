@@ -181,11 +181,14 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     }
 }
 
-int debugger_ui_config_save(rini_config *ini) {
+int dbg_ui_config_save(rini_config *ini) {
     char key[80];
+
     for(size_t i = 0; i < dbg_panels_size; i++) {
         dbg_ui_panel_t *panel = &dbg_panels[i];
         rini_set_config_comment_line(ini, panel->title);
+
+        if(panel->rect.w < 1) dbg_ui_get_panel_config(panel);
 
         sprintf(key, "%s_HIDDEN", panel->key);
         rini_set_config_value(ini, key, !!(panel->flags & NK_WINDOW_HIDDEN), "Enabled");
