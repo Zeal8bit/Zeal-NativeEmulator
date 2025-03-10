@@ -32,3 +32,4 @@ build/utils/%.o: utils/%.c
 clean:
 	-rm -rf build
 	-rm -rf $(bin)
+	-rm -rf screenshot*.png

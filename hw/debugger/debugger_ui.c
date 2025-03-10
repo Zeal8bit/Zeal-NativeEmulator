@@ -283,22 +283,25 @@ void debugger_ui_prepare_render(struct dbg_ui_t* ctx, dbg_t* dbg)
 {
     UpdateNuklear(ctx->ctx);
 
-    ui_menubar(ctx, dbg, dbg_panels, dbg_panels_size);
-
     for(size_t i = 0; i < dbg_panels_size; i++) {
         struct dbg_ui_panel_t *panel = &dbg_panels[i];
         if(panel->render == NULL) continue;
 
+        struct nk_window *win;
         if(nk_begin(ctx->ctx, panel->title, panel->rect, panel->flags)) {
             panel->render(panel, ctx, dbg);
             panel->rect = nk_window_get_bounds(ctx->ctx);
         }
+        win = ctx->ctx->current;
         nk_end(ctx->ctx);
 
-        // get the window reference
-        struct nk_window *win = nk_window_find(ctx->ctx, panel->title);
         panel->flags = win->flags;
+        if(win->bounds.y < MENUBAR_HEIGHT) {
+            win->bounds.y = MENUBAR_HEIGHT;
+        }
     }
+
+    ui_menubar(ctx, dbg, dbg_panels, dbg_panels_size);
 }
 
 
