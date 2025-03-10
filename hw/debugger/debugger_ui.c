@@ -15,7 +15,7 @@
 #define CPU_CTRL_REG_HEIGHT     25
 #define CPU_CTRL_REG_PADDING    0.1f
 #define DIM(t)  (sizeof(t) / sizeof(*t))
-
+#define BIT(n)  (1 << (n))
 
 struct dbg_ui_t {
     struct nk_context* ctx;
@@ -313,9 +313,8 @@ static void ui_memory_viewer(struct dbg_ui_t* dctx, dbg_t* dbg)
 
         /* Add a line for the address to check and the dump */
         nk_layout_row_dynamic(ctx, 30, 3);
-        static char edit_addr[8] = { 0 };
-        const int len = 5; // 4 digits + null char
-        nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, len, NULL);
+        static char edit_addr[64] = { 0 };
+        nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, sizeof(edit_addr), NULL);
 
         /**
          * Show a 'View' button to dump the memory
@@ -323,9 +322,9 @@ static void ui_memory_viewer(struct dbg_ui_t* dctx, dbg_t* dbg)
          */
         if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED))) {
             /* Make sure it is a hex value */
-            int addr = 0;
-            if (sscanf(edit_addr, "%x", &addr) == 1) {
-                dctx->mem_view_addr = addr;
+            hwaddr addr = 0;
+            if (sscanf(edit_addr, "%x", &addr) == 1 || debugger_find_symbol(dbg, edit_addr, &addr)) {
+                dctx->mem_view_addr = (int) addr;
             }
         }
 
@@ -405,7 +404,7 @@ static void ui_cpu_reg_edited(dbg_t* dbg, regs_t* regs, int idx, bool lsb, char*
 static void ui_cpu_ctrl(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     struct nk_context* ctx = dctx->ctx;
-    regs_t regs;
+    regs_t regs = { 0 };
 
     regs_view_t pairs[] = {
         [REG_AF] = {
@@ -532,12 +531,12 @@ static void ui_cpu_ctrl(struct dbg_ui_t* dctx, dbg_t* dbg)
 
         /* Flags related */
         nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 6);
-        nk_check_label(ctx, "C", false);
-        nk_check_label(ctx, "N", false);
-        nk_check_label(ctx, "P/V", false);
-        nk_check_label(ctx, "H", true);
-        nk_check_label(ctx, "Z", true);
-        nk_check_label(ctx, "S", true);
+        nk_check_label(ctx, "C",   (regs.f & BIT(0)) != 0);
+        nk_check_label(ctx, "N",   (regs.f & BIT(1)) != 0);
+        nk_check_label(ctx, "P/V", (regs.f & BIT(2)) != 0);
+        nk_check_label(ctx, "H",   (regs.f & BIT(4)) != 0);
+        nk_check_label(ctx, "Z",   (regs.f & BIT(6)) != 0);
+        nk_check_label(ctx, "S",   (regs.f & BIT(7)) != 0);
 
         nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 4);
 
@@ -620,12 +619,12 @@ static void ui_breakpoints(struct dbg_ui_t* dctx, dbg_t* dbg)
 
         /* Fixed input row at the bottom */
         nk_layout_row_dynamic(ctx, 30, 2);
-        nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, input, 32, nk_filter_hex);
+        nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, input, 32, NULL);
 
         /* Show an 'Add' button to set a breakpoint */
         if (nk_button_label(ctx, "Add") || (flags & NK_EDIT_COMMITED)) {
             /* Make sure it is a hex value (for now) */
-            if (sscanf(input, "%x", &new_bp) == 1) {
+            if (sscanf(input, "%x", &new_bp) == 1 || debugger_find_symbol(dbg, input, &new_bp)) {
                 /* Clear the buffer to clear the field */
                 memset(input, 0, sizeof(input));
                 debugger_set_breakpoint(dbg, new_bp);
