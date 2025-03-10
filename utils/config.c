@@ -2,6 +2,7 @@
 #define RINI_IMPLEMENTATION
 
 #include "utils/config.h"
+#include "debugger/debugger_ui.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "raylib.h"
@@ -16,6 +17,12 @@ config_t config = {
 
     .debugger = {
         .enabled = false,
+        .keyboard_passthru = false,
+        .hex_upper = true,
+        .width = -1,
+        .height = -1,
+        .x = -1,
+        .y = -1,
     },
 
     .window = {
@@ -26,6 +33,23 @@ config_t config = {
         .display = -1,
     },
 };
+
+const Vector2 vga_resolutions[] = {
+    {320, 240},
+    {400, 300},
+    {512, 384},
+    {640, 480},
+    {800, 600},
+    {1024, 768},
+    {1152, 864},
+    {1280, 960},
+    {1400, 1050},
+    {1600, 1200},
+    {1856, 1392},
+    {1920, 1440},
+    {2048, 1536}
+};
+const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
 
 
 void config_debug(void) {
@@ -52,6 +76,12 @@ void config_debug(void) {
     printf("      y: %d\n", config.window.y);
     printf("display: %d\n", config.window.display);
 
+    printf("\n");
+    printf("=== debugger ===\n");
+    printf("  width: %d\n", config.debugger.width);
+    printf(" height: %d\n", config.debugger.height);
+    printf("      x: %d\n", config.debugger.x);
+    printf("      y: %d\n", config.debugger.y);
     printf("\n\n");
 }
 
@@ -135,24 +165,28 @@ int parse_command_args(int argc, char* argv[])
 void config_parse_file(const char* file) {
     if(!path_exists(file)) return;
 
-    rini_config ini = rini_load_config(file);
+    config.ini = rini_load_config(file);
 
     if(config.arguments.rom_filename == NULL) {
-        config.arguments.rom_filename = rini_get_config_value_text_fallback(ini, "ROM_FILENAME", NULL);
+        config.arguments.rom_filename = rini_get_config_value_text_fallback(config.ini, "ROM_FILENAME", NULL);
     }
 
-    config.debugger.config_enabled = rini_get_config_value_fallback(ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
+    config.debugger.config_enabled = rini_get_config_value_fallback(config.ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
 
-    config.window.width = rini_get_config_value_fallback(ini, "WIN_WIDTH", -1);
-    config.window.height = rini_get_config_value_fallback(ini, "WIN_HEIGHT", -1);
-    config.window.display = rini_get_config_value_fallback(ini, "WIN_DISPLAY", -1);
-    config.window.x = rini_get_config_value_fallback(ini, "WIN_POS_X", -1);
-    config.window.y = rini_get_config_value_fallback(ini, "WIN_POS_Y", -1);
+    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
+    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
+    config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
+    config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
+    config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
 
-    rini_unload_config(&ini);
+    config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", -1);
+    config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
+    config.debugger.x = rini_get_config_value_fallback(config.ini, "DEBUG_POS_X", -1);
+    config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
+    config.debugger.hex_upper = rini_get_config_value_fallback(config.ini, "DEBUG_HEX_UPPER", 1);
 }
 
 int config_save() {
@@ -177,11 +211,6 @@ int config_save() {
         }
     }
 
-    if(config.debugger.enabled) {
-        rini_set_config_value(&ini, "DEBUG_ENABLED", config.debugger.config_enabled, "Debug Enabled");
-    }
-
-    // config.window header
     config_window_t *window = &config.window;
     rini_set_config_comment_line(&ini, "Main Window");
     rini_set_config_value(&ini, "WIN_WIDTH", window->width, "Width");
@@ -190,18 +219,53 @@ int config_save() {
     rini_set_config_value(&ini, "WIN_POS_Y", window->y, "Y Position");
     rini_set_config_value(&ini, "WIN_DISPLAY", window->display, "Display Number");
 
+    config_debugger_t *debugger = &config.debugger;
+    rini_set_config_comment_line(&ini, "Debugger");
+    rini_set_config_value(&ini, "DEBUG_WIDTH", debugger->width, "Width");
+    rini_set_config_value(&ini, "DEBUG_HEIGHT", debugger->height, "Height");
+    rini_set_config_value(&ini, "DEBUG_POS_X", debugger->x, "X Position");
+    rini_set_config_value(&ini, "DEBUG_POS_Y", debugger->y, "Y Position");
+    rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
+    rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
+
+    dbg_ui_config_save(&ini);
+
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);
 
     return 0; // TODO: error checking to ensure things worked?
 }
 
-void config_window_update(bool user_enabled) {
-    bool config_enabled = config.debugger.enabled == DEBUGGER_STATE_CONFIG;
-    bool update_rect = user_enabled == config_enabled;
-    if(user_enabled && config.arguments.config_save && config.debugger.enabled == DEBUGGER_STATE_ARG) update_rect = true;
+void config_unload(void)
+{
+    if(config.ini.values != NULL) {
+        rini_unload_config(&config.ini);
+    }
+}
 
-    if(update_rect) {
+int config_get(const char *key, int defaultValue) {
+    return rini_get_config_value_fallback(config.ini, key, defaultValue);
+}
+const char* config_get_text(const char *key, const char *defaultValue) {
+    return rini_get_config_value_text_fallback(config.ini, key, defaultValue);
+}
+
+void config_set(const char *key, int value, const char *desc) {
+    rini_set_config_value(&config.ini, key, value, desc);
+}
+void config_set_text(const char *key, const char *value, const char *desc) {
+    rini_set_config_value_text(&config.ini, key, value, desc);
+}
+
+void config_window_update(bool dbg_enabled) {
+
+    if(dbg_enabled) {
+        config.debugger.width = GetScreenWidth();
+        config.debugger.height = GetScreenHeight();
+        Vector2 position = GetWindowPosition();
+        config.debugger.x = position.x;
+        config.debugger.y = position.y;
+    } else {
         config.window.width = GetScreenWidth();
         config.window.height = GetScreenHeight();
         Vector2 position = GetWindowPosition();
@@ -211,30 +275,53 @@ void config_window_update(bool user_enabled) {
     config.window.display = GetCurrentMonitor();
 }
 
-void config_window_set(void) {
+Vector2 config_aspect_force(Vector2 size) {
+    Vector2 aspect = { .x = 4, .y = 3 };
+    // calculate aspect for missing size
+
+    if(size.x >= size.y) {
+        size.y = (size.x * aspect.y) / aspect.x;
+    } else {
+        size.x = (size.y * aspect.x) / aspect.y;
+    }
+
+    return size;
+}
+
+bool config_keyboard_passthru(bool dbg_enabled) {
+    if(!dbg_enabled) return false; // only enable passthru in debugger ui
+    return config.debugger.keyboard_passthru;
+}
+
+void config_window_set(bool dbg_enabled) {
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);
 
-    Vector2 aspect = { .x = 4, .y = 3 };
     Vector2 window_size = {
         .x = config.window.width,
         .y = config.window.height,
     };
 
+    if(dbg_enabled) {
+        window_size.x = config.debugger.width;
+        window_size.y = config.debugger.height;
+    }
+
     if(window_size.x < 0 && window_size.y < 0) {
         // default
-        if(config_debugger_enabled()) {
+        if(dbg_enabled) {
             window_size.x = (ZVB_MAX_RES_WIDTH * 2);
             window_size.y = (ZVB_MAX_RES_HEIGHT * 2);
         } else {
             window_size.x = ZVB_MAX_RES_WIDTH;
             window_size.y = ZVB_MAX_RES_HEIGHT;
         }
-    } else {
-        // calculate aspect for missing size
-        if(window_size.x < 0) window_size.x = (window_size.y * aspect.x) / aspect.y;
-        if(window_size.y < 0) window_size.y = (window_size.x * aspect.y) / aspect.x;
     }
+
+    if(!dbg_enabled && config.window.aspect_force) {
+        window_size = config_aspect_force(window_size);
+    }
+
     SetWindowSize(window_size.x, window_size.y);
 
     Vector2 screen_offset = GetMonitorPosition(d);
@@ -243,11 +330,42 @@ void config_window_set(void) {
         .y = GetMonitorHeight(d),
     };
 
-    int x = config.window.x;
-    int y = config.window.y;
+    Vector2 window_pos = {
+        .x = config.window.x,
+        .y = config.window.y,
+    };
+
+    if(dbg_enabled) {
+        window_pos.x = config.debugger.x;
+        window_pos.y = config.debugger.y;
+    }
 
     // calculate center if either coordinate is not set
-    if(x < 0) x = screen_offset.x + ((screen.x - window_size.x) / 2);
-    if(y < 0) y = screen_offset.y + ((screen.y - window_size.y) / 2);
-    SetWindowPosition(x, y);
+    if(window_pos.x < 0) window_pos.x = screen_offset.x + ((screen.x - window_size.x) / 2);
+    if(window_pos.y < 0) window_pos.y = screen_offset.y + ((screen.y - window_size.y) / 2);
+    SetWindowPosition(window_pos.x, window_pos.y);
+}
+
+Vector2 config_get_next_resolution(int width)
+{
+    Vector2 size = vga_resolutions[vga_resolutions_size - 1];
+    for(int i = 0; i < vga_resolutions_size; i++) {
+        if(vga_resolutions[i].x > width) {
+            size = vga_resolutions[i];
+            break;
+        }
+    }
+    return size;
+}
+
+Vector2 config_get_prev_resolution(int width)
+{
+    Vector2 size = vga_resolutions[0];
+    for(int i = vga_resolutions_size-1; i >= 0; i--) {
+        if(vga_resolutions[i].x < width) {
+            size = vga_resolutions[i];
+            break;
+        }
+    }
+    return size;
 }

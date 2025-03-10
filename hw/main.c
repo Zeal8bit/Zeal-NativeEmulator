@@ -45,6 +45,7 @@ int main(int argc, char* argv[])
     code = zeal_run(&machine);
 
     int saved = config_save();
+    config_unload();
     if(!saved && code == 0) return saved; // ???
 
     return code;

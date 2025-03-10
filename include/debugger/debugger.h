@@ -9,6 +9,7 @@
 /* Breakpoint management */
 bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address);
+bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address);
 int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size);
 
@@ -27,9 +28,13 @@ void debugger_get_registers(dbg_t *dbg, regs_t *regs);
 void debugger_set_registers(dbg_t *dbg, regs_t *regs);
 
 /* Execution control */
+typedef void (*debugger_callback_t)(dbg_t *dbg);
 void debugger_step(dbg_t *dbg);
+void debugger_step_over(dbg_t *dbg);
 void debugger_continue(dbg_t *dbg);
 void debugger_pause(dbg_t *dbg);
+void debugger_restart(dbg_t *dbg);
+void debugger_breakpoint(dbg_t *dbg);
 bool debugger_is_paused(dbg_t *dbg);
 
 /* Event handling */

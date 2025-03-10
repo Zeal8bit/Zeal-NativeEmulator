@@ -1,5 +1,5 @@
 bin = zeal.elf
-src = $(wildcard hw/*.c hw/zvb/*.c hw/debugger/*.c utils/*.c)
+src = $(wildcard hw/*.c hw/zvb/*.c hw/debugger/panels/*.c hw/debugger/*.c utils/*.c)
 obj = $(patsubst hw/%.c, build/%.o, $(patsubst utils/%.c, build/utils/%.o, $(src)))
 
 ifeq ($(RAYLIB_PATH),)
@@ -32,3 +32,4 @@ build/utils/%.o: utils/%.c
 clean:
 	-rm -rf build
 	-rm -rf $(bin)
+	-rm -rf screenshot*.png

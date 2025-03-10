@@ -67,7 +67,7 @@ typedef struct symbols_t {
 } symbols_t;
 
 struct dbg_t {
-    bool            running;
+    bool            running; // should the emulator continue running?
     hwaddr          breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];
     symbols_t       symbols;
@@ -75,8 +75,10 @@ struct dbg_t {
     debugger_dis_op  disassemble_cb;
     debugger_ctrl_op pause_cb;
     debugger_ctrl_op continue_cb;
+    debugger_ctrl_op restart_cb;
     debugger_ctrl_op step_cb;
     debugger_ctrl_op step_over_cb;
+    debugger_ctrl_op breakpoint_cb;
     debugger_chk_op  is_paused_cb;
     debugger_regs_op get_regs_cb;
     debugger_regs_op set_regs_cb;

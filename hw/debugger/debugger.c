@@ -49,6 +49,14 @@ bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
     return false;
 }
 
+bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address) {
+    if(debugger_is_breakpoint_set(dbg, address)) {
+        return debugger_clear_breakpoint(dbg, address);
+    } else {
+        return debugger_set_breakpoint(dbg, address);
+    }
+}
+
 
 int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
 {
@@ -175,6 +183,22 @@ void debugger_step(dbg_t *dbg)
     dbg->step_cb(dbg);
 }
 
+/* Execution control */
+void debugger_step_over(dbg_t *dbg)
+{
+    if (dbg == NULL || dbg->step_over_cb == NULL) {
+        return;
+    }
+    // dbg->step_cb(dbg);
+    printf("Step Over - not implemented\n");
+}
+
+void debugger_breakpoint(dbg_t *dbg) {
+    if (dbg == NULL || dbg->breakpoint_cb == NULL) {
+        return;
+    }
+    dbg->breakpoint_cb(dbg);
+}
 
 void debugger_continue(dbg_t *dbg)
 {
@@ -191,6 +215,15 @@ void debugger_pause(dbg_t *dbg)
         return;
     }
     dbg->pause_cb(dbg);
+}
+
+void debugger_restart(dbg_t *dbg)
+{
+    printf("debugger_restart: dbg: %d, restart_cb: %d\n", dbg != NULL, dbg != NULL && dbg->restart_cb != NULL);
+    if (dbg == NULL || dbg->restart_cb == NULL) {
+        return;
+    }
+    printf("Restart pressed\n");
 }
 
 
