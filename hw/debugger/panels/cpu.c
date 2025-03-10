@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "utils/helpers.h"
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
@@ -77,7 +78,8 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 {
     (void)panel; // unreferenced
     struct nk_context* ctx = dctx->ctx;
-    regs_t regs;
+    regs_t regs = { 0 };
+
 
     regs_view_t pairs[] = {
         [REG_AF] = {
@@ -200,12 +202,13 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 
     /* Flags related */
     nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 6);
-    nk_check_label(ctx, "C", false);
-    nk_check_label(ctx, "N", false);
-    nk_check_label(ctx, "P/V", false);
-    nk_check_label(ctx, "H", true);
-    nk_check_label(ctx, "Z", true);
-    nk_check_label(ctx, "S", true);
+    nk_check_label(ctx, "C",   BIT(regs.f, 0) != 0);
+    nk_check_label(ctx, "N",   BIT(regs.f, 1) != 0);
+    nk_check_label(ctx, "P/V", BIT(regs.f, 2) != 0);
+    nk_check_label(ctx, "H",   BIT(regs.f, 4) != 0);
+    nk_check_label(ctx, "Z",   BIT(regs.f, 6) != 0);
+    nk_check_label(ctx, "S",   BIT(regs.f, 7) != 0);
+
 
     nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 4);
 

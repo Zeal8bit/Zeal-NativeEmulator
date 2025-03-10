@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "hw/device.h"
+#include "utils/helpers.h"
 
 #define MODE_OUTPUT  0
 #define MODE_INPUT   1
@@ -13,8 +14,6 @@
 
 #define DIR_OUTPUT 0
 #define DIR_INPUT  1
-
-#define BIT(val, n) (((val) >> (n)) & 1)
 
 typedef void (*pio_listener_callback)(uint8_t, uint8_t, uint8_t, uint8_t);
 typedef void (*pio_listener_change_callback)(uint8_t, uint8_t);

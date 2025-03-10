@@ -14,7 +14,6 @@
 #define CPU_CTRL_HEIGHT         280
 #define CPU_CTRL_REG_HEIGHT     25
 #define CPU_CTRL_REG_PADDING    0.1f
-#define DIM(t)  (sizeof(t) / sizeof(*t))
 
 typedef struct dbg_ui_panel_t dbg_ui_panel_t;
 struct dbg_ui_t {

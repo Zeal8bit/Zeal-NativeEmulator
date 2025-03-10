@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <math.h>
 
@@ -8,6 +10,9 @@
 #define ONE_MILLIS us_to_tstates(1000);
 
 #define US_TO_TSTATES(v)    (((v) * CPUFREQ) / 1000000UL)
+
+#define BIT(val, n) (((val) >> (n)) & 1)
+#define DIM(t)  (sizeof(t) / sizeof(*t))
 
 static inline unsigned long us_to_tstates(double us)
 {

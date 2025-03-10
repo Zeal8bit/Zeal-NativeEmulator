@@ -66,9 +66,8 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 
     /* Add a line for the address to check and the dump */
     nk_layout_row_dynamic(ctx, 30, 3);
-    static char edit_addr[8] = { 0 };
-    const int len = 5; // 4 digits + null char
-    nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, len, nk_filter_hex);
+    static char edit_addr[64] = { 0 };
+    nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, sizeof(edit_addr), NULL);
 
     /**
      * Show a 'View' button to dump the memory
@@ -78,9 +77,9 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
     dbg_ui_update_cursor(ctx, hover_rect);
     if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED))) {
         /* Make sure it is a hex value */
-        int addr = 0;
-        if (sscanf(edit_addr, "%x", &addr) == 1) {
-            dctx->mem_view_addr = addr;
+        hwaddr addr = 0;
+        if (sscanf(edit_addr, "%x", &addr) == 1 || debugger_find_symbol(dbg, edit_addr, &addr)) {
+            dctx->mem_view_addr = (int) addr;
         }
     }
 }
