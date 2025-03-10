@@ -163,10 +163,11 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
 
 int zeal_debug_enable(zeal_t* machine)
 {
+    config_window_update(machine->dbg_enabled);
     int ret = 0;
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
-    SetWindowSize(config.debugger.width, config.debugger.height);
+    config_window_set(true);
     if(machine->dbg_ui == NULL) {
         ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
     }
@@ -176,9 +177,10 @@ int zeal_debug_enable(zeal_t* machine)
 
 int zeal_debug_disable(zeal_t* machine)
 {
+    config_window_update(machine->dbg_enabled);
     machine->dbg_enabled = false;
     machine->dbg_state = ST_RUNNING;
-    SetWindowSize(config.window.width, config.window.height);
+    config_window_set(false);
     return 0;
 }
 
@@ -211,7 +213,7 @@ int zeal_init(zeal_t* machine)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     /* Not in debug mode, create the window as big as the emulated screen */
-    InitWindow(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, WIN_NAME);
+    InitWindow(0, 0, WIN_NAME);
     config_window_set(machine->dbg_enabled);
 
 #if !BENCHMARK
@@ -447,13 +449,13 @@ int zeal_run(zeal_t* machine)
         }
     }
 
+    config_window_update(machine->dbg_enabled);
+
     if(machine->dbg_ui != NULL) {
         debugger_ui_deinit(machine->dbg_ui);
     }
 
     zvb_deinit(&machine->zvb);
-
-    config_window_update(machine->dbg_enabled);
 
     CloseWindow();
 

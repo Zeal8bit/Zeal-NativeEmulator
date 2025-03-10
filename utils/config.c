@@ -144,12 +144,7 @@ int parse_command_args(int argc, char* argv[])
 }
 
 void config_parse_file(const char* file) {
-    if(!path_exists(file)) {
-        config.window.width = ZVB_MAX_RES_WIDTH;
-        config.window.height = ZVB_MAX_RES_HEIGHT;
-        config.debugger.width = ZVB_MAX_RES_WIDTH * 2;
-        config.debugger.height = ZVB_MAX_RES_HEIGHT * 2;
-    }
+    if(!path_exists(file)) return;
 
     config.ini = rini_load_config(file);
 
@@ -162,14 +157,14 @@ void config_parse_file(const char* file) {
         config.debugger.enabled = config.debugger.config_enabled;
 
 
-    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", ZVB_MAX_RES_WIDTH);
-    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", ZVB_MAX_RES_HEIGHT);
+    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
+    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
     config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
     config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
     config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
 
-    config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", ZVB_MAX_RES_WIDTH * 2);
-    config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", ZVB_MAX_RES_HEIGHT * 2);
+    config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", -1);
+    config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
     config.debugger.x = rini_get_config_value_fallback(config.ini, "DEBUG_POS_X", -1);
     config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
 }
@@ -245,13 +240,13 @@ void config_set_text(const char *key, const char *value, const char *desc) {
 
 void config_window_update(bool dbg_enabled) {
 
-    if(dbg_enabled && config_debugger_enabled()) {
+    if(dbg_enabled) {
         config.debugger.width = GetScreenWidth();
         config.debugger.height = GetScreenHeight();
         Vector2 position = GetWindowPosition();
         config.debugger.x = position.x;
         config.debugger.y = position.y;
-    } else if (!dbg_enabled) {
+    } else {
         config.window.width = GetScreenWidth();
         config.window.height = GetScreenHeight();
         Vector2 position = GetWindowPosition();
@@ -270,6 +265,7 @@ void config_window_set(bool dbg_enabled) {
         .x = config.window.width,
         .y = config.window.height,
     };
+
     if(dbg_enabled) {
         window_size.x = config.debugger.width;
         window_size.y = config.debugger.height;
@@ -297,11 +293,18 @@ void config_window_set(bool dbg_enabled) {
         .y = GetMonitorHeight(d),
     };
 
-    int x = config.window.x;
-    int y = config.window.y;
+    Vector2 window_pos = {
+        .x = config.window.x,
+        .y = config.window.y,
+    };
+
+    if(dbg_enabled) {
+        window_pos.x = config.debugger.x;
+        window_pos.y = config.debugger.y;
+    }
 
     // calculate center if either coordinate is not set
-    if(x < 0) x = screen_offset.x + ((screen.x - window_size.x) / 2);
-    if(y < 0) y = screen_offset.y + ((screen.y - window_size.y) / 2);
-    SetWindowPosition(x, y);
+    if(window_pos.x < 0) window_pos.x = screen_offset.x + ((screen.x - window_size.x) / 2);
+    if(window_pos.y < 0) window_pos.y = screen_offset.y + ((screen.y - window_size.y) / 2);
+    SetWindowPosition(window_pos.x, window_pos.y);
 }
