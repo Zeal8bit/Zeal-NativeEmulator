@@ -29,6 +29,7 @@ typedef struct {
     bool config_enabled;
 
     bool keyboard_passthru; // whether to pass all keypresses through to emulator
+    bool hex_upper;
 
     int width;
     int height;

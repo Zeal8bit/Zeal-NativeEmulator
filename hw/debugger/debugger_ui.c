@@ -131,19 +131,35 @@ void set_theme(struct nk_context *ctx) {
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value)
 {
     nk_label(ctx, label, NK_TEXT_LEFT);
-    nk_style_push_color(ctx, &ctx->style.selectable.text_hover, nk_rgba(120, 120, 120, 255));
+    nk_style_push_color(ctx, &ctx->style.selectable.text_hover, ctx->style.selectable.text_normal);
+    nk_style_push_color(ctx, &ctx->style.selectable.text_normal, nk_rgba(0, 112, 255, 255));
     bool ret = nk_select_label(ctx, value, NK_TEXT_LEFT, false);
+
+    nk_style_pop_color(ctx);
     nk_style_pop_color(ctx);
     return ret;
 }
 
 
+static const char lut_hex_lower[] = "0123456789abcdef";
+static const char lut_hex_upper[] = "0123456789ABCDEF";
 void dbg_ui_byte_to_hex(uint8_t byte, char* out, char separator) {
-    static const char lut[] = "0123456789abcdef";
+    const char *lut = config.debugger.hex_upper ? lut_hex_upper : lut_hex_lower;
     out[0] = lut[byte >> 4];
     out[1] = lut[byte & 0x0F];
     if (separator != -1) {
         out[2] = separator;
+    }
+}
+
+void dbg_ui_word_to_hex(uint16_t word, char* out, char separator) {
+    const char *lut = config.debugger.hex_upper ? lut_hex_upper : lut_hex_lower;
+    out[0] = lut[word >> 12];
+    out[1] = lut[word >> 8 & 0x0F];
+    out[2] = lut[word >> 4 & 0x0F];
+    out[3] = lut[word & 0x0F];
+    if (separator != -1) {
+        out[4] = separator;
     }
 }
 
@@ -225,11 +241,13 @@ void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect) {
 }
 
 void debugger_scale_up(dbg_t *dbg) {
+    (void)dbg; // unreferenced
     Vector2 size = config_get_next_resolution(PANEL_VIDEO->rect.w);
     PANEL_VIDEO->rect.w = size.x;
     PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
 }
 void debugger_scale_down(dbg_t *dbg) {
+    (void)dbg; // unreferenced
     Vector2 size = config_get_prev_resolution(PANEL_VIDEO->rect.w);
     PANEL_VIDEO->rect.w = size.x;
     PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;

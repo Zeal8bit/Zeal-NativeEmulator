@@ -83,9 +83,8 @@ void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, 
 
         nk_layout_row_push(ctx, 370);
 
-        snprintf(DEBUG_BUFFER, sizeof(DEBUG_BUFFER), "%04x:    %s",
-                    current_addr,
-                    instr.instruction);
+        snprintf(DEBUG_BUFFER, sizeof(DEBUG_BUFFER), "    :    %s", instr.instruction);
+        dbg_ui_word_to_hex(current_addr, DEBUG_BUFFER, -1);
         if (nk_select_label(ctx, DEBUG_BUFFER, NK_TEXT_LEFT, false)) {
             /* Label was clicked, do something ... if needed */
         }

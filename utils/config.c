@@ -18,6 +18,7 @@ config_t config = {
     .debugger = {
         .enabled = false,
         .keyboard_passthru = false,
+        .hex_upper = true,
         .width = -1,
         .height = -1,
         .x = -1,
@@ -185,6 +186,7 @@ void config_parse_file(const char* file) {
     config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
     config.debugger.x = rini_get_config_value_fallback(config.ini, "DEBUG_POS_X", -1);
     config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
+    config.debugger.hex_upper = rini_get_config_value_fallback(config.ini, "DEBUG_HEX_UPPER", 1);
 }
 
 int config_save() {
@@ -224,6 +226,7 @@ int config_save() {
     rini_set_config_value(&ini, "DEBUG_POS_X", debugger->x, "X Position");
     rini_set_config_value(&ini, "DEBUG_POS_Y", debugger->y, "Y Position");
     rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
+    rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
 
     dbg_ui_config_save(&ini);
 

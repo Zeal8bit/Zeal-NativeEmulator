@@ -85,9 +85,9 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                 }
             }
 
-            nk_bool keyboard_passthru = config.debugger.keyboard_passthru;
-            nk_checkbox_label(ctx, "KB Passthru", &keyboard_passthru);
-            config.debugger.keyboard_passthru = keyboard_passthru;
+            nk_checkbox_label(ctx, "KB Passthru", &config.debugger.keyboard_passthru);
+
+            nk_checkbox_label(ctx, "Hex Upper", &config.debugger.hex_upper);
 
             if (nk_menu_item_label(ctx, "Reset Layout", NK_TEXT_LEFT)) {
                 SetWindowSize(1280, 960);

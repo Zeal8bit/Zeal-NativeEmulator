@@ -84,38 +84,50 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
     regs_view_t pairs[] = {
         [REG_AF] = {
             .msb  = "A:",  .lsb  = "F:",
-            .pair = "AF:", .value = "     ",
+            .pair = "AF:", .value = "      ",
         },
         [REG_BC] = {
             .msb  = "B:",  .lsb  = "C:",
-            .pair = "BC:", .value = "     ",
+            .pair = "BC:", .value = "      ",
         },
         [REG_DE] = {
             .msb  = "D:",  .lsb  = "E:",
-            .pair = "DE:", .value = "     ",
+            .pair = "DE:", .value = "      ",
         },
         [REG_HL] = {
             .msb  = "H:",  .lsb  = "L:",
-            .pair = "HL:", .value = "     ",
+            .pair = "HL:", .value = "      ",
         },
-        [REG_PC] = { .pair = "PC:",  .value = "     ", },
-        [REG_SP] = { .pair = "SP:",  .value = "     ", },
-        [REG_IX] = { .pair = "IX:",  .value = "     ", },
-        [REG_IY] = { .pair = "IY:",  .value = "     ", },
+        [REG_PC] = { .pair = "PC:",  .value = "      ", },
+        [REG_SP] = { .pair = "SP:",  .value = "      ", },
+        [REG_IX] = { .pair = "IX:",  .value = "      ", },
+        [REG_IY] = { .pair = "IY:",  .value = "      ", },
     };
 
     /* When the target is shown, we can show the values */
     const bool paused = debugger_is_paused(dbg);
     if (paused) {
         debugger_get_registers(dbg, &regs);
-        snprintf(pairs[REG_AF].value, REG_STR_LEN, "$%04x", regs.af);
-        snprintf(pairs[REG_BC].value, REG_STR_LEN, "$%04x", regs.bc);
-        snprintf(pairs[REG_DE].value, REG_STR_LEN, "$%04x", regs.de);
-        snprintf(pairs[REG_HL].value, REG_STR_LEN, "$%04x", regs.hl);
-        snprintf(pairs[REG_PC].value, REG_STR_LEN, "$%04x", regs.pc);
-        snprintf(pairs[REG_SP].value, REG_STR_LEN, "$%04x", regs.sp);
-        snprintf(pairs[REG_IX].value, REG_STR_LEN, "$%04x", regs.ix);
-        snprintf(pairs[REG_IY].value, REG_STR_LEN, "$%04x", regs.iy);
+
+
+        snprintf(pairs[REG_AF].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_BC].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_DE].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_HL].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_PC].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_SP].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_IX].value, REG_STR_LEN, "$    ");
+        snprintf(pairs[REG_IY].value, REG_STR_LEN, "$    ");
+
+        dbg_ui_word_to_hex(regs.bc, &pairs[REG_BC].value[1], -1);
+        dbg_ui_word_to_hex(regs.de, &pairs[REG_DE].value[1], -1);
+        dbg_ui_word_to_hex(regs.af, &pairs[REG_AF].value[1], -1);
+        dbg_ui_word_to_hex(regs.hl, &pairs[REG_HL].value[1], -1);
+        dbg_ui_word_to_hex(regs.pc, &pairs[REG_PC].value[1], -1);
+        dbg_ui_word_to_hex(regs.sp, &pairs[REG_SP].value[1], -1);
+        dbg_ui_word_to_hex(regs.ix, &pairs[REG_IX].value[1], -1);
+        dbg_ui_word_to_hex(regs.iy, &pairs[REG_IY].value[1], -1);
+
         pairs[REG_AF].addr = regs.af;
         pairs[REG_BC].addr = regs.bc;
         pairs[REG_DE].addr = regs.de;
