@@ -63,7 +63,8 @@ bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx);
 
 /** Helpers */
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value);
+void dbg_ui_mouse_hover(struct nk_context *ctx);
+void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect);
 void dbg_ui_byte_to_hex(uint8_t byte, char* out, char separator);
 void dbg_ui_word_to_hex(uint16_t word, char* out, char separator);
 void dbg_ui_go_to_mem(struct dbg_ui_t* dctx, hwaddr addr);
-void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect);

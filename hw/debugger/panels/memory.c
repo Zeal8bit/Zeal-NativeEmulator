@@ -74,7 +74,7 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
      * Parse the typed address if Enter was pressed or the buttonw as clicked
      */
     struct nk_rect hover_rect = nk_widget_bounds(ctx);
-    dbg_ui_update_cursor(ctx, hover_rect);
+    dbg_ui_mouse_hover(ctx);
     if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED))) {
         /* Make sure it is a hex value */
         hwaddr addr = 0;

@@ -22,8 +22,10 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
     if (nk_begin(ctx, "Menubar", nk_rect(0, 0, GetScreenWidth(), MENUBAR_HEIGHT), PANEL_FLAGS)) {
 
         nk_menubar_begin(ctx);
+        nk_layout_row_begin(ctx, NK_STATIC, MENUBAR_HEIGHT, 4);
+
+
         /* File Menu */
-        nk_layout_row_begin(ctx, NK_STATIC, MENUBAR_HEIGHT, 5);
         nk_layout_row_push(ctx, 45);
         if (nk_menu_begin_label(ctx, "File", NK_TEXT_LEFT, nk_vec2(120, windowHeight)))
         {
@@ -46,6 +48,7 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
 
 
         /* CPU Menu */
+        nk_layout_row_push(ctx, 45);
         if (nk_menu_begin_label(ctx, "CPU", NK_TEXT_LEFT, nk_vec2(260, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
@@ -72,7 +75,7 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
 
 
         /* View Menu */
-        nk_layout_row_push(ctx, 60);
+        nk_layout_row_push(ctx, 45);
         if (nk_menu_begin_label(ctx, "View", NK_TEXT_LEFT, nk_vec2(200, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
@@ -103,7 +106,9 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             nk_menu_end(ctx);
         }
 
+
         /* CPU Menu */
+        nk_layout_row_push(ctx, 60);
         if (nk_menu_begin_label(ctx, "Video", NK_TEXT_LEFT, nk_vec2(260, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);

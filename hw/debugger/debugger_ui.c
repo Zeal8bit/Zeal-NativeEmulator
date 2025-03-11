@@ -133,11 +133,22 @@ bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const cha
     nk_label(ctx, label, NK_TEXT_LEFT);
     nk_style_push_color(ctx, &ctx->style.selectable.text_hover, ctx->style.selectable.text_normal);
     nk_style_push_color(ctx, &ctx->style.selectable.text_normal, nk_rgba(0, 112, 255, 255));
+
+    dbg_ui_mouse_hover(ctx);
     bool ret = nk_select_label(ctx, value, NK_TEXT_LEFT, false);
 
     nk_style_pop_color(ctx);
     nk_style_pop_color(ctx);
     return ret;
+}
+
+void dbg_ui_mouse_hover(struct nk_context *ctx)
+{
+    if(nk_widget_is_hovered(ctx)) {
+        SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+    } else {
+        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+    }
 }
 
 

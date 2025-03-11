@@ -157,7 +157,6 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
                                 0.25f, 0.25f };
         nk_layout_row(ctx, NK_DYNAMIC, CPU_CTRL_REG_HEIGHT, 6, ratio);
 
-        // nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 6);
         /* Create a row of 3 elements (3 pairs of label + input) */
         nk_label(ctx, reg->msb, NK_TEXT_LEFT);
         if (editing.index == i && !editing.lsb && paused) {
@@ -226,6 +225,7 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 
     if (paused) {
         /* Machine is paused, show the continue button */
+        dbg_ui_mouse_hover(ctx);
         if (nk_button_label(ctx, ">"))
             debugger_continue(dbg);
     } else {
@@ -234,15 +234,17 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
             debugger_pause(dbg);
     }
 
+    dbg_ui_mouse_hover(ctx);
     if (nk_button_label(ctx, ">|")) {
         debugger_step(dbg);
     }
 
-
+    dbg_ui_mouse_hover(ctx);
     if (nk_button_label(ctx, ">>|")) {
         debugger_step_over(dbg);
     }
 
+    dbg_ui_mouse_hover(ctx);
     if (nk_button_label(ctx, "[ ]")) {
         debugger_restart(dbg);
     }
