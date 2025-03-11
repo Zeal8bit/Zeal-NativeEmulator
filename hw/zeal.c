@@ -191,8 +191,10 @@ static void zeal_debug_toggle(dbg_t *dbg)
     zeal_t* machine = (zeal_t*) (dbg->arg);
 
     if (machine->dbg_enabled) {
+        printf("zeal_debug_toggle: disable\n");
         zeal_debug_disable(machine);
     } else {
+        printf("zeal_debug_toggle: enable\n");
         zeal_debug_enable(machine);
     }
 }
@@ -458,10 +460,12 @@ void zeal_ui_input(zeal_t* machine) {
 
 
     debugger_key_t *opt = &debugger_keys[0];
-    if(meta && !opt->pressed && IsKeyPressed(opt->key)) {
+    bool pressed = IsKeyDown(opt->key);
+    if(meta && !opt->pressed && pressed) {
+        printf("callback: %s\n", opt->label);
         zeal_debug_toggle(&machine->dbg);
         opt->pressed = true;
-    } else {
+    } else if(!pressed) {
         opt->pressed = false;
     }
 
@@ -470,11 +474,12 @@ void zeal_ui_input(zeal_t* machine) {
     for(int i = 1; i < debugger_keys_size; i++) {
         opt = &debugger_keys[i];
         bool shifted = (opt->shifted == shift);
-        if(shifted && !opt->pressed && IsKeyPressed(opt->key)) {
+        pressed = IsKeyDown(opt->key);
+        if(shifted && !opt->pressed && pressed) {
             printf("callback: %s\n", opt->label);
             opt->callback(&machine->dbg);
             opt->pressed = true;
-        } else {
+        } else if(!pressed) {
             opt->pressed = false;
         }
     };
