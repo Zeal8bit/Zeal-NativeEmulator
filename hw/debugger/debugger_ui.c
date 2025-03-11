@@ -224,6 +224,17 @@ void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect) {
     SetMouseCursor(cursorType);
 }
 
+void debugger_scale_up(dbg_t *dbg) {
+    Vector2 size = config_get_next_resolution(PANEL_VIDEO->rect.w);
+    PANEL_VIDEO->rect.w = size.x;
+    PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
+}
+void debugger_scale_down(dbg_t *dbg) {
+    Vector2 size = config_get_prev_resolution(PANEL_VIDEO->rect.w);
+    PANEL_VIDEO->rect.w = size.x;
+    PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
+}
+
 /**
  * ===========================================================
  *                  PUBLIC INTERFACE
@@ -265,7 +276,7 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view)
 
     // Initialize the Video panel defaults
     dbg_panels[0].rect_default.w = dbg_ctx->view.w;
-    dbg_panels[0].rect_default.h = dbg_ctx->view.h + 50;
+    dbg_panels[0].rect_default.h = dbg_ctx->view.h + NK_WIDGET_TITLE_HEIGHT;
 
     for(size_t i = 0; i < dbg_panels_size; i++) {
         dbg_ui_panel_t *panel = &dbg_panels[i];
@@ -298,7 +309,13 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
         struct nk_window *win;
         if(nk_begin(dctx->ctx, panel->title, panel->rect, panel->flags)) {
             panel->render(panel, dctx, dbg);
-            panel->rect = nk_window_get_bounds(dctx->ctx);
+            struct nk_rect bounds = nk_window_get_bounds(dctx->ctx);
+            panel->rect.x = bounds.x;
+            panel->rect.y = bounds.y;
+            if(panel->flags & NK_WINDOW_SCALABLE) {
+                panel->rect.w = bounds.w;
+                panel->rect.h = bounds.h;
+            }
         }
         win = dctx->ctx->current;
         nk_end(dctx->ctx);
@@ -312,6 +329,10 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 
         if(win->bounds.y < MENUBAR_HEIGHT) {
             win->bounds.y = MENUBAR_HEIGHT;
+        }
+
+        if(!(panel->flags & NK_WINDOW_SCALABLE)) {
+            win->bounds = panel->rect;
         }
     }
 }

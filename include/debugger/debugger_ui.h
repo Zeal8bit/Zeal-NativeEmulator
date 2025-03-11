@@ -9,6 +9,7 @@
 #define WIN_UI_FONT_SIZE        13
 
 #define MENUBAR_HEIGHT          30
+#define NK_WIDGET_TITLE_HEIGHT  50
 
 #define CPU_CTRL_WIDTH          250
 #define CPU_CTRL_HEIGHT         280
@@ -40,8 +41,12 @@ struct dbg_ui_panel_t {
 extern char DEBUG_BUFFER[256];
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
+
 /** Debug Panels */
 void ui_panel_display(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void debugger_scale_up(dbg_t *dbg);
+void debugger_scale_down(dbg_t *dbg);
+
 void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);

@@ -127,6 +127,9 @@ void config_window_set(bool dbg_enabled);
  */
 Vector2 config_aspect_force(Vector2 size);
 
+Vector2 config_get_next_resolution(int width);
+Vector2 config_get_prev_resolution(int width);
+
 bool config_keyboard_passthru(bool dbg_enabled);
 
 /**

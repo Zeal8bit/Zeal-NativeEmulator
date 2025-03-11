@@ -33,6 +33,23 @@ config_t config = {
     },
 };
 
+const Vector2 vga_resolutions[] = {
+    {320, 240},
+    {400, 300},
+    {512, 384},
+    {640, 480},
+    {800, 600},
+    {1024, 768},
+    {1152, 864},
+    {1280, 960},
+    {1400, 1050},
+    {1600, 1200},
+    {1856, 1392},
+    {1920, 1440},
+    {2048, 1536}
+};
+const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
+
 
 void config_debug(void) {
     printf("== CONFIG ==\n");
@@ -163,7 +180,6 @@ void config_parse_file(const char* file) {
     config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
     config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
     config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
-    config.window.aspect_force = rini_get_config_value_fallback(config.ini, "WIN_ASPECT_FORCE", true);
 
     config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", -1);
     config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
@@ -200,7 +216,6 @@ int config_save() {
     rini_set_config_value(&ini, "WIN_POS_X", window->x, "X Position");
     rini_set_config_value(&ini, "WIN_POS_Y", window->y, "Y Position");
     rini_set_config_value(&ini, "WIN_DISPLAY", window->display, "Display Number");
-    rini_set_config_value(&ini, "WIN_ASPECT_FORCE", window->aspect_force, "Forced Aspect Ratio");
 
     config_debugger_t *debugger = &config.debugger;
     rini_set_config_comment_line(&ini, "Debugger");
@@ -326,4 +341,28 @@ void config_window_set(bool dbg_enabled) {
     if(window_pos.x < 0) window_pos.x = screen_offset.x + ((screen.x - window_size.x) / 2);
     if(window_pos.y < 0) window_pos.y = screen_offset.y + ((screen.y - window_size.y) / 2);
     SetWindowPosition(window_pos.x, window_pos.y);
+}
+
+Vector2 config_get_next_resolution(int width)
+{
+    Vector2 size = vga_resolutions[vga_resolutions_size - 1];
+    for(int i = 0; i < vga_resolutions_size; i++) {
+        if(vga_resolutions[i].x > width) {
+            size = vga_resolutions[i];
+            break;
+        }
+    }
+    return size;
+}
+
+Vector2 config_get_prev_resolution(int width)
+{
+    Vector2 size = vga_resolutions[0];
+    for(int i = vga_resolutions_size-1; i >= 0; i--) {
+        if(vga_resolutions[i].x < width) {
+            size = vga_resolutions[i];
+            break;
+        }
+    }
+    return size;
 }

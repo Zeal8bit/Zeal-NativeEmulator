@@ -85,10 +85,6 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                 }
             }
 
-            nk_bool aspect_forced = config.window.aspect_force;
-            nk_checkbox_label(ctx, "Forced Aspect", &aspect_forced);
-            config.window.aspect_force = aspect_forced;
-
             nk_bool keyboard_passthru = config.debugger.keyboard_passthru;
             nk_checkbox_label(ctx, "KB Passthru", &keyboard_passthru);
             config.debugger.keyboard_passthru = keyboard_passthru;
@@ -106,6 +102,21 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             }
             nk_menu_end(ctx);
         }
+
+        /* CPU Menu */
+        if (nk_menu_begin_label(ctx, "Video", NK_TEXT_LEFT, nk_vec2(260, windowHeight)))
+        {
+            nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
+            if (nk_menu_item_label(ctx, "Scale Up", NK_TEXT_LEFT)) {
+                debugger_scale_up(dbg);
+            }
+            if (nk_menu_item_label(ctx, "Scale Down", NK_TEXT_LEFT)) {
+                debugger_scale_down(dbg);
+            }
+            nk_menu_end(ctx);
+        }
+
+
         nk_menubar_end(ctx);
     }
     nk_end(ctx);
