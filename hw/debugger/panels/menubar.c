@@ -14,7 +14,7 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
 {
     struct nk_context* ctx = dctx->ctx;
     zeal_t* machine = (zeal_t*) (dbg->arg);
-    char buffer[60];
+    char buffer[64];
 
     // menus will clip their height, so just allow them to be as tall as possible
     int windowHeight = GetScreenHeight();
@@ -78,18 +78,10 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
             for(int i = 0; i < panels_size; i++) {
                 dbg_ui_panel_t *panel = &panels[i];
-                struct nk_window *win = nk_window_find(ctx, panel->title);
 
-                sprintf(buffer, "Hide %s", panel->title);
-                nk_bool hidden = (win->flags & NK_WINDOW_HIDDEN);
-                nk_checkbox_label(ctx, buffer, &hidden);
-
-                if(hidden) {
-                    nk_window_show(ctx, panel->title, NK_HIDDEN);
-                    panel->flags |= NK_WINDOW_HIDDEN;
-                } else {
-                    nk_window_show(ctx, panel->title, NK_SHOWN);
-                    panel->flags &= ~NK_WINDOW_HIDDEN;
+                snprintf(buffer, sizeof(buffer), "Hide %s", panel->title);
+                if (nk_checkbox_label(ctx, buffer, &panel->hidden)) {
+                    nk_window_show(ctx, panel->title, panel->hidden ? NK_HIDDEN : NK_SHOWN);
                 }
             }
 
@@ -105,7 +97,11 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                 SetWindowSize(1280, 960);
                 for(int i = 0; i < panels_size; i++) {
                     dbg_ui_panel_t *panel = &panels[i];
+                    panel->hidden = false;
+                    panel->flags &= ~(NK_WINDOW_MINIMIZED);
                     nk_window_set_bounds(ctx, panel->title, panel->rect_default);
+                    nk_window_show(ctx, panel->title, NK_SHOWN);
+                    nk_window_collapse(ctx, panel->title, NK_MAXIMIZED);
                 }
             }
             nk_menu_end(ctx);

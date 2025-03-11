@@ -33,6 +33,7 @@ struct dbg_ui_panel_t {
     struct nk_rect rect;
     struct nk_rect rect_default;
     nk_flags flags;
+    bool hidden;
     dbg_ui_panel_fn render;
 };
 

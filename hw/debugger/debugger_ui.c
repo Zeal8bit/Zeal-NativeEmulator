@@ -158,12 +158,11 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     char key[80];
 
     sprintf(key, "%s_HIDDEN", panel->key);
-    if(config_get(key, 0)) {
-        panel->flags |= NK_WINDOW_HIDDEN;
-    }
+    panel->hidden = config_get(key, 0);
 
     sprintf(key, "%s_MINIMIZED", panel->key);
-    if(config_get(key, 0)) {
+    bool minimized = config_get(key, 0);
+    if(minimized) {
         panel->flags |= NK_WINDOW_MINIMIZED;
     }
 
@@ -182,7 +181,7 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
         printf("   height: %d\n", (int)panel->rect.h);
         printf("        x: %d\n", (int)panel->rect.x);
         printf("        y: %d\n", (int)panel->rect.y);
-        printf("   hidden: %d\n", !!(panel->flags & NK_WINDOW_HIDDEN));
+        printf("   hidden: %d\n", panel->hidden);
         printf("minimized: %d\n", !!(panel->flags & NK_WINDOW_MINIMIZED));
     }
 }
@@ -197,7 +196,7 @@ int dbg_ui_config_save(rini_config *ini) {
         if(panel->rect.w < 1) dbg_ui_get_panel_config(panel);
 
         sprintf(key, "%s_HIDDEN", panel->key);
-        rini_set_config_value(ini, key, !!(panel->flags & NK_WINDOW_HIDDEN), "Enabled");
+        rini_set_config_value(ini, key, panel->hidden, "Enabled");
 
         sprintf(key, "%s_MINIMIZED", panel->key);
         rini_set_config_value(ini, key, !!(panel->flags & NK_WINDOW_MINIMIZED), "Minimized");
@@ -289,9 +288,12 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     UpdateNuklear(dctx->ctx);
 
+    ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
+
     for(size_t i = 0; i < dbg_panels_size; i++) {
         struct dbg_ui_panel_t *panel = &dbg_panels[i];
         if(panel->render == NULL) continue;
+        if(panel->hidden) continue;
 
         struct nk_window *win;
         if(nk_begin(dctx->ctx, panel->title, panel->rect, panel->flags)) {
@@ -301,15 +303,17 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
         win = dctx->ctx->current;
         nk_end(dctx->ctx);
 
-        if(win != NULL) {
-            panel->flags = win->flags;
-            if(win->bounds.y < MENUBAR_HEIGHT) {
-                win->bounds.y = MENUBAR_HEIGHT;
-            }
+        if(win->flags & NK_WINDOW_MINIMIZED) {
+            panel->flags |= NK_WINDOW_MINIMIZED;
+        } else {
+            panel->flags &= ~(NK_WINDOW_MINIMIZED);
+        }
+        panel->hidden = !!(win->flags & NK_WINDOW_HIDDEN);
+
+        if(win->bounds.y < MENUBAR_HEIGHT) {
+            win->bounds.y = MENUBAR_HEIGHT;
         }
     }
-
-    ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
 }
 
 
