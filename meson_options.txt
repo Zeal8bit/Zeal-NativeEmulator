@@ -1,0 +1,2 @@
+# meson_options.txt
+option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
