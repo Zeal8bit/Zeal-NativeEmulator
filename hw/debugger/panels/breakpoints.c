@@ -57,10 +57,11 @@ void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, d
 
     nk_layout_row_dynamic(ctx, 30, 2);
     /* Fixed input row at the bottom */
+    dbg_ui_mouse_hover(ctx, MOUSE_TEXT);
     nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, input, 32, NULL);
 
     /* Show an 'Add' button to set a breakpoint */
-    dbg_ui_mouse_hover(ctx);
+    dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (nk_button_label(ctx, "Add") || (flags & NK_EDIT_COMMITED)) {
         /* Make sure it is a hex value (for now) */
         if (sscanf(input, "%x", &new_bp) == 1 || debugger_find_symbol(dbg, input, &new_bp)) {

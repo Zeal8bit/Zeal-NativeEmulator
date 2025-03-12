@@ -32,6 +32,9 @@ ldflags = [
   '-L' + raylib_lib_dir, '-lraylib', '-lm'
 ]
 
+run_command('mkdir','-p',join_paths(meson.project_build_root(), 'roms'))
+run_command('cp','roms/default.img', join_paths(meson.project_build_root(), 'roms/default.img'))
+
 # Compiler and build targets
 executable(OUTPUT_BIN, sources,
             include_directories : ['include'],

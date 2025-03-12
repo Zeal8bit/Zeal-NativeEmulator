@@ -197,7 +197,7 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
         }
 
         /* Only accept clickable label if paused */
-        if (dbg_ui_clickable_label(ctx, reg->pair, reg->value) && paused) {
+        if (dbg_ui_clickable_label(ctx, reg->pair, reg->value, paused) && paused) {
             dbg_ui_go_to_mem(dctx, reg->addr);
         }
     }
@@ -206,7 +206,7 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
     nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 4);
     for (i = REG_16_ONLY; i < DIM(pairs); i++) {
         regs_view_t* reg = &pairs[i];
-        if (dbg_ui_clickable_label(ctx, reg->pair, reg->value) && paused) {
+        if (dbg_ui_clickable_label(ctx, reg->pair, reg->value, paused) && paused) {
             dbg_ui_go_to_mem(dctx, reg->addr);
         }
     }
@@ -223,9 +223,9 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 
     nk_layout_row_dynamic(ctx, CPU_CTRL_REG_HEIGHT, 4);
 
+    dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (paused) {
         /* Machine is paused, show the continue button */
-        dbg_ui_mouse_hover(ctx);
         if (nk_button_label(ctx, ">"))
             debugger_continue(dbg);
     } else {
@@ -234,17 +234,17 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
             debugger_pause(dbg);
     }
 
-    dbg_ui_mouse_hover(ctx);
+    dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (nk_button_label(ctx, ">|")) {
         debugger_step(dbg);
     }
 
-    dbg_ui_mouse_hover(ctx);
+    dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (nk_button_label(ctx, ">>|")) {
         debugger_step_over(dbg);
     }
 
-    dbg_ui_mouse_hover(ctx);
+    dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (nk_button_label(ctx, "[ ]")) {
         debugger_restart(dbg);
     }

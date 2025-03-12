@@ -9,6 +9,8 @@
   "C_Cpp.clang_format_sortIncludes": false,
   "C_Cpp.clang_format_style": "file:${ZDE_PATH}/.clang-format",
   "C_Cpp.autoAddFileAssociations": false,
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/builddir/compile_commands.json",
+  "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
   "files.insertFinalNewline": true,
   "editor.tabSize": 4,
   "editor.insertSpaces": true,

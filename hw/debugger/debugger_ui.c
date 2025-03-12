@@ -9,6 +9,7 @@
 #include "utils/config.h"
 
 char DEBUG_BUFFER[256];
+int mouse_cursor = MOUSE_CURSOR_DEFAULT;
 
 /**
  * ===========================================================
@@ -120,8 +121,11 @@ void set_theme(struct nk_context *ctx) {
     table[NK_COLOR_KNOB_CURSOR_HOVER]       = pink;
     table[NK_COLOR_KNOB_CURSOR_ACTIVE]      = pink;
     nk_style_from_table(ctx, table);
+
     /* Make selectable items' background transparent */
     ctx->style.selectable.normal.data.color = nk_rgba(0, 0, 0, 0);
+    ctx->style.window.header.active.data.color = surface1;
+
 }
 
 /**
@@ -130,13 +134,15 @@ void set_theme(struct nk_context *ctx) {
  * ===========================================================
  */
 
-bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value)
+bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active)
 {
     nk_label(ctx, label, NK_TEXT_LEFT);
     nk_style_push_color(ctx, &ctx->style.selectable.text_hover, ctx->style.selectable.text_normal);
     nk_style_push_color(ctx, &ctx->style.selectable.text_normal, nk_rgba(0, 112, 255, 255));
 
-    dbg_ui_mouse_hover(ctx);
+    if(active) {
+        dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
+    }
     bool ret = nk_select_label(ctx, value, NK_TEXT_LEFT, false);
 
     nk_style_pop_color(ctx);
@@ -144,10 +150,10 @@ bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const cha
     return ret;
 }
 
-void dbg_ui_mouse_hover(struct nk_context *ctx)
+void dbg_ui_mouse_hover(struct nk_context *ctx, int cursor)
 {
     if(nk_widget_is_hovered(ctx)) {
-        SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        mouse_cursor = cursor;
     }
 }
 
@@ -327,7 +333,8 @@ void debugger_ui_deinit(struct dbg_ui_t* dctx)
 void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     UpdateNuklear(dctx->ctx);
-    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+
+    mouse_cursor = MOUSE_DEFAULT;
 
     ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
 
@@ -365,6 +372,9 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
             win->bounds = panel->rect;
         }
     }
+
+
+    SetMouseCursor(mouse_cursor);
 }
 
 
