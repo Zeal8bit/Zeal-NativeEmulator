@@ -54,7 +54,7 @@ static uint8_t zeal_io_read(void* opaque, uint16_t addr)
     const map_entry_t* entry = &machine->io_mapping[low];
     device_t* device         = entry->dev;
 
-    if (device) {
+    if (device && device->io_region.read) {
         device->io_region.upper_addr = addr >> 8;
         return device->io_region.read(device, low - entry->page_from);
     }
@@ -70,7 +70,7 @@ static void zeal_io_write(void* opaque, uint16_t addr, uint8_t data)
     const map_entry_t* entry = &machine->io_mapping[low];
     device_t* device         = entry->dev;
 
-    if (device) {
+    if (device && device->io_region.write) {
         device->io_region.write(device, low - entry->page_from, data);
     } else {
         printf("[INFO] No device replied to I/O write: 0x%04x\n", low);
