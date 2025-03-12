@@ -120,6 +120,8 @@ void set_theme(struct nk_context *ctx) {
     table[NK_COLOR_KNOB_CURSOR_HOVER]       = pink;
     table[NK_COLOR_KNOB_CURSOR_ACTIVE]      = pink;
     nk_style_from_table(ctx, table);
+    /* Make selectable items' background transparent */
+    ctx->style.selectable.normal.data.color = nk_rgba(0, 0, 0, 0);
 }
 
 /**
@@ -146,8 +148,6 @@ void dbg_ui_mouse_hover(struct nk_context *ctx)
 {
     if(nk_widget_is_hovered(ctx)) {
         SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-    } else {
-        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
     }
 }
 
@@ -327,6 +327,7 @@ void debugger_ui_deinit(struct dbg_ui_t* dctx)
 void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     UpdateNuklear(dctx->ctx);
+    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 
     ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
 
