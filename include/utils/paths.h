@@ -6,7 +6,7 @@
     #define PATH_MAX    _MAX_PATH
 #elif __linux__
     #include <unistd.h>
-    #include <limits.h>
+    #include <linux/limits.h>
 #elif __APPLE__
     #include <mach-o/dyld.h>
     #include <limits.h>

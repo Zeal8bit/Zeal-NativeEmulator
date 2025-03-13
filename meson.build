@@ -40,7 +40,7 @@ run_command(
     check: true,
 )
 
-add_project_arguments('-D_POS_C_SOURCE=200809L', '-D_DARWIN_C_SOURCE', '-Iinclude', language: 'c')
+add_project_arguments('-D_POSIX_C_SOURCE=200809L', '-D_DARWIN_C_SOURCE', '-Iinclude', language: 'c')
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
 add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
 
@@ -54,11 +54,7 @@ exec = executable(
 )
 
 # meson compile run to launch emulator after building
-custom_target(
+run_target(
     'run',
-    depends: exec,
-    input: exec,
-    output: 'fake',
-    command: ['./' + OUTPUT_BIN],
-    build_by_default: false,
+    command: [exec],
 )
