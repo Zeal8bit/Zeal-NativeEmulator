@@ -11,6 +11,7 @@ sources += files([
         'zeal.c',
         'i2c.c',
         'i2c/ds1307.c',
+        'i2c/at24c512.c',
         'zeal_debugger.c' ])
 
 subdir('zvb')

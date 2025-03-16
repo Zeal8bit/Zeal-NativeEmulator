@@ -19,6 +19,7 @@
 
 #include "hw/i2c.h"
 #include "hw/i2c/ds1307.h"
+#include "hw/i2c/at24c512.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -76,7 +77,7 @@ struct zeal_t {
     /* I2C related */
     i2c_t    i2c_bus;
     ds1307_t rtc;
-    // eeprom_t eeprom;
+    at24c512_t eeprom;
 
     /* Misc features */
     zeal_hostfs_t hostfs;

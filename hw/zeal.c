@@ -289,6 +289,11 @@ int zeal_init(zeal_t* machine)
 
     // /* We could pass an initial content to the EEPROM, but set it to null for the moment */
     // const eeprom = new I2C_EEPROM(this, i2c, null);
+    err = at24c512_init(&machine->eeprom, config.arguments.eeprom_filename);
+    CHECK_ERR(err);
+
+    err = i2c_connect(&machine->i2c_bus, &machine->eeprom.parent);
+    CHECK_ERR(err);
 
     // /* Create a HostFS to ease the file and directory access for the VM */
     // const hostfs = new HostFS(this.mem_read, this.mem_write);
