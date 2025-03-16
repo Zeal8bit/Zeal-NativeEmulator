@@ -4,10 +4,10 @@
 #include "hw/pio.h"
 #include "hw/uart.h"
 
-unsigned long bit_tstates = 0;
+static unsigned long bit_tstates = 0;
 
-uint8_t tx_fifo[10];
-uint8_t tx_pos = 0;
+static uint8_t tx_fifo[10];
+static uint8_t tx_pos = 0;
 
 static void transfer_complete(void) {
     char c = 0;
@@ -21,9 +21,11 @@ static void transfer_complete(void) {
     fflush(stdout);
 }
 
-void write_tx(uint8_t read, uint8_t pin, uint8_t bit, uint8_t transition)
+void write_tx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)
 {
+    (void)arg;
     (void)transition;
+    (void)pio;
 
     if(read) return;
     if(pin != IO_UART_TX_PIN) return;
@@ -37,13 +39,11 @@ void write_tx(uint8_t read, uint8_t pin, uint8_t bit, uint8_t transition)
     }
 }
 
-void read_rx(uint8_t read, uint8_t pin, uint8_t bit, uint8_t transition)
+void read_rx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)
 {
     // TODO: do nothing ... should we even define this?
-    (void)read;
-    (void)pin;
-    (void)bit;
-    (void)transition;
+    (void)pio;
+    (void)arg;
     printf("uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
 }
 
@@ -53,8 +53,8 @@ int uart_init(uart_t* uart, pio_t* pio)
     pio_set_b_pin(pio, IO_UART_RX_PIN, 1);
     bit_tstates = us_to_tstates(BAUDRATE_US) + 1;
 
-    pio_listen_b_pin(pio, IO_UART_TX_PIN, write_tx);
-    pio_listen_b_pin(pio, IO_UART_RX_PIN, read_rx);
+    pio_listen_b_pin(pio, IO_UART_TX_PIN, write_tx, uart);
+    pio_listen_b_pin(pio, IO_UART_RX_PIN, read_rx, uart);
 
     return 0;
 }

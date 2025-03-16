@@ -10,11 +10,15 @@
 #include "hw/ram.h"
 #include "hw/zvb/zvb.h"
 #include "hw/pio.h"
+#include "hw/i2c.h"
 #include "hw/keyboard.h"
 #include "hw/uart.h"
 #include "hw/hostfs.h"
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
+
+#include "hw/i2c.h"
+#include "hw/i2c/ds1307.h"
 
 typedef uint8_t dev_idx_t;
 
@@ -69,7 +73,12 @@ struct zeal_t {
     pio_t   pio;
     keyboard_t keyboard;
     uart_t uart;
+    /* I2C related */
+    i2c_t    i2c_bus;
+    ds1307_t rtc;
+    // eeprom_t eeprom;
 
+    /* Misc features */
     zeal_hostfs_t hostfs;
 
     /* Debugger related */

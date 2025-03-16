@@ -270,12 +270,19 @@ int zeal_init(zeal_t* machine)
     // const uart_web_serial = new UART_WebSerial(this, pio);
 
     // const i2c = new I2C(this, pio);
+    err = i2c_init(&machine->i2c_bus, &machine->pio);
+    CHECK_ERR(err);
 
     // const keyboard = new Keyboard(this, pio);
     err = keyboard_init(&machine->keyboard, &machine->pio);
     CHECK_ERR(err);
 
     // const ds1307 = new I2C_DS1307(this, i2c);
+    err = ds1307_init(&machine->rtc);
+    CHECK_ERR(err);
+
+    err = i2c_connect(&machine->i2c_bus, &machine->rtc.parent);
+    CHECK_ERR(err);
 
     // /* Extensions */
     // const compactflash = new CompactFlash(this);

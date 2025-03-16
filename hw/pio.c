@@ -70,18 +70,18 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
         }
 
         for (uint8_t pin = 0; pin < 8; pin++) {
-            pio_listener_callback listener    = hw_port->listeners[pin];
+            listener_t* listener               = &hw_port->listeners[pin];
             listener_change_t* listener_change = &hw_port->listeners_change[pin];
             uint8_t bit                        = BIT(hw_port->state, pin);
             uint8_t formerBit                  = BIT(former_state, pin);
-            if (listener != NULL && BIT(hw_port->dir, pin) == DIR_OUTPUT) {
+            if (listener->callback != NULL && BIT(hw_port->dir, pin) == DIR_OUTPUT) {
                 uint8_t transition = formerBit != bit;
                 /* Parameters(read, pin, value, transition) */
-                listener(0, pin, bit, transition);
+                listener->callback(listener->arg, pio, 0, pin, bit, transition);
             }
             if (listener_change->callback != NULL && formerBit != bit && listener_change->state == bit) {
                 /* Parameters(pin, value) */
-                listener_change->callback(pin, bit);
+                listener_change->callback(pio, pin, bit);
             }
         }
     }
@@ -119,12 +119,10 @@ int pio_init(void* machine, pio_t* pio)
     };
 
     for (uint8_t i = 0; i < PIO_PIN_COUNT; i++) {
-        pio->port_a.listeners[i]        = NULL;
-        pio->port_b.listeners[i]        = NULL;
-        pio->port_a.listeners_change[i].callback = NULL;
-        pio->port_a.listeners_change[i].state = 0;
-        pio->port_b.listeners_change[i].callback = NULL;
-        pio->port_b.listeners_change[i].state = 0;
+        pio->port_a.listeners[i]        = (listener_t) { 0 };
+        pio->port_b.listeners[i]        = (listener_t) { 0 };
+        pio->port_a.listeners_change[i] = (listener_change_t) { 0 };
+        pio->port_b.listeners_change[i] = (listener_change_t) { 0 };
     }
 
     pio->size = 0x10;
@@ -205,31 +203,34 @@ uint8_t pio_get_b_pin(pio_t *pio, uint8_t pin)
     return pio_get_pin(&pio->port_b, pin);
 }
 
-static void pio_listen_pin(port_t* port, uint8_t pin, pio_listener_callback cb)
+static void pio_listen_pin(port_t* port, uint8_t pin, pio_listener_callback cb, void* arg)
 {
-    if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners[pin])) {
+    if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners[pin].callback)) {
         return;
     }
-    port->listeners[pin] = cb;
+    port->listeners[pin] = (listener_t) {
+        .callback = cb,
+        .arg = arg,
+    };
 }
 
 void pio_listen_pin_change(port_t* port, uint8_t pin, uint8_t state, pio_listener_change_callback cb)
 {
-    if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners[pin])) {
+    if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners_change[pin].callback)) {
         return;
     }
     port->listeners_change[pin].callback = cb;
     port->listeners_change[pin].state    = state;
 }
 
-void pio_listen_a_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb)
+void pio_listen_a_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb, void* arg)
 {
-    pio_listen_pin(&pio->port_a, pin, cb);
+    pio_listen_pin(&pio->port_a, pin, cb, arg);
 }
 
-void pio_listen_b_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb)
+void pio_listen_b_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb, void* arg)
 {
-    pio_listen_pin(&pio->port_b, pin, cb);
+    pio_listen_pin(&pio->port_b, pin, cb, arg);
 }
 
 void pio_listen_a_pin_change(pio_t *pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb)
@@ -250,12 +251,12 @@ void pio_unlisten_pin(port_t* port, uint8_t pin)
 
 void pio_unlisten_a_pin(pio_t *pio, uint8_t pin)
 {
-    pio_listen_pin(&pio->port_a, pin, NULL);
+    pio_listen_pin(&pio->port_a, pin, NULL, NULL);
 }
 
 void pio_unlisten_b_pin(pio_t *pio, uint8_t pin)
 {
-    pio_listen_pin(&pio->port_b, pin, NULL);
+    pio_listen_pin(&pio->port_b, pin, NULL, NULL);
 }
 
 void pio_unlisten_a_pin_change(pio_t *pio, uint8_t pin)

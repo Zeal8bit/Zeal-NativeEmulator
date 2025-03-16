@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "hw/device.h"
 #include "utils/helpers.h"
 
@@ -15,8 +16,16 @@
 #define DIR_OUTPUT 0
 #define DIR_INPUT  1
 
-typedef void (*pio_listener_callback)(uint8_t, uint8_t, uint8_t, uint8_t);
-typedef void (*pio_listener_change_callback)(uint8_t, uint8_t);
+typedef struct pio_t pio_t;
+
+typedef void (*pio_listener_callback)(void* arg, pio_t* pio, bool read, int pin, int value, bool transition);
+typedef void (*pio_listener_change_callback)(pio_t* pio, uint8_t, uint8_t);
+
+
+typedef struct {
+    pio_listener_callback callback;
+    void* arg;
+} listener_t;
 
 typedef struct {
     uint8_t state;
@@ -37,11 +46,11 @@ typedef struct {
     uint8_t dir_follows;
 
     // TODO: listeners is an array of callbacks
-    pio_listener_callback listeners[PIO_PIN_COUNT];
-    listener_change_t listeners_change[PIO_PIN_COUNT];
+    listener_t          listeners[PIO_PIN_COUNT];
+    listener_change_t   listeners_change[PIO_PIN_COUNT];
 } port_t;
 
-typedef struct {
+struct pio_t {
     // device_t
     device_t parent;
     size_t size; // in bytes
@@ -49,7 +58,7 @@ typedef struct {
     port_t port_a;
     port_t port_b;
     void*  machine;
-} pio_t;
+};
 
 
 int pio_init(void *machine, pio_t *pio);
@@ -60,13 +69,13 @@ uint8_t pio_get_a_pin(pio_t* pio, uint8_t pin);
 void pio_set_b_pin(pio_t* pio, uint8_t pin, uint8_t value);
 uint8_t pio_get_b_pin(pio_t* pio, uint8_t pin);
 
-void pio_listen_a_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb);
+void pio_listen_a_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb, void* arg);
 void pio_unlisten_a_pin(pio_t* pio, uint8_t pin);
 
 void pio_listen_a_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb);
 void pio_unlisten_a_pin_change(pio_t* pio, uint8_t pin);
 
-void pio_listen_b_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb);
+void pio_listen_b_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb, void* arg);
 void pio_unlisten_b_pin(pio_t* pio, uint8_t pin);
 
 void pio_listen_b_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb);

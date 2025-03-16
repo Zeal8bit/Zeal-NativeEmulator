@@ -9,6 +9,8 @@ sources += files([
         'uart.c',
         'z80.c',
         'zeal.c',
+        'i2c.c',
+        'i2c/ds1307.c',
         'zeal_debugger.c' ])
 
 subdir('zvb')
