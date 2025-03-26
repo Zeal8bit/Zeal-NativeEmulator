@@ -59,6 +59,8 @@ static inline bool mouse_booting(mouse_t* mouse, int delta)
         return false;
     }
     mouse->booting_elapsed += delta;
+    if (mouse->booting_elapsed < MOUSE_BOOT_PERIOD) {
+    }
     return mouse->booting_elapsed < MOUSE_BOOT_PERIOD;
 }
 
@@ -88,6 +90,8 @@ int mouse_init(mouse_t* mouse, pio_t* pio, bool ps2_interface)
 
 void mouse_tick(mouse_t* mouse, int delta)
 {
+    /* Give some time in case the mouse needs to boot */
+    mouse_booting(mouse, delta);
     /* If we aren't currently sending anything ... do nothing */
     if (!mouse->state_ready) {
         return;
@@ -108,21 +112,21 @@ void mouse_tick(mouse_t* mouse, int delta)
                 .rmb = mouse->last.rmb,
                 .mmb = mouse->last.mmb,
                 .one = 1,
-                .x_sign = mouse->diff_x < 0,
-                .y_sign = mouse->diff_y < 0,
-                .x_ovf = ABS(mouse->diff_x) > 255,
-                .y_ovf = ABS(mouse->diff_y) > 255,
+                .x_sign = mouse->last.x < 0,
+                .y_sign = mouse->last.y < 0,
+                .x_ovf = ABS(mouse->last.x) > 255,
+                .y_ovf = ABS(mouse->last.y) > 255,
             };
             sending = byte0.raw;
             break;
         }
 
         case X_MOVE_BYTE:
-            sending = mouse->diff_x & 0xff;
+            sending = mouse->last.x & 0xff;
             break;
 
         case Y_MOVE_BYTE:
-            sending = mouse->diff_y & 0xff;
+            sending = mouse->last.y & 0xff;
             break;
 
         case Z_MOVE_BYTE:
@@ -133,7 +137,7 @@ void mouse_tick(mouse_t* mouse, int delta)
             printf("[Mouse] Warning: VM is reading more bytes than available");
             return;
     }
-    printf("[%d] = %02x\n", mouse->sent, sending);
+    debug("[%d] = %02x\n", mouse->sent, sending);
 
     pio_set_b_pin(mouse->pio, IO_PS2_PIN, 0);
     mouse->shift_register = sending;
@@ -142,7 +146,7 @@ void mouse_tick(mouse_t* mouse, int delta)
 
     /* If we finished processing the last byte, disable byte processing */
     if (mouse->sent == 4) {
-        printf("\n");
+        debug("\n");
         mouse->state_ready = false;
     }
 }
@@ -161,13 +165,17 @@ void mouse_send_next(mouse_t* mouse, const mouse_state_t* state, int delta)
     }
 
     /* Check if any change occured */
-    if (memcmp(&mouse->last, state, sizeof(mouse_state_t)) == 0) {
+    if (state->x == 0 && state->y == 0 && state->z == 0 &&
+        state->lmb == mouse->lmb_last && state->mmb == mouse->mmb_last &&
+        state->rmb == mouse->rmb_last)
+    {
         return;
     }
 
     /* Save the difference */
-    mouse->diff_x = state->x - mouse->last.x;
-    mouse->diff_y = state->y - mouse->last.y;
+    mouse->lmb_last = state->lmb;
+    mouse->mmb_last = state->mmb;
+    mouse->rmb_last = state->rmb;
 
     /* Copy the new state to the mouse structure */
     memcpy(&mouse->last, state, sizeof(mouse_state_t));

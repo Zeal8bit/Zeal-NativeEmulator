@@ -90,6 +90,8 @@ struct zeal_t {
     at24c512_t eeprom;
 
     /* Misc features */
+    Vector2 mouse_former; // Position before capture
+    bool mouse_captured;
     zeal_hostfs_t hostfs;
 
     /* Debugger related */

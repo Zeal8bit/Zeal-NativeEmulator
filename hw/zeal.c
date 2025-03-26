@@ -2,12 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h> // For offsetof macro
+#include "raylib.h"
 #include "hw/zeal.h"
 #include "utils/config.h"
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
 #define PS2_MOUSE   1
+
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - offsetof(type, member)))
+
 
 #define CHECK_ERR(err)  \
     do {                \
@@ -169,24 +175,47 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
 }
 
 
+static void zeal_toggle_mouse(dbg_t* arg)
+{
+    /* The argument is from a machine, for sure */
+    zeal_t* machine = container_of(arg, struct zeal_t, dbg);
+    machine->mouse_captured ^= 1;
+    if (machine->mouse_captured) {
+        printf("Captured!\n");
+        machine->mouse_former = GetMousePosition();
+        // SetMousePosition(GetScreenWidth() / 2, GetScreenHeight() / 2);
+        HideCursor();
+    } else {
+        printf("Released!\n");
+        ShowCursor();
+    }
+}
+
+
 static void zeal_read_mouse(zeal_t* machine, int delta) {
-    if (machine->ps2 != PS2_MOUSE) {
+
+    if (machine->ps2 != PS2_MOUSE || !machine->mouse_captured) {
         return;
     }
 
-    Vector2 mouse_pos = GetMousePosition();
-    /* Make Y coordinate start from the top left corner */
-    const int screen_h = GetScreenHeight();
+    Vector2 pos = GetMousePosition();
+    Vector2 diff = {
+        pos.x - machine->mouse_former.x,
+        pos.y - machine->mouse_former.y
+    };
+
+    /* Convert Y from bottom-left-0 to top-left-0 */
     float z = GetMouseWheelMove();
     mouse_state_t state = {
-        .x = (int) mouse_pos.x,
-        .y = screen_h - 1 - (int) mouse_pos.y,
+        .x = (int) diff.x,
+        .y = - (int) diff.y,
         .z = (int) z,
         .lmb = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
         .mmb = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE),
         .rmb = IsMouseButtonDown(MOUSE_BUTTON_RIGHT),
     };
     mouse_send_next(&machine->mouse, &state, delta);
+    /* Put the mouse back in the middle in `BeginDraw` */
 }
 
 
@@ -472,6 +501,14 @@ static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
+
+            /* Setting the mouse cursor outside of a blank on X11 would result in the event being delayed by 1 frame, as such,
+             * calling this function outside of `BeginDrawing` would resutl in SERIOUS slowdown (as if sleep(16ms) was called)
+             * Keep it here for now until a better solution is found */
+            if (machine->mouse_captured) {
+                SetMousePosition(GetScreenWidth() / 2, GetScreenHeight() / 2);
+                machine->mouse_former = GetMousePosition();
+            }
         EndDrawing();
     }
     return 0;
@@ -504,10 +541,11 @@ typedef struct {
 debugger_key_t debugger_key_toggle = { .label = "Toggle Debugger", .key = KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false };
 
 debugger_key_t main_keys[] = {
-    { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
+    { .label = "Scale Up",   .key = KEY_EQUAL, .callback = main_scale_up,   .shifted = true },
+    { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .shifted = true },
+    { .label = "Capture/Release Mouse", .key = KEY_ESCAPE, .callback = zeal_toggle_mouse }
 };
-int main_keys_size = sizeof(main_keys) / sizeof(debugger_key_t);
+const int main_keys_size = sizeof(main_keys) / sizeof(debugger_key_t);
 
 debugger_key_t debugger_keys[] = {
     // { .label = "Toggle Debugger", .key = KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
@@ -534,7 +572,9 @@ bool zeal_ui_input(zeal_t* machine) {
     bool meta = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
     #endif
 
-    if(!meta) return false; /// all zeal ui keystrokes require meta?
+    if(!meta) {
+        return false; /// all zeal ui keystrokes require meta?
+    }
 
     bool shift = (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT));
 

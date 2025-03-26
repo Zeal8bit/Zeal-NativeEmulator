@@ -28,8 +28,9 @@ typedef struct {
 
     uint32_t state_elapsed;
     mouse_state_t last;
-    int diff_x;
-    int diff_y;
+    uint8_t lmb_last;
+    uint8_t mmb_last;
+    uint8_t rmb_last;
     /* Number of bytes already sent to the VM */
     bool state_ready;
     uint32_t sent;
