@@ -12,6 +12,7 @@
 #include "hw/pio.h"
 #include "hw/i2c.h"
 #include "hw/keyboard.h"
+#include "hw/mouse.h"
 #include "hw/uart.h"
 #include "hw/hostfs.h"
 #include "utils/config.h"
@@ -61,6 +62,12 @@ typedef struct {
     int page_from;
 } map_entry_t;
 
+typedef enum {
+    PS2_NONE,
+    PS2_KEYBOARD,
+    PS2_MOUSE,
+} ps2_dev_t;
+
 struct zeal_t {
     /* Memory regions related, the I/O space's granularity is a single byte */
     map_entry_t io_mapping[IO_MAPPING_SIZE];
@@ -72,8 +79,11 @@ struct zeal_t {
     ram_t   ram;
     zvb_t   zvb;
     pio_t   pio;
-    keyboard_t keyboard;
     uart_t uart;
+    ps2_dev_t ps2;
+    keyboard_t keyboard;
+    mouse_t mouse;
+
     /* I2C related */
     i2c_t    i2c_bus;
     ds1307_t rtc;

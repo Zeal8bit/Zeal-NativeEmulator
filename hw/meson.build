@@ -2,6 +2,7 @@ sources += files([
         'flash.c',
         'hostfs.c',
         'keyboard.c',
+        'mouse.c',
         'main.c',
         'mmu.c',
         'pio.c',

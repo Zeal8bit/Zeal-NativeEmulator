@@ -7,6 +7,8 @@
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
+#define PS2_MOUSE   1
+
 #define CHECK_ERR(err)  \
     do {                \
         if (err)        \
@@ -142,6 +144,12 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
     static uint8_t RAYLIB_KEYS[384];
+
+    /* Only handle the keyboard if enabled */
+    if (machine->ps2 != PS2_KEYBOARD) {
+        return;
+    }
+
     int keyCode;
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
@@ -158,6 +166,27 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
     }
 
     keyboard_send_next(&machine->keyboard, &machine->pio, delta);
+}
+
+
+static void zeal_read_mouse(zeal_t* machine, int delta) {
+    if (machine->ps2 != PS2_MOUSE) {
+        return;
+    }
+
+    Vector2 mouse_pos = GetMousePosition();
+    /* Make Y coordinate start from the top left corner */
+    const int screen_h = GetScreenHeight();
+    float z = GetMouseWheelMove();
+    mouse_state_t state = {
+        .x = (int) mouse_pos.x,
+        .y = screen_h - 1 - (int) mouse_pos.y,
+        .z = (int) z,
+        .lmb = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
+        .mmb = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE),
+        .rmb = IsMouseButtonDown(MOUSE_BUTTON_RIGHT),
+    };
+    mouse_send_next(&machine->mouse, &state, delta);
 }
 
 
@@ -273,10 +302,6 @@ int zeal_init(zeal_t* machine)
     err = i2c_init(&machine->i2c_bus, &machine->pio);
     CHECK_ERR(err);
 
-    // const keyboard = new Keyboard(this, pio);
-    err = keyboard_init(&machine->keyboard, &machine->pio);
-    CHECK_ERR(err);
-
     // const ds1307 = new I2C_DS1307(this, i2c);
     err = ds1307_init(&machine->rtc);
     CHECK_ERR(err);
@@ -305,8 +330,6 @@ int zeal_init(zeal_t* machine)
     err = hostfs_init(&machine->hostfs, &ops);
     CHECK_ERR(err);
 
-    // const virtdisk = new VirtDisk(512, this.mem_read, this.mem_write);
-
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
     if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
@@ -319,10 +342,22 @@ int zeal_init(zeal_t* machine)
 
     /* Register the devices in the I/O space */
     zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
-    zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
+    zeal_add_io_device(machine, 0x60, &machine->hostfs.parent);
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
-    zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+
+#if PS2_MOUSE
+    machine->ps2 = PS2_MOUSE;
+    /* Internal mouse support is on v1.4.0+ only */
+    err = mouse_init(&machine->mouse, &machine->pio, true);
+    CHECK_ERR(err);
+    zeal_add_io_device(machine, 0xe0, &machine->mouse.parent);
+#else
+    machine->ps2 = PS2_KEYBOARD;
+    err = keyboard_init(&machine->keyboard, &machine->pio);
+    CHECK_ERR(err);
+    zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
+#endif
 
     return 0;
 }
@@ -368,9 +403,11 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         const int elapsed_tstates = z80_step(&machine->cpu);
         /* Go through all the devices that have a tick function */
         zvb_tick(&machine->zvb, elapsed_tstates);
+        mouse_tick(&machine->mouse, elapsed_tstates);
         /* Send keyboard keys to Zeal MV only if its window is focused */
         if (debugger_ui_main_view_focused(machine->dbg_ui)) {
             zeal_read_keyboard(machine, elapsed_tstates);
+            zeal_read_mouse(machine, elapsed_tstates);
         }
 
         /* Check if we reached a breakpoint or if we have to do a single step */
@@ -396,6 +433,8 @@ static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
     zvb_tick(&machine->zvb, elapsed_tstates);
     /* Send keyboard keys to Zeal MV only if its window is focused */
     if(!ignore_keyboard) zeal_read_keyboard(machine, elapsed_tstates);
+    zeal_read_mouse(machine, elapsed_tstates);
+    mouse_tick(&machine->mouse, elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         const int screen_w = GetScreenWidth();
