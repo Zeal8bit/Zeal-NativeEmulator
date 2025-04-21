@@ -159,6 +159,7 @@ static void zeal_debugger_breakpoint_cb(dbg_t* dbg) {
 extern const instr_data_t disassembled_z80_opcodes[256];
 extern const instr_data_t disassembled_cb_opcodes[256];
 extern const instr_data_t disassembled_ed_opcodes[256];
+extern const instr_data_t disassembled_ixiy_opcodes[256];
 
 
 static const instr_data_t* process_ed_instr(uint8_t snd)
@@ -189,6 +190,83 @@ static const instr_data_t* process_ed_instr(uint8_t snd)
 }
 
 
+static const char* processes_ixiy_cb(uint8_t fourth)
+{
+    switch (fourth){
+        case 0x06: return "rlc (i%c%+d)";
+        case 0x0e: return "rrc (i%c%+d)";
+        case 0x16: return "rl  (i%c%+d)";
+        case 0x1e: return "rr  (i%c%+d)";
+        case 0x26: return "sla (i%c%+d)";
+        case 0x2e: return "sra (i%c%+d)";
+        case 0x3e: return "srl (i%c%+d)";
+        default: {
+            static char fmt[] = "bit 0,(i%c%+d)";
+            /* Set the bit value */
+            const char bit = (fourth >> 3) & 0x7;
+            fmt[4] = bit + '0';
+            if ((fourth & 0xc7) == 0x46) {
+                return fmt;
+            } else if ((fourth & 0xc7) == 0x86) {
+                fmt[0] = 'r';
+                fmt[1] = 'e';
+                fmt[2] = 's';
+                return fmt;
+            } else if ((fourth & 0xc7) == 0xc6) {
+                fmt[0] = 's';
+                fmt[1] = 'e';
+                fmt[2] = 't';
+                return fmt;
+            }
+            return "ill";
+        }
+    }
+}
+
+
+static int process_ixiy_opcodes(const uint8_t mem[4], dbg_instr_t* instr)
+{
+    /* Choose between IX and IY register */
+    const char reg_letter = (mem[0] == 0xdd) ? 'x' : 'y';
+    const instr_data_t* opcode = disassembled_ixiy_opcodes + mem[1];
+
+    /* special case for 0xCB and 16-bit LD instructions */
+    if (opcode->fmt == NULL) {
+        if (mem[1] == 0xCB) {
+            const char* fmt = processes_ixiy_cb(mem[3]);
+            snprintf(instr->instruction, sizeof(instr->instruction), fmt, reg_letter, mem[2]);
+        } else if ((mem[1] & 0xf8) == 0x70) {
+            /* Special case because the opcode contains the parameter */
+            const char  reg_idx[] = { 'b', 'c', 'd', 'e', 'h', 'l', '?', 'a' };
+            const char* fmt = "ld     (i%c%+d),%c";
+            snprintf(instr->instruction, sizeof(instr->instruction), fmt, reg_letter, mem[2], (reg_idx[mem[1] & 0x7]));
+            return 3;
+        }
+
+        return 4;
+    }
+
+    /* If the instruction has a size of 2, we only need to provide the register letter */
+    if (opcode->size == 2) {
+        /* Some instruction may need the same register twice, pass it twice */
+        snprintf(instr->instruction, sizeof(instr->instruction), opcode->fmt, reg_letter, reg_letter);
+    } else if (opcode->size == 3) {
+        snprintf(instr->instruction, sizeof(instr->instruction), opcode->fmt, reg_letter, mem[2]);
+    } else if (opcode->size == 4) {
+        /* Special case for `ld (ix+d), n` and `ld (nnnn), ix` */
+        if (mem[1] == 0x36) {
+            snprintf(instr->instruction, sizeof(instr->instruction), opcode->fmt, reg_letter, mem[2], mem[3]);
+        } else if (mem[1] == 0x22) {
+            snprintf(instr->instruction, sizeof(instr->instruction), opcode->fmt, mem[3], mem[2], reg_letter);
+        } else {
+            snprintf(instr->instruction, sizeof(instr->instruction), opcode->fmt, reg_letter, mem[3], mem[2]);
+        }
+    }
+
+    return opcode->size;
+}
+
+
 int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 {
     const char* label = NULL;
@@ -212,6 +290,8 @@ int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* i
     bool no_param_instr = false;
     const bool is_cb = (mem[0] == 0xcb);
     const bool is_ed = (mem[0] == 0xed);
+    const bool is_fd = (mem[0] == 0xfd);
+    const bool is_dd = (mem[0] == 0xdd);
     const size_t max_len = sizeof(instr->instruction);
     const instr_data_t* opcode;
 
@@ -225,8 +305,10 @@ int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* i
         }
     } else if (is_cb) {
         opcode = disassembled_cb_opcodes + mem[1];
-        /* CB instructions mus tnot be treated like other 2-byte instructions */
+        /* CB instructions must not be treated like other 2-byte instructions */
         no_param_instr = true;
+    } else if (is_fd || is_dd) {
+        return process_ixiy_opcodes(mem, instr);
     } else {
         opcode = disassembled_z80_opcodes + mem[0];
     }
