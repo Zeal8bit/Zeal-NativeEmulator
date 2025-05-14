@@ -346,8 +346,10 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
         struct nk_window *win;
 
         /* Let the windows modify their border color */
-        struct nk_style_item original_style = dctx->ctx->style.window.header.normal;
+        struct nk_style_item original_active = dctx->ctx->style.window.header.active;
+        struct nk_style_item original_normal = dctx->ctx->style.window.header.normal;
         if (panel->override_header_style) {
+            dctx->ctx->style.window.header.active = panel->header_style;
             dctx->ctx->style.window.header.normal = panel->header_style;
         }
         if(nk_begin(dctx->ctx, panel->title, panel->rect, panel->flags)) {
@@ -363,7 +365,8 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
         win = dctx->ctx->current;
         nk_end(dctx->ctx);
         /* Restore the original border color */
-        dctx->ctx->style.window.header.normal = original_style;
+        dctx->ctx->style.window.header.active = original_active;
+        dctx->ctx->style.window.header.normal = original_normal;
 
         if(win->flags & NK_WINDOW_MINIMIZED) {
             panel->flags |= NK_WINDOW_MINIMIZED;
