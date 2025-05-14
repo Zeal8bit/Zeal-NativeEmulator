@@ -93,6 +93,7 @@ int usage(const char* progname)
     printf("  -s, --save <file>      Save * arguments to Zeal Config\n");
     printf("  -r, --rom <file>       * Load ROM file\n");
     printf("  -e, --eeprom <file>    Load EEPROM file\n");
+    printf("  -t, --tf <file>        Load TF/SDcard file\n");
     printf("  -H, --hostfs <path>    Set host filesystem path\n");
     printf("  -m, --map <file>       Load memory map file (for debugging)\n");
     printf("  -g, --debug            * Enable debug mode\n");
@@ -113,6 +114,7 @@ int parse_command_args(int argc, char* argv[])
         { "config", required_argument, 0, 'c'},
         {    "rom", required_argument, 0, 'r'},
         { "eeprom", required_argument, 0, 'e'},
+        {     "tf", required_argument, 0, 't'},
         { "hostfs", required_argument, 0, 'H'},
         {    "map", required_argument, 0, 'm'},
         {  "debug", required_argument, 0, 'g'},
@@ -122,7 +124,7 @@ int parse_command_args(int argc, char* argv[])
         {        0,                 0, 0,   0}
     };
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:H:m:sgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:t:H:m:sgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -135,6 +137,9 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 'e':
                 config.arguments.eeprom_filename = optarg;
+                break;
+            case 't':
+                config.arguments.tf_filename = optarg;
                 break;
             case 'h':
                 return usage(argv[0]);

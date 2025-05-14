@@ -5,6 +5,7 @@ sources += files([
     'zvb_palette.c',
     'zvb_sprites.c',
     'zvb_text.c',
+    'zvb_spi.c',
     'zvb_tilemap.c',
     'zvb_tileset.c',
 ])

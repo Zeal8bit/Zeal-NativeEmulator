@@ -42,6 +42,11 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    if (config.arguments.tf_filename != NULL &&
+        zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
+        return 1;
+    }
+
     code = zeal_run(&machine);
 
     int saved = config_save();
