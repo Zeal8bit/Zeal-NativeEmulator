@@ -46,9 +46,12 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
     /* Open it in both read and write */
     spi->tf.img = fopen(filename, "r+");
     if (spi->tf.img == NULL) {
-        perror("Could not open TF Card image");
+        perror("[TF] Could not open TF Card image");
         return 1;
     }
+
+    printf("[TF] %s loaded successfully\n", filename);
+
     /* Save the size of the file */
     fseek(spi->tf.img, 0, SEEK_END);
     spi->tf.img_size = ftell(spi->tf.img);

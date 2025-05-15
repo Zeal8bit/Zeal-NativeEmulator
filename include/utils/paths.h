@@ -19,3 +19,4 @@ void get_executable_dir(char *buffer, size_t size);
 int get_install_dir_file(char dst[PATH_MAX], const char* name);
 
 int path_exists(const char *path);
+char* get_relative_path(const char* absolute_path);

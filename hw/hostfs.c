@@ -612,5 +612,7 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
         return 1;
     }
 
+    printf("[HostFS] %s loaded successfully\n", get_relative_path(hostfs->root_path));
+
     return 0;
 }
