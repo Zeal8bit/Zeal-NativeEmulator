@@ -141,7 +141,8 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 
 
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
-    static uint8_t RAYLIB_KEYS[384];
+    static const int RAYLIB_KEY_COUNT = 384;
+    static uint8_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
     int keyCode;
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
@@ -150,11 +151,30 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
     }
 
     // look for newly released keys
-    for(uint16_t i = 0; i < sizeof(RAYLIB_KEYS); i++) {
-        if(RAYLIB_KEYS[i] && IsKeyReleased(i)) {
-            RAYLIB_KEYS[i] = 0;
-            key_released(&machine->keyboard, i);
+    for(keyCode = 0; keyCode < RAYLIB_KEY_COUNT; keyCode++) {
+        uint8_t keyState = RAYLIB_KEYS[keyCode];
+
+        if(!keyState) continue; // released
+
+        if(IsKeyReleased(keyCode)) {
+            RAYLIB_KEYS[keyCode] = 0;
+            key_released(&machine->keyboard, keyCode);
+            continue;
         }
+
+        // 60FPS?
+        if(machine->zvb.need_render != true) continue;
+
+        keyState++;
+        if(keyState > 0x84) {
+            // every 4 frames, or roughly 15 keys per second?
+            keyState = 0x80;
+            key_pressed(&machine->keyboard, keyCode);
+        } else if(keyState < 0x80 && keyState > 14) {
+            // initial ~250ms delay before repeat starts
+            keyState = 0x80;
+        }
+        RAYLIB_KEYS[keyCode] = keyState;
     }
 
     keyboard_send_next(&machine->keyboard, &machine->pio, delta);
