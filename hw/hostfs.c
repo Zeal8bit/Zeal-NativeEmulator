@@ -389,7 +389,7 @@ static void fs_mkdir(zeal_hostfs_t *host) {
         return;
     }
 
-    if (mkdir(path, 0644) != 0) {
+    if (mkdir(path, 0755) != 0) {
         perror("[HostFS] Could not create directory");
         set_status(host, ZOS_FAILURE);
         return;
