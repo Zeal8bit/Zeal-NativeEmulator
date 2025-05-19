@@ -13,7 +13,7 @@
 static unsigned long PS2_SCANCODE_DURATION = 0;
 static unsigned long PS2_KEY_TIMING = 0;
 static unsigned long PS2_RELEASE_DELAY = 0;
-static unsigned long elapsed_tstates;
+
 
 static const uint16_t TABLE[384] = {
     [KEY_BACKSPACE]    = 0x66,
@@ -129,14 +129,19 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
 
 int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 {
-    PS2_SCANCODE_DURATION = us_to_tstates(19.7); // 197
+    /* On the real hardware, the active signal stays on for ~19.7 microseconds */
+    PS2_SCANCODE_DURATION = us_to_tstates(19.7);
+    /* We have a delay of 3.9ms between each scancode */
     PS2_KEY_TIMING = us_to_tstates(3900); // 39000
-    PS2_RELEASE_DELAY = us_to_tstates(30000); // 155000
+    /* The release code happens 30ms after the first code is issued */
+    PS2_RELEASE_DELAY = us_to_tstates(30000);
 
     keyboard->size = 0x10;
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
 
     keyboard->pin_state = 1;
+    keyboard->state = PS2_IDLE;
+    keyboard->elapsed_tstates = 0;
     assert(fifo_init(&keyboard->queue, FIFO_SIZE));
 
     pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
@@ -144,33 +149,45 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     return 0;
 }
 
-void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, unsigned long delta)
+
+void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, int delta)
 {
-    if(fifo_size(&keyboard->queue) == 0) {
-        return; // nothing to process
+    keyboard->elapsed_tstates += delta;
+
+    switch (keyboard->state) {
+        case PS2_IDLE:
+            assert(keyboard->pin_state == 1);
+            /* Shift in the next code */
+            if (fifo_pop(&keyboard->queue, &keyboard->shift_register)) {
+                keyboard->pin_state = 0;
+                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+                keyboard->elapsed_tstates = 0;
+                keyboard->state = PS2_ACTIVE;
+            }
+            break;
+
+        case PS2_ACTIVE:
+            /* Keyboard signal is asserted, this signal lasts PS2_SCANCODE_DURATION t-states */
+            if(keyboard->elapsed_tstates >= PS2_SCANCODE_DURATION) {
+                keyboard->pin_state = 1;
+                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+                keyboard->elapsed_tstates = 0;
+                keyboard->state = PS2_INACTIVE;
+            }
+            break;
+
+        case PS2_INACTIVE:
+            /* Keyboard signal is deasserted, it needs some time before accepting new keys again */
+            if(keyboard->elapsed_tstates >= PS2_KEY_TIMING) {
+                keyboard->pin_state = 1;
+                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+                keyboard->elapsed_tstates = 0;
+                keyboard->state = PS2_IDLE;
+            }
+            break;
     }
-
-    /* wait */
-    elapsed_tstates += delta;
-
-    if(keyboard->pin_state == 1) {
-        if(elapsed_tstates < PS2_KEY_TIMING) return;
-
-        /* Shift in the next code */
-        assert(fifo_pop(&keyboard->queue, &keyboard->shift_register));
-        keyboard->pin_state = 0;
-        pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-
-        return;
-    }
-
-    if(elapsed_tstates < PS2_KEY_TIMING + PS2_SCANCODE_DURATION) return;
-
-    keyboard->pin_state = 1;
-    pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-
-    elapsed_tstates = 0;
 }
+
 
 static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 {
