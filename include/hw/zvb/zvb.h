@@ -10,6 +10,7 @@
 #include "hw/zvb/zvb_text.h"
 #include "hw/zvb/zvb_sprites.h"
 #include "hw/zvb/zvb_spi.h"
+#include "hw/zvb/zvb_crc32.h"
 
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
@@ -133,6 +134,7 @@ typedef struct {
     /* I/O controllers */
     zvb_text_t       text;
     zvb_spi_t        spi;
+    zvb_crc32_t      peri_crc32;
 
     /* Internally used to make the shader work on the whole screen */
     Shader           text_shader;

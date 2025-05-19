@@ -8,6 +8,7 @@ sources += files([
     'zvb_spi.c',
     'zvb_tilemap.c',
     'zvb_tileset.c',
+    'zvb_crc32.c',
 ])
 
 configure_file(
