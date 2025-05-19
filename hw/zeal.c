@@ -5,6 +5,8 @@
 #include "hw/zeal.h"
 #include "utils/config.h"
 
+#define RAYLIB_KEY_COUNT    384
+
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
 #define CHECK_ERR(err)  \
@@ -141,7 +143,6 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 
 
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
-    static const int RAYLIB_KEY_COUNT = 384;
     static uint8_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
     int keyCode;
     // look for newly pressed keys
