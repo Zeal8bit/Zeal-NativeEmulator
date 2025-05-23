@@ -301,31 +301,6 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
     }
 }
 
-static uint8_t gamepad_mapped = 0;
-static void zeal_read_gamepad(zeal_t* machine, int delta) {
-    (void)delta;
-
-    snes_adapter_t *snes_adapter = &machine->snes_adapter;
-
-    if(IsGamepadAvailable(snes_adapter->index) && !gamepad_mapped) {
-        // printf("[SNES Adapter] Detect %s\n", GetGamepadName(snes_adapter->index));
-        printf("[SNES Adapter] Found %s\n", GetGamepadName(snes_adapter->index));
-        gamepad_mapped = 1;
-    }
-
-    int pressed = GetGamepadButtonPressed();
-    if(pressed) {
-        printf("[SNES Adapter] pressed %d\n", pressed);
-        snes_adapter_attach(snes_adapter, snes_adapter->index);
-    }
-
-    for(int i = 0; i < 16; i++) {
-        if(IsGamepadButtonPressed(snes_adapter->index, i)) {
-            printf("[SNES Adapter] Button %d pressed\n", i);
-        }
-    }
-}
-
 
 static memory_op_t s_ops = {
     .read_byte = zeal_mem_read,
@@ -382,9 +357,15 @@ int zeal_init(zeal_t* machine)
 #ifndef PLATFORM_WEB
     SetWindowFocused(); // force focus on the window to capture keypresses
 #endif
+
 #if !BENCHMARK
     SetTargetFPS(60);
 #endif
+
+    // force rendering the window, to allow Raylib periphs to attach (ie; gamepads)
+    BeginDrawing();
+        ClearBackground((Color){ 0x0, 0x0, 0x0, 0xff });
+    EndDrawing();
 
     /* Since we want to enable scaling, make the ZVB output always go to a texture first */
     machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
