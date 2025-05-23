@@ -18,9 +18,8 @@ typedef struct {
 
     // snes specific
     int index; // gamepad index
+    bool attached;
     uint16_t bits;
-    uint8_t bitCounter;
-
 } snes_adapter_t;
 
 int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio);
