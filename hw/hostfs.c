@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <dirent.h>
 #include <limits.h>
 #include <time.h>
@@ -169,7 +170,58 @@ static char *get_path(zeal_hostfs_t *host) {
     return full_path;
 }
 
+FILE *fopen_with_flags(const char *path, int zos_flags) {
+    int open_flags = 0;
 
+    // Determine access mode
+    switch (zos_flags & 0x3) {  // Mask only the low 2 bits
+        case ZOS_FL_RDONLY:
+            open_flags |= O_RDONLY;
+            break;
+        case ZOS_FL_WRONLY:
+            open_flags |= O_WRONLY;
+            break;
+        case ZOS_FL_RDWR:
+            open_flags |= O_RDWR;
+            break;
+        default:
+            return NULL;
+    }
+
+    // Add extra behavior flags
+    if (zos_flags & ZOS_FL_CREAT)
+        open_flags |= O_CREAT;
+    if (zos_flags & ZOS_FL_TRUNC)
+        open_flags |= O_TRUNC;
+    if (zos_flags & ZOS_FL_APPEND)
+        open_flags |= O_APPEND;
+
+    // Open file with appropriate mode
+    int fd = open(path, open_flags);
+    if (fd == -1)
+        return NULL;
+
+    // Map zos_flags to fdopen mode string
+    const char *mode_str = NULL;
+    int is_read = (zos_flags & 0x3) == ZOS_FL_RDONLY || (zos_flags & 0x3) == ZOS_FL_RDWR;
+    int is_write = (zos_flags & 0x3) == ZOS_FL_WRONLY || (zos_flags & 0x3) == ZOS_FL_RDWR;
+
+    if (is_read && is_write) {
+        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a+" : "r+";
+    } else if (is_write) {
+        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a" : "w";
+    } else if (is_read) {
+        mode_str = "r";
+    }
+
+    FILE *file = fdopen(fd, mode_str);
+    if (!file) {
+        close(fd);
+        return NULL;
+    }
+
+    return file;
+}
 
 static void fs_open(zeal_hostfs_t *host) {
     char *path = get_path(host);
@@ -179,19 +231,8 @@ static void fs_open(zeal_hostfs_t *host) {
     }
 
     uint8_t flags = host->registers[0];
-    const char *mode = "rb";
 
-    if (flags & 0x01) {
-        if (flags & 0x02) {
-            mode = "wb+";
-        } else {
-            mode = "wb";
-        }
-    } else if (flags & 0x02) {
-        mode = "rb+";
-    }
-
-    FILE *file = fopen(path, mode);
+    FILE *file = fopen_with_flags(path, flags);
     if (!file) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
