@@ -197,7 +197,7 @@ FILE *fopen_with_flags(const char *path, int zos_flags) {
         open_flags |= O_APPEND;
 
     // Open file with appropriate mode
-    int fd = open(path, open_flags);
+    int fd = open(path, open_flags, 0644);
     if (fd == -1)
         return NULL;
 
