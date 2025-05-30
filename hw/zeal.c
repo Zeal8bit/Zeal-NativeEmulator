@@ -7,13 +7,26 @@
 
 #define RAYLIB_KEY_COUNT    384
 
-int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
-
 #define CHECK_ERR(err)  \
     do {                \
         if (err)        \
             return err; \
     } while (0)
+
+
+typedef enum {
+    KEY_NOT_PRESSED,
+    KEY_PRESSED,
+    KEY_REPEATED,
+} kb_key_state_t;
+
+typedef struct {
+    kb_key_state_t state;
+    int duration;
+} kb_keys_t;
+
+
+int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
 /**
  * @brief Callback invoked when the CPU tries to read a byte in memory space
@@ -143,39 +156,48 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 
 
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
-    static uint8_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+    static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+
     int keyCode;
+
+    /* The initial delay is ~500ms before repeat starts */
+    const int start_delay = us_to_tstates(500000);
+    /* Then, repeat the key every 50ms */
+    const int repeat_delay = us_to_tstates(50000);
+
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
-        RAYLIB_KEYS[keyCode] = 1;
+        RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
+        RAYLIB_KEYS[keyCode].duration = 0;
         key_pressed(&machine->keyboard, keyCode);
     }
 
     // look for newly released keys
     for(keyCode = 0; keyCode < RAYLIB_KEY_COUNT; keyCode++) {
-        uint8_t keyState = RAYLIB_KEYS[keyCode];
+        kb_keys_t* key = &RAYLIB_KEYS[keyCode];
 
-        if(!keyState) continue; // released
+        if(key->state == KEY_NOT_PRESSED) {
+            continue;
+        }
 
-        if(IsKeyReleased(keyCode)) {
-            RAYLIB_KEYS[keyCode] = 0;
+        if(IsKeyUp(keyCode)) {
+            key->state = KEY_NOT_PRESSED;
+            /* No need to clear the duration, it's done when the key is pressed */
             key_released(&machine->keyboard, keyCode);
             continue;
         }
 
-        // 60FPS?
-        if(machine->zvb.need_render != true) continue;
+        /* Key is still pressed, add the current delta to its duration and check it */
+        key->duration += delta;
 
-        keyState++;
-        if(keyState > 0x84) {
-            // every 4 frames, or roughly 15 keys per second?
-            keyState = 0x80;
+        if (key->state == KEY_PRESSED && key->duration >= start_delay) {
             key_pressed(&machine->keyboard, keyCode);
-        } else if(keyState < 0x80 && keyState > 14) {
-            // initial ~250ms delay before repeat starts
-            keyState = 0x80;
+            key->state = KEY_REPEATED;
+            key->duration = 0;
+        } else if (key->state == KEY_REPEATED && key->duration >= repeat_delay) {
+            key->duration = 0;
+            key_pressed(&machine->keyboard, keyCode);
         }
-        RAYLIB_KEYS[keyCode] = keyState;
     }
 
     keyboard_send_next(&machine->keyboard, &machine->pio, delta);
@@ -218,6 +240,17 @@ static void zeal_debug_toggle(dbg_t *dbg)
         printf("zeal_debug_toggle: enable\n");
         zeal_debug_enable(machine);
     }
+}
+
+
+static void debug_write(device_t* dev, uint32_t addr, uint8_t data)
+{
+    // printf("[DEBUG] %d (0x%x)\n", data, data);
+}
+
+static uint8_t debug_read(device_t* dev, uint32_t addr)
+{
+    return 0;
 }
 
 
@@ -344,6 +377,11 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+
+    /* Debug printer */
+    static device_t printer;
+    device_init_io(&printer, "Printer", debug_read, debug_write, 16);
+    zeal_add_io_device(machine, 0x40, &printer);
 
     return 0;
 }
