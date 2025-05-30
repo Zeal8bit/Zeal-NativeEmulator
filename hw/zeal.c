@@ -243,17 +243,6 @@ static void zeal_debug_toggle(dbg_t *dbg)
 }
 
 
-static void debug_write(device_t* dev, uint32_t addr, uint8_t data)
-{
-    // printf("[DEBUG] %d (0x%x)\n", data, data);
-}
-
-static uint8_t debug_read(device_t* dev, uint32_t addr)
-{
-    return 0;
-}
-
-
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -377,11 +366,6 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
-
-    /* Debug printer */
-    static device_t printer;
-    device_init_io(&printer, "Printer", debug_read, debug_write, 16);
-    zeal_add_io_device(machine, 0x40, &printer);
 
     return 0;
 }
