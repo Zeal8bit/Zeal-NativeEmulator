@@ -46,6 +46,11 @@ struct dbg_ui_panel_t {
 };
 
 extern char DEBUG_BUFFER[256];
+extern bool automationRecording;
+extern bool automationPlaying;
+extern AutomationEventList *automationEventList;
+extern unsigned int automationCurrentPlayFrame;
+extern unsigned int automationPlayFrameCounter;
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
 
@@ -53,6 +58,8 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
 void ui_panel_display(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_scale_up(dbg_t *dbg);
 void debugger_scale_down(dbg_t *dbg);
+void debugger_record(dbg_t *dbg);
+void debugger_playback(dbg_t *dbg);
 
 void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);

@@ -158,6 +158,24 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
     static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 
+    if(automationPlaying) {
+        while(automationPlayFrameCounter == automationEventList->events[automationCurrentPlayFrame].frame) {
+            printf("Automation Frame\n");
+            PlayAutomationEvent(automationEventList->events[automationCurrentPlayFrame]);
+            automationCurrentPlayFrame++;
+
+            if(automationCurrentPlayFrame == automationEventList->count) {
+                automationPlaying = false;
+                automationCurrentPlayFrame = 0;
+                automationPlayFrameCounter = 0;
+                printf("Finished Playback\n");
+                break;
+            }
+        }
+        automationPlayFrameCounter++;
+    }
+
+
     int keyCode;
 
     /* The initial delay is ~500ms before repeat starts */
@@ -167,9 +185,11 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
 
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
-        RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
-        RAYLIB_KEYS[keyCode].duration = 0;
-        key_pressed(&machine->keyboard, keyCode);
+        if(RAYLIB_KEYS[keyCode].state != KEY_PRESSED) {
+            RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
+            RAYLIB_KEYS[keyCode].duration = 0;
+            key_pressed(&machine->keyboard, keyCode);
+        }
     }
 
     // look for newly released keys
@@ -510,6 +530,9 @@ debugger_key_t debugger_key_toggle = { .label = "Toggle Debugger", .key = KEY_F1
 debugger_key_t main_keys[] = {
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
     { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
+
+    { .label = "Record", .key = KEY_R, .callback = debugger_record, .pressed = false, .shifted = false },
+    { .label = "Playback", .key = KEY_T, .callback = debugger_playback, .pressed = false, .shifted = false },
 };
 int main_keys_size = sizeof(main_keys) / sizeof(debugger_key_t);
 
@@ -523,11 +546,15 @@ debugger_key_t debugger_keys[] = {
     { .label = "Toggle Breakpoint", .key = KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
     { .label = "Scale Down", .key = KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
+
+    { .label = "Record", .key = KEY_R, .callback = debugger_record, .pressed = false, .shifted = false },
+    { .label = "Playback", .key = KEY_T, .callback = debugger_playback, .pressed = false, .shifted = false },
 };
 int debugger_keys_size = sizeof(debugger_keys) / sizeof(debugger_key_t);
 
 bool zeal_ui_input(zeal_t* machine) {
     if(config_keyboard_passthru(machine->dbg_enabled)) return false;
+    if(automationPlaying) return false;
     bool handled = false;
 
     // Debugger UI requires Ctrl + {KEY}

@@ -270,6 +270,63 @@ void debugger_scale_down(dbg_t *dbg) {
     PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
 }
 
+AutomationEventList AUTOMATION_EVENT_LIST;
+AutomationEventList *automationEventList = NULL;
+bool automationRecording = false;
+bool automationPlaying = false;
+unsigned int automationCurrentPlayFrame = 0;
+unsigned int automationPlayFrameCounter = 0;
+void debugger_record(dbg_t *dbg) {
+    (void)dbg; // referenced
+
+    // do not start recording if we're actively playing back
+    if(automationPlaying) return;
+
+    printf("Automation Recording...\n");
+
+    if(automationRecording) {
+        StopAutomationEventRecording();
+        ExportAutomationEventList(AUTOMATION_EVENT_LIST, "automation.rae");
+        printf("Recorded Frames: %d\n", automationEventList->count);
+        automationRecording = false;
+    } else {
+        if(automationEventList == NULL) {
+            AUTOMATION_EVENT_LIST = LoadAutomationEventList(0);
+            automationEventList = &AUTOMATION_EVENT_LIST;
+            SetAutomationEventList(automationEventList);
+        }
+
+        automationRecording = true;
+        SetAutomationEventBaseFrame(0);
+        StartAutomationEventRecording();
+    }
+}
+
+void debugger_playback(dbg_t *dbg) {
+    (void)dbg; // referenced
+    // do not start playback while recording
+    if(automationRecording) return;
+
+    printf("Automation Playback...\n");
+
+    // load the automation.rae if not loaded already
+    if(automationEventList == NULL) {
+        AUTOMATION_EVENT_LIST = LoadAutomationEventList("automation.rae");
+        automationEventList = &AUTOMATION_EVENT_LIST;
+        SetAutomationEventList(automationEventList);
+    }
+
+    printf("Recording %d, Count: %d\n", automationRecording, automationEventList->count);
+    if(!automationRecording && automationEventList->count > 0) {
+        automationPlaying = true;
+        automationCurrentPlayFrame = 0;
+        automationPlayFrameCounter = 0;
+    }
+
+    // loop until all keys are released to prevent ghosting
+    while(GetKeyPressed() != 0);
+}
+
 /**
  * ===========================================================
  *                  PUBLIC INTERFACE
