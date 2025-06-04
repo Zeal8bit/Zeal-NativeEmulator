@@ -63,24 +63,21 @@ int color_from_idx(int idx, int offset, bool color_4bit)
 
     if (color_4bit) {
         lsb = (final_idx % 2) != 0;
-        /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    float texel_width = 1.0 / float(TILESET_TEX_WIDTH);
-    vec2 addr = vec2((float(final_idx) / float(SIZEOF_COLOR) + 0.5) * texel_width, 0.5);
 
-    /* Get one set of color per layer, each containing 4 pixels */
-    vec4 set = texture(tileset, addr);
-    int channel = final_idx % SIZEOF_COLOR;
+    int texel_index = final_idx / SIZEOF_COLOR;
+    int channel     = final_idx % SIZEOF_COLOR;
+    ivec2 texel_coord = ivec2(texel_index, 0);
+    vec4 set = texelFetch(tileset, texel_coord, 0);
+
     float byte_value = (channel == 0) ? set.r :
-                        (channel == 1) ? set.g :
-                        (channel == 2) ? set.b : set.a;
+                       (channel == 1) ? set.g :
+                       (channel == 2) ? set.b : set.a;
+
     if (color_4bit) {
-        /* Convert to 8-bit (0-255 range) */
-        int byte_int = int(floor(byte_value * 255.0 + 0.5));
-        /* Extract 4-bit value */
+        int byte_int = int(byte_value * 255.0);
         int color_4bit = lsb ? (byte_int & 0x0F) : (byte_int >> 4);
-        /* Normalize 4-bit color to 0-1 range */
         return color_4bit;
     } else {
         return int(byte_value * 255.0);
