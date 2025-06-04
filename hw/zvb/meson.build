@@ -19,6 +19,18 @@ configure_file(
 
 configure_file(
     copy: true,
+    input: 'gfx_shader.frag',
+    output: 'gfx_shader.frag'
+)
+
+configure_file(
+    copy: true,
     input: 'text_shader.glsl',
     output: 'text_shader.glsl'
 )
+configure_file(
+    copy: true,
+    input: 'text_shader.frag',
+    output: 'text_shader.frag'
+)
+
