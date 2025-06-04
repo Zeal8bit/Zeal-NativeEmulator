@@ -24,6 +24,7 @@ void zvb_font_init(zvb_font_t* font)
     }
 
     font->tex_font = LoadTextureFromImage(font->img_font);
+    font->img_font.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
     SetTextureFilter(font->tex_font, TEXTURE_FILTER_POINT);
     SetTextureWrap(font->tex_font, TEXTURE_WRAP_CLAMP);
     font->dirty = 0;

@@ -28,6 +28,7 @@ void zvb_tilemap_init(zvb_tilemap_t* tilemap)
     memset(tilemap->img_tilemap.data, 0, sizeof(Color) * ZVB_TILEMAP_SIZE);
 
     tilemap->tex_tilemap = LoadTextureFromImage(tilemap->img_tilemap);
+    SetTextureFilter(tilemap->tex_tilemap, TEXTURE_FILTER_POINT);
     tilemap->dirty = 0;
 }
 

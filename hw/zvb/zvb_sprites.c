@@ -25,6 +25,7 @@ void zvb_sprites_init(zvb_sprites_t* sprites)
     };
 
     sprites->tex_sprites = LoadTextureFromImage(sprites->img_sprites);
+    SetTextureFilter(sprites->tex_sprites, TEXTURE_FILTER_POINT);
     sprites->dirty = 0;
 }
 

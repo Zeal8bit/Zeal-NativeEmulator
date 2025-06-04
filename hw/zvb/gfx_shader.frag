@@ -66,7 +66,7 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    vec2 addr = vec2(float(final_idx / SIZEOF_COLOR) / (float(TILESET_TEX_WIDTH) + 0.0001), 0.0);
+    vec2 addr = vec2((float(final_idx) / float(SIZEOF_COLOR)) / (float(TILESET_TEX_WIDTH) + 0.0001), 0.0);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = final_idx % SIZEOF_COLOR;

@@ -233,12 +233,12 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     char gfx_shader_path[PATH_MAX];
 
     // TODO: decide on ES3 or GL 3.3 (ie; frag or glsl)
-    // (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.glsl");
-    // (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.glsl");
-    (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.frag");
-    (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.frag");
+    (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.glsl");
+    (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.glsl");
+    // (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.frag");
+    // (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.frag");
 
-    
+
     dev->text_shader = LoadShader(NULL, text_shader_path);
     dev->gfx_shader  = LoadShader(NULL, gfx_shader_path);
     zvb_palette_init(&dev->palette);

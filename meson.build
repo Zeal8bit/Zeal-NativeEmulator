@@ -42,7 +42,8 @@ run_command(
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', '-D_DARWIN_C_SOURCE', '-Iinclude', language: 'c')
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
-add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', '-lGLESv2', '-lEGL', language: 'c')
+add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
+# add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', '-lGLESv2', '-lEGL', language: 'c')
 
 # Compiler and build targets
 exec = executable(
