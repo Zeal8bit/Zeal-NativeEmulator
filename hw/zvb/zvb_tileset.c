@@ -22,6 +22,7 @@ void zvb_tileset_init(zvb_tileset_t* tileset)
 
     tileset->tex_tileset = LoadTextureFromImage(tileset->img_tileset);
     SetTextureFilter(tileset->tex_tileset, TEXTURE_FILTER_POINT);
+    SetTextureWrap(tileset->tex_tileset, TEXTURE_WRAP_CLAMP);
     tileset->dirty = 0;
 }
 
