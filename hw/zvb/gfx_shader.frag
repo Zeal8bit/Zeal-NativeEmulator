@@ -147,14 +147,16 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
 
 void main() {
     // Create absolute coordinates, with (0,0) at the top-left
-    vec2 flipped   = vec2(fragTexCoord.x, 1.0 - fragTexCoord.y)
-                   * vec2(SCREEN_WIDTH, SCREEN_HEIGHT);
+    vec2 flipped   = vec2(fragTexCoord.x, 1.0 - fragTexCoord.y);
     bool mode_320   = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
     bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
     if (mode_320) {
-        flipped.x = flipped.x / 2.0;
-        flipped.y = flipped.y / 2.0;
+        flipped = flipped * vec2(320.0, 240.0);
+        // flipped.x = flipped.x / 2.0;
+        // flipped.y = flipped.y / 2.0;
+    } else {
+        flipped = flipped * vec2(640.0, 480.0);
     }
 
     vec4 layers_color = gfx_mode(flipped, mode_320, color_4bit);
