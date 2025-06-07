@@ -155,6 +155,23 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
 }
 
 
+static int key_can_repeat(int code)
+{
+    const int modifiers[] = {
+        KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
+        KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
+        KEY_CAPS_LOCK,   KEY_NUM_LOCK
+    };
+
+    for (unsigned int i = 0; i < DIM(modifiers); i++) {
+        if (modifiers[i] == code) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 static void zeal_read_keyboard(zeal_t* machine, int delta) {
     static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 
@@ -190,7 +207,7 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
         /* Key is still pressed, add the current delta to its duration and check it */
         key->duration += delta;
 
-        if (key->state == KEY_PRESSED && key->duration >= start_delay) {
+        if (key->state == KEY_PRESSED && key_can_repeat(keyCode) && key->duration >= start_delay) {
             key_pressed(&machine->keyboard, keyCode);
             key->state = KEY_REPEATED;
             key->duration = 0;
