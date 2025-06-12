@@ -161,8 +161,8 @@ void main() {
 
     for (int i = 0; i < 256; i += 2) {
 
-        vec4 fst_attr = texture(sprites, vec2((i + 0) / 255.0, 0.5));
-        vec4 snd_attr = texture(sprites, vec2((i + 1) / 255.0, 0.5));
+        vec4 fst_attr = texture(sprites, vec2((i + 0) / 255.5, 0.5));
+        vec4 snd_attr = texture(sprites, vec2((i + 1) / 255.5, 0.5));
 
         vec2 sprite_pos   = fst_attr.xy - vec2(TILE_WIDTH, TILE_HEIGHT);
         int tile_number   = int(fst_attr.z);
