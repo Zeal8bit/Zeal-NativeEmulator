@@ -106,7 +106,7 @@ static void zeal_init_cpu(zeal_t* machine)
 }
 
 
-static void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
+void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
 {
     /* Start and end address of the region mapped for the device */
     const int region_size = dev->io_region.size;
@@ -122,7 +122,7 @@ static void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
     }
 }
 
-static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_t* dev)
+void zeal_add_mem_device(zeal_t* machine, const int region_start, device_t* dev)
 {
     const int region_size = dev->mem_region.size;
     const int region_end  = region_start + region_size - 1;
@@ -383,6 +383,9 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+
+    /* Load the extensions */
+    zeal_extensions_init(machine);
 
     return 0;
 }

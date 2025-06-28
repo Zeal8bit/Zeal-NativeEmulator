@@ -19,12 +19,24 @@ OUTPUT_BIN = 'zeal.elf'
 raylib_path = get_option('raylib_path')
 if raylib_path == ''
     # No path provided, rely on system's default libraries (i.e., /usr/include and /usr/lib)
-    raylib_include_dir = '/usr/include'
-    raylib_lib_dir = '/usr/lib'
+    raylib_include_dir = '/usr/include/luajit-2.1/'
+    raylib_lib_dir = '/usr/lib/luajit-2.1/'
 else
     # Use the provided path
     raylib_include_dir = raylib_path / 'include'
     raylib_lib_dir = raylib_path / 'lib'
+endif
+
+# Retrieve luajit_path option (set via command line or use system defaults)
+luajit_path = get_option('luajit_path')
+if luajit_path == ''
+    # No path provided, rely on system's default libraries (i.e., /usr/include and /usr/lib)
+    luajit_include_dir = '/usr/include'
+    luajit_lib_dir = '/usr/lib'
+else
+    # Use the provided path
+    luajit_include_dir = luajit_path / 'include'
+    luajit_lib_dir = luajit_path / 'lib'
 endif
 
 # List all the subdirectories that contain source code
@@ -44,6 +56,9 @@ add_project_arguments('-D_POSIX_C_SOURCE=200809L', '-D_DARWIN_C_SOURCE', '-Iincl
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
 add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
 
+# Add LuaJIT arguments
+add_project_arguments('-I' + luajit_include_dir, language: 'c')
+add_project_link_arguments('-L' + luajit_lib_dir, '-lluajit-5.1', language: 'c')
 
 # Compiler and build targets
 exec = executable(
