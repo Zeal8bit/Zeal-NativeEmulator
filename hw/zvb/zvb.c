@@ -133,6 +133,8 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
         return 1;
     } else if (addr == ZVB_IO_MAJOR_REG) {
         return 0;
+    } else if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
+        return zvb->scratch[addr - ZVB_IO_SCRAT0_REG];
     } else if (addr == ZVB_IO_BANK_REG) {
         return zvb->io_bank;
     } else if (addr == ZVB_MEM_START_REG) {
@@ -201,7 +203,9 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
     /* Video Board configuration goes from 0x00 to 0x0F included */
-    if (addr == ZVB_IO_BANK_REG) {
+    if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
+        zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
+    } else if (addr == ZVB_IO_BANK_REG) {
         zvb->io_bank = data;
     } else if (addr == ZVB_MEM_START_REG) {
         printf("[WARNING] zvb memory mapping register is not supported\n");

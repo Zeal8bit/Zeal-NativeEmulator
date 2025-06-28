@@ -25,6 +25,10 @@
 #define ZVB_IO_REV_REG      0x00
 #define ZVB_IO_MINOR_REG    0x01
 #define ZVB_IO_MAJOR_REG    0x02
+#define ZVB_IO_SCRAT0_REG   0x08
+#define ZVB_IO_SCRAT1_REG   0x09
+#define ZVB_IO_SCRAT2_REG   0x0a
+#define ZVB_IO_SCRAT3_REG   0x0b
 #define ZVB_IO_BANK_REG     0x0e
 #define ZVB_MEM_START_REG   0x0f
 #define ZVB_IO_CONF_START   0x10
@@ -149,6 +153,7 @@ typedef struct {
     zvb_ctrl_t       ctrl;
     bool             screen_enabled;
     uint8_t          io_bank;
+    uint8_t          scratch[4];
     int              state; // Any of the STATE_* macros
     long             tstates_counter;
     bool             need_render;
