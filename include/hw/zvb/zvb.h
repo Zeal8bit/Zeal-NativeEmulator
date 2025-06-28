@@ -22,6 +22,9 @@
 /**
  * @brief Macros for the I/O registers
  */
+#define ZVB_IO_REV_REG      0x00
+#define ZVB_IO_MINOR_REG    0x01
+#define ZVB_IO_MAJOR_REG    0x02
 #define ZVB_IO_BANK_REG     0x0e
 #define ZVB_MEM_START_REG   0x0f
 #define ZVB_IO_CONF_START   0x10

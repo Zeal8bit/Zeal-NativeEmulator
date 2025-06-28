@@ -126,8 +126,15 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
 
-    /* Video Board configuraiton goes from 0x00 to 0x0F included */
-    if (addr == ZVB_IO_BANK_REG) {
+    /* Video Board configuration goes from 0x00 to 0x0F included */
+    if (addr == ZVB_IO_REV_REG)  {
+        return 0;
+    } else if (addr == ZVB_IO_MINOR_REG) {
+        return 1;
+    } else if (addr == ZVB_IO_MAJOR_REG) {
+        return 0;
+    } else if (addr == ZVB_IO_BANK_REG) {
+        return zvb->io_bank;
     } else if (addr == ZVB_MEM_START_REG) {
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
