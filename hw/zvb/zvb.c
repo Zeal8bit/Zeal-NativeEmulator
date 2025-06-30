@@ -150,7 +150,7 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
         } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
             return zvb_crc32_read(&zvb->peri_crc32, subaddr);
         } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
-            // peri_sound.io_write(subaddr, data);
+            return zvb_sound_read(&zvb->sound, subaddr);
         }
     }
 
@@ -221,7 +221,7 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
         } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
             zvb_crc32_write(&zvb->peri_crc32, subaddr, data);
         } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
-            // peri_sound.io_write(subaddr, data);
+            zvb_sound_write(&zvb->sound, subaddr, data);
         }
     }
 }
@@ -255,6 +255,7 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     zvb_sprites_init(&dev->sprites);
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
+    zvb_sound_init(&dev->sound);
 
     dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
