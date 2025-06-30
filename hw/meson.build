@@ -12,6 +12,7 @@ sources += files([
         'i2c.c',
         'i2c/ds1307.c',
         'i2c/at24c512.c',
+        'compactflash.c',
         'zeal_debugger.c' ])
 
 subdir('zvb')

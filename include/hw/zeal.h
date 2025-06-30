@@ -14,6 +14,7 @@
 #include "hw/keyboard.h"
 #include "hw/uart.h"
 #include "hw/hostfs.h"
+#include "hw/compactflash.h"
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
 
@@ -78,6 +79,7 @@ struct zeal_t {
     i2c_t    i2c_bus;
     ds1307_t rtc;
     at24c512_t eeprom;
+    compactflash_t compactflash;
 
     /* Misc features */
     zeal_hostfs_t hostfs;
