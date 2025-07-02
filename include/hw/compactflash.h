@@ -77,12 +77,13 @@ typedef struct {
 
     // CompactFlash specific
     int fd;
+    char *file_name;
     long data_ofs;
     uint8_t sector_buffer[512];
-    int sector_buffer_idx;
+    int sector_buffer_idx, sec_cnt;
     compactflash_state_t state;
     bool master, lba_mode;
-    uint8_t status, sec_cnt, sec_cur, feature, error;
+    uint8_t status, sec_cur, feature, error;
     uint8_t lba_0, lba_8, lba_16, lba_24;
     uint16_t identity[256];
 } compactflash_t;
