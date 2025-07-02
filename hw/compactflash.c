@@ -54,7 +54,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
         case IDE_REG_DATA:    compactflash_write_data(cf, value); break;
         case IDE_REG_COMMAND: compactflash_process_command(cf, value); break;
         case IDE_REG_FEATURE: cf->feature = value; break;
-        case IDE_REG_SEC_CNT: cf->sec_cnt = value == 0 ? 256 : 0; break;
+        case IDE_REG_SEC_CNT: cf->sec_cnt = value == 0 ? 256 : value; break;
         case IDE_REG_LBA_0:   cf->lba_0 = value; break;
         case IDE_REG_LBA_8:   cf->lba_8 = value; break;
         case IDE_REG_LBA_16:  cf->lba_16 = value; break;
