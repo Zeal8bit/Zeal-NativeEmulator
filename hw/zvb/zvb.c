@@ -130,7 +130,7 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
     if (addr == ZVB_IO_REV_REG)  {
         return 0;
     } else if (addr == ZVB_IO_MINOR_REG) {
-        return 1;
+        return 2;
     } else if (addr == ZVB_IO_MAJOR_REG) {
         return 0;
     } else if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
