@@ -36,7 +36,6 @@ typedef enum {
 
 typedef enum {
     IDE_CMD_NOP             = 0x00,
-    IDE_CMD_RECAL           = 0x10,
     IDE_CMD_READ_SECTOR     = 0x20,
     IDE_CMD_READ_SECTOR_NR  = 0x21,
     IDE_CMD_WRITE_SECTOR    = 0x30,
@@ -80,7 +79,7 @@ typedef struct {
     int fd;
     long data_ofs;
     uint8_t sector_buffer[512];
-    uint16_t sector_buffer_idx;
+    int sector_buffer_idx;
     compactflash_state_t state;
     bool master, lba_mode;
     uint8_t status, sec_cnt, sec_cur, feature, error;
