@@ -19,8 +19,8 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd);
 
 static uint16_t le16(uint16_t v)
 {
-        uint8_t *p = (uint8_t *)&v;
-        return p[0] | (p[1] << 8);
+    uint8_t *p = (uint8_t *)&v;
+    return p[0] | (p[1] << 8);
 }
 
 static uint8_t io_read(device_t* dev, uint32_t addr)
@@ -28,14 +28,14 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     compactflash_t* cf = (compactflash_t*) dev;
     if (!cf->master) return 0;
     switch (addr) {
-        case IDE_REG_STATUS:  return cf->status; break;
-        case IDE_REG_ERROR:   return cf->error; break;
-        case IDE_REG_SEC_CNT: return cf->sec_cnt; break;
-        case IDE_REG_LBA_0:   return cf->lba_0; break;
-        case IDE_REG_LBA_8:   return cf->lba_8; break; 
-        case IDE_REG_LBA_16:  return cf->lba_16; break;
-        case IDE_REG_LBA_24:  return cf->lba_24; break;
-        case IDE_REG_DATA:    return compactflash_read_data(cf); break;
+        case IDE_REG_STATUS:  return cf->status;
+        case IDE_REG_ERROR:   return cf->error;
+        case IDE_REG_SEC_CNT: return cf->sec_cnt;
+        case IDE_REG_LBA_0:   return cf->lba_0;
+        case IDE_REG_LBA_8:   return cf->lba_8;
+        case IDE_REG_LBA_16:  return cf->lba_16;
+        case IDE_REG_LBA_24:  return cf->lba_24;
+        case IDE_REG_DATA:    return compactflash_read_data(cf);
         default:              return 0;
     }
 }
