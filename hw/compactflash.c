@@ -189,33 +189,27 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
 
 int compactflash_init(compactflash_t* cf, char *file_name)
 {
+    uint32_t total_sectors = COMPACTFLASH_SIZE_KB * 2;
+    *cf = (compactflash_t) {
+        .size = 8,
+        .status = (1 << IDE_STAT_RDY) | (1 << IDE_STAT_DSC),
+        .lba_24 = 0xE0,
+        .sec_cnt = 1,
+        .master = true,
+        .identity = {
+            [0] = le16(0x848A),                  // CFA magic value
+            [47] = 0,                            // READ/WRITE MULTIPLE not implemented
+            [49] = le16(1 << 9),                 // LBA supported
+            [60] = le16(total_sectors & 0xFFFF), // LBA: current capacity in sectors
+            [61] = le16(total_sectors >> 16),    // LBA: current capacity in sectors
+            [83] = le16(1 << 2),                 // CFA Feature Set bit
+        }
+    };
+    data_state(cf, IDE_DATA_IDLE);
+
     cf->fd = open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     assert(cf->fd != -1);
 
-    memset(cf->sector_buffer, 0x00, sizeof(cf->sector_buffer));
-    cf->data_ofs = 0;
-    cf->sector_buffer_idx = 0;
-    cf->status = (1 << IDE_STAT_RDY) | (1<<IDE_STAT_DSC);
-    cf->lba_0 = cf->lba_8 = cf->lba_16 = 0;
-    cf->lba_24 = 0xE0;
-    cf->sec_cnt = 1;
-    cf->sec_cur = 0;
-    cf->error = 0;
-    cf->feature = 0;
-    cf->master = true;
-    data_state(cf, IDE_DATA_IDLE);
-    
-    // Simplified identify data according to the CompactFlash spec, so no CHS
-    uint32_t total_sectors = COMPACTFLASH_SIZE_KB * 2;
-    memset(cf->identity, 0, sizeof(cf->identity));
-    cf->identity[0] = le16(0x848A);                  // CFA magic value
-    cf->identity[47] = 0;                            // READ/WRITE MULTIPLE not implemented
-    cf->identity[49] = le16(1 << 9);                 // LBA supported
-    cf->identity[60] = le16(total_sectors & 0xFFFF); // LBA: current capacity in sectors
-    cf->identity[61] = le16(total_sectors >> 16);    // LBA: current capacity in sectors
-    cf->identity[83] = le16(1 << 2);                 // CFA Feature Set bit
-
-    cf->size = 8;
     device_init_io(DEVICE(cf), "compactflash_dev", io_read, io_write, cf->size);
     return 0;
 }
