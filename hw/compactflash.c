@@ -108,7 +108,8 @@ static uint8_t compactflash_read_data(compactflash_t* cf)
     if (cf->state != IDE_DATA_IN)
         return 0;
     uint8_t data = cf->sector_buffer[cf->sector_buffer_idx];
-    if (++cf->sector_buffer_idx == 512) {
+    cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
+    if (cf->sector_buffer_idx == 0) {
         if (cf->sec_cnt == 0)
             cf->sec_cnt = 0xff;
         if (++cf->sec_cur < cf->sec_cnt) {
@@ -129,7 +130,8 @@ static void compactflash_write_data(compactflash_t* cf, uint8_t value)
     if (cf->state != IDE_DATA_OUT)
         return;
     cf->sector_buffer[cf->sector_buffer_idx] = value;
-    if (++cf->sector_buffer_idx == 512) {
+    cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
+    if (cf->sector_buffer_idx == 0) {
         assert(write(cf->fd, cf->sector_buffer, 512) != -1);
         if (cf->sec_cnt == 0)
             cf->sec_cnt = 0xff;
