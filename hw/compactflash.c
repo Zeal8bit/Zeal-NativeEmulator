@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/errno.h>
 #include <fcntl.h>
 
 #include "hw/compactflash.h"
@@ -23,6 +24,12 @@ static uint16_t le16(uint16_t v)
     return p[0] | (p[1] << 8);
 }
 
+static void perror_exit(compactflash_t *cf, char *str) {
+    fprintf(stderr, "[COMPACTFLASH] ERROR: '%s' %s: %s\n", cf->file_name, str, strerror(errno));
+    fprintf(stderr, "Exiting...\n");
+    exit(1);
+}
+
 static uint8_t io_read(device_t* dev, uint32_t addr)
 {
     compactflash_t* cf = (compactflash_t*) dev;
@@ -30,7 +37,7 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     switch (addr) {
         case IDE_REG_STATUS:  return cf->status;
         case IDE_REG_ERROR:   return cf->error;
-        case IDE_REG_SEC_CNT: return cf->sec_cnt;
+        case IDE_REG_SEC_CNT: return cf->sec_cnt & 0xff;
         case IDE_REG_LBA_0:   return cf->lba_0;
         case IDE_REG_LBA_8:   return cf->lba_8;
         case IDE_REG_LBA_16:  return cf->lba_16;
@@ -47,7 +54,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
         case IDE_REG_DATA:    compactflash_write_data(cf, value); break;
         case IDE_REG_COMMAND: compactflash_process_command(cf, value); break;
         case IDE_REG_FEATURE: cf->feature = value; break;
-        case IDE_REG_SEC_CNT: cf->sec_cnt = value; break;
+        case IDE_REG_SEC_CNT: cf->sec_cnt = value == 0 ? 256 : 0; break;
         case IDE_REG_LBA_0:   cf->lba_0 = value; break;
         case IDE_REG_LBA_8:   cf->lba_8 = value; break;
         case IDE_REG_LBA_16:  cf->lba_16 = value; break;
@@ -103,6 +110,25 @@ static void data_state(compactflash_t* cf, compactflash_state_t state)
     }
 }
 
+static void compactflash_read_sector_buffer(compactflash_t* cf)
+{
+    if (lseek(cf->fd, cf->data_ofs, SEEK_SET) == -1)
+        perror_exit(cf, "seek()");
+    int bytes_read = read(cf->fd, cf->sector_buffer, 512);
+    if (bytes_read == -1)
+        perror_exit(cf, "read()");
+    if (bytes_read < 512)
+        memset(cf->sector_buffer + bytes_read, 0, 512 - bytes_read);
+}
+
+static void compactflash_write_sector_buffer(compactflash_t* cf)
+{
+    if (lseek(cf->fd, cf->data_ofs, SEEK_SET) == -1)
+        perror_exit(cf, "seek()");
+    if (write(cf->fd, cf->sector_buffer, 512) == -1)
+        perror_exit(cf, "write()");
+}
+
 static uint8_t compactflash_read_data(compactflash_t* cf)
 {
     if (cf->state != IDE_DATA_IN)
@@ -110,15 +136,10 @@ static uint8_t compactflash_read_data(compactflash_t* cf)
     uint8_t data = cf->sector_buffer[cf->sector_buffer_idx];
     cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
     if (cf->sector_buffer_idx == 0) {
-        if (cf->sec_cnt == 0)
-            cf->sec_cnt = 0xff;
         if (++cf->sec_cur < cf->sec_cnt) {
             cf->data_ofs += 512;
             cf->sector_buffer_idx = 0;
-            int bytes_read = read(cf->fd, cf->sector_buffer, 512);
-            assert(bytes_read != -1);
-            if (bytes_read < 512)
-                memset(cf->sector_buffer + bytes_read, 0, 512 - bytes_read);
+            compactflash_read_sector_buffer(cf);
         } else
             data_state(cf, IDE_DATA_IDLE);
     }
@@ -132,9 +153,7 @@ static void compactflash_write_data(compactflash_t* cf, uint8_t value)
     cf->sector_buffer[cf->sector_buffer_idx] = value;
     cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
     if (cf->sector_buffer_idx == 0) {
-        assert(write(cf->fd, cf->sector_buffer, 512) != -1);
-        if (cf->sec_cnt == 0)
-            cf->sec_cnt = 0xff;
+        compactflash_write_sector_buffer(cf);
         if (++cf->sec_cur < cf->sec_cnt) {
             cf->data_ofs += 512;
             cf->sector_buffer_idx = 0;
@@ -167,11 +186,7 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
         case IDE_CMD_READ_BUFFER:
             if (cf->data_ofs == -1)
                 return data_state(cf, IDE_DATA_ERROR);
-            assert(lseek(cf->fd, cf->data_ofs, SEEK_SET) >= 0);
-            int bytes_read = read(cf->fd, cf->sector_buffer, 512);
-            assert(bytes_read != -1);
-            if (bytes_read < 512)
-                memset(cf->sector_buffer + bytes_read, 0, 512 - bytes_read);
+            compactflash_read_sector_buffer(cf);
             data_state(cf, IDE_DATA_IN);
             break;
 
@@ -183,7 +198,6 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
         case IDE_CMD_WRITE_BUFFER:
             if (cf->data_ofs == -1)
                 return data_state(cf, IDE_DATA_ERROR);
-            assert(lseek(cf->fd, cf->data_ofs, SEEK_SET) >= 0);
             data_state(cf, IDE_DATA_OUT);
             break;
     }
@@ -194,6 +208,7 @@ int compactflash_init(compactflash_t* cf, char *file_name)
     uint32_t total_sectors = COMPACTFLASH_SIZE_KB * 2;
     *cf = (compactflash_t) {
         .size = 8,
+        .file_name = strdup(file_name),
         .status = (1 << IDE_STAT_RDY) | (1 << IDE_STAT_DSC),
         .lba_24 = 0xE0,
         .sec_cnt = 1,
@@ -210,7 +225,8 @@ int compactflash_init(compactflash_t* cf, char *file_name)
     data_state(cf, IDE_DATA_IDLE);
 
     cf->fd = open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    assert(cf->fd != -1);
+    if (cf->fd == -1)
+        perror_exit(cf, "open()");
 
     device_init_io(DEVICE(cf), "compactflash_dev", io_read, io_write, cf->size);
     return 0;
