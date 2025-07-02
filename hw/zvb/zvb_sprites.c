@@ -31,17 +31,23 @@ void zvb_sprites_init(zvb_sprites_t* sprites)
 
 void zvb_sprites_write(zvb_sprites_t* sprites, uint32_t addr, uint8_t data)
 {
-    uint8_t* raw_data = (uint8_t*) sprites->data;
-    raw_data[addr] = data;
-    sprites_update_img(sprites, addr / sizeof(zvb_sprite_t));
+    /* Data is latched when writing the LSB */
+    if ((addr & 1) == 0) {
+        sprites->wr_latch = data;
+    } else {
+        uint8_t* raw_data = (uint8_t*) sprites->data;
+        raw_data[addr - 1] = sprites->wr_latch;
+        raw_data[addr] = data;
+        sprites_update_img(sprites, addr / sizeof(zvb_sprite_t));
+    }
 }
 
 
 uint8_t zvb_sprites_read(zvb_sprites_t* sprites, uint32_t addr)
 {
-    (void) sprites;
-    (void) addr;
-    return 0;
+    /* No need to latch in this case */
+    uint8_t* raw_data = (uint8_t*) sprites->data;
+    return raw_data[addr];
 }
 
 
@@ -70,5 +76,6 @@ static void sprites_update_img(zvb_sprites_t* sprites, uint32_t idx)
     fsprite->f_flip_y = sprite->flags.bitmap.flip_y;
     /* Store the palette as a mask to simplify the calculation in the shader */
     fsprite->palette = sprite->flags.bitmap.palette << 4;
+    fsprite->f_height_32 = sprite->extra_flags.bitmap.height_32;
     sprites->dirty = 1;
 }

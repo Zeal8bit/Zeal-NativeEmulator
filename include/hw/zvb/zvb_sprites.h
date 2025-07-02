@@ -28,7 +28,15 @@ typedef struct {
         } bitmap;
         uint16_t raw;
     } flags;
-    uint16_t padding;
+    union {
+        struct {
+            uint8_t reserved_0 : 1;
+            uint8_t height_32  : 1;
+            uint8_t reserved_2 : 6;
+            uint8_t reserved_8 : 8;
+        } bitmap;
+        uint16_t raw;
+    } extra_flags;
 } zvb_sprite_t;
 
 _Static_assert(sizeof(zvb_sprite_t) == 8, "Sprite structure must have a size of 8 bytes");
@@ -45,7 +53,7 @@ typedef struct {
     float f_behind_fg;
     float f_flip_y;
     float f_flip_x;
-    float padding;
+    float f_height_32;
 } zvb_fsprite_t;
 
 
@@ -55,6 +63,7 @@ typedef struct {
 typedef struct {
     zvb_sprite_t    data[ZVB_SPRITES_COUNT];
     zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
+    int             wr_latch;
     /* Make rendering faster by using an Image and a Texture for both layers */
     Image           img_sprites;
     Texture         tex_sprites;

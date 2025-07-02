@@ -170,7 +170,9 @@ void main() {
         float f_behind_fg = snd_attr.x;
         float f_flip_y    = snd_attr.y;
         float f_flip_x    = snd_attr.z;
+        float f_height_32 = snd_attr.w;
 
+        float sprite_height = (f_height_32 > 0.5) ? 32.0 : 16.0;
         /* Ignore the palette in 8-bit mode */
         if (!color_4bit) {
             palette_msk = 0;
@@ -180,7 +182,7 @@ void main() {
         if (flipped.x >= sprite_pos.x &&
             flipped.x <  sprite_pos.x + TILE_WIDTH &&
             flipped.y >= sprite_pos.y &&
-            flipped.y <  sprite_pos.y + TILE_HEIGHT &&
+            flipped.y <  sprite_pos.y + sprite_height &&
             /* Check if we have to show the layer1 instead:
              * If the layers_color variable comes from layer1, the `w` field is not 0 */
             (f_behind_fg < 0.1 || layers_color.w < 0.5)
@@ -188,7 +190,7 @@ void main() {
         {
             vec2  pix_pos = flipped - sprite_pos;
             if (f_flip_y > 0.5) {
-                pix_pos.y = TILE_HEIGHT - 1 - pix_pos.y;
+                pix_pos.y = sprite_height - 1 - pix_pos.y;
             }
             if (f_flip_x > 0.5) {
                 pix_pos.x = TILE_WIDTH - 1 - pix_pos.x;
