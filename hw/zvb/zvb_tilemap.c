@@ -45,10 +45,11 @@ void zvb_tilemap_write(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint8_t
 
 uint8_t zvb_tilemap_read(zvb_tilemap_t* tilemap, int layer, uint32_t addr)
 {
-    (void) tilemap;
-    (void) addr;
-    (void) layer;
-    return 0;
+    if (layer == 0) {
+        return tilemap->raw_layer0[addr];
+    } else {
+        return tilemap->raw_layer1[addr];
+    }
 }
 
 

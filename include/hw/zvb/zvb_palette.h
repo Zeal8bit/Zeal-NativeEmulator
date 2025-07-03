@@ -16,8 +16,10 @@ typedef Vector3 zvb_color_t;
 typedef struct {
     /* Raw array representing the colors in VRAM, each color is 2 bytes big */
     uint8_t raw_palette[ZVB_COLOR_PALETTE_COUNT * 2];
+    /* Writes are now latched */
+    int wr_latch;
     /* Mirror used for the shader */
-    zvb_color_t vec_palette[ZVB_COLOR_PALETTE_COUNT]; 
+    zvb_color_t vec_palette[ZVB_COLOR_PALETTE_COUNT];
     /* Marker to register changes */
     bool dirty;
 } zvb_palette_t;
@@ -31,7 +33,7 @@ void zvb_palette_init(zvb_palette_t* pal);
 
 /**
  * @brief Function to call when a write occurs on the Palette memory area.
- * 
+ *
  * @param addr Address relative to the palette address space.
  * @param data Byte to write in the palette
  */

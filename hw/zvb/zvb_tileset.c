@@ -34,9 +34,7 @@ void zvb_tileset_write(zvb_tileset_t* tileset, uint32_t addr, uint8_t data)
 
 uint8_t zvb_tileset_read(zvb_tileset_t* tileset, uint32_t addr)
 {
-    (void) tileset;
-    (void) addr;
-    return 0;
+    return tileset->raw[addr];
 }
 
 

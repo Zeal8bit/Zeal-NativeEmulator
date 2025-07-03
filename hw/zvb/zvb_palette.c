@@ -65,15 +65,16 @@ void zvb_palette_init(zvb_palette_t* pal)
 
 void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
 {
+    if ((addr & 1) == 0) {
+        pal->wr_latch = data;
+        return;
+    }
+    /* Odd address (MSB) written! */
+    pal->raw_palette[addr - 1] = pal->wr_latch;
     pal->raw_palette[addr] = data;
 
     /* Update the color in the dediacted table, so get the RGB565 out of the two bytes */
-    uint_fast16_t rgb565 = 0;
-    if (addr & 1) {
-        rgb565 = (data << 8) | (pal->raw_palette[addr - 1] << 0);
-    } else {
-        rgb565 = (data << 0) | (pal->raw_palette[addr + 1] << 8);
-    }
+    const uint_fast16_t rgb565 = (data << 8) | pal->wr_latch;
     palette_rgb565_to_color(rgb565, &pal->vec_palette[addr / 2]);
     pal->dirty = 1;
 }
@@ -81,9 +82,7 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
 
 uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr)
 {
-    (void) pal;
-    (void) addr;
-    return 0;
+    return pal->raw_palette[addr];
 }
 
 
@@ -106,7 +105,7 @@ static void palette_rgb565_to_color(uint_fast16_t rgb, zvb_color_t *color)
     const uint_fast8_t r = (rgb >> 11) & 0x1F;  // 5 bits for red
     const uint_fast8_t g = (rgb >> 5)  & 0x3F;  // 6 bits for green
     const uint_fast8_t b = (rgb >> 0)  & 0x1F;  // 5 bits for blue
-    
+
     /* Normalize to [0.0, 1.0] range by dividing by the max value for each color channel */
     color->x = r / 31.0f;  // Red is normalized to 31
     color->y = g / 63.0f;  // Green is normalized to 63 (since it uses 6 bits)

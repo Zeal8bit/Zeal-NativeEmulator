@@ -80,8 +80,21 @@ static const char* shaders_path[SHADERS_COUNT] = {
 
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
-    (void) dev;
-    (void) addr;
+    zvb_t* zvb = (zvb_t*) dev;
+    /* Prevent a compilation warning, since LAYER0_ADDR_START is 0 */
+    if (addr < LAYER0_ADDR_END) {
+        return zvb_tilemap_read(&zvb->layers, 0, addr);
+    } else if (IN_RANGE(LAYER1_ADDR_START, LAYER1_ADDR_END, addr)) {
+        return zvb_tilemap_read(&zvb->layers, 1, addr - LAYER1_ADDR_START);
+    } else if(IN_RANGE(PALETTE_ADDR_START, PALETTE_ADDR_END, addr)) {
+        return zvb_palette_read(&zvb->palette, addr - PALETTE_ADDR_START);
+    } else if(IN_RANGE(SPRITES_ADDR_START, SPRITES_ADDR_END, addr)) {
+        return zvb_sprites_read(&zvb->sprites, addr - SPRITES_ADDR_START);
+    } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
+        return zvb_font_read(&zvb->font, addr - FONT_ADDR_START);
+    } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
+        return zvb_tileset_read(&zvb->tileset, addr - TILESET_ADDR_START);
+    }
     return 0;
 }
 

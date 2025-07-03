@@ -37,9 +37,7 @@ void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data)
 
 uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr)
 {
-    (void) font;
-    (void) addr;
-    return 0;
+    return font->raw_font[addr];
 }
 
 
