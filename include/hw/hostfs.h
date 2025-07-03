@@ -17,7 +17,7 @@ typedef struct {
     FILE*        descriptors[MAX_OPENED_FILES];
     DIR*         directories[MAX_OPENED_FILES];
     char         names[MAX_OPENED_FILES][ZOS_MAX_NAME_LENGTH];
-    memory_op_t  host_ops;
+    const memory_op_t* host_ops;
 } zeal_hostfs_t;
 
 

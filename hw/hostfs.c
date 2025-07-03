@@ -133,7 +133,7 @@ static char *get_path(zeal_hostfs_t *host) {
     char path[256];
     size_t i = 0;
     while (i < sizeof(path) - 1) {
-        const uint8_t byte = memory_read_byte(&host->host_ops, virt_addr++);
+        const uint8_t byte = memory_read_byte(host->host_ops, virt_addr++);
         if (byte == 0) {
             break;
         }
@@ -323,11 +323,11 @@ static void fs_stat(zeal_hostfs_t *host) {
     }
 
     // Write the BCD date to the structure
-    memory_write_bytes(&host->host_ops, struct_addr, regs, sizeof(regs));
+    memory_write_bytes(host->host_ops, struct_addr, regs, sizeof(regs));
     struct_addr += sizeof(regs);
 
     // Write the 16-character file name
-    memory_write_bytes(&host->host_ops, struct_addr, (void*) host->names[desc], ZOS_MAX_NAME_LENGTH);
+    memory_write_bytes(host->host_ops, struct_addr, (void*) host->names[desc], ZOS_MAX_NAME_LENGTH);
     struct_addr += ZOS_MAX_NAME_LENGTH;
 
     // Set success status
@@ -339,7 +339,7 @@ static int seek_file(zeal_hostfs_t *host, uint16_t struct_addr, FILE* file)
 {
     /* Get the 32-bit offset to start reading from */
     uint8_t offset[4] = { 0 };
-    memory_read_bytes(&host->host_ops, struct_addr + ZOS_FD_OFFSET_T, offset, sizeof(offset));
+    memory_read_bytes(host->host_ops, struct_addr + ZOS_FD_OFFSET_T, offset, sizeof(offset));
     const long seek_to = offset[3] << 24 |
                          offset[2] << 16 |
                          offset[1] << 8  |
@@ -358,7 +358,7 @@ static void fs_read(zeal_hostfs_t *host) {
     size_t total_bytes_written = 0;
 
     /* Get the abstract context from the structure */
-    const int desc = memory_read_byte(&host->host_ops, struct_addr + ZOS_FD_USER_T);
+    const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
 
     FILE *file = host->descriptors[desc];
     if (!descriptor_valid(file)) {
@@ -376,7 +376,7 @@ static void fs_read(zeal_hostfs_t *host) {
             break;
         }
 
-        memory_write_bytes(&host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_read);
+        memory_write_bytes(host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_read);
 
         total_bytes_written += bytes_read;
         bytes_remaining -= bytes_read;
@@ -398,7 +398,7 @@ static void fs_write(zeal_hostfs_t *host) {
     size_t total_bytes_written = 0;
 
     /* Get the abstract context from the structure */
-    const int desc = memory_read_byte(&host->host_ops, struct_addr + ZOS_FD_USER_T);
+    const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
 
     FILE *file = host->descriptors[desc];
     if (!descriptor_valid(file)) {
@@ -410,7 +410,7 @@ static void fs_write(zeal_hostfs_t *host) {
 
     while (bytes_remaining > 0) {
         size_t bytes_to_write = MIN(bytes_remaining, sizeof(buffer));
-        memory_read_bytes(&host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_to_write);
+        memory_read_bytes(host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_to_write);
         fwrite(buffer, 1, bytes_to_write, file);
 
         total_bytes_written += bytes_to_write;
@@ -516,8 +516,8 @@ static void fs_readdir(zeal_hostfs_t *host) {
      * dir_entry_name_t  DS.B 16 ; File name NULL-terminated, including the extension
      */
     const uint8_t is_file = (entry->d_type == DT_REG) ? 1 : 0;
-    memory_write_byte(&host->host_ops, buffer_addr++, is_file);
-    memory_write_bytes(&host->host_ops, buffer_addr, (void*) out_name, ZOS_MAX_NAME_LENGTH);
+    memory_write_byte(host->host_ops, buffer_addr++, is_file);
+    memory_write_bytes(host->host_ops, buffer_addr, (void*) out_name, ZOS_MAX_NAME_LENGTH);
     set_status(host, ZOS_SUCCESS);
 }
 
@@ -604,7 +604,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
 int hostfs_init(zeal_hostfs_t* hostfs, const memory_op_t* ops)
 {
     memset(hostfs, 0, sizeof(zeal_hostfs_t));
-    hostfs->host_ops = *ops;
+    hostfs->host_ops = ops;
     device_init_io(DEVICE(hostfs), "hostfs_dev", io_read, io_write, 0x10);
     return 0;
 }
