@@ -4,11 +4,6 @@
 #include <stddef.h>
 #include <hw/device.h>
 
-#if CONFIG_COMPACTFLASH_SIZE_KB
-#define COMPACTFLASH_SIZE_KB CONFIG_COMPACTFLASH_SIZE_KB
-#else
-#define COMPACTFLASH_SIZE_KB 64*1024 // Default size is 64MB
-#endif
 
 typedef enum {
      IDE_STAT_BUSY = 7,
@@ -28,7 +23,7 @@ typedef enum {
     IDE_REG_SEC_CNT = 2,
     IDE_REG_LBA_0   = 3,
     IDE_REG_LBA_8   = 4,
-    IDE_REG_LBA_16  = 5, 
+    IDE_REG_LBA_16  = 5,
     IDE_REG_LBA_24  = 6,
     IDE_REG_COMMAND = 7,
     IDE_REG_STATUS  = 7 // Same as command
@@ -78,6 +73,7 @@ typedef struct {
     // CompactFlash specific
     int fd;
     char *file_name;
+    size_t total_sectors;
     long data_ofs;
     uint8_t sector_buffer[512];
     int sector_buffer_idx, sec_cnt;
@@ -88,4 +84,4 @@ typedef struct {
     uint16_t identity[256];
 } compactflash_t;
 
-int compactflash_init(compactflash_t* compactflash, char *file_name);
+int compactflash_init(compactflash_t* compactflash, const char *file_name);

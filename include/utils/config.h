@@ -42,6 +42,7 @@ typedef struct {
     const char* rom_filename;
     const char* eeprom_filename;
     const char* tf_filename;
+    const char* cf_filename;
     const char* hostfs_path;
     const char* map_file;
     bool config_save;

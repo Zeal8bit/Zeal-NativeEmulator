@@ -81,7 +81,7 @@ static uint32_t compactflash_data_ofs(compactflash_t* cf)
     }
     uint32_t sector = ((cf->lba_24 & 0xF) << 24) | (cf->lba_16 << 16)
         | (cf->lba_8 << 8) | (cf->lba_0 << 0);
-    if (sector+cf->sec_cnt >= COMPACTFLASH_SIZE_KB * 2) {
+    if (sector + cf->sec_cnt >= cf->total_sectors) {
         printf("[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
         return -1;
     }
@@ -181,7 +181,7 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
         case IDE_CMD_READ_SECTOR:
         case IDE_CMD_READ_SECTOR_NR:
             cf->data_ofs = compactflash_data_ofs(cf);
- 
+
         // Fall-through
         case IDE_CMD_READ_BUFFER:
             if (cf->data_ofs == -1)
@@ -203,11 +203,41 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
     }
 }
 
-int compactflash_init(compactflash_t* cf, char *file_name)
+int compactflash_init(compactflash_t* cf, const char *file_name)
 {
-    uint32_t total_sectors = COMPACTFLASH_SIZE_KB * 2;
+    struct stat st;
+
+    if (file_name == NULL) {
+        /* No CompactFlash file specified */
+        return 0;
+    }
+
+    int fd = open(file_name, O_RDWR);
+    if (fd < 0) {
+        perror("[COMPACTFLASH] Could not open file");
+        /* Continue without CF emulation */
+        return 0;
+    }
+
+    if (fstat(fd, &st) == -1) {
+        perror("[COMPACTFLASH] Could not stat file");
+        close(fd);
+        return 0;
+    }
+
+    if (st.st_size < 1024 * 1024) {
+        fprintf(stderr, "[COMPACTFLASH] Image must be at least 1MB big\n");
+        close(fd);
+        return 0;
+    }
+
+    /* Round up the total amount of sectors */
+    size_t total_sectors = st.st_size + 511 / 512;
+
     *cf = (compactflash_t) {
+        .fd = fd,
         .size = 8,
+        .total_sectors = total_sectors,
         .file_name = strdup(file_name),
         .status = (1 << IDE_STAT_RDY) | (1 << IDE_STAT_DSC),
         .lba_24 = 0xE0,
@@ -223,10 +253,6 @@ int compactflash_init(compactflash_t* cf, char *file_name)
         }
     };
     data_state(cf, IDE_DATA_IDLE);
-
-    cf->fd = open(file_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if (cf->fd == -1)
-        perror_exit(cf, "open()");
 
     device_init_io(DEVICE(cf), "compactflash_dev", io_read, io_write, cf->size);
     return 0;

@@ -115,6 +115,7 @@ int parse_command_args(int argc, char* argv[])
         {    "rom", required_argument, 0, 'r'},
         { "eeprom", required_argument, 0, 'e'},
         {     "tf", required_argument, 0, 't'},
+        {     "cf", required_argument, 0, 'C'},
         { "hostfs", required_argument, 0, 'H'},
         {    "map", required_argument, 0, 'm'},
         {  "debug", required_argument, 0, 'g'},
@@ -124,7 +125,7 @@ int parse_command_args(int argc, char* argv[])
         {        0,                 0, 0,   0}
     };
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:t:H:m:sgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:t:C:H:m:sgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -140,6 +141,9 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 't':
                 config.arguments.tf_filename = optarg;
+                break;
+            case 'C':
+                config.arguments.cf_filename = optarg;
                 break;
             case 'h':
                 return usage(argv[0]);
