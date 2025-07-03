@@ -7,6 +7,7 @@
 #include "raylib.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
+#include "hw/memory_op.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
 
@@ -164,14 +165,13 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
         return zvb_io_read_control(zvb, subaddr);
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
-        if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
-            return zvb_text_read(&zvb->text, subaddr);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_SPI) {
-            return zvb_spi_read(&zvb->spi, subaddr);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
-            return zvb_crc32_read(&zvb->peri_crc32, subaddr);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
-            return zvb_sound_read(&zvb->sound, subaddr);
+        switch (zvb->io_bank) {
+            case ZVB_IO_MAPPING_TEXT:  return zvb_text_read(&zvb->text, subaddr);
+            case ZVB_IO_MAPPING_SPI:   return zvb_spi_read(&zvb->spi, subaddr);
+            case ZVB_IO_MAPPING_CRC:   return zvb_crc32_read(&zvb->peri_crc32, subaddr);
+            case ZVB_IO_MAPPING_SOUND: return zvb_sound_read(&zvb->sound, subaddr);
+            case ZVB_IO_MAPPING_DMA:   return zvb_dma_read(&zvb->dma, subaddr);
+            default: break;
         }
     }
 
@@ -235,20 +235,29 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
         zvb_io_write_control(zvb, subaddr, data);
     } else if (addr >= ZVB_IO_BANK_START && addr < ZVB_IO_BANK_END) {
         const uint32_t subaddr = addr - ZVB_IO_BANK_START;
-        if (zvb->io_bank == ZVB_IO_MAPPING_TEXT) {
-            zvb_text_write(&zvb->text, subaddr, data, &zvb->layers);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_SPI) {
-            zvb_spi_write(&zvb->spi, subaddr, data);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_CRC) {
-            zvb_crc32_write(&zvb->peri_crc32, subaddr, data);
-        } else if (zvb->io_bank == ZVB_IO_MAPPING_SOUND) {
-            zvb_sound_write(&zvb->sound, subaddr, data);
+        switch (zvb->io_bank) {
+            case ZVB_IO_MAPPING_TEXT:
+                zvb_text_write(&zvb->text, subaddr, data, &zvb->layers);
+                break;
+            case ZVB_IO_MAPPING_SPI:
+                zvb_spi_write(&zvb->spi, subaddr, data);
+                break;
+            case ZVB_IO_MAPPING_CRC:
+                zvb_crc32_write(&zvb->peri_crc32, subaddr, data);
+                break;
+            case ZVB_IO_MAPPING_SOUND:
+                zvb_sound_write(&zvb->sound, subaddr, data);
+                break;
+            case ZVB_IO_MAPPING_DMA:
+                zvb_dma_write(&zvb->dma, subaddr, data);
+                break;
+            default:
+                break;
         }
     }
 }
 
-
-int zvb_init(zvb_t* dev, bool flipped_y)
+int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
 {
     char path[PATH_MAX];
 
@@ -276,6 +285,7 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound);
+    zvb_dma_init(&dev->dma, ops);
 
     dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 

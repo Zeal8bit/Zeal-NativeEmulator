@@ -47,6 +47,24 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
     return 0;
 }
 
+/**
+ * @brief Read a byte from memory given a physical address
+ */
+static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
+{
+    const zeal_t* machine    = (zeal_t*) opaque;
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
+
+    if (device) {
+        return device->mem_region.read(device, phys_addr - start_addr);
+    }
+
+    printf("[INFO] No device replied to physical memory read: 0x%04x\n", phys_addr);
+    return 0;
+}
+
 static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
     const zeal_t* machine    = (zeal_t*) opaque;
@@ -59,6 +77,23 @@ static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
         device->mem_region.write(device, phys_addr - start_addr, data);
     } else {
         printf("[INFO] No device replied to memory write: 0x%04x\n", phys_addr);
+    }
+}
+
+/**
+ * @brief Write a byte to memory given a physical address
+ */
+static void zeal_phys_mem_write(void* opaque, uint32_t phys_addr, uint8_t data)
+{
+    const zeal_t* machine    = (zeal_t*) opaque;
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
+
+    if (device) {
+        device->mem_region.write(device, phys_addr - start_addr, data);
+    } else {
+        printf("[INFO] No device replied to physical memory write: 0x%04x\n", phys_addr);
     }
 }
 
@@ -259,6 +294,12 @@ static void zeal_debug_toggle(dbg_t *dbg)
     }
 }
 
+static memory_op_t s_ops = {
+    .read_byte = zeal_mem_read,
+    .write_byte = zeal_mem_write,
+    .phys_read_byte = zeal_phys_mem_read,
+    .phys_write_byte = zeal_phys_mem_write,
+};
 
 int zeal_init(zeal_t* machine)
 {
@@ -266,6 +307,13 @@ int zeal_init(zeal_t* machine)
     if (machine == NULL) {
         return 1;
     }
+
+    /* It wouldn't make sense to have two machines now... */
+    if (s_ops.opaque != NULL) {
+        printf("[ZEAL] ERROR: machine already initialized\n");
+        return 2;
+    }
+    s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
     machine->dbg.running = true;
@@ -321,7 +369,7 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
 
     /* Flip the rendering if we are not in debug mode (since we will draw directly to the screen) */
-    err = zvb_init(&machine->zvb, false);
+    err = zvb_init(&machine->zvb, false, &s_ops);
     CHECK_ERR(err);
 
     // const uart = new UART(this, pio);
@@ -358,12 +406,7 @@ int zeal_init(zeal_t* machine)
 
     // /* Create a HostFS to ease the file and directory access for the VM */
     // const hostfs = new HostFS(this.mem_read, this.mem_write);
-    const memory_op_t ops = {
-        .read_byte = zeal_mem_read,
-        .write_byte = zeal_mem_write,
-        .opaque = machine
-    };
-    err = hostfs_init(&machine->hostfs, &ops);
+    err = hostfs_init(&machine->hostfs, &s_ops);
     CHECK_ERR(err);
 
     // const virtdisk = new VirtDisk(512, this.mem_read, this.mem_write);

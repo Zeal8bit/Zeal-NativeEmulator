@@ -12,6 +12,7 @@
 #include "hw/zvb/zvb_spi.h"
 #include "hw/zvb/zvb_crc32.h"
 #include "hw/zvb/zvb_sound.h"
+#include "hw/zvb/zvb_dma.h"
 
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
@@ -58,6 +59,7 @@
 #define ZVB_IO_MAPPING_SPI      1
 #define ZVB_IO_MAPPING_CRC      2
 #define ZVB_IO_MAPPING_SOUND    3
+#define ZVB_IO_MAPPING_DMA      4
 
 
 /**
@@ -152,6 +154,7 @@ typedef struct {
     zvb_spi_t        spi;
     zvb_crc32_t      peri_crc32;
     zvb_sound_t      sound;
+    zvb_dma_t        dma;
 
     /* Internally used to make the shader work on the whole screen */
     Shader           shaders[SHADERS_COUNT];
@@ -182,7 +185,7 @@ typedef struct {
  * @param zvb Context to fill and return
  * @param flipped_y Whether to render the screen mirrored in Y axis
  */
-int zvb_init(zvb_t* zvb, bool flipped_y);
+int zvb_init(zvb_t* zvb, bool flipped_y, const memory_op_t* ops);
 
 
 /**
