@@ -23,3 +23,9 @@ configure_file(
     input: 'text_shader.glsl',
     output: 'text_shader.glsl'
 )
+
+configure_file(
+    copy: true,
+    input: 'bitmap_shader.glsl',
+    output: 'bitmap_shader.glsl'
+)

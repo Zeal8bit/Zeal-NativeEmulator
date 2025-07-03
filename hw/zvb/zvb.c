@@ -70,6 +70,14 @@ static const long s_tstates_remaining[STATE_COUNT] = {
 };
 
 
+/* Path to the shaders (realtive to the `build` directory) */
+static const char* shaders_path[SHADERS_COUNT] = {
+    [SHADER_TEXT]   = "hw/zvb/text_shader.glsl",
+    [SHADER_GFX]    = "hw/zvb/gfx_shader.glsl",
+    [SHADER_BITMAP] = "hw/zvb/bitmap_shader.glsl"
+};
+
+
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     (void) dev;
@@ -229,6 +237,8 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 
 int zvb_init(zvb_t* dev, bool flipped_y)
 {
+    char path[PATH_MAX];
+
     if (dev == NULL) {
         return 1;
     }
@@ -239,14 +249,11 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     dev->mode = MODE_DEFAULT;
 
-    /* Initialize the sub-components */
-    char text_shader_path[PATH_MAX];
-    char gfx_shader_path[PATH_MAX];
-    (void) get_install_dir_file(text_shader_path, "hw/zvb/text_shader.glsl");
-    (void) get_install_dir_file(gfx_shader_path, "hw/zvb/gfx_shader.glsl");
-
-    dev->text_shader = LoadShader(NULL, text_shader_path);
-    dev->gfx_shader  = LoadShader(NULL, gfx_shader_path);
+    /* Initialize all the shaders */
+    for (int i = 0; i < SHADERS_COUNT; i++) {
+        (void) get_install_dir_file(path, shaders_path[i]);
+        dev->shaders[i] = LoadShader(NULL, path);
+    }
     zvb_palette_init(&dev->palette);
     zvb_font_init(&dev->font);
     zvb_tilemap_init(&dev->layers);
@@ -260,7 +267,7 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
     /* Get the indexes of the objects in the shaders */
-    const Shader text_shader = dev->text_shader;
+    const Shader text_shader = dev->shaders[SHADER_TEXT];
     dev->text_shader_idx[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(text_shader, SHADER_VIDMODE_NAME);
     dev->text_shader_idx[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(text_shader, SHADER_TILEMAPS_NAME);
     dev->text_shader_idx[TEXT_SHADER_FONT_IDX]     = GetShaderLocation(text_shader, SHADER_FONT_NAME);
@@ -270,7 +277,7 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     dev->text_shader_idx[TEXT_SHADER_CURCHAR_IDX]  = GetShaderLocation(text_shader, SHADER_CURCHAR_NAME);
     dev->text_shader_idx[TEXT_SHADER_TSCROLL_IDX]  = GetShaderLocation(text_shader, SHADER_TSCROLL_NAME);
 
-    const Shader gfx_shader = dev->gfx_shader;
+    const Shader gfx_shader = dev->shaders[SHADER_GFX];
     dev->gfx_shader_idx[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(gfx_shader, SHADER_VIDMODE_NAME);
     dev->gfx_shader_idx[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(gfx_shader, SHADER_TILEMAPS_NAME);
     dev->gfx_shader_idx[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(gfx_shader, SHADER_TILESET_NAME);
@@ -279,6 +286,10 @@ int zvb_init(zvb_t* dev, bool flipped_y)
     dev->gfx_shader_idx[GFX_SHADER_SCROLL1_IDX]  = GetShaderLocation(gfx_shader, SHADER_SCROLL1_NAME);
     dev->gfx_shader_idx[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(gfx_shader, SHADER_PALETTE_NAME);
 
+    const Shader bitmap_shader = dev->shaders[SHADER_BITMAP];
+    dev->bitmap_shader_idx[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(bitmap_shader, SHADER_VIDMODE_NAME);
+    dev->bitmap_shader_idx[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(bitmap_shader, SHADER_TILESET_NAME);
+    dev->bitmap_shader_idx[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(bitmap_shader, SHADER_PALETTE_NAME);
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_IDLE;
@@ -318,7 +329,7 @@ static void zvb_prepare_render_text_mode(zvb_t* zvb)
 static void zvb_render_text_mode(zvb_t* zvb)
 {
     /* Update the palette to flush the changes to the shader */
-    const Shader shader = zvb->text_shader;
+    const Shader shader = zvb->shaders[SHADER_TEXT];
     const int mode_idx         = zvb->text_shader_idx[TEXT_SHADER_VIDMODE_IDX];
     const int tilemaps_idx     = zvb->text_shader_idx[TEXT_SHADER_TILEMAPS_IDX];
     const int font_idx         = zvb->text_shader_idx[TEXT_SHADER_FONT_IDX];
@@ -333,7 +344,7 @@ static void zvb_render_text_mode(zvb_t* zvb)
     zvb_text_update(&zvb->text, &info);
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &zvb->text_shader, palette_idx);
+        zvb_palette_update(&zvb->palette, &zvb->shaders[SHADER_TEXT], palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
@@ -362,12 +373,46 @@ static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
     zvb_sprites_update(&zvb->sprites);
 }
 
+static void zvb_prepare_render_bitmap_mode(zvb_t* zvb)
+{
+    zvb_tileset_update(&zvb->tileset);
+}
+
+/**
+ * @brief Render the screen in bitmap mode
+ */
+
+static void zvb_render_bitmap_mode(zvb_t* zvb)
+{
+    const Shader shader = zvb->shaders[SHADER_BITMAP];
+
+    const int mode_idx     = zvb->bitmap_shader_idx[GFX_SHADER_VIDMODE_IDX];
+    const int tileset_idx  = zvb->bitmap_shader_idx[GFX_SHADER_TILESET_IDX];
+    const int palette_idx  = zvb->bitmap_shader_idx[GFX_SHADER_PALETTE_IDX];
+
+    BeginShaderMode(shader);
+        zvb_palette_update(&zvb->palette, &zvb->shaders[SHADER_BITMAP], palette_idx);
+        /* Transfer all the texture to the GPU */
+        SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
+
+        /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
+        DrawTextureRec(zvb->tex_dummy.texture,
+                        (Rectangle){ 0, 0,
+                                     ZVB_MAX_RES_WIDTH,
+                                     zvb->flipped_y ? -ZVB_MAX_RES_HEIGHT : ZVB_MAX_RES_HEIGHT },
+                        (Vector2){ 0, 0 },
+                        WHITE);
+    EndShaderMode();
+}
+
+
 /**
  * @brief Render the screen in graphics mode
  */
 static void zvb_render_gfx_mode(zvb_t* zvb)
 {
-    const Shader shader = zvb->gfx_shader;
+    const Shader shader = zvb->shaders[SHADER_GFX];
 
     const int mode_idx     = zvb->gfx_shader_idx[GFX_SHADER_VIDMODE_IDX];
     const int tilemaps_idx = zvb->gfx_shader_idx[GFX_SHADER_TILEMAPS_IDX];
@@ -378,7 +423,7 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int palette_idx  = zvb->gfx_shader_idx[GFX_SHADER_PALETTE_IDX];
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &zvb->gfx_shader, palette_idx);
+        zvb_palette_update(&zvb->palette, &zvb->shaders[SHADER_GFX], palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
@@ -407,10 +452,20 @@ bool zvb_prepare_render(zvb_t* zvb)
         return false;
     }
 
-    if (zvb->mode == MODE_TEXT_640 || zvb->mode == MODE_TEXT_320) {
-        zvb_prepare_render_text_mode(zvb);
-    } else {
-        zvb_prepare_render_gfx_mode(zvb);
+    switch (zvb->mode) {
+        case MODE_TEXT_640:
+        case MODE_TEXT_320:
+            zvb_prepare_render_text_mode(zvb);
+            break;
+
+        case MODE_BITMAP_256:
+        case MODE_BITMAP_320:
+            zvb_prepare_render_bitmap_mode(zvb);
+            break;
+
+        default:
+            zvb_prepare_render_gfx_mode(zvb);
+            break;
     }
 
     return true;
@@ -432,10 +487,20 @@ void zvb_render(zvb_t* zvb)
 #endif
 
     if (zvb->status.vid_ena) {
-        if (zvb->mode == MODE_TEXT_640 || zvb->mode == MODE_TEXT_320) {
-            zvb_render_text_mode(zvb);
-        } else {
-            zvb_render_gfx_mode(zvb);
+        switch (zvb->mode) {
+            case MODE_TEXT_640:
+            case MODE_TEXT_320:
+                zvb_render_text_mode(zvb);
+                break;
+
+            case MODE_BITMAP_256:
+            case MODE_BITMAP_320:
+                zvb_render_bitmap_mode(zvb);
+                break;
+
+            default:
+                zvb_render_gfx_mode(zvb);
+                break;
         }
     } else {
         zvb_render_disabled_mode(zvb);

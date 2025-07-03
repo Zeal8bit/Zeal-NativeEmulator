@@ -80,7 +80,7 @@
 #define TEXT_SHADER_CURCHAR_IDX     6
 #define TEXT_SHADER_TSCROLL_IDX     7
 
-#define TEXT_SHADER_IDX_COUNT       8
+#define TEXT_SHADER_OBJ_COUNT       8
 
 
 #define GFX_SHADER_VIDMODE_IDX      0
@@ -91,12 +91,13 @@
 #define GFX_SHADER_SCROLL1_IDX      5
 #define GFX_SHADER_PALETTE_IDX      6
 
-#define GFX_SHADER_IDX_COUNT        7
-
+#define GFX_SHADER_OBJ_COUNT        7
 
 typedef enum {
     MODE_TEXT_640     = 0,
     MODE_TEXT_320     = 1,
+    MODE_BITMAP_256   = 2,
+    MODE_BITMAP_320   = 3,
     MODE_GFX_640_8BIT = 4,
     MODE_GFX_320_8BIT = 5,
     MODE_GFX_640_4BIT = 6,
@@ -130,6 +131,13 @@ typedef struct {
 } zvb_ctrl_t;
 
 
+typedef enum {
+    SHADER_TEXT = 0,
+    SHADER_GFX,
+    SHADER_BITMAP,
+    SHADERS_COUNT,
+} zvb_shaders_t;
+
 typedef struct {
     device_t         parent;
     zvb_video_mode_t mode;
@@ -146,9 +154,12 @@ typedef struct {
     zvb_sound_t      sound;
 
     /* Internally used to make the shader work on the whole screen */
-    Shader           text_shader;
-    Shader           gfx_shader;
+    Shader           shaders[SHADERS_COUNT];
     RenderTexture    tex_dummy;
+    /* Array containing the indexes of our objects in the shaders */
+    int              text_shader_idx[TEXT_SHADER_OBJ_COUNT];
+    int              gfx_shader_idx[GFX_SHADER_OBJ_COUNT];
+    int              bitmap_shader_idx[GFX_SHADER_OBJ_COUNT];
 
     /* Internal values */
     zvb_status_t     status;
@@ -162,9 +173,6 @@ typedef struct {
     /* When rendering to the screen directly, Y must be flipped,
      * But when rendering to a texture (debugger UI), it must not be*/
     bool             flipped_y;
-    /* Array containing the indexes of our objects in the shaders */
-    int              text_shader_idx[TEXT_SHADER_IDX_COUNT];
-    int              gfx_shader_idx[GFX_SHADER_IDX_COUNT];
 } zvb_t;
 
 
