@@ -6,6 +6,7 @@
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
+#include "utils/log.h"
 #include "utils/config.h"
 
 char DEBUG_BUFFER[256];
@@ -209,13 +210,13 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     panel->rect.h = config_get(key, panel->rect.h);
 
     if(config.arguments.verbose) {
-        printf("=== Panel: %s ===\n", panel->title);
-        printf("    width: %d\n", (int)panel->rect.w);
-        printf("   height: %d\n", (int)panel->rect.h);
-        printf("        x: %d\n", (int)panel->rect.x);
-        printf("        y: %d\n", (int)panel->rect.y);
-        printf("   hidden: %d\n", panel->hidden);
-        printf("minimized: %d\n", !!(panel->flags & NK_WINDOW_MINIMIZED));
+        log_printf("=== Panel: %s ===\n", panel->title);
+        log_printf("    width: %d\n", (int)panel->rect.w);
+        log_printf("   height: %d\n", (int)panel->rect.h);
+        log_printf("        x: %d\n", (int)panel->rect.x);
+        log_printf("        y: %d\n", (int)panel->rect.y);
+        log_printf("   hidden: %d\n", panel->hidden);
+        log_printf("minimized: %d\n", !!(panel->flags & NK_WINDOW_MINIMIZED));
     }
 }
 

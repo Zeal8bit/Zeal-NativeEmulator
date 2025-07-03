@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/mmu.h"
+#include "utils/log.h"
 
 
 static uint8_t mmu_read(device_t* dev, uint32_t addr)
@@ -39,7 +40,7 @@ int mmu_init(mmu_t* mmu)
 int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr)
 {
     if (mmu == NULL) {
-        printf("FATAL ERROR: MMU must not be NULL!\n");
+        log_err_printf("[MMU] ERROR: MMU must not be NULL!\n");
         return -1;
     }
     /* Get 22-bit address from 16-bit address */

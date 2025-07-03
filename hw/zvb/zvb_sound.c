@@ -178,8 +178,6 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port) {
     }
     zvb_sample_table_t* tbl = &sound->sample_table;
 
-    // printf("[SOUND] Reading register %02x\n", port);
-
     switch (port) {
         case 1:
             if (sample_table_enabled(sound)) {
@@ -212,8 +210,6 @@ void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value) {
         return;
     }
     zvb_sample_table_t* tbl = &sound->sample_table;
-
-    // printf("[SOUND] Writing register %02x\n", port);
 
     switch (port) {
         case REG_FREQ_LOW:

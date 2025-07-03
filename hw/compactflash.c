@@ -13,6 +13,7 @@
 
 #include "hw/compactflash.h"
 #include "utils/paths.h"
+#include "utils/log.h"
 
 static uint8_t compactflash_read_data(compactflash_t* cf);
 static void compactflash_write_data(compactflash_t* cf, uint8_t value);
@@ -25,8 +26,7 @@ static uint16_t le16(uint16_t v)
 }
 
 static void perror_exit(compactflash_t *cf, char *str) {
-    fprintf(stderr, "[COMPACTFLASH] ERROR: '%s' %s: %s\n", cf->file_name, str, strerror(errno));
-    fprintf(stderr, "Exiting...\n");
+    log_perror("[COMPACTFLASH] ERROR '%s' %s\n", cf->file_name, str);
     exit(1);
 }
 
@@ -64,7 +64,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
             cf->lba_mode = (value & 0x40) != 0; // Bit 6 indicates LBA mode
             break;
         default:
-            printf("[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
+            log_printf("[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
             break;
         }
 }
@@ -72,17 +72,17 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
 static uint32_t compactflash_data_ofs(compactflash_t* cf)
 {
     if (!cf->master) {
-        printf("[COMPACTFLASH] Slave device does not support data access.\n");
+        log_printf("[COMPACTFLASH] Slave device does not support data access.\n");
         return -1;
     }
     if (!cf->lba_mode) {
-        printf("[COMPACTFLASH] CHS mode not supported.\n");
+        log_printf("[COMPACTFLASH] CHS mode not supported.\n");
         return -1;
     }
     uint32_t sector = ((cf->lba_24 & 0xF) << 24) | (cf->lba_16 << 16)
         | (cf->lba_8 << 8) | (cf->lba_0 << 0);
     if (sector + cf->sec_cnt >= cf->total_sectors) {
-        printf("[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
+        log_printf("[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
         return -1;
     }
     return sector*512;
@@ -214,19 +214,19 @@ int compactflash_init(compactflash_t* cf, const char *file_name)
 
     int fd = open(file_name, O_RDWR);
     if (fd < 0) {
-        perror("[COMPACTFLASH] Could not open file");
+        log_perror("[COMPACTFLASH] Could not open file");
         /* Continue without CF emulation */
         return 0;
     }
 
     if (fstat(fd, &st) == -1) {
-        perror("[COMPACTFLASH] Could not stat file");
+        log_perror("[COMPACTFLASH] Could not stat file");
         close(fd);
         return 0;
     }
 
     if (st.st_size < 1024 * 1024) {
-        fprintf(stderr, "[COMPACTFLASH] Image must be at least 1MB big\n");
+        log_err_printf(stderr, "[COMPACTFLASH] Image must be at least 1MB big\n");
         close(fd);
         return 0;
     }

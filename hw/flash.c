@@ -11,13 +11,14 @@
 /* **** */
 #include "hw/flash.h"
 #include "utils/paths.h"
+#include "utils/log.h"
 
 
 static uint8_t flash_read(device_t* dev, uint32_t addr)
 {
     flash_t* f = (flash_t*) dev;
     if (addr >= f->size) {
-        printf("[FLASH] Invalid read size: %08x\n", addr);
+        log_err_printf("[FLASH] Invalid read size: %08x\n", addr);
         return 0;
     }
     return f->data[addr];
@@ -44,7 +45,7 @@ int flash_init(flash_t* f)
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     f->data = malloc(f->size);
     if (f->data == NULL) {
-        printf("[FLASH] ERROR: could not allocate enough memory for the NOR flash\n");
+        log_err_printf("[FLASH] ERROR: could not allocate enough memory for the NOR flash\n");
         return 2;
     }
 #endif
@@ -65,27 +66,27 @@ int flash_load_from_file(flash_t* flash, const char* name)
         snprintf(rom_path, sizeof(rom_path), "%s", name);
     } else {
         const char* default_name = "roms/default.img";
-        printf("[FLASH] Trying to load %s\n", default_name);
+        log_printf("[FLASH] Trying to load %s\n", default_name);
         if (get_install_dir_file(rom_path, default_name) == 0) {
-            printf("[FLASH] Could not get %s\n", default_name);
+            log_err_printf("[FLASH] Could not get %s\n", default_name);
             return -1;
         }
     }
 
     int fd = open(rom_path, O_RDONLY);
     if (fd < 0) {
-        perror("[FLASH] Could not open file to load");
+        log_perror("[FLASH] Could not open file to load");
         return fd;
     }
 
     int rd = read(fd, flash->data, flash->size);
     if (rd < 0) {
-        perror("[FLASH] Could not read file to load");
+        log_perror("[FLASH] Could not read file to load");
         close(fd);
         return rd;
     }
 
-    printf("[FLASH] %s loaded successfully\n", rom_path);
+    log_printf("[FLASH] %s loaded successfully\n", rom_path);
 
     close(fd);
     return 0;
@@ -100,18 +101,18 @@ int flash_save_to_file(flash_t* flash, const char* name)
 
     int fd = open(name, O_WRONLY | O_TRUNC | O_CREAT, 0666);
     if (fd < 0) {
-        perror("[FLASH] Could not create file to dump NOR flash");
+        log_perror("[FLASH] Could not create file to dump NOR flash");
         return fd;
     }
 
     int wr = write(fd, flash->data, flash->size);
     if (wr < 0) {
-        perror("[FLASH] Could not dump to file");
+        log_perror("[FLASH] Could not dump to file");
         close(fd);
         return wr;
     }
 
-    printf("[FLASH] Dump saved to %s successfully\n", name);
+    log_printf("[FLASH] Dump saved to %s successfully\n", name);
 
     close(fd);
     return 0;

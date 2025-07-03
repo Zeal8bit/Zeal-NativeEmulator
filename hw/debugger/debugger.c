@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "debugger/debugger.h"
+#include "utils/log.h"
 
 #define MAX_LINE_LENGTH     256
 
@@ -190,7 +191,7 @@ void debugger_step_over(dbg_t *dbg)
         return;
     }
     // dbg->step_cb(dbg);
-    printf("Step Over - not implemented\n");
+    log_printf("Step Over - not implemented\n");
 }
 
 void debugger_breakpoint(dbg_t *dbg) {
@@ -219,11 +220,10 @@ void debugger_pause(dbg_t *dbg)
 
 void debugger_restart(dbg_t *dbg)
 {
-    printf("debugger_restart: dbg: %d, restart_cb: %d\n", dbg != NULL, dbg != NULL && dbg->restart_cb != NULL);
+    log_printf("debugger_restart: dbg: %d, restart_cb: %d\n", dbg != NULL, dbg != NULL && dbg->restart_cb != NULL);
     if (dbg == NULL || dbg->restart_cb == NULL) {
         return;
     }
-    printf("Restart pressed\n");
 }
 
 
@@ -270,7 +270,6 @@ bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
     char type[MAX_LINE_LENGTH];
 
     while (fgets(line, sizeof(line), file)) {
-        // printf("Line: %s\n", line);
         /* Parse the line and ensure it contains "addr" */
         if (sscanf(line, "%s = $%x ; %s,", name, &address, type) == 3 && strcmp(type, "addr,") == 0 ) {
             /* Store the symbol */

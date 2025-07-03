@@ -1,11 +1,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "utils/log.h"
 #include "utils/helpers.h"
 #include "hw/pio.h"
 #include "hw/i2c.h"
 
-// #define debug printf
+// #define debug log_printf
 #define debug(...)
 
 #define ACK     0
@@ -35,7 +36,7 @@ static int process_byte(i2c_t* i2c, uint8_t data, uint8_t* next_byte)
 
     switch(i2c->st) {
         case I2C_IDLE:
-            printf("[I2C] Warning: received a byte without start!\n");
+            log_err_printf("[I2C] Warning: received a byte without start!\n");
             return NACK;
         case I2C_START_RCVED:
         case I2C_RESTART_RCVED:
@@ -45,7 +46,7 @@ static int process_byte(i2c_t* i2c, uint8_t data, uint8_t* next_byte)
             i2c->output = i2c_is_read(i2c);
 
             if (dev == NULL) {
-                printf("[I2C] Warning: no device found at address 0x%x\n", data);
+                log_printf("[I2C] Warning: no device found at address 0x%x\n", data);
                 return NACK;
             } else if (dev->start) {
                 dev->start(dev);
@@ -177,7 +178,7 @@ static void write_sda(void* arg, pio_t* pio, bool read, int pin, int bit, bool t
             i2c->st = I2C_RESTART_RCVED;
             i2c_clear_data(i2c);
         } else {
-            printf("[I2C] Warning: invalid I2C protocol detected!\n");
+            log_printf("[I2C] Warning: invalid I2C protocol detected!\n");
             i2c->st = I2C_START_RCVED;
             return;
         }
@@ -218,12 +219,12 @@ int i2c_connect(i2c_t* bus, i2c_device_t* device)
     }
 
     if (device->address >= 0x80) {
-        printf("[I2C] Cannot connect device 0x%x: invalid address\n", device->address);
+        log_err_printf("[I2C] Cannot connect device 0x%x: invalid address\n", device->address);
         return 1;
     }
 
     if (bus->devices[device->address] != NULL) {
-        printf("[I2C] Warning: two devices connected to address 0x%x\n", device->address);
+        log_err_printf("[I2C] Warning: two devices connected to address 0x%x\n", device->address);
         return 1;
     }
 

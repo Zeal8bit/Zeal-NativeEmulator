@@ -9,6 +9,7 @@
  * make step function return the number of clock cycles elapsed;
  */
 
+#include "utils/log.h"
 #include "hw/z80.h"
 
 // MARK: timings
@@ -850,11 +851,11 @@ int z80_step(z80* const z)
 // outputs to stdout a debug trace of the emulator
 void z80_debug_output(z80* const z)
 {
-    printf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
+    log_printf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
            "IX: %04X, IY: %04X, I: %02X, R: %02X",
            z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r);
 
-    printf("\t(%02X %02X %02X %02X), cyc: %lu\n", rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
+    log_printf("\t(%02X %02X %02X %02X), cyc: %lu\n", rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
            z->cyc);
 }
 

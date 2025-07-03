@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "raylib.h"
+#include "utils/log.h"
 #include "utils/helpers.h"
 #include "hw/pio.h"
 #include "hw/zvb/zvb_crc32.h"
@@ -60,7 +61,6 @@ int zvb_crc32_init(zvb_crc32_t* crc32)
 
 void zvb_crc32_write(zvb_crc32_t* crc32, uint16_t subaddr, uint8_t data)
 {
-    (void)crc32;
     switch (subaddr) {
         case 0: /* Reset */
             if (data & 1) {
@@ -79,7 +79,6 @@ void zvb_crc32_write(zvb_crc32_t* crc32, uint16_t subaddr, uint8_t data)
 
 uint8_t zvb_crc32_read(zvb_crc32_t* crc32, uint16_t subaddr)
 {
-    (void)crc32;
     switch (subaddr) {
         case 4: return ((~crc32->sum) >> 0)  & 0xff;
         case 5: return ((~crc32->sum) >> 8)  & 0xff;

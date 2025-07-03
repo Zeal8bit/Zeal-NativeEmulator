@@ -5,6 +5,7 @@
 #include "debugger/debugger_ui.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
+#include "utils/log.h"
 #include "raylib.h"
 
 config_t config = {
@@ -53,55 +54,55 @@ const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
 
 
 void config_debug(void) {
-    printf("== CONFIG ==\n");
+    log_printf("== CONFIG ==\n");
 
-    printf("\n");
-    printf("=== command line ===\n");
-    printf("  config_path: %s\n", config.arguments.config_path);
-    printf(" rom_filename: %s\n", config.arguments.rom_filename);
-    printf("  hostfs_path: %s\n", config.arguments.hostfs_path);
-    printf("     map_file: %s\n", config.arguments.map_file);
-    printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
-    printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
+    log_printf("\n");
+    log_printf("=== command line ===\n");
+    log_printf("  config_path: %s\n", config.arguments.config_path);
+    log_printf(" rom_filename: %s\n", config.arguments.rom_filename);
+    log_printf("  hostfs_path: %s\n", config.arguments.hostfs_path);
+    log_printf("     map_file: %s\n", config.arguments.map_file);
+    log_printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
 
-    printf("\n");
-    printf("=== debugger ===\n");
-    printf("enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
+    log_printf("\n");
+    log_printf("=== debugger ===\n");
+    log_printf("enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
 
-    printf("\n");
-    printf("=== window ===\n");
-    printf("  width: %d\n", config.window.width);
-    printf(" height: %d\n", config.window.height);
-    printf("      x: %d\n", config.window.x);
-    printf("      y: %d\n", config.window.y);
-    printf("display: %d\n", config.window.display);
+    log_printf("\n");
+    log_printf("=== window ===\n");
+    log_printf("  width: %d\n", config.window.width);
+    log_printf(" height: %d\n", config.window.height);
+    log_printf("      x: %d\n", config.window.x);
+    log_printf("      y: %d\n", config.window.y);
+    log_printf("display: %d\n", config.window.display);
 
-    printf("\n");
-    printf("=== debugger ===\n");
-    printf("  width: %d\n", config.debugger.width);
-    printf(" height: %d\n", config.debugger.height);
-    printf("      x: %d\n", config.debugger.x);
-    printf("      y: %d\n", config.debugger.y);
-    printf("\n\n");
+    log_printf("\n");
+    log_printf("=== debugger ===\n");
+    log_printf("  width: %d\n", config.debugger.width);
+    log_printf(" height: %d\n", config.debugger.height);
+    log_printf("      x: %d\n", config.debugger.x);
+    log_printf("      y: %d\n", config.debugger.y);
+    log_printf("\n\n");
 }
 
 int usage(const char* progname)
 {
-    printf("Usage: %s [OPTIONS]\n", progname);
-    printf("\nOptions:\n");
-    printf("  -c, --config <file>    Zeal Config\n");
-    printf("  -s, --save <file>      Save * arguments to Zeal Config\n");
-    printf("  -r, --rom <file>       * Load ROM file\n");
-    printf("  -e, --eeprom <file>    Load EEPROM file\n");
-    printf("  -t, --tf <file>        Load TF/SDcard file\n");
-    printf("  -H, --hostfs <path>    Set host filesystem path\n");
-    printf("  -m, --map <file>       Load memory map file (for debugging)\n");
-    printf("  -g, --debug            * Enable debug mode\n");
-    printf("  -v, --verbose          Verbose console output\n");
-    printf("  -h, --help             Show this help message\n");
-    printf("\n");
-    printf("Example:\n");
-    printf("  %s --rom game.bin --map mem.map --debug\n", progname);
+    log_printf("Usage: %s [OPTIONS]\n", progname);
+    log_printf("\nOptions:\n");
+    log_printf("  -c, --config <file>    Zeal Config\n");
+    log_printf("  -s, --save <file>      Save * arguments to Zeal Config\n");
+    log_printf("  -r, --rom <file>       * Load ROM file\n");
+    log_printf("  -e, --eeprom <file>    Load EEPROM file\n");
+    log_printf("  -t, --tf <file>        Load TF/SDcard file\n");
+    log_printf("  -H, --hostfs <path>    Set host filesystem path\n");
+    log_printf("  -m, --map <file>       Load memory map file (for debugging)\n");
+    log_printf("  -g, --debug            * Enable debug mode\n");
+    log_printf("  -v, --verbose          Verbose console output\n");
+    log_printf("  -h, --help             Show this help message\n");
+    log_printf("\n");
+    log_printf("Example:\n");
+    log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
 
     return 1;
 }
@@ -168,7 +169,7 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case '?':
                 // Handle unknown options
-                fprintf(stderr, "Unknown option: -%c\n", optopt);
+                log_err_printf("[CONFIG] Unknown option -%c\n", optopt);
                 return 1;
         }
     }

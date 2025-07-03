@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "utils/log.h"
 #include "utils/helpers.h"
 #include "hw/pio.h"
 #include "hw/uart.h"
@@ -17,7 +18,7 @@ static void transfer_complete(void) {
 
     if(c == 0) return; // can't print null, :shrug:
 
-    printf("%c", c);
+    log_printf("%c", c);
     fflush(stdout);
 }
 
@@ -44,7 +45,7 @@ void read_rx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition
     // TODO: do nothing ... should we even define this?
     (void)pio;
     (void)arg;
-    printf("uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
+    log_printf("uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
 }
 
 int uart_init(uart_t* uart, pio_t* pio)

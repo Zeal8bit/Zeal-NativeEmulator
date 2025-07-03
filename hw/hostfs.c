@@ -13,6 +13,7 @@
 #include <libgen.h>
 
 #include "hw/hostfs.h"
+#include "utils/log.h"
 #include "utils/paths.h"
 
 #define MIN(a,b)    ((a) < (b) ? (a) : (b))
@@ -143,7 +144,7 @@ static char *get_path(zeal_hostfs_t *host) {
 
     /* Concatenate the root path and the relative path */
     if ((size_t) snprintf(full_path, sizeof(full_path), "%s/%s", host->root_path, path) >= sizeof(full_path)) {
-        printf("[HostFS] Path is too long, ignoring!\n");
+        log_err_printf("[HostFS] Path is too long, ignoring!\n");
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return NULL;
     }
@@ -158,7 +159,7 @@ static char *get_path(zeal_hostfs_t *host) {
     if (resolved == NULL ||
         strncmp(resolved, host->root_path, root_length) != 0)
     {
-        printf("[HostFS] Invalid path %s (original: %s)\n", resolved, full_path);
+        log_err_printf("[HostFS] Invalid path %s (original: %s)\n", resolved, full_path);
         free(resolved);
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return NULL;
@@ -300,7 +301,7 @@ static void fs_stat(zeal_hostfs_t *host) {
 
     if (is_dir == 0) {
         if (fstat(fd, &st)) {
-            printf("[HostFS] Could not stat file\n");
+            log_err_printf("[HostFS] Could not stat file\n");
             set_status(host, ZOS_FAILURE);
             return;
         }
@@ -431,7 +432,7 @@ static void fs_mkdir(zeal_hostfs_t *host) {
     }
 
     if (mkdir(path, 0755) != 0) {
-        perror("[HostFS] Could not create directory");
+        log_perror("[HostFS] Could not create directory");
         set_status(host, ZOS_FAILURE);
         return;
     }
@@ -590,13 +591,13 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
             set_status(hostfs, ZOS_PENDING);
             handle_operation(hostfs, value);
         } else {
-            printf("[HostFS] Invalid operation %x\n", value);
+            log_err_printf("[HostFS] Invalid operation %x\n", value);
             set_status(hostfs, ZOS_FAILURE);
         }
     } else if (addr <= 7) {
         hostfs->registers[addr] = value;
     } else {
-        printf("[HostFS] Unknown register 0x%x write\n", addr);
+        log_err_printf("[HostFS] Unknown register 0x%x write\n", addr);
     }
 }
 
@@ -628,32 +629,32 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
 #endif
 
     if(resolved_path == NULL) {
-        printf("[HostFS] Error resolving path %s\n", root_path);
+        log_err_printf("[HostFS] Error resolving path %s\n", root_path);
         return 1;
     }
 
     if (stat(resolved_path, &path_stat) != 0) {
-        printf("[HostFS] Path %s does not exist or is not accessible\n", resolved_path);
+        log_err_printf("[HostFS] Path %s does not exist or is not accessible\n", resolved_path);
         return 1;
     }
 
     if (!S_ISDIR(path_stat.st_mode)) {
-        printf("[HostFS] Path %s must be a directory!\n", resolved_path);
+        log_err_printf("[HostFS] Path %s must be a directory!\n", resolved_path);
         return 1;
     }
 
     if (access(resolved_path, R_OK | W_OK) != 0) {
-        printf("[HostFS] Path %s must be accessible in both read and write!\n", resolved_path);
+        log_err_printf("[HostFS] Path %s must be accessible in both read and write!\n", resolved_path);
         return 1;
     }
 
     hostfs->root_path = strdup(resolved_path);
     if (hostfs->root_path == NULL) {
-        printf("[HostFS] Could not allocate memory!\n");
+        log_err_printf("[HostFS] Could not allocate memory!\n");
         return 1;
     }
 
-    printf("[HostFS] %s loaded successfully\n", get_relative_path(hostfs->root_path));
+    log_printf("[HostFS] %s loaded successfully\n", get_relative_path(hostfs->root_path));
 
     return 0;
 }

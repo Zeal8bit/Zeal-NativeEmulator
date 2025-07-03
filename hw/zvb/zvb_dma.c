@@ -17,14 +17,14 @@ static void dma_start_transfer(zvb_dma_t* dma)
         const int wr_ops = desc.flags.wr_op;
 
 #if DEBUG_DMA
-        printf("Descriptor @ %08x:\n", dma->desc_addr);
-        printf("  Read Address: 0x%08X\n", desc.rd_addr);
-        printf("  Write Address: 0x%08X\n", desc.wr_addr);
-        printf("  Length: %d\n", desc.length);
-        printf("  Flags:\n");
-        printf("    Read Operation: %d\n", desc.flags.rd_op);
-        printf("    Write Operation: %d\n", desc.flags.wr_op);
-        printf("    Last: %d\n", desc.flags.last);
+        log_printf("Descriptor @ %08x:\n", dma->desc_addr);
+        log_printf("  Read Address: 0x%08X\n", desc.rd_addr);
+        log_printf("  Write Address: 0x%08X\n", desc.wr_addr);
+        log_printf("  Length: %d\n", desc.length);
+        log_printf("  Flags:\n");
+        log_printf("    Read Operation: %d\n", desc.flags.rd_op);
+        log_printf("    Write Operation: %d\n", desc.flags.wr_op);
+        log_printf("    Last: %d\n", desc.flags.last);
 #endif
 
         /* Descriptor is ready, perform the copy */
@@ -33,7 +33,7 @@ static void dma_start_transfer(zvb_dma_t* dma)
             memory_phys_write_byte(dma->ops, desc.wr_addr, data);
 
 #if DEBUG_DMA
-            printf("Transfer: src=0x%08X, dst=0x%08X, byte=0x%02X\n", desc.rd_addr, desc.wr_addr, data);
+            log_printf("Transfer: src=0x%08X, dst=0x%08X, byte=0x%02X\n", desc.rd_addr, desc.wr_addr, data);
 #endif
 
             /* Check if we have to modify the addresses */

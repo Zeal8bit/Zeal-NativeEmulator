@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "hw/zeal.h"
+#include "utils/log.h"
 #include "utils/config.h"
 
 static zeal_t machine;
@@ -17,20 +18,20 @@ int main(int argc, char* argv[])
     if(config.arguments.verbose) config_debug();
 
     if (config.arguments.rom_filename == NULL) {
-        printf("No ROM file specified.\n");
+        log_printf("No ROM file specified.\n");
     }
 
     if (config.arguments.hostfs_path == NULL) {
-        printf("No HostFS path specified.\n");
+        log_printf("No HostFS path specified.\n");
     }
 
     // Process non-option arguments, if needed
     for (int i = optind; i < argc; i++) {
-        printf("Non-option argument: %s\n", argv[i]);
+        log_printf("Non-option argument: %s\n", argv[i]);
     }
 
     if (zeal_init(&machine)) {
-        printf("Error initializing the machine\n");
+        log_err_printf("Error initializing the machine\n");
         return 1;
     }
 

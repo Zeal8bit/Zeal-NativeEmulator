@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <limits.h>
 #include "raylib.h"
+#include "utils/log.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
 #include "hw/memory_op.h"
@@ -136,7 +137,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
         case ZVB_IO_CONFIG_MODE_REG:        return zvb->mode;
         case ZVB_IO_CONFIG_STATUS_REG:      return zvb->status.raw;
         default:
-            printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            log_err_printf("[ZVB][CTRL] Unknwon register %x\n", addr);
             break;
     }
 
@@ -214,7 +215,7 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             zvb->status.vid_ena = status.vid_ena;
             break;
         default:
-            printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            log_err_printf("[ZVB][CTRL] Unknown register %x\n", addr);
             break;
     }
 }
@@ -229,7 +230,7 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if (addr == ZVB_IO_BANK_REG) {
         zvb->io_bank = data;
     } else if (addr == ZVB_MEM_START_REG) {
-        printf("[WARNING] zvb memory mapping register is not supported\n");
+        log_err_printf("[WARNING] zvb memory mapping register is not supported\n");
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         zvb_io_write_control(zvb, subaddr, data);
@@ -534,7 +535,7 @@ void zvb_render(zvb_t* zvb)
     double elapsedTime = endTime - startTime;
     average += elapsedTime;
     if (++counter == 60) {
-        printf("Time taken : %f ms\n", (average / 60) * 1000);
+        log_printf("Time taken : %f ms\n", (average / 60) * 1000);
         counter = 0;
         average = 0;
     }

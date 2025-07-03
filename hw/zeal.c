@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/zeal.h"
+#include "utils/log.h"
 #include "utils/config.h"
 
 #define RAYLIB_KEY_COUNT    384
@@ -43,7 +44,7 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
         return device->mem_region.read(device, phys_addr - start_addr);
     }
 
-    printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
+    log_printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
     return 0;
 }
 
@@ -61,7 +62,7 @@ static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
         return device->mem_region.read(device, phys_addr - start_addr);
     }
 
-    printf("[INFO] No device replied to physical memory read: 0x%04x\n", phys_addr);
+    log_printf("[INFO] No device replied to physical memory read: 0x%04x\n", phys_addr);
     return 0;
 }
 
@@ -76,7 +77,7 @@ static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
     if (device) {
         device->mem_region.write(device, phys_addr - start_addr, data);
     } else {
-        printf("[INFO] No device replied to memory write: 0x%04x\n", phys_addr);
+        log_printf("[INFO] No device replied to memory write: 0x%04x\n", phys_addr);
     }
 }
 
@@ -93,7 +94,7 @@ static void zeal_phys_mem_write(void* opaque, uint32_t phys_addr, uint8_t data)
     if (device) {
         device->mem_region.write(device, phys_addr - start_addr, data);
     } else {
-        printf("[INFO] No device replied to physical memory write: 0x%04x\n", phys_addr);
+        log_printf("[INFO] No device replied to physical memory write: 0x%04x\n", phys_addr);
     }
 }
 
@@ -109,7 +110,7 @@ static uint8_t zeal_io_read(void* opaque, uint16_t addr)
         return device->io_region.read(device, low - entry->page_from);
     }
 
-    printf("[INFO] No device replied to I/O read: 0x%04x\n", low);
+    log_printf("[INFO] No device replied to I/O read: 0x%04x\n", low);
     return 0;
 }
 
@@ -123,7 +124,7 @@ static void zeal_io_write(void* opaque, uint16_t addr, uint8_t data)
     if (device && device->io_region.write) {
         device->io_region.write(device, low - entry->page_from, data);
     } else {
-        printf("[INFO] No device replied to I/O write: 0x%04x\n", low);
+        log_printf("[INFO] No device replied to I/O write: 0x%04x\n", low);
     }
 }
 
@@ -147,7 +148,7 @@ static void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
     const int region_size = dev->io_region.size;
     const int region_end  = region_start + region_size - 1;
     if (region_start >= IO_MAPPING_SIZE || region_end >= IO_MAPPING_SIZE || region_size == 0) {
-        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
+        log_err_printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
 
@@ -162,13 +163,13 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
     const int region_size = dev->mem_region.size;
     const int region_end  = region_start + region_size - 1;
     if (region_start >= MEM_SPACE_SIZE || region_end >= MEM_SPACE_SIZE || region_size == 0) {
-        printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
+        log_err_printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
 
     /* Make sure the alignment is correct too! */
     if ((region_start & (MEM_SPACE_ALIGN - 1)) != 0 || (region_size & (MEM_SPACE_ALIGN - 1)) != 0) {
-        printf("%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
+        log_err_printf("%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
                region_size);
         return;
     }
@@ -182,7 +183,7 @@ static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_
         map_entry_t* entry = &machine->mem_mapping[page];
 
         if (entry->dev != NULL) {
-            printf("%s: cannot register device %s in page %d, device %s is already mapped\n",
+            log_err_printf("%s: cannot register device %s in page %d, device %s is already mapped\n",
                 __func__, dev->name, page, entry->dev->name);
         }
         *entry = (map_entry_t) {.dev = dev, .page_from = start_page};
@@ -286,10 +287,10 @@ static void zeal_debug_toggle(dbg_t *dbg)
     zeal_t* machine = (zeal_t*) (dbg->arg);
 
     if (machine->dbg_enabled) {
-        printf("zeal_debug_toggle: disable\n");
+        log_printf("zeal_debug_toggle: disable\n");
         zeal_debug_disable(machine);
     } else {
-        printf("zeal_debug_toggle: enable\n");
+        log_printf("zeal_debug_toggle: enable\n");
         zeal_debug_enable(machine);
     }
 }
@@ -310,7 +311,7 @@ int zeal_init(zeal_t* machine)
 
     /* It wouldn't make sense to have two machines now... */
     if (s_ops.opaque != NULL) {
-        printf("[ZEAL] ERROR: machine already initialized\n");
+        log_err_printf("[ZEAL] ERROR: machine already initialized\n");
         return 2;
     }
     s_ops.opaque = machine;

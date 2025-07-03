@@ -58,7 +58,7 @@ static uint8_t* ui_idx_to_reg(regs_t* regs, int idx, bool lsb)
         case REG_IY:
             return (uint8_t*) &regs->iy;
         default:
-            printf("ERROR INVALID REGISTER INDEX\n");
+            log_err_printf("ERROR INVALID REGISTER INDEX\n");
             return 0;
     }
 }

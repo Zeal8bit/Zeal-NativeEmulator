@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <string.h>
 #include "hw/zvb/zvb_spi.h"
+#include "utils/log.h"
 
 #define DEBUG_CMD       0
 #define DEBUG_WRITE     0
@@ -46,11 +47,11 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
     /* Open it in both read and write */
     spi->tf.img = fopen(filename, "r+");
     if (spi->tf.img == NULL) {
-        perror("[TF] Could not open TF Card image");
+        log_perror("[TF] Could not open TF Card image");
         return 1;
     }
 
-    printf("[TF] %s loaded successfully\n", filename);
+    log_printf("[TF] %s loaded successfully\n", filename);
 
     /* Save the size of the file */
     fseek(spi->tf.img, 0, SEEK_END);
@@ -168,7 +169,7 @@ static void zvb_tf_deassert(zvb_spi_t* spi)
     if (spi->tf.state == TF_READ_BLOCK || spi->tf.state == TF_WRITE_BLOCK_SEND_RESP) {
         /* Make sure the block read (or write) processed a whole block. `reply_idx` points to the next byte to read! */
         if (spi->tf.state == TF_READ_BLOCK && spi->tf.reply_idx - TF_BLK_DUMMY_BYTES != TF_BLK_SIZE){
-            printf("[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
+            log_err_printf("[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
                     spi->tf.reply_idx - TF_BLK_DUMMY_BYTES, TF_BLK_SIZE);
         }
         spi->tf.state = TF_IDLE;
@@ -212,7 +213,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
     } else {
         former_count = 1;
     }
-    printf("[TF] Command: %d (0x%x), param: %x, count: %d\n",
+    log_printf("[TF] Command: %d (0x%x), param: %x, count: %d\n",
         command, command | TF_CMD_MASK, param, former_count);
     former_command.cmd = command;
     former_command.param = param;
@@ -242,7 +243,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 r1.ill_cmd = 1;
                 zvb_r1_response(tf, r1.raw);
             } else if (param != 512) {
-                printf("[TF] Cannot set block size to another value than 512 bytes\n");
+                log_err_printf("[TF] Cannot set block size to another value than 512 bytes\n");
                 r1.param_err = 1;
                 zvb_r1_response(tf, r1.raw);
             } else {
@@ -260,7 +261,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 /* TODO: check the size of the file against the block number */
                 const uint32_t offset = param * TF_BLK_SIZE;
                 if (fseek(tf->img, offset, SEEK_SET) < 0) {
-                    perror("[TF] Could not seek into image for reading");
+                    log_perror("[TF] Could not seek into image for reading");
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     return;
@@ -270,7 +271,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 tf->reply[2] = TF_DATA_TOKEN;     // Set as ready!
                 int rd = fread(tf->reply + TF_BLK_DUMMY_BYTES, 1, TF_BLK_SIZE, tf->img);
                 if (rd < TF_BLK_SIZE) {
-                    printf("[TF] Warning could only read %d/%d bytes from the image file\n", rd, TF_BLK_SIZE);
+                    log_err_printf("[TF] Warning could only read %d/%d bytes from the image file\n", rd, TF_BLK_SIZE);
                 }
                 tf->reply_idx = 0;
                 tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES;
@@ -286,17 +287,17 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 /* TODO: check the size of the file against the block number */
                 const size_t offset = param * TF_BLK_SIZE;
                 if (offset >= tf->img_size) {
-                    printf("[TF] Invalid write offset: 0x%lx/0x%lx\n", offset, tf->img_size);
+                    log_err_printf("[TF] Invalid write offset: 0x%lx/0x%lx\n", offset, tf->img_size);
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     tf->state = TF_IDLE;
                     break;
                 }
 #if DEBUG_WRITE
-                printf("[TF] Write block, offset: 0x%lx (sector: %x)\n", offset, param);
+                log_printf("[TF] Write block, offset: 0x%lx (sector: %x)\n", offset, param);
 #endif
                 if (fseek(tf->img, offset, SEEK_SET) < 0) {
-                    perror("[TF] Could not seek into image for writing");
+                    log_perror("[TF] Could not seek into image for writing");
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     return;
@@ -379,15 +380,15 @@ static void zvb_tf_start_write(zvb_spi_t* spi)
         if (spi->tf.reply_idx == TF_BLK_SIZE + 2) {
             /* Finished receiving the block data, write it to the file, the file has already been seeked */
 #if 0
-            printf("[TF] Writing data: \n");
+            log_printf("[TF] Writing data: \n");
             for (int i = 0; i < TF_BLK_SIZE; i++) {
-                printf("%x, ", spi->tf.reply[i]);
+                log_printf("%x, ", spi->tf.reply[i]);
             }
-            printf("\n");
+            log_printf("\n");
 #endif
             int wr = fwrite(spi->tf.reply, 1, TF_BLK_SIZE, spi->tf.img);
             if (wr < TF_BLK_SIZE) {
-                printf("[TF] Warning could only write %d/%d bytes from the image file\n", wr, TF_BLK_SIZE);
+                log_err_printf("[TF] Warning could only write %d/%d bytes from the image file\n", wr, TF_BLK_SIZE);
             }
             spi->tf.state = TF_WRITE_BLOCK_SEND_RESP;
             spi->tf.reply_idx = 0;
@@ -426,13 +427,13 @@ static void zvb_tf_start(zvb_spi_t* spi)
 
     /* Look for the command in the array */\
     if (length > SPI_RAM_LEN) {
-        printf("[TF] ERROR: length is bigger than HW array\n");
+        log_err_printf("[TF] ERROR: length is bigger than HW array\n");
         return;
     }
 
 #if 0
-    printf("=================\n");
-    printf("Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
+    log_printf("=================\n");
+    log_printf("Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
             spi->ram_wr.data[0],
             spi->ram_wr.data[1],
             spi->ram_wr.data[2],
@@ -466,7 +467,7 @@ static void zvb_tf_start(zvb_spi_t* spi)
 
     /* Parameters must be bundled with the command */
     if (i + 5 >= spi->ram_len) {
-        printf("[TF] Parameters must be provided with the command\n");
+        log_err_printf("[TF] Parameters must be provided with the command\n");
         return;
     }
 

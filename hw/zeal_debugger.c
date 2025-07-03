@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "hw/zeal.h"
+#include "utils/log.h"
 #include "debugger/debugger_impl.h"
 
 
@@ -67,7 +68,7 @@ static int zeal_debugger_get_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        printf("TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
+        log_printf("TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
             // TODO: Use a specialized function from Zeal component?
@@ -91,7 +92,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        printf("TODO: PHYSICAL ADDRESS WRITE\n");
+        log_printf("TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
             machine->cpu.write_byte(machine, (uint16_t) (addr + i), val[i]);
@@ -278,7 +279,7 @@ int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* i
 
     /* Instructions are never bigger than 4 bytes on the Z80 */
     if (zeal_debugger_get_mem(dbg, address, 4, instr->opcodes) != 0) {
-        printf("Error disassembling address: %x\n", address);
+        log_err_printf("[DEBUGGER] Error disassembling address: %x\n", address);
         return -1;
     }
     memcpy(mem, instr->opcodes, 4);

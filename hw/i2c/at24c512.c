@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "utils/log.h"
 #include "hw/i2c/at24c512.h"
 
-
-// #define debug printf
+// #define debug log_printf
 #define debug(...)
-
 
 static uint8_t at24c512_read(i2c_device_t* dev) {
     at24c512_t* eeprom = (at24c512_t*)dev;
@@ -79,13 +78,13 @@ int at24c512_init(at24c512_t* eeprom, const char* filename)
         FILE* file = fopen(filename, "rb+");
         if (file) {
             size_t count = fread(eeprom->data, 1, AT24C512_SIZE, file);
-            printf("[EEPROM] Loaded from %s\n", filename);
+            log_printf("[EEPROM] Loaded from %s\n", filename);
             if (count < AT24C512_SIZE) {
-                printf("[EEPROM] Warning: image size is smaller than EEPROM size\n");
+                log_err_printf("[EEPROM] Warning: image size is smaller than EEPROM size\n");
             }
             eeprom->file = file;
         } else {
-            printf("[EEPROM] Could not open image %s\n", filename);
+            log_err_printf("[EEPROM] Could not open image %s\n", filename);
         }
     }
 
