@@ -87,7 +87,9 @@ static int16_t generate_wave(zvb_voice_t* voice) {
             break;
     }
 
-    voice->phase += steps;
+    if (!voice->hold) {
+        voice->phase += steps;
+    }
     if (voice->phase > SAMPLE_MAX) {
         voice->phase = steps;
     }
