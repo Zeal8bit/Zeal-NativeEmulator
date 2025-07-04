@@ -38,7 +38,6 @@ static inline bool voice_in_right(zvb_sound_t* sound, int i)
 static void audio_callback(void *buffer, unsigned int frames);
 
 static zvb_sound_t* g_sound;
-static volatile long long g_states = 0;
 
 void zvb_sound_init(zvb_sound_t* sound) {
     InitAudioDevice();

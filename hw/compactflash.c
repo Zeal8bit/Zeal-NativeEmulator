@@ -226,7 +226,7 @@ int compactflash_init(compactflash_t* cf, const char *file_name)
     }
 
     if (st.st_size < 1024 * 1024) {
-        log_err_printf(stderr, "[COMPACTFLASH] Image must be at least 1MB big\n");
+        log_err_printf("[COMPACTFLASH] Image must be at least 1MB big\n");
         close(fd);
         return 0;
     }

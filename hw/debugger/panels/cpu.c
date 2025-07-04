@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "utils/log.h"
 #include "utils/helpers.h"
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger.h"
