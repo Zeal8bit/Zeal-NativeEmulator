@@ -209,26 +209,26 @@ int compactflash_init(compactflash_t* cf, const char *file_name)
 
     if (file_name == NULL) {
         /* No CompactFlash file specified */
-        return 0;
+        return 1;
     }
 
     int fd = open(file_name, O_RDWR);
     if (fd < 0) {
         log_perror("[COMPACTFLASH] Could not open file");
         /* Continue without CF emulation */
-        return 0;
+        return 1;
     }
 
     if (fstat(fd, &st) == -1) {
         log_perror("[COMPACTFLASH] Could not stat file");
         close(fd);
-        return 0;
+        return 1;
     }
 
     if (st.st_size < 1024 * 1024) {
         log_err_printf("[COMPACTFLASH] Image must be at least 1MB big\n");
         close(fd);
-        return 0;
+        return 1;
     }
 
     /* Round up the total amount of sectors */
