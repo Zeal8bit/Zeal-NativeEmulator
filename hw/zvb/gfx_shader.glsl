@@ -83,7 +83,7 @@ int color_from_idx(int idx, int offset, bool color_4bit)
 }
 
 
-vec4 get_attr(vec2 flipped, ivec2 scroll) {
+vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
     ivec2 orig = ivec2(int(flipped.x), int(flipped.y));
     ivec2 pix_pos = orig + scroll;
 
@@ -95,7 +95,9 @@ vec4 get_attr(vec2 flipped, ivec2 scroll) {
     int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
 
     /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
-    int in_tile = (int(pix_pos.x) % TILE_WIDTH) + ((int(pix_pos.y) % TILE_HEIGHT) * TILE_WIDTH);
+    offset_in_tile.x = int(pix_pos.x) % TILE_WIDTH;
+    offset_in_tile.y = int(pix_pos.y) % TILE_HEIGHT;
+    int in_tile = offset_in_tile.x + (offset_in_tile.y * TILE_WIDTH);
 
     /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
     float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
@@ -108,20 +110,32 @@ vec4 get_attr(vec2 flipped, ivec2 scroll) {
 
 
 vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
-    vec4 attr_l0 = get_attr(flipped, scroll_l0);
-    vec4 attr_l1 = get_attr(flipped, scroll_l1);
+    ivec2 l0_offset;
+    ivec2 l1_offset;
+    vec4 attr_l0 = get_attr(flipped, scroll_l0, l0_offset);
+    vec4 attr_l1 = get_attr(flipped, scroll_l1, l1_offset);
 
     if (color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
          * of the first half */
         int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
-        int tileset_offset = ((int(attr_l0.a * 15) & 1) != 0) ? 256 : 0;
-        l0_idx += tileset_offset;
+        /* Get the lowest nibble of layer1 (attributes), if 1, offset the tile to the next tileset */
+        int attr = int(attr_l0.g * 255);
+        l0_idx += (attr & 1) != 0 ? 256 : 0;
+        /* Check for Flip Y attribute */
+        if ((attr & 4) != 0) {
+            l0_offset.y = (TILE_HEIGHT - 1) - l0_offset.y;
+        }
+        /* Check for Flip X attribute */
+        if ((attr & 8) != 0) {
+            l0_offset.x = (TILE_WIDTH - 1) - l0_offset.x;
+        }
+        int offset_in_tile = l0_offset.y * TILE_WIDTH + l0_offset.x;
         /* Get the color out of that tile's pixel, between 0 and 15 */
-        int color = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
+        int color = color_from_idx(l0_idx, offset_in_tile, color_4bit);
         /* If the layer1's lowest bit was 1, we need to get the right pixel (lowest nibble) */
         /* The color is between 0 and 15, append the palette index to it */
-        int palette_idx = int(attr_l0.g * 255) & 0xf0;
+        int palette_idx = attr & 0xf0;
         /* No transparency in 4-bit mode */
         return vec4(palette[color + palette_idx], 1.0f);
     } else {
