@@ -232,7 +232,7 @@ int compactflash_init(compactflash_t* cf, const char *file_name)
     }
 
     /* Round up the total amount of sectors */
-    size_t total_sectors = st.st_size + 511 / 512;
+    size_t total_sectors = (st.st_size + 511) / 512;
 
     *cf = (compactflash_t) {
         .fd = fd,
