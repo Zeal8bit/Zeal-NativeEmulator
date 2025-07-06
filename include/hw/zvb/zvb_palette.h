@@ -50,3 +50,6 @@ uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr);
  * @brief Update the palette renderer, needs to be called before starting drawing anything on screen.
  */
 void zvb_palette_update(zvb_palette_t* pal, const Shader* shader, int idx);
+
+
+void zvb_palette_force_update(zvb_palette_t* pal, const Shader* shader, int idx);

@@ -273,7 +273,9 @@ int zeal_debug_enable(zeal_t* machine)
     machine->dbg_state = ST_PAUSED;
     config_window_set(true);
     if(machine->dbg_ui == NULL) {
-        ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out);
+        int count = 0;
+        const RenderTexture* array = zvb_get_debug_textures(&machine->zvb, &count);
+        ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out, array, count);
     }
     return ret;
 }
@@ -352,11 +354,6 @@ int zeal_init(zeal_t* machine)
     /* Load symbols if provided */
     if (config.arguments.map_file) {
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
-    }
-    if (machine->dbg_enabled) {
-        zeal_debug_enable(machine);
-        /* Force the machine in RUNNING mode */
-        machine->dbg_state = ST_RUNNING;
     }
 
     zeal_init_cpu(machine);
@@ -440,6 +437,13 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
 
+    /* Since the debugger may depend on some components, make sure they are all initialized */
+    if (machine->dbg_enabled) {
+        zeal_debug_enable(machine);
+        /* Force the machine in RUNNING mode */
+        machine->dbg_state = ST_RUNNING;
+    }
+
     return 0;
 }
 
@@ -464,6 +468,11 @@ static void zeal_dbg_mode_display(zeal_t* machine)
     } else {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
         return;
+    }
+
+    /* Generate VRAM debug textures if the VRAM debugging window is opened */
+    if (debugger_ui_vram_panel_opened(machine->dbg_ui)) {
+        zvb_render_debug_textures(&machine->zvb);
     }
 
     debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);

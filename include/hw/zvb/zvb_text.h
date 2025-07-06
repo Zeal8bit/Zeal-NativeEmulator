@@ -15,6 +15,9 @@
 #define TEXT_MAXIMUM_COLUMNS    80
 #define TEXT_MAXIMUM_LINES      40
 
+#define TEXT_CHAR_WIDTH         8
+#define TEXT_CHAR_HEIGHT        12
+
 /**
  * @brief I/O registers address, relative to the controller
  */
@@ -100,7 +103,7 @@ void zvb_text_init(zvb_text_t* text);
 
 /**
  * @brief Function to call when a write occurs on the text I/O controller.
- * 
+ *
  * @param layer Layer to write to (0 or 1)
  * @param addr Address relative to the text address space.
  * @param data Byte to write in the text
@@ -110,7 +113,7 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
 
 /**
  * @brief Function to call when a read occurs on the text I/O controller.
- * 
+ *
  * @param layer Layer to read from (0 or 1)
  */
 uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr);
@@ -118,7 +121,7 @@ uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr);
 
 /**
  * @brief Update the text, must be called once per frame. The info structure will be filled.
- * 
+ *
  * @returns true if the cursor is shown, false else.
  */
 bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info);

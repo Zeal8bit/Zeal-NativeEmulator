@@ -14,9 +14,13 @@
 #define TILE_COUNT      256
 #define TILE_HEIGHT     16
 #define TILE_WIDTH      16
+#define GRID_THICKNESS  1
+#define GRID_WIDTH      (TILE_WIDTH + GRID_THICKNESS)
+#define GRID_HEIGHT     (TILE_HEIGHT + GRID_THICKNESS)
 
-#define SCREEN_WIDTH    (640)
-#define SCREEN_HEIGHT   (480)
+#define GFX_DEBUG_TILESET_MODE      0
+#define GFX_DEBUG_LAYER0_MODE       1
+#define GFX_DEBUG_LAYER1_MODE       2
 
 #define MAX_PIXEL_X     (1280)
 #define MAX_PIXEL_Y     (640)
@@ -37,12 +41,10 @@ in vec4 fragColor;
 
 uniform sampler2D   texture0;
 uniform sampler2D   tilemaps;
-uniform sampler2D   sprites;
 uniform sampler2D   tileset;
 uniform vec3        palette[PALETTE_SIZE];
 uniform int         video_mode;
-uniform ivec2       scroll_l0;
-uniform ivec2       scroll_l1;
+uniform int         debug_mode;
 
 
 out vec4 finalColor;
@@ -83,14 +85,8 @@ int color_from_idx(int idx, int offset, bool color_4bit)
 }
 
 
-vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
-    ivec2 orig = ivec2(int(flipped.x), int(flipped.y));
-    ivec2 pix_pos = orig + scroll;
-
-    /* Take scrolling into account */
-    pix_pos.x = (pix_pos.x % MAX_PIXEL_X);
-    pix_pos.y = (pix_pos.y % MAX_PIXEL_Y);
-
+vec4 get_attr(vec2 flipped, out ivec2 offset_in_tile) {
+    ivec2 pix_pos = ivec2(int(flipped.x), int(flipped.y));
     ivec2 tile_pos = ivec2(int(pix_pos.x) / TILE_WIDTH, int(pix_pos.y) / TILE_HEIGHT);
     int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
 
@@ -99,9 +95,14 @@ vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
     offset_in_tile.y = int(pix_pos.y) % TILE_HEIGHT;
     int in_tile = offset_in_tile.x + (offset_in_tile.y * TILE_WIDTH);
 
-    /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-    float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
-    vec4 ret = texture(tilemaps, vec2(float_idx, 1.0));
+    vec4 ret;
+    if (debug_mode == GFX_DEBUG_TILESET_MODE) {
+        ret = vec4(float(tile_idx), 0.0, 0.0, 0.0);
+    } else {
+        /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
+        float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
+        ret = texture(tilemaps, vec2(float_idx, 1.0));
+    }
 
     /* Replace unused B attribute with in_tile value */
     ret.b = float(in_tile);
@@ -109,11 +110,11 @@ vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
 }
 
 
-vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
+vec4 gfx_mode(vec2 flipped, bool color_4bit, out int l0_icolor, out int l1_icolor) {
     ivec2 l0_offset;
     ivec2 l1_offset;
-    vec4 attr_l0 = get_attr(flipped, scroll_l0, l0_offset);
-    vec4 attr_l1 = get_attr(flipped, scroll_l1, l1_offset);
+    vec4 attr_l0 = get_attr(flipped, l0_offset);
+    vec4 attr_l1 = get_attr(flipped, l1_offset);
 
     if (color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
@@ -144,8 +145,8 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
         int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
         int l1_idx = int(attr_l1.g * (TILE_COUNT - 1));
 
-        int l0_icolor = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
-        int l1_icolor = color_from_idx(l1_idx, int(attr_l1.b), color_4bit);
+        l0_icolor = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
+        l1_icolor = color_from_idx(l1_idx, int(attr_l1.b), color_4bit);
 
         /* If layer1 color index is 0, count it as transparent */
         if (l1_icolor == 0) {
@@ -158,68 +159,42 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
 
 
 void main() {
-    // Create absolute coordinates, with (0,0) at the top-left
-    vec2 flipped = ivec2(gl_FragCoord.x, gl_FragCoord.y);
-    bool mode_320   = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
+    int l0_icolor;
+    int l1_icolor;
     bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
-    if (mode_320) {
-        flipped.x = flipped.x / 2;
-        flipped.y = flipped.y / 2;
-    }
-
-    vec4 layers_color = gfx_mode(flipped, mode_320, color_4bit);
-
-    vec4 sprite_color = vec4(0.0, 0.0, 0.0, 0.0);
-
-    for (int i = 0; i < 256; i += 2) {
-
-        vec4 fst_attr = texture(sprites, vec2((i + 0) / 255.5, 0.5));
-        vec4 snd_attr = texture(sprites, vec2((i + 1) / 255.5, 0.5));
-
-        vec2 sprite_pos   = fst_attr.xy - vec2(TILE_WIDTH, TILE_HEIGHT);
-        int tile_number   = int(fst_attr.z);
-        int palette_msk   = int(fst_attr.w);
-        float f_behind_fg = snd_attr.x;
-        float f_flip_y    = snd_attr.y;
-        float f_flip_x    = snd_attr.z;
-        float f_height_32 = snd_attr.w;
-
-        float sprite_height = (f_height_32 > 0.5) ? 32.0 : 16.0;
-        /* Ignore the palette in 8-bit mode */
-        if (!color_4bit) {
-            palette_msk = 0;
-        }
-
-        /* Check if the sprite is in bounds! */
-        if (flipped.x >= sprite_pos.x &&
-            flipped.x <  sprite_pos.x + TILE_WIDTH &&
-            flipped.y >= sprite_pos.y &&
-            flipped.y <  sprite_pos.y + sprite_height &&
-            /* Check if we have to show the layer1 instead:
-             * If the layers_color variable comes from layer1, the `w` field is not 0 */
-            (f_behind_fg < 0.1 || layers_color.w < 0.5)
-            )
-        {
-            vec2  pix_pos = flipped - sprite_pos;
-            if (f_flip_y > 0.5) {
-                pix_pos.y = sprite_height - 1 - pix_pos.y;
-            }
-            if (f_flip_x > 0.5) {
-                pix_pos.x = TILE_WIDTH - 1 - pix_pos.x;
-            }
-            /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
-            int in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;
-            int icolor = color_from_idx(tile_number, in_tile, color_4bit);
-            if (icolor != 0) {
-                sprite_color = vec4(palette[palette_msk + icolor], 1.0);
-            }
-        }
-    }
-
-    if (sprite_color.a > 0.0) {
-        finalColor = sprite_color;
+    /* Cooridnates are different in debug mode since we have the grid */
+    ivec2 ipos = ivec2(gl_FragCoord.x, gl_FragCoord.y);
+    ivec2 in_cell = ivec2(ipos.x % GRID_WIDTH, ipos.y % GRID_HEIGHT);
+    if (in_cell.x == 0 || in_cell.y == 0) {
+        finalColor = vec4(0.65, 0.0, 0.0, 1.0);
     } else {
-        finalColor = vec4(layers_color.xyz, 1.0);
+        ivec2 grid_size = ivec2(GRID_WIDTH, GRID_HEIGHT);
+        /* Get the cell the current is in */
+        ivec2 cell_idx = ipos / grid_size;
+        /* Convert it to a screen position */
+        ivec2 cell_pos = cell_idx * ivec2(TILE_WIDTH, TILE_HEIGHT);
+        /* If we are in 8-bit mode, we only have 256 tiles */
+        if ((debug_mode == GFX_DEBUG_TILESET_MODE) && !color_4bit && (cell_idx.y >= 16)) {
+            finalColor = vec4(0.5, 0.5, 0.5, 1.0);
+            return;
+        }
+        /* Get the coordinate of the pixel in cell, without the grid */
+        in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);
+        ivec2 pix_coords = cell_pos + in_cell;
+        gfx_mode(vec2(pix_coords.x, pix_coords.y), color_4bit, l0_icolor, l1_icolor);
+        if (debug_mode == GFX_DEBUG_TILESET_MODE) {
+            finalColor = vec4(palette[l0_icolor], 1.0f);
+        } else if (debug_mode == GFX_DEBUG_LAYER0_MODE)  {
+            finalColor = vec4(palette[l0_icolor], 1.0f);
+        } else if (l1_icolor != 0) {
+            finalColor = vec4(palette[l1_icolor], 1.0f);
+        } else {
+            // Compute 2x2 subgrid index to show a grey grid
+            int idx = (in_cell.y / 8) * 2 + (in_cell.x / 8);
+            finalColor = (idx == 0 || idx == 3)
+                ? vec4(0.5, 0.5, 0.5, 1.0)
+                : vec4(0.8, 0.8, 0.8, 1.0);
+        }
     }
 }
