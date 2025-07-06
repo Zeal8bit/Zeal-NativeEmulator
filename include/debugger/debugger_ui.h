@@ -20,6 +20,19 @@
 #define MOUSE_POINTER   MOUSE_CURSOR_POINTING_HAND
 #define MOUSE_TEXT      MOUSE_CURSOR_IBEAM
 
+#define DBG_MAX_VRAM_VIEWS      5
+
+typedef enum {
+    DBG_UI_PANEL_VIDEO,
+    DBG_UI_PANEL_BKPOINT,
+    DBG_UI_PANEL_CPU,
+    DBG_UI_PANEL_MEMORY,
+    DBG_UI_PANEL_DISASSEMBLER,
+    DBG_UI_PANEL_VRAM,
+    DBG_UI_PANEL_TOTAL
+} dbg_ui_panels_idx_t;
+
+
 typedef struct dbg_ui_panel_t dbg_ui_panel_t;
 struct dbg_ui_t {
     struct nk_context* ctx;
@@ -28,6 +41,7 @@ struct dbg_ui_t {
     hwaddr             mem_view_size;
     hwaddr             dis_addr;
     hwaddr             dis_size;
+    struct nk_image    vram[DBG_MAX_VRAM_VIEWS];
 };
 
 typedef void (*dbg_ui_panel_fn)(struct dbg_ui_panel_t*, struct dbg_ui_t*, dbg_t*);
@@ -58,15 +72,17 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 
-int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view);
+int debugger_ui_init(struct dbg_ui_t** ret_ctx, const RenderTexture2D* emu_view,
+                     const RenderTexture2D* vram_dbg, int count);
 void debugger_ui_deinit(struct dbg_ui_t* dctx);
 int dbg_ui_config_save(rini_config *config);
 
 void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx);
-
+bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
 
 /** Helpers */
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active);

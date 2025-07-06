@@ -99,6 +99,11 @@ void zvb_palette_update(zvb_palette_t* pal, const Shader* shader, int idx)
     }
 }
 
+void zvb_palette_force_update(zvb_palette_t* pal, const Shader* shader, int idx)
+{
+    SetShaderValueV(*shader, idx, pal->vec_palette, SHADER_UNIFORM_VEC3, ZVB_COLOR_PALETTE_COUNT);
+}
+
 
 static void palette_rgb565_to_color(uint_fast16_t rgb, zvb_color_t *color)
 {

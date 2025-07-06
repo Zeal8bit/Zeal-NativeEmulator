@@ -19,7 +19,15 @@ typedef enum {
     DEBUG_EVENT_CPU_EXCEPTION
 } debug_event_t;
 
-
+/* VRAM Debug types */
+typedef enum {
+    DBG_TILEMAP_LAYER0 = 0,
+    DBG_TILEMAP_LAYER1,
+    DBG_TILESET,
+    DBG_PALETTE,
+    DBG_FONT,
+    DBG_VIEW_TOTAL,
+} dbg_vram_t;
 
 /**
  * @brief States for the machine execution

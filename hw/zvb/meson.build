@@ -30,3 +30,9 @@ configure_file(
     input: 'bitmap_shader.glsl',
     output: 'bitmap_shader.glsl'
 )
+
+configure_file(
+    copy: true,
+    input: 'gfx_debug.glsl',
+    output: 'gfx_debug.glsl'
+)

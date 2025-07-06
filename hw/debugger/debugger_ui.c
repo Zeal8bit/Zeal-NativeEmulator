@@ -20,8 +20,8 @@ int mouse_cursor = MOUSE_CURSOR_DEFAULT;
 
 #define PANEL_DEFAULT_FLAGS ( NK_WINDOW_CLOSABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_MOVABLE )
 
-struct dbg_ui_panel_t dbg_panels[] = {
-    [0] = {
+static struct dbg_ui_panel_t dbg_panels[] = {
+    [DBG_UI_PANEL_VIDEO] = {
         .key = "P_VIDEO",
         .title = "Video",
         .render = ui_panel_display,
@@ -30,37 +30,44 @@ struct dbg_ui_panel_t dbg_panels[] = {
             .y = MENUBAR_HEIGHT,
         },
     },
-    {
+    [DBG_UI_PANEL_BKPOINT] = {
         .key = "P_BREAKPOINTS",
         .title = "Breakpoints",
         .render = ui_panel_breakpoints,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
         .rect_default = { 640, MENUBAR_HEIGHT + CPU_CTRL_HEIGHT, CPU_CTRL_WIDTH, CPU_CTRL_HEIGHT - 30 },
     },
-    {
+    [DBG_UI_PANEL_CPU] = {
         .key = "P_CPU",
         .title = "CPU",
         .render = ui_panel_cpu,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_TITLE ),
         .rect_default = { 640, MENUBAR_HEIGHT + 0, CPU_CTRL_WIDTH, CPU_CTRL_HEIGHT },
     },
-    {
+    [DBG_UI_PANEL_MEMORY] = {
         .key = "P_MEMORY",
         .title = "Memory Viewer",
         .render = ui_panel_memory,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
         .rect_default = { 0, MENUBAR_HEIGHT + 530, 640 + CPU_CTRL_WIDTH, 300 },
     },
-    {
+    [DBG_UI_PANEL_DISASSEMBLER] = {
         .key = "P_DISASSEMBLER",
         .title = "Disassembler",
         .render = ui_panel_disassembler,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_TITLE ),
         .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 390, 830 },
     },
+    [DBG_UI_PANEL_VRAM] = {
+        .key = "P_VRAM",
+        .title = "VRAM viewer",
+        .render = ui_panel_vram,
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
+        .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 800, 600 },
+    },
 };
-size_t dbg_panels_size = sizeof(dbg_panels) / sizeof(struct dbg_ui_panel_t);
-dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[0]; // the panel containing ZVB output
+static const size_t dbg_panels_size = DBG_UI_PANEL_TOTAL;
+static dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[DBG_UI_PANEL_VIDEO];
 
 /**
  * ===========================================================
@@ -277,7 +284,8 @@ void debugger_scale_down(dbg_t *dbg) {
  * ===========================================================
  */
 
-int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view)
+int debugger_ui_init(struct dbg_ui_t** ret_ctx, const RenderTexture* emu_view,
+                     const RenderTexture* vram_dbg, int count)
 {
     if (ret_ctx == NULL) {
         return 0;
@@ -301,6 +309,10 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view)
 
     /* Convert the RayLib texture into a Nuklear image */
     dbg_ctx->view = TextureToNuklear(emu_view->texture);
+
+    for (int i = 0; i < count && i < DBG_MAX_VRAM_VIEWS; i++) {
+        dbg_ctx->vram[i] = TextureToNuklear(vram_dbg[i].texture);
+    }
 
     /* Set the default attributes */
     dbg_ctx->mem_view_size = 256;
@@ -327,6 +339,9 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, RenderTexture2D* emu_view)
 void debugger_ui_deinit(struct dbg_ui_t* dctx)
 {
     UnloadNuklearImage(dctx->view);
+    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
+        UnloadNuklearImage(dctx->vram[i]);
+    }
     UnloadNuklear(dctx->ctx);
     MemFree(dctx);
 }
@@ -400,4 +415,10 @@ void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx)
 {
     return nk_window_is_active(dctx->ctx, PANEL_VIDEO->title);
+}
+
+bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx)
+{
+    (void) dctx;
+    return !dbg_panels[DBG_UI_PANEL_VRAM].hidden;
 }

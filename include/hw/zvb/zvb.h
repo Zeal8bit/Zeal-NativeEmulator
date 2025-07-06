@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hw/device.h"
+#include "debugger/debugger_types.h"
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
 #include "hw/zvb/zvb_tilemap.h"
@@ -20,6 +21,12 @@
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480
+
+/**
+ * @brief Width and height for the debug textures, account for the grid of 1px
+ */
+#define ZVB_DBG_RES_WIDTH   1361    // 80 tiles * (16px + 1px grid) + 1px grid right border
+#define ZVB_DBG_RES_HEIGHT  681     // 40 tiles * (16px + 1px grid) + 1px grid bottom border
 
 /**
  * @brief Macros for the I/O registers
@@ -92,8 +99,17 @@
 #define GFX_SHADER_SCROLL0_IDX      4
 #define GFX_SHADER_SCROLL1_IDX      5
 #define GFX_SHADER_PALETTE_IDX      6
+#define GFX_SHADER_DBGMODE_IDX      3
 
 #define GFX_SHADER_OBJ_COUNT        7
+
+#define ZVB_SHADER_MAX_OBJ_COUNT    8
+
+/* Special mode to tell the shader to debug the texture */
+#define TEXT_DEBUG_MODE             0xffffffff
+#define GFX_DEBUG_TILESET_MODE      0
+#define GFX_DEBUG_LAYER0_MODE       1
+#define GFX_DEBUG_LAYER1_MODE       2
 
 typedef enum {
     MODE_TEXT_640     = 0,
@@ -137,8 +153,16 @@ typedef enum {
     SHADER_TEXT = 0,
     SHADER_GFX,
     SHADER_BITMAP,
+    SHADER_GFX_DEBUG,
     SHADERS_COUNT,
-} zvb_shaders_t;
+} zvb_shaders_type_t;
+
+
+typedef struct {
+    Shader shader;
+    int    objects[ZVB_SHADER_MAX_OBJ_COUNT];
+} zvb_shader_t;
+
 
 typedef struct {
     device_t         parent;
@@ -157,12 +181,9 @@ typedef struct {
     zvb_dma_t        dma;
 
     /* Internally used to make the shader work on the whole screen */
-    Shader           shaders[SHADERS_COUNT];
+    zvb_shader_t     shaders[SHADERS_COUNT];
     RenderTexture    tex_dummy;
-    /* Array containing the indexes of our objects in the shaders */
-    int              text_shader_idx[TEXT_SHADER_OBJ_COUNT];
-    int              gfx_shader_idx[GFX_SHADER_OBJ_COUNT];
-    int              bitmap_shader_idx[GFX_SHADER_OBJ_COUNT];
+    RenderTexture    debug_tex[DBG_VIEW_TOTAL];
 
     /* Internal values */
     zvb_status_t     status;
@@ -220,3 +241,21 @@ void zvb_force_render(zvb_t* zvb);
  * @brief Deinitialize the video board, closing the window and unloading all assets
  */
 void zvb_deinit(zvb_t* zvb);
+
+
+/**
+ * @brief Render the current VRAM state in the debug textures, must be called after `render` function
+ */
+void zvb_render_debug_textures(zvb_t* zvb);
+
+
+/**
+ * @brief Get a pointer to the array of VRAM debug textures
+ */
+static inline const RenderTexture* zvb_get_debug_textures(zvb_t* zvb, int* count)
+{
+    if (count) {
+        *count = DBG_VIEW_TOTAL;
+    }
+    return zvb->debug_tex;
+}

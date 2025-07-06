@@ -9,4 +9,5 @@ sources += files([
     'panels/display.c',
     'panels/memory.c',
     'panels/menubar.c',
+    'panels/vram.c',
 ])
