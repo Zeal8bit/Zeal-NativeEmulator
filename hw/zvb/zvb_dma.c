@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "utils/log.h"
 #include "hw/zvb/zvb_dma.h"
 
 #define DEBUG_DMA   0
