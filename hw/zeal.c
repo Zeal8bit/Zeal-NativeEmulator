@@ -53,6 +53,10 @@ static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
  */
 static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
 {
+    if (phys_addr >= MEM_SPACE_SIZE) {
+        log_printf("[INFO] Invalid physical address memory read: 0x%04x\n", phys_addr);
+        return 0;
+    }
     const zeal_t* machine    = (zeal_t*) opaque;
     const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
@@ -86,6 +90,10 @@ static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
  */
 static void zeal_phys_mem_write(void* opaque, uint32_t phys_addr, uint8_t data)
 {
+    if (phys_addr >= MEM_SPACE_SIZE) {
+        log_printf("[INFO] Invalid physical address memory write: 0x%04x\n", phys_addr);
+        return;
+    }
     const zeal_t* machine    = (zeal_t*) opaque;
     const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
