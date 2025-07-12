@@ -166,25 +166,28 @@ void main() {
     /* Cooridnates are different in debug mode since we have the grid */
     ivec2 ipos = ivec2(gl_FragCoord.x, gl_FragCoord.y);
     ivec2 in_cell = ivec2(ipos.x % GRID_WIDTH, ipos.y % GRID_HEIGHT);
+    ivec2 grid_size = ivec2(GRID_WIDTH, GRID_HEIGHT);
+    /* Get the cell the current is in */
+    ivec2 cell_idx = ipos / grid_size;
+    /* Convert it to a screen position */
+    ivec2 cell_pos = cell_idx * ivec2(TILE_WIDTH, TILE_HEIGHT);
 
     /* Highlight the "subscreens" (320x240 / 20x15 tiles) on the whole screen.
      * We must account for the grid size. This must NOT be done for the tileset mode. */
     if (debug_mode != GFX_DEBUG_TILESET_MODE &&
-        ipos.x % (20*GRID_WIDTH) == 0 || ipos.y % (15*GRID_HEIGHT) == 0) {
+        (ipos.x % (20*GRID_WIDTH) == 0 || ipos.y % (15*GRID_HEIGHT) == 0))
+    {
         finalColor = vec4(0.0, 0.65, 0.0, 1.0);
+    } else if (debug_mode == GFX_DEBUG_TILESET_MODE && !color_4bit &&
+        /* Only allow the first line of cell 17 to be drawn as red */
+        (cell_idx.y > 16 || (cell_idx.y == 16 && in_cell.y > 0)))
+    {
+        /* If we are in 8-bit mode, we only have 256 tiles */
+        /* Transparent pixel */
+        finalColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (in_cell.x == 0 || in_cell.y == 0) {
         finalColor = vec4(0.65, 0.0, 0.0, 1.0);
     } else {
-        ivec2 grid_size = ivec2(GRID_WIDTH, GRID_HEIGHT);
-        /* Get the cell the current is in */
-        ivec2 cell_idx = ipos / grid_size;
-        /* Convert it to a screen position */
-        ivec2 cell_pos = cell_idx * ivec2(TILE_WIDTH, TILE_HEIGHT);
-        /* If we are in 8-bit mode, we only have 256 tiles */
-        if ((debug_mode == GFX_DEBUG_TILESET_MODE) && !color_4bit && (cell_idx.y >= 16)) {
-            finalColor = vec4(0.5, 0.5, 0.5, 1.0);
-            return;
-        }
         /* Get the coordinate of the pixel in cell, without the grid */
         in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);
         ivec2 pix_coords = cell_pos + in_cell;
