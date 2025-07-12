@@ -589,6 +589,7 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
     dbg_mode = GFX_DEBUG_TILESET_MODE;
     texture = &zvb->debug_tex[DBG_TILESET];
     BeginTextureMode(*texture);
+        ClearBackground(BLANK);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
             DrawTextureRec(zvb->tex_dummy.texture,

@@ -116,11 +116,12 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
 
 static void ui_tab_tileset(struct dbg_ui_t* dctx, struct nk_context* ctx)
 {
+    const float tileset_scale = 2.0f;
     const int tile_scale = 10;
     const int tile_per_line = 16;
     struct nk_image* img = &dctx->vram[DBG_TILESET];
 
-    nk_layout_row_static(ctx, img->h, img->w, 2);
+    nk_layout_row_static(ctx, img->h * tileset_scale, img->w * tileset_scale, 2);
     struct nk_rect image_bounds = nk_widget_bounds(ctx);
     nk_image(ctx, *img);
 
