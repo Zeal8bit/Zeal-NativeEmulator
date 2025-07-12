@@ -128,8 +128,8 @@ static void ui_tab_tileset(struct dbg_ui_t* dctx, struct nk_context* ctx)
     struct nk_mouse* mouse = &ctx->input.mouse;
 
     if (nk_input_is_mouse_hovering_rect(&ctx->input, image_bounds)) {
-        float rel_x = mouse->pos.x - image_bounds.x;
-        float rel_y = mouse->pos.y - image_bounds.y;
+        float rel_x = (mouse->pos.x - image_bounds.x) / tileset_scale;
+        float rel_y = (mouse->pos.y - image_bounds.y) / tileset_scale;
 
         const int width_w_grid = TILE_WIDTH  + 1;
         const int height_w_grid = TILE_HEIGHT  + 1;
