@@ -166,7 +166,13 @@ void main() {
     /* Cooridnates are different in debug mode since we have the grid */
     ivec2 ipos = ivec2(gl_FragCoord.x, gl_FragCoord.y);
     ivec2 in_cell = ivec2(ipos.x % GRID_WIDTH, ipos.y % GRID_HEIGHT);
-    if (in_cell.x == 0 || in_cell.y == 0) {
+
+    /* Highlight the "subscreens" (320x240 / 20x15 tiles) on the whole screen.
+     * We must account for the grid size. This must NOT be done for the tileset mode. */
+    if (debug_mode != GFX_DEBUG_TILESET_MODE &&
+        ipos.x % (20*GRID_WIDTH) == 0 || ipos.y % (15*GRID_HEIGHT) == 0) {
+        finalColor = vec4(0.0, 0.65, 0.0, 1.0);
+    } else if (in_cell.x == 0 || in_cell.y == 0) {
         finalColor = vec4(0.65, 0.0, 0.0, 1.0);
     } else {
         ivec2 grid_size = ivec2(GRID_WIDTH, GRID_HEIGHT);
