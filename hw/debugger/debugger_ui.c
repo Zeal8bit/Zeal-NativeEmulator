@@ -62,7 +62,7 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .key = "P_VRAM",
         .title = "VRAM viewer",
         .render = ui_panel_vram,
-        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR ),
         .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 800, 600 },
     },
 };

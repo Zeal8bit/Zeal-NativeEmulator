@@ -11,6 +11,9 @@
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 
+#ifndef MAX
+    #define MAX(a,b)    ((a) > (b) ? (a) : (b))
+#endif
 
 typedef enum {
     TAB_LAYER0,
@@ -76,10 +79,10 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
         const float x_padding = 14.0f;
         const float y_padding = 4.0f;
         const float text_height = 20.0f;
-        const float text_width = 70.0f;
+        const float text_width = 100.0f;
         const float tile_w = width_w_grid * 4;
         const float tile_h = height_w_grid * 4;
-        const float tooltip_w = tile_w + x_padding * 2;
+        const float tooltip_w = MAX(text_width,tile_w) + x_padding * 2;
         const float tooltip_h = tile_h + text_height + y_padding * 2;
 
         struct nk_rect tooltip_rect = nk_rect(
@@ -95,13 +98,15 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
         nk_fill_rect(canvas, tooltip_rect, 2.0f, nk_rgba(40, 40, 40, 230));
         /* Draw the text first (at the top) */
         char buf[64];
-        snprintf(buf, sizeof(buf), "Tile %d", tile_x + TILES_X * tile_y);
+        snprintf(buf, sizeof(buf), "(%d,%d) [%d]",
+                    tile_x, tile_y, tile_x + TILES_X * tile_y);
         struct nk_rect text_rect = nk_rect(tooltip_rect.x + x_padding, tooltip_rect.y + y_padding,
                                            text_width, text_height);
         nk_draw_text(canvas, text_rect, buf, strlen(buf),
                      ctx->style.font, nk_rgba(0,0,0,0), nk_rgba(255,255,255,255));
         /* Draw tile image */
-        struct nk_rect tile_rect = nk_rect(text_rect.x, text_rect.y + text_height + 0.5f,
+        struct nk_rect tile_rect = nk_rect(tooltip_rect.x + tooltip_w / 2 - tile_w / 2,
+                                           text_rect.y + text_height + 0.5f,
                                            tile_w, tile_h);
         nk_draw_image(canvas, tile_rect, &tile_img, (struct nk_color) {255,255,255,255});
     }
@@ -179,7 +184,7 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
     }
 
     // Content Area
-    nk_layout_row_dynamic(ctx, panel->rect.h, 1);
+    nk_layout_row_dynamic(ctx, panel->rect.h - 85, 1);
     if (nk_group_begin_titled(ctx, "tab_content", s_tab_names[current_tab], 0)) {
         switch (current_tab) {
             case TAB_LAYER0:
