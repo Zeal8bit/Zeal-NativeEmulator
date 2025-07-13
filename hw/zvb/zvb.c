@@ -438,7 +438,7 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
     const int height = TEXT_MAXIMUM_LINES * (TEXT_CHAR_HEIGHT + grid_thickness) + 1;
 
     /* Tilemap mode */
-    int dbg_mode = TEXT_DEBUG_TILEMAP;
+    int dbg_mode = TEXT_DEBUG_LAYER0_MODE;
     BeginTextureMode(zvb->debug_tex[DBG_TILEMAP_LAYER0]);
         BeginShaderMode(shader);
             ClearBackground(BLANK);
@@ -457,7 +457,20 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
     EndTextureMode();
 
     /* Font mode, no need to reload all the textures, they are all in the shaders already */
-    dbg_mode = TEXT_DEBUG_FONT;
+    dbg_mode = TEXT_DEBUG_LAYER1_MODE;
+    BeginTextureMode(zvb->debug_tex[DBG_TILEMAP_LAYER1]);
+        ClearBackground(BLANK);
+        BeginShaderMode(shader);
+            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            DrawTextureRec(zvb->tex_dummy.texture,
+                            (Rectangle){ 0, 0, width, height },
+                            /* Since the texture is bigger than the content, render the content at the top left */
+                            (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
+                            WHITE);
+        EndShaderMode();
+    EndTextureMode();
+
+    dbg_mode = TEXT_DEBUG_FONT_MODE;
     RenderTexture* texture = &zvb->debug_tex[DBG_FONT];
     BeginTextureMode(*texture);
         ClearBackground(BLANK);

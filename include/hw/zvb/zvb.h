@@ -113,9 +113,10 @@
 #define GFX_DEBUG_LAYER1_MODE       2
 #define GFX_DEBUG_PALETTE_MODE      3
 
-#define TEXT_DEBUG_TILEMAP          0
-#define TEXT_DEBUG_FONT             1
-#define TEXT_DEBUG_PALETTE          2
+#define TEXT_DEBUG_FONT_MODE        0
+#define TEXT_DEBUG_LAYER0_MODE      1
+#define TEXT_DEBUG_LAYER1_MODE      2
+#define TEXT_DEBUG_PALETTE_MODE     3
 
 
 typedef enum {
