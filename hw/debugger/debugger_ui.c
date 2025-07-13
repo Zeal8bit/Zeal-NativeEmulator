@@ -63,7 +63,8 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .title = "VRAM viewer",
         .render = ui_panel_vram,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR ),
-        .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 800, 600 },
+        .rect_default = { 640, MENUBAR_HEIGHT + CPU_CTRL_HEIGHT, 640, 480 },
+        .hidden_default = true,
     },
 };
 static const size_t dbg_panels_size = DBG_UI_PANEL_TOTAL;
@@ -199,7 +200,7 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     char key[80];
 
     sprintf(key, "%s_HIDDEN", panel->key);
-    panel->hidden = config_get(key, 0);
+    panel->hidden = config_get(key, panel->hidden_default);
 
     sprintf(key, "%s_MINIMIZED", panel->key);
     bool minimized = config_get(key, 0);
@@ -325,8 +326,8 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
     *ret_ctx = dbg_ctx;
 
     // Initialize the Video panel defaults
-    dbg_panels[0].rect_default.w = dbg_ctx->view.w;
-    dbg_panels[0].rect_default.h = dbg_ctx->view.h + NK_WIDGET_TITLE_HEIGHT;
+    dbg_panels[DBG_UI_PANEL_VIDEO].rect_default.w = dbg_ctx->view.w;
+    dbg_panels[DBG_UI_PANEL_VIDEO].rect_default.h = dbg_ctx->view.h + NK_WIDGET_TITLE_HEIGHT;
 
     for(size_t i = 0; i < dbg_panels_size; i++) {
         dbg_ui_panel_t *panel = &dbg_panels[i];
@@ -357,11 +358,12 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
     ui_menubar(dctx, dbg, dbg_panels, dbg_panels_size);
 
     for(size_t i = 0; i < dbg_panels_size; i++) {
-        struct dbg_ui_panel_t *panel = &dbg_panels[i];
-        if(panel->render == NULL) continue;
-        if(panel->hidden) continue;
-
         struct nk_window *win;
+        struct dbg_ui_panel_t *panel = &dbg_panels[i];
+
+        if(panel->render == NULL || panel->hidden) {
+            continue;
+        }
 
         /* Let the windows modify their border color */
         struct nk_style_item original_active = dctx->ctx->style.window.header.active;
