@@ -261,8 +261,7 @@ static void zvb_shader_init(zvb_t* dev)
 
     /* Get the indexes of the objects in the shaders */
     zvb_shader_t* st_shader = &dev->shaders[SHADER_TEXT];
-    get_install_dir_file(path, "hw/zvb/text_shader.glsl");
-    Shader shader = LoadShader(NULL, path);
+    Shader shader = LoadShader(NULL, get_shaders_path(path, "text_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -275,8 +274,7 @@ static void zvb_shader_init(zvb_t* dev)
 
     /* Text debug shaders */
     st_shader = &dev->shaders[SHADER_TEXT_DEBUG];
-    get_install_dir_file(path, "hw/zvb/text_debug.glsl");
-    shader = LoadShader(NULL, path);
+    shader = LoadShader(NULL, get_shaders_path(path, "text_debug.glsl"));
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -285,8 +283,7 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
 
     st_shader = &dev->shaders[SHADER_GFX];
-    get_install_dir_file(path, "hw/zvb/gfx_shader.glsl");
-    shader = LoadShader(NULL, path);
+    shader = LoadShader(NULL, get_shaders_path(path, "gfx_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -297,16 +294,14 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_BITMAP];
-    get_install_dir_file(path, "hw/zvb/bitmap_shader.glsl");
-    shader = LoadShader(NULL, path);
+    shader = LoadShader(NULL, get_shaders_path(path, "bitmap_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_GFX_DEBUG];
-    get_install_dir_file(path, "hw/zvb/gfx_debug.glsl");
-    shader = LoadShader(NULL, path);
+    shader = LoadShader(NULL, get_shaders_path(path, "gfx_debug.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);

@@ -6,6 +6,9 @@
 #include <libgen.h>  // For dirname on Linux/macOS
 #include <sys/stat.h>
 #include "utils/paths.h"
+#include "utils/log.h"
+
+static char path_buffer[PATH_MAX] = { 0 };
 
 #ifdef _WIN32
     #include <windows.h>
@@ -42,13 +45,26 @@ void get_executable_dir(char *buffer, size_t size) {
 
 
 int get_install_dir_file(char dst[PATH_MAX], const char* name) {
-    static char path_buffer[PATH_MAX] = { 0 };
     /* Only get it once */
     if (path_buffer[0] == 0) {
         get_executable_dir(path_buffer, PATH_MAX);
     }
     const int wrote = snprintf(dst, PATH_MAX, "%s/%s", path_buffer, name);
     return wrote < PATH_MAX;
+}
+
+const char* get_shaders_path(char dst[PATH_MAX], const char* name)
+{
+    const char* assets_dir = "assets/shaders/desktop";
+    if (path_buffer[0] == 0) {
+        get_executable_dir(path_buffer, PATH_MAX);
+    }
+    int written = snprintf(dst, PATH_MAX, "%s/%s/%s", path_buffer, assets_dir, name);
+    if (written == PATH_MAX) {
+        log_err_printf("Could not load sahder %s, path is too long!\n", name);
+        return NULL;
+    }
+    return dst;
 }
 
 int path_exists(const char *path) {
