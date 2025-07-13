@@ -127,12 +127,19 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, int layer)
 }
 
 
+typedef struct {
+    struct nk_image* img;
+    const char*      entry_name;
+    struct nk_vec2i  tile_size;
+} tab_args_t;
+
 /**
  * @brief Display any set, such as tileset or palette
  */
-static void ui_tab_set(struct dbg_ui_t* dctx, struct nk_image* img, const char* entry_name)
+static void ui_tab_set(struct dbg_ui_t* dctx, const tab_args_t* args)
 {
     struct nk_context* ctx = dctx->ctx;
+    struct nk_image* img = args->img;
 
     const float set_scale = 2.0f;
     const int tile_scale = 10;
@@ -148,11 +155,8 @@ static void ui_tab_set(struct dbg_ui_t* dctx, struct nk_image* img, const char* 
         float rel_x = (mouse->pos.x - image_bounds.x) / set_scale;
         float rel_y = (mouse->pos.y - image_bounds.y) / set_scale;
 
-        int width_w_grid = 0;
-        int height_w_grid = 0;
-        get_tile_size(dctx->zvb, &width_w_grid, &height_w_grid);
-        width_w_grid += 1;
-        height_w_grid += 1;
+        int width_w_grid = args->tile_size.x + 1;
+        int height_w_grid = args->tile_size.y + 1;
 
         int tile_x = (int)(rel_x / width_w_grid);
         int tile_y = (int)(rel_y / height_w_grid);
@@ -172,7 +176,7 @@ static void ui_tab_set(struct dbg_ui_t* dctx, struct nk_image* img, const char* 
         if (nk_group_begin(ctx, "right_group", NK_WINDOW_NO_SCROLLBAR)) {
             char label[64];
             nk_layout_row_dynamic(ctx, 30, 1);
-            snprintf(label, sizeof(label), "%s %d", entry_name, tile_y * tile_per_line + tile_x);
+            snprintf(label, sizeof(label), "%s %d", args->entry_name, tile_y * tile_per_line + tile_x);
             nk_label(ctx, label, NK_TEXT_LEFT);
             nk_layout_row_static(ctx, sub.h * tile_scale, sub.w * tile_scale, 1);
             nk_image(ctx, sub);
@@ -214,26 +218,43 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
     if (nk_group_begin_titled(ctx, "tab_content", s_tab_names[current_tab], 0)) {
         switch (current_tab) {
             case TAB_LAYER0:
-                ui_tab_layer(dctx, 0);
-                break;
             case TAB_LAYER1:
-                if (zvb_is_gfx_mode(dctx->zvb)) {
-                    ui_tab_layer(dctx, current_tab == TAB_LAYER1);
-                }
+                ui_tab_layer(dctx, current_tab == TAB_LAYER1);
                 break;
             case TAB_TILESET:
                 if (zvb_is_gfx_mode(dctx->zvb)) {
-                    ui_tab_set(dctx, &dctx->vram[DBG_TILESET], "Tile Index");
+                    ui_tab_set(dctx, &(tab_args_t) {
+                        .img = &dctx->vram[DBG_TILESET],
+                        .entry_name = "Tile Index",
+                        .tile_size = {
+                            .x = TILE_WIDTH,
+                            .y = TILE_HEIGHT,
+                        }
+                    });
                 }
                 break;
             case TAB_PALETTE:
                 /* TODO: implement palette for text mode too? */
                 if (zvb_is_gfx_mode(dctx->zvb)) {
-                    ui_tab_set(dctx, &dctx->vram[DBG_PALETTE], "Color");
+                    ui_tab_set(dctx, &(tab_args_t) {
+                        .img = &dctx->vram[DBG_PALETTE],
+                        .entry_name = "Color",
+                        .tile_size = {
+                            .x = TILE_WIDTH,
+                            .y = TILE_HEIGHT,
+                        }
+                    });
                 }
                 break;
             case TAB_FONT:
-                ui_tab_set(dctx, &dctx->vram[DBG_FONT], "Char");
+                ui_tab_set(dctx, &(tab_args_t) {
+                    .img = &dctx->vram[DBG_FONT],
+                    .entry_name = "Char",
+                    .tile_size = {
+                        .x = TEXT_CHAR_WIDTH,
+                        .y = TEXT_CHAR_HEIGHT,
+                    }
+                });
                 break;
         }
         nk_group_end(ctx);
