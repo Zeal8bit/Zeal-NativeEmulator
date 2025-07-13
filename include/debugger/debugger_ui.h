@@ -5,6 +5,8 @@
 #include "debugger/debugger.h"
 #include "ui/raylib-nuklear.h"
 #include "utils/config.h"
+/* Workaround to have access to more info of the VRAM */
+#include "hw/zvb/zvb.h"
 
 #define WIN_UI_FONT_SIZE        13
 
@@ -42,6 +44,7 @@ struct dbg_ui_t {
     hwaddr             dis_addr;
     hwaddr             dis_size;
     struct nk_image    vram[DBG_MAX_VRAM_VIEWS];
+    zvb_t*             zvb;
 };
 
 typedef void (*dbg_ui_panel_fn)(struct dbg_ui_panel_t*, struct dbg_ui_t*, dbg_t*);
@@ -59,6 +62,13 @@ struct dbg_ui_panel_t {
     struct nk_style_item header_style;
 };
 
+typedef struct {
+    const RenderTexture2D* main_view;
+    const RenderTexture2D* debug_views;
+    int debug_views_count;
+    zvb_t* zvb;
+} dbg_ui_init_args_t;
+
 extern char DEBUG_BUFFER[256];
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
@@ -74,8 +84,7 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 
-int debugger_ui_init(struct dbg_ui_t** ret_ctx, const RenderTexture2D* emu_view,
-                     const RenderTexture2D* vram_dbg, int count);
+int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args);
 void debugger_ui_deinit(struct dbg_ui_t* dctx);
 int dbg_ui_config_save(rini_config *config);
 

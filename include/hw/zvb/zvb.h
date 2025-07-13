@@ -208,6 +208,24 @@ typedef struct {
 } zvb_t;
 
 
+static inline bool zvb_is_bitmap_mode(const zvb_t* zvb)
+{
+    return zvb->mode == MODE_BITMAP_256 || zvb->mode == MODE_BITMAP_320;
+}
+
+static inline bool zvb_is_gfx_mode(const zvb_t* zvb)
+{
+    return zvb->mode == MODE_GFX_640_8BIT ||
+           zvb->mode == MODE_GFX_320_8BIT ||
+           zvb->mode == MODE_GFX_640_4BIT ||
+           zvb->mode == MODE_GFX_320_4BIT;
+}
+
+static inline bool zvb_is_text_mode(const zvb_t* zvb)
+{
+    return zvb->mode == MODE_TEXT_640 || zvb->mode == MODE_TEXT_320;
+}
+
 /**
  * @brief Initialize the video board
  *

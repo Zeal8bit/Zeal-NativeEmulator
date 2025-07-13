@@ -284,10 +284,11 @@ void debugger_scale_down(dbg_t *dbg) {
  * ===========================================================
  */
 
-int debugger_ui_init(struct dbg_ui_t** ret_ctx, const RenderTexture* emu_view,
-                     const RenderTexture* vram_dbg, int count)
+int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
 {
-    if (ret_ctx == NULL) {
+    if (ret_ctx == NULL || args == NULL ||
+        args->main_view == NULL || args->zvb == NULL)
+    {
         return 0;
     }
 
@@ -308,11 +309,12 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const RenderTexture* emu_view,
     set_theme(ctx);
 
     /* Convert the RayLib texture into a Nuklear image */
-    dbg_ctx->view = TextureToNuklear(emu_view->texture);
+    dbg_ctx->view = TextureToNuklear(args->main_view->texture);
 
-    for (int i = 0; i < count && i < DBG_MAX_VRAM_VIEWS; i++) {
-        dbg_ctx->vram[i] = TextureToNuklear(vram_dbg[i].texture);
+    for (int i = 0; i < args->debug_views_count && i < DBG_MAX_VRAM_VIEWS; i++) {
+        dbg_ctx->vram[i] = TextureToNuklear(args->debug_views[i].texture);
     }
+    dbg_ctx->zvb = args->zvb;
 
     /* Set the default attributes */
     dbg_ctx->mem_view_size = 256;
