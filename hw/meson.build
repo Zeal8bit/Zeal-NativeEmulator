@@ -9,6 +9,7 @@ sources += files([
         'uart.c',
         'z80.c',
         'zeal.c',
+        'zeal_input.c',
         'i2c.c',
         'i2c/ds1307.c',
         'i2c/at24c512.c',

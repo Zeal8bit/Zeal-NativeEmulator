@@ -354,26 +354,6 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
 
     /* For the debugger */
     dev->flipped_y = flipped_y;
-
-#if 0
-    /* Write 256 bytes to the tileset */
-    for (size_t i = 0; i < 128; i++) {
-        const int c = i %16;
-        zvb_tileset_write(&dev->tileset, 128 + i, c << 4 | c);
-    }
-
-    #define FLIP_X  (1 << 3)
-    #define FLIP_Y  (1 << 2)
-    /* Write 3200 bytes to the tilemap */
-    for (size_t i = 0; i < 3200; i++) {
-        zvb_tilemap_write(&dev->layers, 0, i, 1);
-        zvb_tilemap_write(&dev->layers, 1, i, (i & 1) ? FLIP_X : 0);
-    }
-    zvb_tilemap_update(&dev->layers);
-
-    dev->mode = MODE_GFX_320_4BIT;
-#endif
-
     return 0;
 }
 

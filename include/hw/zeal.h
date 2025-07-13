@@ -107,10 +107,16 @@ int zeal_init(zeal_t* machine);
 int zeal_run(zeal_t* machine);
 
 /**
- * @brief Enable Zeal Debugger View
+ * @brief Enable Zeal Debugger view
  */
 int zeal_debug_enable(zeal_t* machine);
+
 /**
- * @brief Disable Zeal Debugger View
+ * @brief Disable Zeal Debugger view
  */
 int zeal_debug_disable(zeal_t* machine);
+
+/**
+ * @brief Toggle the Zeal Debugger view
+ */
+void zeal_debug_toggle(dbg_t *dbg);

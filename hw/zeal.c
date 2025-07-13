@@ -28,6 +28,7 @@ typedef struct {
 
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
+bool zeal_ui_input(zeal_t* machine);
 
 /**
  * @brief Callback invoked when the CPU tries to read a byte in memory space
@@ -291,7 +292,7 @@ int zeal_debug_disable(zeal_t* machine)
 }
 
 
-static void zeal_debug_toggle(dbg_t *dbg)
+void zeal_debug_toggle(dbg_t *dbg)
 {
     if (dbg == NULL) return;
     zeal_t* machine = (zeal_t*) (dbg->arg);
@@ -349,7 +350,7 @@ int zeal_init(zeal_t* machine)
     /* Since we want to enable scaling, make the ZVB output always go to a texture first */
     machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
-    /* initialize the debugger */
+    /* Initialize the debugger */
     zeal_debugger_init(machine, &machine->dbg);
     /* Load symbols if provided */
     if (config.arguments.map_file) {
@@ -519,8 +520,10 @@ static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
     const int elapsed_tstates = z80_step(&machine->cpu);
     /* Go through all the devices that have a tick function */
     zvb_tick(&machine->zvb, elapsed_tstates);
-    /* Send keyboard keys to Zeal MV only if its window is focused */
-    if(!ignore_keyboard) zeal_read_keyboard(machine, elapsed_tstates);
+    /* Send keyboard keys to Zeal VM only if its window is focused */
+    if(!ignore_keyboard) {
+        zeal_read_keyboard(machine, elapsed_tstates);
+    }
 
     if (zvb_prepare_render(&machine->zvb)) {
         const int screen_w = GetScreenWidth();
@@ -564,104 +567,6 @@ static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
 }
 
 
-
-
-void main_scale_up(dbg_t *dbg) {
-    (void)dbg; // unreferenced
-    int width = GetScreenWidth();
-    Vector2 size = config_get_next_resolution(width);
-    SetWindowSize(size.x, size.y);
-}
-void main_scale_down(dbg_t *dbg) {
-    (void)dbg; // unreferenced
-    int width = GetScreenWidth();
-    Vector2 size = config_get_prev_resolution(width);
-    SetWindowSize(size.x, size.y);
-}
-
-typedef struct {
-    bool pressed; // TODO: support key repeat with GetTime()??
-    bool shifted;
-    const char *label;
-    KeyboardKey key;
-    debugger_callback_t callback;
-} debugger_key_t;
-
-debugger_key_t debugger_key_toggle = { .label = "Toggle Debugger", .key = KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false };
-
-debugger_key_t main_keys[] = {
-    { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
-};
-int main_keys_size = sizeof(main_keys) / sizeof(debugger_key_t);
-
-debugger_key_t debugger_keys[] = {
-    // { .label = "Toggle Debugger", .key = KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
-    { .label = "Pause", .key = KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
-    { .label = "Continue", .key = KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
-    { .label = "Restart", .key = KEY_F5, .callback = debugger_restart, .pressed = false, .shifted = true },
-    { .label = "Step Over", .key = KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
-    { .label = "Step", .key = KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
-    { .label = "Toggle Breakpoint", .key = KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
-    { .label = "Scale Up", .key = KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
-};
-int debugger_keys_size = sizeof(debugger_keys) / sizeof(debugger_key_t);
-
-bool zeal_ui_input(zeal_t* machine) {
-    if(config_keyboard_passthru(machine->dbg_enabled)) return false;
-    bool handled = false;
-
-    // Debugger UI requires Ctrl + {KEY}
-    #ifdef __APPLE__
-    // MacOS has too many default bindings for Ctrl + F* keys
-    bool meta = IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
-    #else
-    bool meta = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
-    #endif
-
-    if(!meta) return false; /// all zeal ui keystrokes require meta?
-
-    bool shift = (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT));
-
-    // toggle between main view and debugger view
-    debugger_key_t *opt = &debugger_key_toggle;
-    bool pressed = IsKeyDown(opt->key);
-    handled = handled || (pressed);
-    if(meta && !opt->pressed && pressed) {
-        zeal_debug_toggle(&machine->dbg);
-        opt->pressed = true;
-    } else if(!pressed) {
-        opt->pressed = false;
-    }
-
-    int keys_size;
-    debugger_key_t *keys;
-    if(machine->dbg_enabled) {
-        keys = debugger_keys;
-        keys_size = debugger_keys_size;
-    } else {
-        keys_size = main_keys_size;
-        keys = main_keys;
-    }
-
-    // debugger ui
-    for(int i = 0; i < keys_size; i++) {
-        opt = &keys[i];
-        bool shifted = (opt->shifted == shift);
-        pressed = IsKeyDown(opt->key);
-        handled = handled || (pressed && shifted);
-        if(shifted && !opt->pressed && pressed) {
-            opt->callback(&machine->dbg);
-            opt->pressed = true;
-        } else if(!pressed) {
-            opt->pressed = false;
-        }
-    };
-
-    return handled;
-}
-
 int zeal_run(zeal_t* machine)
 {
     int ret = 0;
@@ -671,7 +576,9 @@ int zeal_run(zeal_t* machine)
     }
 
     while (!WindowShouldClose()) {
-        if(!machine->dbg.running) break;
+        if(!machine->dbg.running) {
+            break;
+        }
 
         bool input_handled = zeal_ui_input(machine);
 
