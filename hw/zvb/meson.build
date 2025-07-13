@@ -12,33 +12,3 @@ sources += files([
     'zvb_dma.c',
     'zvb_sound.c'
 ])
-
-configure_file(
-    copy: true,
-    input: 'gfx_shader.glsl',
-    output: 'gfx_shader.glsl'
-)
-
-configure_file(
-    copy: true,
-    input: 'text_shader.glsl',
-    output: 'text_shader.glsl'
-)
-
-configure_file(
-    copy: true,
-    input: 'text_debug.glsl',
-    output: 'text_debug.glsl'
-)
-
-configure_file(
-    copy: true,
-    input: 'bitmap_shader.glsl',
-    output: 'bitmap_shader.glsl'
-)
-
-configure_file(
-    copy: true,
-    input: 'gfx_debug.glsl',
-    output: 'gfx_debug.glsl'
-)

@@ -17,6 +17,7 @@ void get_executable_path(char *buffer, size_t size);
 void get_executable_dir(char *buffer, size_t size);
 
 int get_install_dir_file(char dst[PATH_MAX], const char* name);
+const char* get_shaders_path(char dst[PATH_MAX], const char* name);
 
 int path_exists(const char *path);
 char* get_relative_path(const char* absolute_path);
