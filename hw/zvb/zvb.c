@@ -273,6 +273,17 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[TEXT_SHADER_CURCHAR_IDX]  = GetShaderLocation(shader, SHADER_CURCHAR_NAME);
     st_shader->objects[TEXT_SHADER_TSCROLL_IDX]  = GetShaderLocation(shader, SHADER_TSCROLL_NAME);
 
+    /* Text debug shaders */
+    st_shader = &dev->shaders[SHADER_TEXT_DEBUG];
+    get_install_dir_file(path, "hw/zvb/text_debug.glsl");
+    shader = LoadShader(NULL, path);
+    st_shader->shader = shader;
+    st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
+    st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
+    st_shader->objects[TEXT_SHADER_FONT_IDX]     = GetShaderLocation(shader, SHADER_FONT_NAME);
+    st_shader->objects[TEXT_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
+
     st_shader = &dev->shaders[SHADER_GFX];
     get_install_dir_file(path, "hw/zvb/gfx_shader.glsl");
     shader = LoadShader(NULL, path);
@@ -439,23 +450,47 @@ static void zvb_render_text_mode(zvb_t* zvb)
 static void zvb_render_debug_text_mode(zvb_t* zvb)
 {
     /* Since we want to generate a debug texture, we only need to set it to debug mode */
-    zvb_shader_t* st_shader = &zvb->shaders[SHADER_TEXT];
+    zvb_shader_t* st_shader = &zvb->shaders[SHADER_TEXT_DEBUG];
     const Shader shader = st_shader->shader;
-    const int mode_idx  = st_shader->objects[TEXT_SHADER_VIDMODE_IDX];
-    const int debug_mode = TEXT_DEBUG_MODE;
+    const int mode_idx     = st_shader->objects[TEXT_SHADER_VIDMODE_IDX];
+    const int dbg_mode_idx = st_shader->objects[TEXT_SHADER_DBGMODE_IDX];
+    const int tilemaps_idx = st_shader->objects[TEXT_SHADER_TILEMAPS_IDX];
+    const int font_idx     = st_shader->objects[TEXT_SHADER_FONT_IDX];
+    const int palette_idx  = st_shader->objects[TEXT_SHADER_PALETTE_IDX];
     /* Include the debug grid in the final texture width. Add one pixel to show a red outline */
     const int grid_thickness = 1;
     const int width = TEXT_MAXIMUM_COLUMNS * (TEXT_CHAR_WIDTH + grid_thickness) + 1;
     const int height = TEXT_MAXIMUM_LINES * (TEXT_CHAR_HEIGHT + grid_thickness) + 1;
 
+    /* Tilemap mode */
+    int dbg_mode = TEXT_DEBUG_TILEMAP;
     BeginTextureMode(zvb->debug_tex[DBG_TILEMAP_LAYER0]);
         BeginShaderMode(shader);
+            ClearBackground(BLANK);
             /* Transfer all the texture to the GPU */
-            SetShaderValue(shader, mode_idx, &debug_mode, SHADER_UNIFORM_INT);
+            zvb_palette_force_update(&zvb->palette, &st_shader->shader, palette_idx);
+            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
+            SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
             DrawTextureRec(zvb->tex_dummy.texture,
                             (Rectangle){ 0, 0, width, height },
                             /* Since the texture is bigger than the content, render the content at the top left */
                             (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
+                            WHITE);
+        EndShaderMode();
+    EndTextureMode();
+
+    /* Font mode, no need to reload all the textures, they are all in the shaders already */
+    dbg_mode = TEXT_DEBUG_FONT;
+    RenderTexture* texture = &zvb->debug_tex[DBG_FONT];
+    BeginTextureMode(*texture);
+        ClearBackground(BLANK);
+        BeginShaderMode(shader);
+            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            DrawTextureRec(zvb->tex_dummy.texture,
+                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
+                            (Vector2){ 0, 0 },
                             WHITE);
         EndShaderMode();
     EndTextureMode();
@@ -565,7 +600,6 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
 
             DrawTextureRec(zvb->tex_dummy.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            /* Since the texture is bigger than the content, render the content at the top left */
                             (Vector2){ 0, 0 },
                             WHITE);
         EndShaderMode();
@@ -579,7 +613,6 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
             DrawTextureRec(zvb->tex_dummy.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            /* Since the texture is bigger than the content, render the content at the top left */
                             (Vector2){ 0, 0 },
                             WHITE);
         EndShaderMode();
@@ -594,7 +627,20 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
             DrawTextureRec(zvb->tex_dummy.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            /* Since the texture is bigger than the content, render the content at the top left */
+                            (Vector2){ 0, 0 },
+                            WHITE);
+        EndShaderMode();
+    EndTextureMode();
+
+    /* Palette mode */
+    dbg_mode = GFX_DEBUG_PALETTE_MODE;
+    texture = &zvb->debug_tex[DBG_PALETTE];
+    BeginTextureMode(*texture);
+        ClearBackground(BLANK);
+        BeginShaderMode(shader);
+            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            DrawTextureRec(zvb->tex_dummy.texture,
+                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
         EndShaderMode();
