@@ -44,9 +44,20 @@ static const struct nk_color s_inactive_color = { .r = 0x6c, .g = 0x70, .b = 0x8
 #define VIEW_WIDTH  (TILE_WIDTH * TILES_X)   // 1280
 #define VIEW_HEIGHT (TILE_HEIGHT * TILES_Y)  // 640
 
-
-static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int layer)
+static void get_tile_size(const zvb_t* zvb, int* width, int* height)
 {
+    if (zvb_is_text_mode(zvb)) {
+        *width = TEXT_CHAR_WIDTH;
+        *height = TEXT_CHAR_HEIGHT;
+    } else {
+        *width = TILE_WIDTH;
+        *height = TILE_HEIGHT;
+    }
+}
+
+static void ui_tab_layer(struct dbg_ui_t* dctx, int layer)
+{
+    struct nk_context* ctx = dctx->ctx;
     struct nk_image* img = &dctx->vram[layer > 0 ? DBG_TILEMAP_LAYER1 : DBG_TILEMAP_LAYER0];
 
     nk_layout_row_static(ctx, img->h, img->w, 1);
@@ -58,8 +69,11 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
         float rel_x = mouse->pos.x - image_bounds.x;
         float rel_y = mouse->pos.y - image_bounds.y;
 
-        const int width_w_grid  = TILE_WIDTH + 1;
-        const int height_w_grid = TILE_HEIGHT + 1;
+        int width_w_grid = 0;
+        int height_w_grid = 0;
+        get_tile_size(dctx->zvb, &width_w_grid, &height_w_grid);
+        width_w_grid += 1;
+        height_w_grid += 1;
 
         int tile_x = (int)(rel_x / width_w_grid);
         int tile_y = (int)(rel_y / height_w_grid);
@@ -82,7 +96,7 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
         const float text_width = 100.0f;
         const float tile_w = width_w_grid * 4;
         const float tile_h = height_w_grid * 4;
-        const float tooltip_w = MAX(text_width,tile_w) + x_padding * 2;
+        const float tooltip_w = MAX(text_width, tile_w) + x_padding * 2;
         const float tooltip_h = tile_h + text_height + y_padding * 2;
 
         struct nk_rect tooltip_rect = nk_rect(
@@ -116,8 +130,10 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
 /**
  * @brief Display any set, such as tileset or palette
  */
-static void ui_tab_set(struct nk_context* ctx, struct nk_image* img, const char* entry_name)
+static void ui_tab_set(struct dbg_ui_t* dctx, struct nk_image* img, const char* entry_name)
 {
+    struct nk_context* ctx = dctx->ctx;
+
     const float set_scale = 2.0f;
     const int tile_scale = 10;
     const int tile_per_line = 16;
@@ -132,8 +148,11 @@ static void ui_tab_set(struct nk_context* ctx, struct nk_image* img, const char*
         float rel_x = (mouse->pos.x - image_bounds.x) / set_scale;
         float rel_y = (mouse->pos.y - image_bounds.y) / set_scale;
 
-        const int width_w_grid = TILE_WIDTH  + 1;
-        const int height_w_grid = TILE_HEIGHT  + 1;
+        int width_w_grid = 0;
+        int height_w_grid = 0;
+        get_tile_size(dctx->zvb, &width_w_grid, &height_w_grid);
+        width_w_grid += 1;
+        height_w_grid += 1;
 
         int tile_x = (int)(rel_x / width_w_grid);
         int tile_y = (int)(rel_y / height_w_grid);
@@ -186,20 +205,35 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
 
     // Content Area
     nk_layout_row_dynamic(ctx, panel->rect.h - 85, 1);
+
+    /* If we are in bitmap mode, we don't have access to these */
+    if (zvb_is_bitmap_mode(dctx->zvb)) {
+        return;
+    }
+
     if (nk_group_begin_titled(ctx, "tab_content", s_tab_names[current_tab], 0)) {
         switch (current_tab) {
             case TAB_LAYER0:
+                ui_tab_layer(dctx, 0);
+                break;
             case TAB_LAYER1:
-                ui_tab_layer(dctx, ctx, current_tab == TAB_LAYER1);
+                if (zvb_is_gfx_mode(dctx->zvb)) {
+                    ui_tab_layer(dctx, current_tab == TAB_LAYER1);
+                }
                 break;
             case TAB_TILESET:
-                ui_tab_set(ctx, &dctx->vram[DBG_TILESET], "Tile Index");
+                if (zvb_is_gfx_mode(dctx->zvb)) {
+                    ui_tab_set(dctx, &dctx->vram[DBG_TILESET], "Tile Index");
+                }
                 break;
             case TAB_PALETTE:
-                ui_tab_set(ctx, &dctx->vram[DBG_PALETTE], "Color");
+                /* TODO: implement palette for text mode too? */
+                if (zvb_is_gfx_mode(dctx->zvb)) {
+                    ui_tab_set(dctx, &dctx->vram[DBG_PALETTE], "Color");
+                }
                 break;
             case TAB_FONT:
-                ui_tab_set(ctx, &dctx->vram[DBG_FONT], "Char");
+                ui_tab_set(dctx, &dctx->vram[DBG_FONT], "Char");
                 break;
         }
         nk_group_end(ctx);

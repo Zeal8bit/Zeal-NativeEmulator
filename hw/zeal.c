@@ -274,9 +274,12 @@ int zeal_debug_enable(zeal_t* machine)
     machine->dbg_state = ST_PAUSED;
     config_window_set(true);
     if(machine->dbg_ui == NULL) {
-        int count = 0;
-        const RenderTexture* array = zvb_get_debug_textures(&machine->zvb, &count);
-        ret = debugger_ui_init(&machine->dbg_ui, &machine->zvb_out, array, count);
+        dbg_ui_init_args_t args = {
+            .main_view = &machine->zvb_out,
+            .zvb = &machine->zvb,
+        };
+        args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
+        ret = debugger_ui_init(&machine->dbg_ui, &args);
     }
     return ret;
 }
