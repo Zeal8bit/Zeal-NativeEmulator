@@ -27,6 +27,12 @@ configure_file(
 
 configure_file(
     copy: true,
+    input: 'text_debug.glsl',
+    output: 'text_debug.glsl'
+)
+
+configure_file(
+    copy: true,
     input: 'bitmap_shader.glsl',
     output: 'bitmap_shader.glsl'
 )

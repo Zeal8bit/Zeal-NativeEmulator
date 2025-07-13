@@ -4,7 +4,6 @@
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
 #define MODE_TEXT_320   1
-#define MODE_DEBUG      0xFFFFFFFF
 
 #define CHAR_COUNT      256
 #define CHAR_HEIGHT     12
@@ -50,16 +49,14 @@ vec4 text_mode(vec2 flipped) {
     int bg_color;
     int fg_color;
 
-    if (video_mode != MODE_DEBUG && char_pos == curpos) {
+    if (char_pos == curpos) {
         tile_idx = float(curchar) / 255.01;
         bg_color = curcolor.x;
         fg_color = curcolor.y;
     } else {
         /* Take scrolling into account */
-        if (video_mode != MODE_DEBUG) {
-            char_pos.x = (char_pos.x + scroll.x) % MAX_X;
-            char_pos.y = (char_pos.t + scroll.y) % MAX_Y;
-        }
+        char_pos.x = (char_pos.x + scroll.x) % MAX_X;
+        char_pos.y = (char_pos.t + scroll.y) % MAX_Y;
         int char_idx = char_pos.x + char_pos.y * MAX_X;
         /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
         float float_idx = float(char_idx) / (TILEMAP_ENTRIES + 0.1);
@@ -99,25 +96,5 @@ void main() {
         flipped.y = flipped.y / 2;
     }
 
-    // Draw a red grid with cells of size CHAR_WIDTH x CHAR_HEIGHT
-    if (video_mode == MODE_DEBUG) {
-        /* Cooridnates are different in debug mode since we have the grid */
-        ivec2 ipos = ivec2(gl_FragCoord.x, gl_FragCoord.y);
-        ivec2 in_cell = ivec2(ipos.x % GRID_WIDTH, ipos.y % GRID_HEIGHT);
-        if (in_cell.x == 0 || in_cell.y == 0) {
-            finalColor = vec4(0.65, 0.0, 0.0, 1.0);
-        } else {
-            ivec2 grid_size = ivec2(GRID_WIDTH, GRID_HEIGHT);
-            /* Get the cell the current is in */
-            ivec2 cell_idx = ipos / grid_size;
-            /* Convert it to a screen position */
-            ivec2 cell_pos = cell_idx * ivec2(CHAR_WIDTH, CHAR_HEIGHT);
-            /* Get the coordinate of the pixel in cell, without the grid */
-            in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);
-            ivec2 text_coords = cell_pos + in_cell;
-            finalColor = text_mode(vec2(text_coords.x, text_coords.y));
-        }
-    } else {
-        finalColor = text_mode(flipped);
-    }
+    finalColor = text_mode(flipped);
 }

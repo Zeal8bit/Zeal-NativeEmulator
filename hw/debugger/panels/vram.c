@@ -113,23 +113,24 @@ static void ui_tab_layer(struct dbg_ui_t* dctx, struct nk_context* ctx, int laye
 }
 
 
-
-static void ui_tab_tileset(struct dbg_ui_t* dctx, struct nk_context* ctx)
+/**
+ * @brief Display any set, such as tileset or palette
+ */
+static void ui_tab_set(struct nk_context* ctx, struct nk_image* img, const char* entry_name)
 {
-    const float tileset_scale = 2.0f;
+    const float set_scale = 2.0f;
     const int tile_scale = 10;
     const int tile_per_line = 16;
-    struct nk_image* img = &dctx->vram[DBG_TILESET];
 
-    nk_layout_row_static(ctx, img->h * tileset_scale, img->w * tileset_scale, 2);
+    nk_layout_row_static(ctx, img->h * set_scale, img->w * set_scale, 2);
     struct nk_rect image_bounds = nk_widget_bounds(ctx);
     nk_image(ctx, *img);
 
     struct nk_mouse* mouse = &ctx->input.mouse;
 
     if (nk_input_is_mouse_hovering_rect(&ctx->input, image_bounds)) {
-        float rel_x = (mouse->pos.x - image_bounds.x) / tileset_scale;
-        float rel_y = (mouse->pos.y - image_bounds.y) / tileset_scale;
+        float rel_x = (mouse->pos.x - image_bounds.x) / set_scale;
+        float rel_y = (mouse->pos.y - image_bounds.y) / set_scale;
 
         const int width_w_grid = TILE_WIDTH  + 1;
         const int height_w_grid = TILE_HEIGHT  + 1;
@@ -152,7 +153,7 @@ static void ui_tab_tileset(struct dbg_ui_t* dctx, struct nk_context* ctx)
         if (nk_group_begin(ctx, "right_group", NK_WINDOW_NO_SCROLLBAR)) {
             char label[64];
             nk_layout_row_dynamic(ctx, 30, 1);
-            snprintf(label, sizeof(label), "Tile Index %d", tile_y * tile_per_line + tile_x);
+            snprintf(label, sizeof(label), "%s %d", entry_name, tile_y * tile_per_line + tile_x);
             nk_label(ctx, label, NK_TEXT_LEFT);
             nk_layout_row_static(ctx, sub.h * tile_scale, sub.w * tile_scale, 1);
             nk_image(ctx, sub);
@@ -160,7 +161,6 @@ static void ui_tab_tileset(struct dbg_ui_t* dctx, struct nk_context* ctx)
         }
     }
 }
-
 
 
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg)
@@ -193,13 +193,13 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
                 ui_tab_layer(dctx, ctx, current_tab == TAB_LAYER1);
                 break;
             case TAB_TILESET:
-                ui_tab_tileset(dctx, ctx);
+                ui_tab_set(ctx, &dctx->vram[DBG_TILESET], "Tile Index");
                 break;
             case TAB_PALETTE:
-                nk_label(ctx, "Palette data viewer/editor", NK_TEXT_LEFT);
+                ui_tab_set(ctx, &dctx->vram[DBG_PALETTE], "Color");
                 break;
             case TAB_FONT:
-                nk_label(ctx, "Palette data viewer/editor", NK_TEXT_LEFT);
+                ui_tab_set(ctx, &dctx->vram[DBG_FONT], "Char");
                 break;
         }
         nk_group_end(ctx);

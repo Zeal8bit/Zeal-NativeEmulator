@@ -88,6 +88,7 @@
 #define TEXT_SHADER_CURCOLOR_IDX    5
 #define TEXT_SHADER_CURCHAR_IDX     6
 #define TEXT_SHADER_TSCROLL_IDX     7
+#define TEXT_SHADER_DBGMODE_IDX     4
 
 #define TEXT_SHADER_OBJ_COUNT       8
 
@@ -110,6 +111,12 @@
 #define GFX_DEBUG_TILESET_MODE      0
 #define GFX_DEBUG_LAYER0_MODE       1
 #define GFX_DEBUG_LAYER1_MODE       2
+#define GFX_DEBUG_PALETTE_MODE      3
+
+#define TEXT_DEBUG_TILEMAP          0
+#define TEXT_DEBUG_FONT             1
+#define TEXT_DEBUG_PALETTE          2
+
 
 typedef enum {
     MODE_TEXT_640     = 0,
@@ -154,6 +161,7 @@ typedef enum {
     SHADER_GFX,
     SHADER_BITMAP,
     SHADER_GFX_DEBUG,
+    SHADER_TEXT_DEBUG,
     SHADERS_COUNT,
 } zvb_shaders_type_t;
 

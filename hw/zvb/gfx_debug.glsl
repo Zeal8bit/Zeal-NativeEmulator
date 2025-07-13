@@ -21,6 +21,7 @@
 #define GFX_DEBUG_TILESET_MODE      0
 #define GFX_DEBUG_LAYER0_MODE       1
 #define GFX_DEBUG_LAYER1_MODE       2
+#define GFX_DEBUG_PALETTE_MODE      3
 
 #define MAX_PIXEL_X     (1280)
 #define MAX_PIXEL_Y     (640)
@@ -158,8 +159,6 @@ vec4 gfx_mode(vec2 flipped, bool color_4bit, out int l0_icolor, out int l1_icolo
 
 
 void main() {
-    int l0_icolor;
-    int l1_icolor;
     bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
     /* Cooridnates are different in debug mode since we have the grid */
@@ -173,20 +172,30 @@ void main() {
 
     /* Highlight the "subscreens" (320x240 / 20x15 tiles) on the whole screen.
      * We must account for the grid size. This must NOT be done for the tileset mode. */
-    if (debug_mode != GFX_DEBUG_TILESET_MODE &&
+    if ((debug_mode == GFX_DEBUG_LAYER0_MODE || debug_mode == GFX_DEBUG_LAYER1_MODE) &&
         (ipos.x % (20*GRID_WIDTH) == 0 || ipos.y % (15*GRID_HEIGHT) == 0))
     {
         finalColor = vec4(0.0, 0.65, 0.0, 1.0);
-    } else if (debug_mode == GFX_DEBUG_TILESET_MODE && !color_4bit &&
+    } else if (
+        /* Only show the first 256 values if we are in palette mode or 8-bit tileset mode */
+        ((debug_mode == GFX_DEBUG_TILESET_MODE && !color_4bit) ||
+         (debug_mode == GFX_DEBUG_PALETTE_MODE))
         /* Only allow the first line of cell 17 to be drawn as red */
-        (cell_idx.y > 16 || (cell_idx.y == 16 && in_cell.y > 0)))
+        && (cell_idx.y > 16 || (cell_idx.y == 16 && in_cell.y > 0)))
     {
         /* If we are in 8-bit mode, we only have 256 tiles */
         /* Transparent pixel */
         finalColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (in_cell.x == 0 || in_cell.y == 0) {
+        /* Delimiters for the tiles */
         finalColor = vec4(0.65, 0.0, 0.0, 1.0);
+    } else if (debug_mode == GFX_DEBUG_PALETTE_MODE) {
+        /* In this mode we have 16 colors per line */
+        int color = cell_idx.y * 16 + cell_idx.x;
+        finalColor = vec4(palette[color], 1.0f);
     } else {
+        int l0_icolor;
+        int l1_icolor;
         /* Get the coordinate of the pixel in cell, without the grid */
         in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);
         ivec2 pix_coords = cell_pos + in_cell;
