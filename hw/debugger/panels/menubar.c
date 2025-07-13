@@ -96,7 +96,7 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                 SetWindowSize(1280, 960);
                 for(int i = 0; i < panels_size; i++) {
                     dbg_ui_panel_t *panel = &panels[i];
-                    panel->hidden = false;
+                    panel->hidden = panel->hidden_default;
                     panel->flags &= ~(NK_WINDOW_MINIMIZED);
                     panel->rect = panel->rect_default;
                     nk_window_set_bounds(ctx, panel->title, panel->rect_default);

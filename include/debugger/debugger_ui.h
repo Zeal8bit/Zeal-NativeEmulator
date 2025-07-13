@@ -56,6 +56,7 @@ struct dbg_ui_panel_t {
     struct nk_rect rect_default;
     nk_flags flags;
     bool hidden;
+    const bool hidden_default;
     dbg_ui_panel_fn render;
 
     bool override_header_style;
