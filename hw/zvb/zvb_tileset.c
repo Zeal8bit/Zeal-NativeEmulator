@@ -16,10 +16,7 @@ void zvb_tileset_init(zvb_tileset_t* tileset)
 
     /* Create an empty bitmap image, to transmit the data faster to the GPU */
     const int size = (ZVB_TILESET_SIZE / sizeof(Color));
-    tileset->img_tileset = GenImageColor(size, 1, BLACK);
-    /* Set all the bytes to 0 */
-    memset(tileset->img_tileset.data, 0, size);
-
+    tileset->img_tileset = GenImageColor(size, 1, (Color){ 0, 255, 0, 255 });
     tileset->tex_tileset = LoadTextureFromImage(tileset->img_tileset);
     tileset->dirty = 0;
 }
