@@ -56,6 +56,11 @@ void zvb_sound_init(zvb_sound_t* sound) {
     PlayAudioStream(sound->stream);
 }
 
+void zvb_sound_deinit(zvb_sound_t* sound)
+{
+    StopAudioStream(sound->stream);
+    CloseAudioDevice();
+}
 
 /**
  * @brief Generate a 16-bit unsigned sample for the current voice

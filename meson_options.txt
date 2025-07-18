@@ -1,2 +1,3 @@
 # meson_options.txt
+option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
 option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')

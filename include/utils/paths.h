@@ -10,6 +10,8 @@
 #elif __APPLE__
     #include <mach-o/dyld.h>
     #include <limits.h>
+#elif PLATFORM_WEB
+    #define PATH_MAX 4096
 #endif
 
 

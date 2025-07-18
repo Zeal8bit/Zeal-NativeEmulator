@@ -680,7 +680,7 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
 bool zvb_prepare_render(zvb_t* zvb)
 {
     /* Only update the texture if we are going to render anything */
-    if (!zvb->need_render || !zvb->status.vid_ena) {
+    if (!zvb->need_render) {
         return false;
     }
 

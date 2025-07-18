@@ -1,0 +1,32 @@
+[binaries]
+c = 'emcc'
+cpp = 'em++'
+ar = 'emar'
+ld = 'emcc'
+strip = 'strip'  # optional
+pkg-config = 'false'   # pkg-config is often not available for wasm
+exe_wrapper = 'node'  # allows Meson to run test programs if needed
+
+[built-in options]
+c_args = ['-D_DEFAULT_SOURCE',
+          '-DSHOW_FPS',
+          '-DPLATFORM_WEB',
+          '-DOPENGL_ES']
+
+[properties]
+link_args = ['-sUSE_GLFW=3',
+             '-sFORCE_FILESYSTEM=1',
+             '-sASYNCIFY=1',
+             '-sMINIFY_HTML=1',
+             '-sUSE_WEBGL2=1',
+             '-sEXIT_RUNTIME=1',
+             '-sEXPORTED_RUNTIME_METHODS=["HEAPF32"]',
+              '--embed-file', 'assets',
+              '--embed-file', 'roms']
+raylib_path = '../raylib/web'
+
+[host_machine]
+system = 'emscripten'
+cpu_family = 'wasm32'
+cpu = 'wasm32'
+endian = 'little'

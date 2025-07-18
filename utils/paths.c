@@ -31,6 +31,13 @@ static char path_buffer[PATH_MAX] = { 0 };
             fprintf(stderr, "Buffer too small; need size %u\n", bufsize);
         }
     }
+#elif PLATFORM_WEB
+    void get_executable_path(char *buffer, size_t size) {
+        if (size > 1) {
+            buffer[0] = '/';
+            buffer[1] = 0;
+        }
+    }
 #else
     #error "Unsupported platform"
 #endif
@@ -61,7 +68,7 @@ const char* get_shaders_path(char dst[PATH_MAX], const char* name)
     }
     int written = snprintf(dst, PATH_MAX, "%s/%s/%s", path_buffer, assets_dir, name);
     if (written == PATH_MAX) {
-        log_err_printf("Could not load sahder %s, path is too long!\n", name);
+        log_err_printf("Could not load shader %s, path is too long!\n", name);
         return NULL;
     }
     return dst;

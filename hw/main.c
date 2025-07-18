@@ -32,20 +32,20 @@ int main(int argc, char* argv[])
 
     if (zeal_init(&machine)) {
         log_err_printf("Error initializing the machine\n");
-        return 1;
+        goto deinit;
     }
 
     if (flash_load_from_file(&machine.rom, config.arguments.rom_filename)) {
-        return 1;
+        goto deinit;
     }
 
     if (hostfs_load_path(&machine.hostfs, config.arguments.hostfs_path)) {
-        return 1;
+        goto deinit;
     }
 
     if (config.arguments.tf_filename != NULL &&
         zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
-        return 1;
+        goto deinit;
     }
 
     code = zeal_run(&machine);
@@ -54,5 +54,7 @@ int main(int argc, char* argv[])
     config_unload();
     if(!saved && code == 0) return saved; // ???
 
+deinit:
+    zvb_sound_deinit(&machine.zvb.sound);
     return code;
 }

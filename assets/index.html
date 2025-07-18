@@ -1,0 +1,37 @@
+<html>
+<head>
+</head>
+
+	<body>
+        <canvas id="canvas"></canvas>
+        <table>
+            <tr>
+                <td><p id="output"></p></td>
+                <td><p id="errors" style="color:red;"></p></td>
+            </tr>
+        </table>
+		<script>
+			var Module = {
+				print: function(text) {
+                        var element = document.getElementById('output');
+                        console.log("Log: " + text);
+						element.innerHTML += text + "<br>";
+                },
+                printErr: function(text) {
+                        var element = document.getElementById('errors');
+                        console.log("Error: " + text);
+						element.innerHTML += text + "<br>";
+                },
+				canvas: (function() {
+					var canvas = document.getElementById('canvas');
+					return canvas;
+				})(),
+                onRuntimeInitialized: function() {
+                    // const gl = Module.canvas.getContext("webgl");
+                    // console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
+                }
+			};
+		</script>
+		<script src="zeal.elf.js"></script>
+	</body>
+</html>
