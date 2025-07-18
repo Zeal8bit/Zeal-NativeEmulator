@@ -85,24 +85,24 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
     regs_view_t pairs[] = {
         [REG_AF] = {
             .msb  = "A:",  .lsb  = "F:",
-            .pair = "AF:", .value = "      ",
+            .pair = "AF:", .value = "     ",
         },
         [REG_BC] = {
             .msb  = "B:",  .lsb  = "C:",
-            .pair = "BC:", .value = "      ",
+            .pair = "BC:", .value = "     ",
         },
         [REG_DE] = {
             .msb  = "D:",  .lsb  = "E:",
-            .pair = "DE:", .value = "      ",
+            .pair = "DE:", .value = "     ",
         },
         [REG_HL] = {
             .msb  = "H:",  .lsb  = "L:",
-            .pair = "HL:", .value = "      ",
+            .pair = "HL:", .value = "     ",
         },
-        [REG_PC] = { .pair = "PC:",  .value = "      ", },
-        [REG_SP] = { .pair = "SP:",  .value = "      ", },
-        [REG_IX] = { .pair = "IX:",  .value = "      ", },
-        [REG_IY] = { .pair = "IY:",  .value = "      ", },
+        [REG_PC] = { .pair = "PC:",  .value = "     ", },
+        [REG_SP] = { .pair = "SP:",  .value = "     ", },
+        [REG_IX] = { .pair = "IX:",  .value = "     ", },
+        [REG_IY] = { .pair = "IY:",  .value = "     ", },
     };
 
     /* When the target is shown, we can show the values */
