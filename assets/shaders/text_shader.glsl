@@ -1,5 +1,3 @@
-#version 330 core
-
 #define PALETTE_SIZE    256
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
@@ -8,9 +6,6 @@
 #define CHAR_COUNT      256
 #define CHAR_HEIGHT     12
 #define CHAR_WIDTH      8
-#define GRID_THICKNESS  1
-#define GRID_WIDTH      (CHAR_WIDTH + GRID_THICKNESS)
-#define GRID_HEIGHT     (CHAR_HEIGHT + GRID_THICKNESS)
 #define FONT_TEX_WIDTH  (256 * CHAR_WIDTH)
 #define FONT_TEX_HEIGHT (CHAR_HEIGHT)
 
@@ -20,8 +15,12 @@
 #define MAX_X           (80)
 #define MAX_Y           (40)
 
-#define TILEMAP_ENTRIES  3199
+#define TILEMAP_ENTRIES  3199.0
 
+#ifdef OPENGL_ES
+precision highp float;
+precision highp int;
+#endif
 
 in vec3 vertexPos;
 in vec2 fragTexCoord;
@@ -43,8 +42,9 @@ uniform ivec2       scroll;
 
 out vec4 finalColor;
 
-vec4 text_mode(vec2 flipped) {
-    ivec2 char_pos = ivec2(int(flipped.x) / CHAR_WIDTH, int(flipped.y) / CHAR_HEIGHT);
+vec4 text_mode(ivec2 flipped) {
+    ivec2 char_size = ivec2(CHAR_WIDTH, CHAR_HEIGHT);
+    ivec2 char_pos = flipped / char_size;
     float tile_idx;
     int bg_color;
     int fg_color;
@@ -56,21 +56,22 @@ vec4 text_mode(vec2 flipped) {
     } else {
         /* Take scrolling into account */
         char_pos.x = (char_pos.x + scroll.x) % MAX_X;
-        char_pos.y = (char_pos.t + scroll.y) % MAX_Y;
+        char_pos.y = (char_pos.y + scroll.y) % MAX_Y;
         int char_idx = char_pos.x + char_pos.y * MAX_X;
         /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
         float float_idx = float(char_idx) / (TILEMAP_ENTRIES + 0.1);
         vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
          /* The tile number is in the RED attribute ([0.0,1.0]) */
         tile_idx = attr.r;
-        fg_color = int(attr.a * 255);
-        bg_color = int(attr.b * 255);
+        fg_color = int(attr.a * 255.0);
+        bg_color = int(attr.b * 255.0);
     }
 
     // Get the address of the pixel to show
-    ivec2 in_tile = ivec2(int(flipped.x) % CHAR_WIDTH, int(flipped.y) % CHAR_HEIGHT);
+    ivec2 in_tile = flipped % char_size;
     // As the address will be used to get a pixel from the texture, it must also be between 0.0 and 1.0
-    vec2 addr = (vec2(tile_idx * (CHAR_COUNT -  1) * CHAR_WIDTH, 0.0) + in_tile)
+    float coord_x = tile_idx * float((CHAR_COUNT -  1) * CHAR_WIDTH);
+    vec2 addr = (vec2(coord_x, 0.0) + vec2(in_tile))
                / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
 
     // Check whether the color to show is foreground or background
@@ -89,7 +90,7 @@ vec4 text_mode(vec2 flipped) {
 
 void main() {
     // Create absolute coordinates, with (0,0) at the top-left
-    vec2 flipped = ivec2(gl_FragCoord.x, gl_FragCoord.y);
+    ivec2 flipped = ivec2(gl_FragCoord.x, gl_FragCoord.y);
     // 320x240px mode, scale by 2
     if (video_mode == MODE_TEXT_320) {
         flipped.x = flipped.x / 2;

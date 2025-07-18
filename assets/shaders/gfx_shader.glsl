@@ -1,10 +1,7 @@
-#version 330 core
-
 #define MODE_GFX_640_8BIT   4
 #define MODE_GFX_320_8BIT   5
 #define MODE_GFX_640_4BIT   6
 #define MODE_GFX_320_4BIT   7
-
 
 #define PALETTE_SIZE    256
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
@@ -23,13 +20,18 @@
 #define MAX_X           (80)
 #define MAX_Y           (40)
 
-#define TILEMAP_ENTRIES     3199
+#define TILEMAP_ENTRIES     3199.0
 /* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
-#define TILESET_TEX_WIDTH   (16*1024)
+#define TILESET_TEX_WIDTH   16384.0
 /* Size of a single tile in bytes: 256 */
 #define TILESET_SIZE        (256)
 
 #define SIZEOF_COLOR        (4)
+
+#ifdef OPENGL_ES
+precision highp float;
+precision highp int;
+#endif
 
 in vec3 vertexPos;
 in vec2 fragTexCoord;
@@ -63,7 +65,7 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    vec2 addr = vec2((final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
+    vec2 addr = vec2(float(final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = final_idx % SIZEOF_COLOR;
@@ -78,13 +80,12 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* Normalize 4-bit color to 0-1 range */
         return color_4bit;
     } else {
-        return int(byte_value * 255);
+        return int(byte_value * 255.0);
     }
 }
 
 
-vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
-    ivec2 orig = ivec2(int(flipped.x), int(flipped.y));
+vec4 get_attr(ivec2 orig, ivec2 scroll, out ivec2 offset_in_tile) {
     ivec2 pix_pos = orig + scroll;
 
     /* Take scrolling into account */
@@ -109,7 +110,7 @@ vec4 get_attr(vec2 flipped, ivec2 scroll, out ivec2 offset_in_tile) {
 }
 
 
-vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
+vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
     ivec2 l0_offset;
     ivec2 l1_offset;
     vec4 attr_l0 = get_attr(flipped, scroll_l0, l0_offset);
@@ -118,9 +119,9 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
     if (color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
          * of the first half */
-        int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
+        int l0_idx = int(attr_l0.r * float(TILE_COUNT - 1));
         /* Get the lowest nibble of layer1 (attributes), if 1, offset the tile to the next tileset */
-        int attr = int(attr_l0.g * 255);
+        int attr = int(attr_l0.g * 255.0);
         l0_idx += (attr & 1) != 0 ? 256 : 0;
         /* Check for Flip Y attribute */
         if ((attr & 4) != 0) {
@@ -141,8 +142,8 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
     } else {
         /* 8-bit color mode */
         /* Get the two indexes */
-        int l0_idx = int(attr_l0.r * (TILE_COUNT - 1));
-        int l1_idx = int(attr_l1.g * (TILE_COUNT - 1));
+        int l0_idx = int(attr_l0.r * float(TILE_COUNT - 1));
+        int l1_idx = int(attr_l1.g * float(TILE_COUNT - 1));
 
         int l0_icolor = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
         int l1_icolor = color_from_idx(l1_idx, int(attr_l1.b), color_4bit);
@@ -159,7 +160,7 @@ vec4 gfx_mode(vec2 flipped, bool mode_320, bool color_4bit) {
 
 void main() {
     // Create absolute coordinates, with (0,0) at the top-left
-    vec2 flipped = ivec2(gl_FragCoord.x, gl_FragCoord.y);
+    ivec2 flipped = ivec2(gl_FragCoord.x, gl_FragCoord.y);
     bool mode_320   = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
     bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
@@ -167,6 +168,7 @@ void main() {
         flipped.x = flipped.x / 2;
         flipped.y = flipped.y / 2;
     }
+    vec2 fcoord = vec2(flipped);
 
     vec4 layers_color = gfx_mode(flipped, mode_320, color_4bit);
 
@@ -174,8 +176,8 @@ void main() {
 
     for (int i = 0; i < 256; i += 2) {
 
-        vec4 fst_attr = texture(sprites, vec2((i + 0) / 255.5, 0.5));
-        vec4 snd_attr = texture(sprites, vec2((i + 1) / 255.5, 0.5));
+        vec4 fst_attr = texture(sprites, vec2(float(i) / 255.5, 0.5));
+        vec4 snd_attr = texture(sprites, vec2(float(i + 1) / 255.5, 0.5));
 
         vec2 sprite_pos   = fst_attr.xy - vec2(TILE_WIDTH, TILE_HEIGHT);
         int tile_number   = int(fst_attr.z);
@@ -192,21 +194,21 @@ void main() {
         }
 
         /* Check if the sprite is in bounds! */
-        if (flipped.x >= sprite_pos.x &&
-            flipped.x <  sprite_pos.x + TILE_WIDTH &&
-            flipped.y >= sprite_pos.y &&
-            flipped.y <  sprite_pos.y + sprite_height &&
+        if (fcoord.x >= sprite_pos.x &&
+            fcoord.x <  sprite_pos.x + float(TILE_WIDTH) &&
+            fcoord.y >= sprite_pos.y &&
+            fcoord.y <  sprite_pos.y + sprite_height &&
             /* Check if we have to show the layer1 instead:
              * If the layers_color variable comes from layer1, the `w` field is not 0 */
             (f_behind_fg < 0.1 || layers_color.w < 0.5)
             )
         {
-            vec2  pix_pos = flipped - sprite_pos;
+            vec2 pix_pos = fcoord - sprite_pos;
             if (f_flip_y > 0.5) {
-                pix_pos.y = sprite_height - 1 - pix_pos.y;
+                pix_pos.y = sprite_height - 1.0 - pix_pos.y;
             }
             if (f_flip_x > 0.5) {
-                pix_pos.x = TILE_WIDTH - 1 - pix_pos.x;
+                pix_pos.x = float(TILE_WIDTH) - 1.0 - pix_pos.x;
             }
             /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
             int in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;

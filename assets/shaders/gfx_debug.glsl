@@ -1,10 +1,7 @@
-#version 330 core
-
 #define MODE_GFX_640_8BIT   4
 #define MODE_GFX_320_8BIT   5
 #define MODE_GFX_640_4BIT   6
 #define MODE_GFX_320_4BIT   7
-
 
 #define PALETTE_SIZE    256
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
@@ -31,13 +28,18 @@
 /* Number of tiles per row when debugging the tileset */
 #define TILESET_MAX_X   (16)
 
-#define TILEMAP_ENTRIES     3199
+#define TILEMAP_ENTRIES     3199.0
 /* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
-#define TILESET_TEX_WIDTH   (16*1024)
+#define TILESET_TEX_WIDTH   16384.0
 /* Size of a single tile in bytes: 256 */
 #define TILESET_SIZE        (256)
 
 #define SIZEOF_COLOR        (4)
+
+#ifdef OPENGL_ES
+precision highp float;
+precision highp int;
+#endif
 
 in vec3 vertexPos;
 in vec2 fragTexCoord;
@@ -69,7 +71,7 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    vec2 addr = vec2((final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
+    vec2 addr = vec2(float(final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = final_idx % SIZEOF_COLOR;
@@ -84,13 +86,12 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* Normalize 4-bit color to 0-1 range */
         return color_4bit;
     } else {
-        return int(byte_value * 255);
+        return int(byte_value * 255.0);
     }
 }
 
 
-vec4 get_attr(vec2 flipped, out ivec3 offset_in_tile) {
-    ivec2 pix_pos = ivec2(int(flipped.x), int(flipped.y));
+vec4 get_attr(ivec2 pix_pos, out ivec3 offset_in_tile) {
     ivec2 tile_pos = ivec2(int(pix_pos.x) / TILE_WIDTH, int(pix_pos.y) / TILE_HEIGHT);
 
     /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
@@ -100,8 +101,8 @@ vec4 get_attr(vec2 flipped, out ivec3 offset_in_tile) {
 
     vec4 ret;
     if (debug_mode == GFX_DEBUG_TILESET_MODE) {
-        float tile_idx = tile_pos.x + tile_pos.y * TILESET_MAX_X;
-        ret = vec4(tile_idx / (TILE_COUNT - 1), 0.0, 0.0, 0.0);
+        float tile_idx = float(tile_pos.x + tile_pos.y * TILESET_MAX_X);
+        ret = vec4(tile_idx / float(TILE_COUNT - 1), 0.0, 0.0, 0.0);
     } else {
         int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
         /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
@@ -113,16 +114,16 @@ vec4 get_attr(vec2 flipped, out ivec3 offset_in_tile) {
 }
 
 
-vec4 gfx_mode(vec2 flipped, bool color_4bit, out int l0_icolor, out int l1_icolor) {
+vec4 gfx_mode(ivec2 flipped, bool color_4bit, out int l0_icolor, out int l1_icolor) {
     ivec3 offset;
     vec4 s_attr = get_attr(flipped, offset);
 
     if (color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
          * of the first half */
-        int l0_idx = int(s_attr.r * (TILE_COUNT - 1));
+        int l0_idx = int(s_attr.r * float(TILE_COUNT - 1));
         /* Get the lowest nibble of layer1 (attributes), if 1, offset the tile to the next tileset */
-        int attr = int(s_attr.g * 255);
+        int attr = int(s_attr.g * 255.0);
         l0_idx += (attr & 1) != 0 ? 256 : 0;
         /* Check for Flip Y attribute */
         if ((attr & 4) != 0) {
@@ -142,8 +143,8 @@ vec4 gfx_mode(vec2 flipped, bool color_4bit, out int l0_icolor, out int l1_icolo
     } else {
         /* 8-bit color mode */
         /* Get the two indexes */
-        int l0_idx = int(s_attr.r * (TILE_COUNT - 1));
-        int l1_idx = int(s_attr.g * (TILE_COUNT - 1));
+        int l0_idx = int(s_attr.r * float(TILE_COUNT - 1));
+        int l1_idx = int(s_attr.g * float(TILE_COUNT - 1));
 
         l0_icolor = color_from_idx(l0_idx, int(offset.z), color_4bit);
         l1_icolor = color_from_idx(l1_idx, int(offset.z), color_4bit);
@@ -199,7 +200,7 @@ void main() {
         /* Get the coordinate of the pixel in cell, without the grid */
         in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);
         ivec2 pix_coords = cell_pos + in_cell;
-        vec4 ret = gfx_mode(vec2(pix_coords.x, pix_coords.y), color_4bit, l0_icolor, l1_icolor);
+        vec4 ret = gfx_mode(pix_coords, color_4bit, l0_icolor, l1_icolor);
         if (color_4bit) {
             finalColor = ret;
         } else if (debug_mode == GFX_DEBUG_TILESET_MODE) {

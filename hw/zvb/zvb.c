@@ -255,13 +255,53 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
+static Shader zvb_load_shader(const char* path)
+{
+    const char *header =
+#if OPENGL_ES
+    "#version 300 es\n"
+    "#define OPENGL_ES 1\n";
+#else
+    "#version 330 core\n";
+#endif
+    log_printf("Compiling shader %s\n", path);
+
+    char *source = LoadFileText(path);
+    if (!source) {
+        log_err_printf("Failed to load shader file: %s", path);
+        return (Shader){0};
+    }
+
+    size_t headerlen = strlen(header);
+    size_t sourcelen = strlen(source);
+    char *fullSource = malloc(headerlen + sourcelen + 1);
+    if (!fullSource) {
+        log_err_printf("Memory allocation failed for shader source");
+        UnloadFileText(source);
+        return (Shader){0};
+    }
+
+
+    memcpy(fullSource, header, headerlen);
+    /* Include NULL terminator */
+    memcpy(fullSource + headerlen, source, sourcelen + 1);
+
+    UnloadFileText(source);
+
+    Shader shader = LoadShaderFromMemory(NULL, fullSource);
+
+    free(fullSource);
+    return shader;
+}
+
+
 static void zvb_shader_init(zvb_t* dev)
 {
     char path[PATH_MAX];
 
     /* Get the indexes of the objects in the shaders */
     zvb_shader_t* st_shader = &dev->shaders[SHADER_TEXT];
-    Shader shader = LoadShader(NULL, get_shaders_path(path, "text_shader.glsl"));
+    Shader shader = zvb_load_shader(get_shaders_path(path, "text_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -274,7 +314,7 @@ static void zvb_shader_init(zvb_t* dev)
 
     /* Text debug shaders */
     st_shader = &dev->shaders[SHADER_TEXT_DEBUG];
-    shader = LoadShader(NULL, get_shaders_path(path, "text_debug.glsl"));
+    shader = zvb_load_shader(get_shaders_path(path, "text_debug.glsl"));
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -283,7 +323,7 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
 
     st_shader = &dev->shaders[SHADER_GFX];
-    shader = LoadShader(NULL, get_shaders_path(path, "gfx_shader.glsl"));
+    shader = zvb_load_shader(get_shaders_path(path, "gfx_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -294,14 +334,14 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_BITMAP];
-    shader = LoadShader(NULL, get_shaders_path(path, "bitmap_shader.glsl"));
+    shader = zvb_load_shader(get_shaders_path(path, "bitmap_shader.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_GFX_DEBUG];
-    shader = LoadShader(NULL, get_shaders_path(path, "gfx_debug.glsl"));
+    shader = zvb_load_shader(get_shaders_path(path, "gfx_debug.glsl"));
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);

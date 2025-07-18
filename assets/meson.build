@@ -1,1 +1,1 @@
-subdir('shaders/desktop')
+subdir('shaders/')

@@ -1,5 +1,3 @@
-#version 330 core
-
 #define MODE_BITMAP_256   2
 #define MODE_BITMAP_320   3
 
@@ -13,7 +11,12 @@
 #define BITMAP_320_BORDER   20
 
 #define SIZEOF_COLOR        4
-#define TILESET_TEX_WIDTH   (16*1024)
+#define TILESET_TEX_WIDTH   16384.0
+
+#ifdef OPENGL_ES
+precision highp float;
+precision highp int;
+#endif
 
 in vec3 vertexPos;
 in vec2 fragTexCoord;
@@ -29,7 +32,7 @@ out vec4 finalColor;
 
 int color_from_idx(int idx)
 {
-    vec2 addr = vec2((idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.5);
+    vec2 addr = vec2(float(idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.5);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = idx % SIZEOF_COLOR;
@@ -37,7 +40,7 @@ int color_from_idx(int idx)
                         (channel == 1) ? set.g :
                         (channel == 2) ? set.b :
                                          set.a;
-    return int(byte_value * 255);
+    return int(byte_value * 255.0);
 }
 
 

@@ -55,7 +55,7 @@ int get_install_dir_file(char dst[PATH_MAX], const char* name) {
 
 const char* get_shaders_path(char dst[PATH_MAX], const char* name)
 {
-    const char* assets_dir = "assets/shaders/desktop";
+    const char* assets_dir = "assets/shaders/";
     if (path_buffer[0] == 0) {
         get_executable_dir(path_buffer, PATH_MAX);
     }
