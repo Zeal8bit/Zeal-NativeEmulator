@@ -1,2 +1,2 @@
 # meson_options.txt
-option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
+option('raylib_path', type : 'string', value : 'raylib-5.5_webassembly/', description : 'Path to Raylib')

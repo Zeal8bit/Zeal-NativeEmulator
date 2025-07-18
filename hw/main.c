@@ -17,10 +17,6 @@ int main(int argc, char* argv[])
     config_parse_file(config.arguments.config_path);
     if(config.arguments.verbose) config_debug();
 
-    if (config.arguments.rom_filename == NULL) {
-        log_printf("No ROM file specified.\n");
-    }
-
     if (config.arguments.hostfs_path == NULL) {
         log_printf("No HostFS path specified.\n");
     }
@@ -32,20 +28,22 @@ int main(int argc, char* argv[])
 
     if (zeal_init(&machine)) {
         log_err_printf("Error initializing the machine\n");
-        return 1;
+        goto deinit;
     }
 
     if (flash_load_from_file(&machine.rom, config.arguments.rom_filename)) {
-        return 1;
+        goto deinit;
     }
 
+#if CONFIG_SUPPORT_HOSTFS
     if (hostfs_load_path(&machine.hostfs, config.arguments.hostfs_path)) {
-        return 1;
+        goto deinit;
     }
+#endif
 
     if (config.arguments.tf_filename != NULL &&
         zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
-        return 1;
+        goto deinit;
     }
 
     code = zeal_run(&machine);
@@ -54,5 +52,7 @@ int main(int argc, char* argv[])
     config_unload();
     if(!saved && code == 0) return saved; // ???
 
+deinit:
+    zvb_sound_deinit(&machine.zvb.sound);
     return code;
 }

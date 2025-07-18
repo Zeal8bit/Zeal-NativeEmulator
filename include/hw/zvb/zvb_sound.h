@@ -114,3 +114,9 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port);
  * @param value Value of the register
  */
 void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
+
+
+/**
+ * @brief Deinitialize the sound controller
+ */
+void zvb_sound_deinit(zvb_sound_t* sound);

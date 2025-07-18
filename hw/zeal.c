@@ -7,6 +7,7 @@
 #include "utils/config.h"
 
 #define RAYLIB_KEY_COUNT    384
+#define SHOW_FPS            1
 
 #define CHECK_ERR(err)  \
     do {                \
@@ -341,8 +342,10 @@ int zeal_init(zeal_t* machine)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     /* initialize raylib window */
-    InitWindow(0, 0, WIN_NAME);
+    InitWindow(640, 480, WIN_NAME);
+#ifndef OPENGL_ES
     config_window_set(machine->dbg_enabled);
+#endif
     SetExitKey(KEY_NULL);
     SetWindowFocused(); // force focus on the window to capture keypresses
 
@@ -402,9 +405,11 @@ int zeal_init(zeal_t* machine)
     err = i2c_connect(&machine->i2c_bus, &machine->rtc.parent);
     CHECK_ERR(err);
 
+#if CONFIG_SUPPORT_COMPACTFLASH
     // /* Extensions */
     // const compactflash = new CompactFlash(this);
     const int cf_err = compactflash_init(&machine->compactflash, config.arguments.cf_filename);
+#endif
 
     // /* We could pass an initial content to the EEPROM, but set it to null for the moment */
     // const eeprom = new I2C_EEPROM(this, i2c, null);
@@ -414,12 +419,12 @@ int zeal_init(zeal_t* machine)
     err = i2c_connect(&machine->i2c_bus, &machine->eeprom.parent);
     CHECK_ERR(err);
 
+#if CONFIG_SUPPORT_HOSTFS
     // /* Create a HostFS to ease the file and directory access for the VM */
     // const hostfs = new HostFS(this.mem_read, this.mem_write);
     err = hostfs_init(&machine->hostfs, &s_ops);
     CHECK_ERR(err);
-
-    // const virtdisk = new VirtDisk(512, this.mem_read, this.mem_write);
+#endif
 
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
@@ -431,12 +436,16 @@ int zeal_init(zeal_t* machine)
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
     zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
+#if CONFIG_SUPPORT_COMPACTFLASH
     /* Register the devices in the I/O space */
     if (cf_err == 0) {
         zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
     }
+#endif
     zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
+#if CONFIG_SUPPORT_HOSTFS
     zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
+#endif
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
@@ -451,8 +460,10 @@ int zeal_init(zeal_t* machine)
     return 0;
 }
 
-
-static void zeal_dbg_mode_display(zeal_t* machine)
+/**
+ * Returns 1 if rendered, 0 else
+ */
+static int zeal_dbg_mode_display(zeal_t* machine)
 {
     /**
      * Prepare the rendering, if the returned value is true, we can
@@ -471,7 +482,7 @@ static void zeal_dbg_mode_display(zeal_t* machine)
         EndTextureMode();
     } else {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
-        return;
+        return 0;
     }
 
     /* Generate VRAM debug textures if the VRAM debugging window is opened */
@@ -484,7 +495,12 @@ static void zeal_dbg_mode_display(zeal_t* machine)
         /* Grey brackground */
         ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
         debugger_ui_render(machine->dbg_ui, &machine->dbg);
+#if SHOW_FPS
+        DrawFPS(10, 10);
+#endif
     EndDrawing();
+
+    return 1;
 }
 
 
@@ -510,25 +526,29 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         }
     }
 
-    zeal_dbg_mode_display(machine);
-    return 0;
+    return zeal_dbg_mode_display(machine);
 }
 
 
 /**
- * @brief Run Zeal 8-bit Computer VM in normal mode
+ * @brief Run Zeal 8-bit Computer VM in normal mode.
+ *
+ * Returns 1 if the screen was rendered, 0 else
  */
 static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
 {
+    int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
     /* Go through all the devices that have a tick function */
     zvb_tick(&machine->zvb, elapsed_tstates);
+
     /* Send keyboard keys to Zeal VM only if its window is focused */
     if(!ignore_keyboard) {
         zeal_read_keyboard(machine, elapsed_tstates);
     }
 
     if (zvb_prepare_render(&machine->zvb)) {
+        rendered = 1;
         const int screen_w = GetScreenWidth();
         const int screen_h = GetScreenHeight();
         const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
@@ -564,11 +584,26 @@ static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
+#if SHOW_FPS
+            DrawFPS(10, 10);
+#endif
         EndDrawing();
     }
-    return 0;
+    return rendered;
 }
 
+static void zeal_loop(zeal_t* machine)
+{
+    int rendered = 0;
+    while(rendered != 2) {
+        bool input_handled = zeal_ui_input(machine);
+        if (machine->dbg_enabled) {
+            rendered += zeal_dbg_mode_run(machine);
+        } else {
+            rendered += zeal_normal_mode_run(machine, input_handled);
+        }
+    }
+}
 
 int zeal_run(zeal_t* machine)
 {
@@ -582,17 +617,7 @@ int zeal_run(zeal_t* machine)
         if(!machine->dbg.running) {
             break;
         }
-
-        bool input_handled = zeal_ui_input(machine);
-
-        if (machine->dbg_enabled) {
-            ret = zeal_dbg_mode_run(machine);
-        } else {
-            ret = zeal_normal_mode_run(machine, input_handled);
-        }
-        if(ret != 0) {
-            /* TODO: Process emulated program request */
-        }
+        zeal_loop(machine);
     }
 
     config_window_update(machine->dbg_enabled);
