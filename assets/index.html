@@ -4,6 +4,7 @@
 
 	<body>
         <canvas id="canvas"></canvas>
+        <button id="unmute">Unmute</button>
         <table>
             <tr>
                 <td><p id="output"></p></td>
@@ -31,6 +32,16 @@
                     // console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
                 }
 			};
+
+            function resumeAudioIfNeeded() {
+                if (Module.audioContext && Module.audioContext.state === 'suspended') {
+                    Module.audioContext.resume().then(() => {
+                        console.log("Audio context resumed");
+                    });
+                }
+            }
+            document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
+
 		</script>
 		<script src="zeal.elf.js"></script>
 	</body>
