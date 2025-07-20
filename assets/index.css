@@ -1,0 +1,67 @@
+body {
+    --bg: rgba(20, 20, 20, 1);
+    --normal: rgba(220, 220, 220, 1);
+    --error: rgba(220, 128, 128, 1);
+    --max-width: clamp(640px, 80%, 1280px);
+
+    background: var(--bg);
+    color: var(--normal);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 16px;
+    line-height: 1.4;
+
+}
+
+#canvas {
+    display: block;
+    max-width: var(--max-width);
+    margin: 2rem auto;
+    aspect-ratio: 640 / 480;
+}
+
+.controls {
+    max-width: var(--max-width);
+    margin: 2rem auto;
+}
+
+button {
+    background: var(--normal);
+    color: var(--bg);
+    border-radius: 5px;
+    border: 1px solid var(--bg);
+    padding: 1ch 3ch;
+}
+
+.console {
+    max-height: 200px;
+    margin: 16px;
+    td {
+        width: 50%;
+    }
+}
+
+#output,
+#errors {
+    height: 200px;
+    display: block;
+    overflow-y: scroll;
+}
+
+#output {
+    font-size: 16px;
+    line-height: 1.4;
+    border: 1px solid var(--normal);
+    border-radius: 20px;
+    padding: 2ch;
+    margin: 1ch;
+}
+
+#errors {
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--error);
+    border: 1px solid var(--error);
+    border-radius: 20px;
+    padding: 2ch;
+    margin: 1ch;
+}

@@ -84,5 +84,10 @@ if (host_machine.system() == 'emscripten')
         output: 'index.html',
         copy: true
     )
+    configure_file(
+        input: 'assets/index.css',
+        output: 'index.css',
+        copy: true
+    )
 endif
 

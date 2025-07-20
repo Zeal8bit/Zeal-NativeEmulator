@@ -1,48 +1,54 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeal Native WASM Emulator</title>
+    <link rel="stylesheet" href="index.css" />
 </head>
-
-	<body>
-        <canvas id="canvas"></canvas>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="controls">
         <button id="unmute">Unmute</button>
-        <table>
-            <tr>
-                <td><p id="output"></p></td>
-                <td><p id="errors" style="color:red;"></p></td>
-            </tr>
-        </table>
-		<script>
-			var Module = {
-				print: function(text) {
-                        var element = document.getElementById('output');
-                        console.log("Log: " + text);
-						element.innerHTML += text + "<br>";
-                },
-                printErr: function(text) {
-                        var element = document.getElementById('errors');
-                        console.log("Error: " + text);
-						element.innerHTML += text + "<br>";
-                },
-				canvas: (function() {
-					var canvas = document.getElementById('canvas');
-					return canvas;
-				})(),
-                onRuntimeInitialized: function() {
-                    // const gl = Module.canvas.getContext("webgl");
-                    // console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
-                }
-			};
-
-            function resumeAudioIfNeeded() {
-                if (Module.audioContext && Module.audioContext.state === 'suspended') {
-                    Module.audioContext.resume().then(() => {
-                        console.log("Audio context resumed");
-                    });
-                }
+    </div>
+    <table class="console">
+        <tr>
+            <td><p id="output"></p></td>
+            <td><p id="errors" style="color:red;"></p></td>
+        </tr>
+    </table>
+    <script>
+        var Module = {
+            print: function(text) {
+                    var element = document.getElementById('output');
+                    console.log("Log: " + text);
+                    element.innerHTML += text + "<br>";
+            },
+            printErr: function(text) {
+                    var element = document.getElementById('errors');
+                    console.log("Error: " + text);
+                    element.innerHTML += text + "<br>";
+            },
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                return canvas;
+            })(),
+            onRuntimeInitialized: function() {
+                // const gl = Module.canvas.getContext("webgl");
+                // console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
             }
-            document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
+        };
 
-		</script>
-		<script src="zeal.elf.js"></script>
-	</body>
+        function resumeAudioIfNeeded() {
+            if (Module.audioContext && Module.audioContext.state === 'suspended') {
+                Module.audioContext.resume().then(() => {
+                    console.log("Audio context resumed");
+                });
+            }
+        }
+        document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
+
+    </script>
+    <script src="zeal.elf.js"></script>    
+</body>
 </html>
