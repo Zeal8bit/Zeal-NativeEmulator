@@ -11,6 +11,14 @@
 #define FIFO_SIZE       512
 #define BREAK_CODE      0xF0
 
+/**
+ * @brief Period, in T-states, to check the host computer keyboard.
+ * It is not necessary to check the keyboard events after each Z80
+ * instruction. At the same time, it is not good to always check
+ * it during v-blank, this introduces predictability. Let it have
+ * its own timer.
+ */
+#define KEYBOARD_CHECK_PERIOD   US_TO_TSTATES(15000)
 
 /**
  * @brief State machine for the keyboard
@@ -27,6 +35,9 @@ typedef struct {
     device_t    parent;
     size_t      size; // in bytes
 
+    // Host keyboard check timer
+    uint32_t    check_timer;
+
     // Keyboard specific
     uint32_t    elapsed_tstates;    // 32-bit lets us count up to 7 minutes, more than enough
     uint8_t     shift_register;
@@ -38,4 +49,14 @@ typedef struct {
 int keyboard_init(keyboard_t* keyboard, pio_t* pio);
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode);
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode);
-void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, int delta);
+
+/**
+ * @brief Tick the internal clock and checks whether the host keyboard
+ * must be read or not.
+ */
+bool keyboard_check(keyboard_t* keyboard, int elapsed);
+
+/**
+ * @brief Process the next keypresses if the keyboard is ready.
+ */
+void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed);

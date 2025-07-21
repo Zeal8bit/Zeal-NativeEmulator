@@ -261,8 +261,6 @@ static void zeal_read_keyboard(zeal_t* machine, int delta) {
             key_pressed(&machine->keyboard, keyCode);
         }
     }
-
-    keyboard_send_next(&machine->keyboard, &machine->pio, delta);
 }
 
 
@@ -502,12 +500,16 @@ static int zeal_dbg_mode_run(zeal_t* machine)
 {
     if (machine->dbg_state != ST_PAUSED) {
         const int elapsed_tstates = z80_step(&machine->cpu);
-        /* Go through all the devices that have a tick function */
-        zvb_tick(&machine->zvb, elapsed_tstates);
+
         /* Send keyboard keys to Zeal MV only if its window is focused */
-        if (debugger_ui_main_view_focused(machine->dbg_ui)) {
+        if (keyboard_check(&machine->keyboard, elapsed_tstates) &&
+            debugger_ui_main_view_focused(machine->dbg_ui)) {
             zeal_read_keyboard(machine, elapsed_tstates);
         }
+
+        /* Go through all the devices that have a tick function */
+        zvb_tick(&machine->zvb, elapsed_tstates);
+        keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
 
         /* Check if we reached a breakpoint or if we have to do a single step */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -526,17 +528,19 @@ static int zeal_dbg_mode_run(zeal_t* machine)
  *
  * Returns 1 if the screen was rendered, 0 else
  */
-static int zeal_normal_mode_run(zeal_t* machine, bool ignore_keyboard)
+static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
-    /* Go through all the devices that have a tick function */
-    zvb_tick(&machine->zvb, elapsed_tstates);
 
-    /* Send keyboard keys to Zeal VM only if its window is focused */
-    if(!ignore_keyboard) {
+    /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
+    if (keyboard_check(&machine->keyboard, elapsed_tstates) && !zeal_ui_input(machine)) {
         zeal_read_keyboard(machine, elapsed_tstates);
     }
+
+    /* Go through all the devices that have a tick function */
+    zvb_tick(&machine->zvb, elapsed_tstates);
+    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;
@@ -599,11 +603,10 @@ static void zeal_loop(zeal_t* machine)
 #else
     while(rendered != 1) {
 #endif
-        bool input_handled = zeal_ui_input(machine);
         if (machine->dbg_enabled) {
             rendered += zeal_dbg_mode_run(machine);
         } else {
-            rendered += zeal_normal_mode_run(machine, input_handled);
+            rendered += zeal_normal_mode_run(machine);
         }
     }
 }

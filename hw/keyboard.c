@@ -150,9 +150,20 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 }
 
 
-void keyboard_send_next(keyboard_t* keyboard, pio_t* pio, int delta)
+bool keyboard_check(keyboard_t* keyboard, int elapsed)
 {
-    keyboard->elapsed_tstates += delta;
+    keyboard->check_timer += elapsed;
+    if (keyboard->check_timer >= KEYBOARD_CHECK_PERIOD) {
+        keyboard->check_timer = 0;
+        return true;
+    }
+    return false;
+}
+
+
+void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed)
+{
+    keyboard->elapsed_tstates += elapsed;
 
     switch (keyboard->state) {
         case PS2_IDLE:
