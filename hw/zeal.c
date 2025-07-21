@@ -501,9 +501,11 @@ static int zeal_dbg_mode_run(zeal_t* machine)
     if (machine->dbg_state != ST_PAUSED) {
         const int elapsed_tstates = z80_step(&machine->cpu);
 
-        /* Send keyboard keys to Zeal MV only if its window is focused */
+        /* Check if we need to poll the keyboard and transmit the data to the VM */
         if (keyboard_check(&machine->keyboard, elapsed_tstates) &&
-            debugger_ui_main_view_focused(machine->dbg_ui)) {
+            /* make sure the current keys are not a UI shortcut and the main view is focused */
+            !zeal_ui_input(machine) && debugger_ui_main_view_focused(machine->dbg_ui))
+        {
             zeal_read_keyboard(machine, elapsed_tstates);
         }
 
