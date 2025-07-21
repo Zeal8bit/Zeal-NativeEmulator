@@ -18,16 +18,18 @@
         </tr>
     </table>
     <script>
+        const consoleOutput = document.getElementById('output');
+        const consoleError = document.getElementById('errors');
         var Module = {
             print: function(text) {
-                    var element = document.getElementById('output');
                     console.log("Log: " + text);
-                    element.innerHTML += text + "<br>";
-            },
-            printErr: function(text) {
-                    var element = document.getElementById('errors');
+                    consoleOutput.innerHTML += text + "<br>";
+                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                },
+                printErr: function(text) {
                     console.log("Error: " + text);
-                    element.innerHTML += text + "<br>";
+                    consoleError.innerHTML += text + "<br>";
+                    consoleError.scrollTop = consoleError.scrollHeight;
             },
             canvas: (function() {
                 var canvas = document.getElementById('canvas');
@@ -49,6 +51,6 @@
         document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
 
     </script>
-    <script src="zeal.elf.js"></script>    
+    <script src="zeal.elf.js"></script>
 </body>
 </html>
