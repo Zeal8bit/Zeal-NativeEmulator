@@ -336,16 +336,17 @@ int zeal_init(zeal_t* machine)
 
     /* Initialize the UI. It must be done before any shader is created! */
     SetTraceLogLevel(WIN_LOG_LEVEL);
+#ifndef PLATFORM_WEB
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+#endif
 
     /* initialize raylib window */
     InitWindow(640, 480, WIN_NAME);
-#ifndef PLATFORM_WEB
     config_window_set(machine->dbg_enabled);
-#endif
     SetExitKey(KEY_NULL);
+#ifndef PLATFORM_WEB
     SetWindowFocused(); // force focus on the window to capture keypresses
-
+#endif
 #if !BENCHMARK
     SetTargetFPS(60);
 #endif
@@ -521,7 +522,15 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         }
     }
 
-    return zeal_dbg_mode_display(machine);
+
+    // return zeal_dbg_mode_display(machine);
+
+    int rendered = zeal_dbg_mode_display(machine);
+    /* If the CPU is paused, we didn't check the UI input! Check it once per frame */
+    if (rendered && machine->dbg_state == ST_PAUSED) {
+        zeal_ui_input(machine);
+    }
+    return rendered;
 }
 
 

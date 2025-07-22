@@ -93,7 +93,9 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             nk_checkbox_label(ctx, "Hex Upper", &config.debugger.hex_upper);
 
             if (nk_menu_item_label(ctx, "Reset Layout", NK_TEXT_LEFT)) {
+#ifndef PLATFORM_WEB
                 SetWindowSize(1280, 960);
+#endif
                 for(int i = 0; i < panels_size; i++) {
                     dbg_ui_panel_t *panel = &panels[i];
                     panel->hidden = panel->hidden_default;
