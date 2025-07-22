@@ -15,6 +15,9 @@ typedef struct {
 
 
 static void main_scale_up(dbg_t *dbg) {
+#ifdef PLATFORM_WEB
+    return;
+#endif
     (void)dbg; // unreferenced
     int width = GetScreenWidth();
     Vector2 size = config_get_next_resolution(width);
@@ -22,6 +25,9 @@ static void main_scale_up(dbg_t *dbg) {
 }
 
 static void main_scale_down(dbg_t *dbg) {
+#ifdef PLATFORM_WEB
+    return;
+#endif
     (void)dbg; // unreferenced
     int width = GetScreenWidth();
     Vector2 size = config_get_prev_resolution(width);

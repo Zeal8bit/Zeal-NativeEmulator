@@ -1,3 +1,7 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
@@ -12,11 +16,21 @@ body {
 
 }
 
-#canvas {
-    display: block;
+.canvas_container {
+    width: 1280px !important;
+    height: auto !important;
     max-width: var(--max-width);
+    aspect-ratio: 4 / 3;
+    padding: 1ch;
     margin: 2rem auto;
-    aspect-ratio: 640 / 480;
+    border: 10px groove var(--normal);
+    background-color: #000;
+}
+
+#canvas {
+    /* display: block; */
+    width: 100%;
+    aspect-ratio: 4 / 3;
 }
 
 .controls {
@@ -33,10 +47,20 @@ button {
 }
 
 .console {
+    width: 100%;
+    max-width: var(--max-width);
     max-height: 200px;
-    margin: 16px;
-    td {
-        width: 50%;
+    margin: 16px auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+
+    .label {
+        display: inline-block;
+        font-weight: bold;
+        text-align: left;
+        padding-left: 2ch;
+        width: 100%;
     }
 }
 
@@ -45,23 +69,17 @@ button {
     height: 200px;
     display: block;
     overflow-y: scroll;
+    font-size: 16px;
+    line-height: 1.4;
+    border-radius: 20px;
+    padding: 2ch;
 }
 
 #output {
-    font-size: 16px;
-    line-height: 1.4;
     border: 1px solid var(--normal);
-    border-radius: 20px;
-    padding: 2ch;
-    margin: 1ch;
 }
 
 #errors {
-    font-size: 16px;
-    line-height: 1.4;
-    color: var(--error);
     border: 1px solid var(--error);
-    border-radius: 20px;
-    padding: 2ch;
-    margin: 1ch;
+    color: var(--error);
 }

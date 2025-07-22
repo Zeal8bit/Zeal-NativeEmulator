@@ -7,19 +7,30 @@
     <link rel="stylesheet" href="index.css" />
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+    <div class="canvas_container">
+        <canvas id="canvas" tabindex="0" width="640" height="480"></canvas>
+    </div>
     <div class="controls">
         <button id="unmute">Unmute</button>
     </div>
-    <table class="console">
-        <tr>
-            <td><p id="output"></p></td>
-            <td><p id="errors" style="color:red;"></p></td>
-        </tr>
-    </table>
+    <div class="console">
+        <div>
+            <span class="label">Console</span>
+            <div id="output"></div>
+        </div>
+        <div>
+            <span class="label">Errors</span>
+            <div id="errors"></div>
+        </div>
+        <div>
+            <input type="text" />
+        </div>
+    </div>
     <script>
         const consoleOutput = document.getElementById('output');
         const consoleError = document.getElementById('errors');
+        const canvas = document.getElementById('canvas');
+
         var Module = {
             print: function(text) {
                     console.log("Log: " + text);
@@ -32,12 +43,28 @@
                     consoleError.scrollTop = consoleError.scrollHeight;
             },
             canvas: (function() {
-                var canvas = document.getElementById('canvas');
                 return canvas;
             })(),
             onRuntimeInitialized: function() {
-                // const gl = Module.canvas.getContext("webgl");
-                // console.log("Max texture size:", gl.getParameter(gl.MAX_TEXTURE_SIZE));
+                canvas.setAttribute('tabindex', '0');
+                canvas.focus();
+
+                canvas.addEventListener('keydown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+
+                canvas.addEventListener('keyup', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+
+                window.addEventListener('keydown', function(e) {
+                    if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Tab", "Escape"].includes(e.key)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }, true);
             }
         };
 
