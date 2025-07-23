@@ -6,13 +6,19 @@ body {
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
     --error: rgba(220, 128, 128, 1);
-    --max-width: clamp(640px, 80vw, 1280px);
+    /*
+    640px min
+    98vw - canvas-border - canvas-padding - body-margin
+    1280px max
+    */
+    --max-width: clamp(640px, calc(98vw - 20px - 2ch - 2ch), 1280px);
 
     background: var(--bg);
     color: var(--normal);
     font-family: 'Courier New', Courier, monospace;
     font-size: 16px;
     line-height: 1.4;
+    margin: 1ch;
 }
 
 .canvas_container {
