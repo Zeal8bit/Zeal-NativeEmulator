@@ -12,6 +12,10 @@
     </div>
     <div class="controls">
         <button id="unmute">Unmute</button>
+        <label>
+            <input id="canvas-smoothing" type="checkbox" />
+            Canvas Smoothing
+        </label>
     </div>
     <div class="console">
         <div>
@@ -76,6 +80,15 @@
             }
         }
         document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
+        document.getElementById('canvas-smoothing').addEventListener('change', function(e) {
+            const checked = e.target.checked;
+            console.log('canvas-smoothing', checked);
+            if(checked) {
+                canvas.classList.add('smooth');
+            } else {
+                canvas.classList.remove('smooth');
+            }
+        });
 
     </script>
     <script src="zeal.elf.js"></script>

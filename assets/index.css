@@ -13,7 +13,6 @@ body {
     font-family: 'Courier New', Courier, monospace;
     font-size: 16px;
     line-height: 1.4;
-
 }
 
 .canvas_container {
@@ -32,20 +31,35 @@ body {
     height: auto !important;
     max-width: var(--max-width);
     aspect-ratio: 4 / 3;
+    outline: none;
+
+    image-rendering: auto;
+    image-rendering: crisp-edges;
+    &.smooth {
+        image-rendering: pixelated;
+    }
 }
 
 .controls {
     max-width: var(--max-width);
     margin: 2rem auto;
+
+    button {
+        cursor: pointer;
+        user-select: none;
+        background: var(--normal);
+        color: var(--bg);
+        border-radius: 5px;
+        border: 1px solid var(--bg);
+        padding: 1ch 3ch;
+    }
+
+    label {
+        user-select: none;
+        cursor: pointer;
+    }
 }
 
-button {
-    background: var(--normal);
-    color: var(--bg);
-    border-radius: 5px;
-    border: 1px solid var(--bg);
-    padding: 1ch 3ch;
-}
 
 .console {
     width: 100%;
