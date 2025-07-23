@@ -6,7 +6,7 @@ body {
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
     --error: rgba(220, 128, 128, 1);
-    --max-width: clamp(640px, 80%, 1280px);
+    --max-width: clamp(640px, 80vw, 1280px);
 
     background: var(--bg);
     color: var(--normal);
@@ -17,9 +17,8 @@ body {
 }
 
 .canvas_container {
-    width: 1280px !important;
+    width: fit-content;
     height: auto !important;
-    max-width: var(--max-width);
     aspect-ratio: 4 / 3;
     padding: 1ch;
     margin: 2rem auto;
@@ -28,8 +27,10 @@ body {
 }
 
 #canvas {
-    /* display: block; */
-    width: 100%;
+    display: block;
+    width: 1280px;
+    height: auto !important;
+    max-width: var(--max-width);
     aspect-ratio: 4 / 3;
 }
 
