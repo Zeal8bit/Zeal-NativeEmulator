@@ -39,10 +39,10 @@ body {
     aspect-ratio: 4 / 3;
     outline: none;
 
-    image-rendering: auto;
-    image-rendering: crisp-edges;
+    image-rendering: pixelated;
     &.smooth {
-        image-rendering: pixelated;
+        image-rendering: auto;
+        image-rendering: crisp-edges;
     }
 }
 

@@ -88,17 +88,22 @@ run_target(
 # We have to do it here so that the final file is at the root of the build dir
 if platform == 'web'
     configure_file(
-        input: 'assets/index.html',
+        input: 'assets/web/index.html',
         output: 'index.html',
         copy: true
     )
     configure_file(
-        input: 'assets/index.css',
+        input: 'assets/web/favicon.ico',
+        output: 'favicon.ico',
+        copy: true
+    )
+    configure_file(
+        input: 'assets/web/index.css',
         output: 'index.css',
         copy: true
     )
     configure_file(
-        input: 'assets/index.js',
+        input: 'assets/web/index.js',
         output: 'index.js',
         copy: true
     )

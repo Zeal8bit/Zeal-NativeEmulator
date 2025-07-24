@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeal Native WASM Emulator</title>
+    <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+    <div class="canvas_container">
+        <canvas id="canvas" tabindex="0" width="640" height="480"></canvas>
+    </div>
+    <div class="controls">
+        <label>
+            <input id="canvas-smoothing" type="checkbox" />
+            Canvas Smoothing
+        </label>
+    </div>
+    <div class="console">
+        <div>
+            <span class="label">Console</span>
+            <div id="output"></div>
+        </div>
+        <div>
+            <span class="label">Errors</span>
+            <div id="errors"></div>
+        </div>
+    </div>
+    <script src="index.js"></script>
+    <script src="zeal.elf.js"></script>
+</body>
+</html>
