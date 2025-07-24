@@ -5,7 +5,7 @@ project(
     license: 'Apache-2.0',
     default_options: [
         'buildtype=debugoptimized',
-        'c_std=c99',
+        'c_std=gnu99',
         'warning_level=everything',
         'warning_level=2',
     ],
@@ -15,6 +15,12 @@ project(
 # Output binary
 dependencies = []
 OUTPUT_BIN = 'zeal.elf'
+
+# By default, the paltform is native
+platform = meson.get_external_property('platform', 'native')
+
+# Prepare the linker arguments before browsing all the directories
+linker_args = meson.get_external_property('link_args', [])
 
 # Retrieve raylib_path option (set via command line or use system defaults)
 raylib_path = get_option('raylib_path')
@@ -60,7 +66,9 @@ add_project_arguments('-D_POSIX_C_SOURCE=200809L',
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
 add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
 
-linker_args = meson.get_external_property('link_args', [])
+
+message('Linker args!')
+message(linker_args)
 
 # Compiler and build targets
 exec = executable(
@@ -78,7 +86,7 @@ run_target(
 )
 
 # We have to do it here so that the final file is at the root of the build dir
-if (host_machine.system() == 'emscripten')
+if platform == 'web'
     configure_file(
         input: 'assets/index.html',
         output: 'index.html',
@@ -87,6 +95,11 @@ if (host_machine.system() == 'emscripten')
     configure_file(
         input: 'assets/index.css',
         output: 'index.css',
+        copy: true
+    )
+    configure_file(
+        input: 'assets/index.js',
+        output: 'index.js',
         copy: true
     )
 endif

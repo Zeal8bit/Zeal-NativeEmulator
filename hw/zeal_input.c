@@ -63,7 +63,7 @@ bool zeal_ui_input(zeal_t* machine)
 {
     bool handled = false;
 
-    if(config_keyboard_passthru(machine->dbg_enabled)) {
+    if (config_keyboard_passthru(machine->dbg_enabled)) {
         return handled;
     }
 

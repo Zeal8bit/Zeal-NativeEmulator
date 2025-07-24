@@ -499,6 +499,8 @@ static int zeal_dbg_mode_display(zeal_t* machine)
  */
 static int zeal_dbg_mode_run(zeal_t* machine)
 {
+    int rendered = zeal_dbg_mode_display(machine);
+
     if (machine->dbg_state != ST_PAUSED) {
         const int elapsed_tstates = z80_step(&machine->cpu);
 
@@ -520,16 +522,11 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         {
             machine->dbg_state = ST_PAUSED;
         }
-    }
-
-
-    // return zeal_dbg_mode_display(machine);
-
-    int rendered = zeal_dbg_mode_display(machine);
-    /* If the CPU is paused, we didn't check the UI input! Check it once per frame */
-    if (rendered && machine->dbg_state == ST_PAUSED) {
+    } else if (rendered) {
+        /* Paused and rendered! Check the inputs for the UI */
         zeal_ui_input(machine);
     }
+
     return rendered;
 }
 

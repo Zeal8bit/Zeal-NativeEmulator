@@ -1,4 +1,5 @@
 #include "hw/zeal.h"
+#include "utils/files.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 
@@ -30,6 +31,12 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
         if (nk_menu_begin_label(ctx, "File", NK_TEXT_LEFT, nk_vec2(120, windowHeight)))
         {
             nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
+
+            if (nk_menu_item_label(ctx, "Import EEPROM...", NK_TEXT_LEFT)) {
+                files_options_t opt = { 0 };
+                files_import(&opt);
+                files_import_free(&opt);
+            }
 
             if (nk_menu_item_label(ctx, "Debugger Off", NK_TEXT_LEFT)) {
                 zeal_debug_disable(machine);
