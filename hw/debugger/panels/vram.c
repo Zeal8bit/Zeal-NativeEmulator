@@ -5,7 +5,6 @@
  */
 
 #include <string.h>
-#include "ui/nuklear.h"
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger_types.h"
 #include "debugger/debugger.h"
@@ -142,6 +141,8 @@ static void ui_tab_set(struct dbg_ui_t* dctx, const tab_args_t* args)
     struct nk_image* img = args->img;
 
     const float set_scale = 2.0f;
+    /* The gird has a size of 1px but the scale will make it thicker */
+    const float grid_thickness = 1.0 * set_scale;
     const int tile_scale = 10;
     const int tile_per_line = 16;
 
@@ -152,8 +153,21 @@ static void ui_tab_set(struct dbg_ui_t* dctx, const tab_args_t* args)
     struct nk_mouse* mouse = &ctx->input.mouse;
 
     if (nk_input_is_mouse_hovering_rect(&ctx->input, image_bounds)) {
-        float rel_x = (mouse->pos.x - image_bounds.x) / set_scale;
-        float rel_y = (mouse->pos.y - image_bounds.y) / set_scale;
+        float mouse_x = mouse->pos.x;
+        float mouse_y = mouse->pos.y;
+
+        /* Special case if the mouse if hitting the right or bottom border of the grid */
+        if (mouse_x >= image_bounds.x - grid_thickness) {
+            /* Consider it part of the cell on the left */
+            mouse_x -= grid_thickness;
+        }
+        /* Same for the bottom grid line */
+        if (mouse_y >= image_bounds.y - grid_thickness) {
+            mouse_y -= grid_thickness;
+        }
+
+        float rel_x = (mouse_x - image_bounds.x) / set_scale;
+        float rel_y = (mouse_y - image_bounds.y) / set_scale;
 
         int width_w_grid = args->tile_size.x + 1;
         int height_w_grid = args->tile_size.y + 1;
