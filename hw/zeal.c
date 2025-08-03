@@ -299,10 +299,10 @@ void zeal_debug_toggle(dbg_t *dbg)
     zeal_t* machine = (zeal_t*) (dbg->arg);
 
     if (machine->dbg_enabled) {
-        log_printf("zeal_debug_toggle: disable\n");
+        log_printf("[DEBUGGER]: Disabled\n");
         zeal_debug_disable(machine);
     } else {
-        log_printf("zeal_debug_toggle: enable\n");
+        log_printf("[DEBUGGER]: Enabled\n");
         zeal_debug_enable(machine);
     }
 }
