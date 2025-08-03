@@ -403,7 +403,7 @@ static void zvb_reset(device_t* dev)
 {
     zvb_t* zvb = (zvb_t*) dev;
     // TODO: reset some ZVB registers... ???
-    return 0;
+    (void)zvb;
 }
 
 
