@@ -75,7 +75,7 @@ struct dbg_t {
     debugger_dis_op  disassemble_cb;
     debugger_ctrl_op pause_cb;
     debugger_ctrl_op continue_cb;
-    debugger_ctrl_op restart_cb;
+    debugger_ctrl_op reset_cb;
     debugger_ctrl_op step_cb;
     debugger_ctrl_op step_over_cb;
     debugger_ctrl_op breakpoint_cb;

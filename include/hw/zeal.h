@@ -102,11 +102,11 @@ int zeal_init(zeal_t* machine);
 
 
 /**
- * @brief Restart the Zeal 8-bit Computer
+ * @brief Reset the Zeal 8-bit Computer
  *
  * Resets the CPU and ZVB
  */
-int zeal_restart(zeal_t* machine);
+int zeal_reset(zeal_t* machine);
 
 /**
  * @brief Run the virtual machine, won't return until the emulation is terminated

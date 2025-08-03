@@ -33,7 +33,7 @@ void debugger_step(dbg_t *dbg);
 void debugger_step_over(dbg_t *dbg);
 void debugger_continue(dbg_t *dbg);
 void debugger_pause(dbg_t *dbg);
-void debugger_restart(dbg_t *dbg);
+void debugger_reset(dbg_t *dbg);
 void debugger_breakpoint(dbg_t *dbg);
 bool debugger_is_paused(dbg_t *dbg);
 

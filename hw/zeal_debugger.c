@@ -124,10 +124,10 @@ static void zeal_debugger_continue_cb(dbg_t* dbg) {
     machine->dbg_state = ST_RUNNING;
 }
 
-static void zeal_debugger_restart_cb(dbg_t* dbg) {
+static void zeal_debugger_reset_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
     log_printf("[SYSTEM] Reset\n");
-    zeal_restart(machine);
+    zeal_reset(machine);
 }
 
 
@@ -364,7 +364,7 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
     dbg->pause_cb = zeal_debugger_pause_cb;
     dbg->is_paused_cb = zeal_debugger_is_paused_cb;
     dbg->continue_cb = zeal_debugger_continue_cb;
-    dbg->restart_cb = zeal_debugger_restart_cb;
+    dbg->reset_cb = zeal_debugger_reset_cb;
     dbg->step_cb = zeal_debugger_step_cb;
     dbg->step_over_cb = zeal_debugger_step_over_cb;
     dbg->breakpoint_cb = zeal_debugger_breakpoint_cb;

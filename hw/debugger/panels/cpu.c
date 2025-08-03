@@ -247,6 +247,6 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 
     dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if (nk_button_label(ctx, "[ ]")) {
-        debugger_restart(dbg);
+        debugger_reset(dbg);
     }
 }

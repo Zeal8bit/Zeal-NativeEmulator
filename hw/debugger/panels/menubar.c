@@ -58,9 +58,6 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             if (nk_menu_item_label(ctx, "Continue               Meta+F5", NK_TEXT_LEFT)) {
                 debugger_continue(dbg);
             }
-            if (nk_menu_item_label(ctx, "Restart         Meta+ Shift+F6", NK_TEXT_LEFT)) {
-                debugger_restart(dbg);
-            }
             if (nk_menu_item_label(ctx, "Step Over             Meta+F10", NK_TEXT_LEFT)) {
                 debugger_step_over(dbg);
             }
@@ -69,6 +66,9 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             }
             if (nk_menu_item_label(ctx, "Toggle Breakpoint      Meta+F9", NK_TEXT_LEFT)) {
                 debugger_toggle_breakpoint(dbg, machine->cpu.pc);
+            }
+            if (nk_menu_item_label(ctx, "Reset          Meta+Shift+Bksp", NK_TEXT_LEFT)) {
+                debugger_reset(dbg);
             }
             nk_menu_end(ctx);
         }

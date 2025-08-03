@@ -218,12 +218,12 @@ void debugger_pause(dbg_t *dbg)
     dbg->pause_cb(dbg);
 }
 
-void debugger_restart(dbg_t *dbg)
+void debugger_reset(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->restart_cb == NULL) {
+    if (dbg == NULL || dbg->reset_cb == NULL) {
         return;
     }
-    dbg->restart_cb(dbg);
+    dbg->reset_cb(dbg);
 }
 
 

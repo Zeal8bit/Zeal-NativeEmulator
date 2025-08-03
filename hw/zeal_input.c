@@ -35,11 +35,11 @@ static void main_scale_down(dbg_t *dbg) {
     SetWindowSize(size.x, size.y);
 }
 
-static void main_restart(dbg_t *dbg) {
-    if (dbg == NULL || dbg->restart_cb == NULL) {
+static void main_reset(dbg_t *dbg) {
+    if (dbg == NULL || dbg->reset_cb == NULL) {
         return;
     }
-    dbg->restart_cb(dbg);
+    dbg->reset_cb(dbg);
 }
 
 static debugger_key_t debugger_key_toggle = {
@@ -53,17 +53,17 @@ static debugger_key_t debugger_key_toggle = {
 static debugger_key_t main_keys[] = {
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
     { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
-    { .label = "Restart", .key = KEY_F5, .callback = main_restart, .pressed = false, .shifted = true },
+    { .label = "Reset", .key = KEY_BACKSPACE, .callback = main_reset, .pressed = false, .shifted = true },
 };
 
 static debugger_key_t debugger_keys[] = {
     // { .label = "Toggle Debugger", .key = KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
     { .label = "Pause", .key = KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
     { .label = "Continue", .key = KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
-    { .label = "Restart", .key = KEY_F5, .callback = debugger_restart, .pressed = false, .shifted = true },
     { .label = "Step Over", .key = KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
     { .label = "Step", .key = KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
     { .label = "Toggle Breakpoint", .key = KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
+    { .label = "Reset", .key = KEY_BACKSPACE, .callback = debugger_reset, .pressed = false, .shifted = true },
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
     { .label = "Scale Down", .key = KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
 };
