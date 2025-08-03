@@ -22,6 +22,15 @@ bool fifo_init(fifo_t *fifo, size_t size) {
     return true;
 }
 
+void fifo_reset(fifo_t *fifo) {
+    if (fifo == NULL) {
+        return;
+    }
+    fifo->rd = 0;
+    fifo->wr = 0;
+    fifo->empty = true;
+}
+
 
 void fifo_deinit(fifo_t *fifo) {
     if (fifo == NULL) {

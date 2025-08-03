@@ -1,6 +1,6 @@
 #pragma once
 
-#define DEVICE(dev) &dev->parent
+#define DEVICE(dev) &((dev)->parent)
 
 typedef struct device_t device_t;
 
@@ -18,6 +18,7 @@ struct device_t {
     const char* name; // Used for debugging
     region_t io_region;
     region_t mem_region;
+    void (*reset)(device_t* dev);
 };
 
 
@@ -38,4 +39,16 @@ static inline void device_init_mem(device_t* dev, const char* name, uint8_t (*re
     dev->mem_region.size  = size;
     dev->mem_region.read  = read;
     dev->mem_region.write = write;
+}
+
+static inline void device_register_reset(device_t* dev, void (*reset)(device_t* dev))
+{
+    dev->reset = reset;
+}
+
+static inline void device_reset(device_t* dev)
+{
+    if (dev && dev->reset) {
+        dev->reset(dev);
+    }
 }

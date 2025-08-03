@@ -34,6 +34,7 @@ typedef struct {
     // device_t
     device_t    parent;
     size_t      size; // in bytes
+    pio_t*      pio;
 
     // Host keyboard check timer
     uint32_t    check_timer;

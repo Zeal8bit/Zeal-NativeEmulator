@@ -67,6 +67,7 @@
 #define SHADER_SCROLL0_NAME         "scroll_l0"
 #define SHADER_SCROLL1_NAME         "scroll_l1"
 
+static void zvb_reset(device_t* dev);
 
 static const long s_tstates_remaining[STATE_COUNT] = {
     /* The raster spends 15.253 ms in the visible area */
@@ -361,6 +362,7 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     memset(dev, 0, sizeof(zvb_t));
     device_init_mem(DEVICE(dev), "zvb_dev", zvb_mem_read, zvb_mem_write, ZVB_MEM_SIZE);
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
+    device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
 
     zvb_palette_init(&dev->palette);
@@ -397,9 +399,9 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     return 0;
 }
 
-int zvb_reset(zvb_t* zvb) {
-    (void)zvb;
-    log_printf("[ZVB] Reset\n");
+static void zvb_reset(device_t* dev)
+{
+    zvb_t* zvb = (zvb_t*) dev;
     // TODO: reset some ZVB registers... ???
     return 0;
 }

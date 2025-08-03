@@ -127,6 +127,19 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     return keyboard->shift_register;
 }
 
+
+static void keyboard_reset(device_t* dev)
+{
+    keyboard_t* keyboard = (keyboard_t*) dev;
+    keyboard->pin_state = 1;
+    keyboard->state = PS2_IDLE;
+    keyboard->elapsed_tstates = 0;
+    keyboard->shift_register = 0;
+    pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+    fifo_reset(&keyboard->queue);
+}
+
+
 int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 {
     /* On the real hardware, the active signal stays on for ~19.7 microseconds */
@@ -136,15 +149,13 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     /* The release code happens 30ms after the first code is issued */
     PS2_RELEASE_DELAY = us_to_tstates(30000);
 
+    keyboard->pio = pio;
     keyboard->size = 0x10;
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
+    device_register_reset(DEVICE(keyboard), keyboard_reset);
 
-    keyboard->pin_state = 1;
-    keyboard->state = PS2_IDLE;
-    keyboard->elapsed_tstates = 0;
     assert(fifo_init(&keyboard->queue, FIFO_SIZE));
-
-    pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+    keyboard_reset(DEVICE(keyboard));
 
     return 0;
 }

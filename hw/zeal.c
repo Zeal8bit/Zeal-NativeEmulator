@@ -315,11 +315,10 @@ static memory_op_t s_ops = {
 };
 
 int zeal_reset(zeal_t* machine) {
-    int err = 0;
     zeal_init_cpu(machine);
-
-    err = zvb_reset(&machine->zvb);
-    CHECK_ERR(err);
+    device_reset(DEVICE(&machine->mmu));
+    device_reset(DEVICE(&machine->keyboard));
+    device_reset(DEVICE(&machine->zvb));
 
     if(machine->dbg_enabled) {
         machine->dbg_state = ST_PAUSED;
@@ -374,8 +373,7 @@ int zeal_init(zeal_t* machine)
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
 
-    err = zeal_reset(machine);
-    CHECK_ERR(err);
+    zeal_init_cpu(machine);
 
     // const mmu = new MMU();
     err = mmu_init(&machine->mmu);

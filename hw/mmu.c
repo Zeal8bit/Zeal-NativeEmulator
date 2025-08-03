@@ -25,6 +25,14 @@ static void mmu_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
+static void mmu_reset(device_t* dev)
+{
+    mmu_t* mmu = (mmu_t*) dev;
+    /* On the real hardware, MMU reset only sets page 0 */
+    mmu->pages[0] = 0;
+}
+
+
 int mmu_init(mmu_t* mmu)
 {
     if (mmu == NULL) {
@@ -33,6 +41,7 @@ int mmu_init(mmu_t* mmu)
     /* All the pages will be initialized to 0 */
     memset(mmu, 0, sizeof(*mmu));
     device_init_io(DEVICE(mmu), "mmu_dev", mmu_read, mmu_write, 0x10);
+    device_register_reset(DEVICE(mmu), mmu_reset);
     return 0;
 }
 
