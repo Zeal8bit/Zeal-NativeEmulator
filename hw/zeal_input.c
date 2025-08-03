@@ -4,6 +4,7 @@
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
 #include "hw/zeal.h"
+#include "utils/log.h"
 
 typedef struct {
     bool pressed; // TODO: support key repeat with GetTime()??
@@ -34,6 +35,13 @@ static void main_scale_down(dbg_t *dbg) {
     SetWindowSize(size.x, size.y);
 }
 
+static void main_restart(dbg_t *dbg) {
+    if (dbg == NULL || dbg->restart_cb == NULL) {
+        return;
+    }
+    dbg->restart_cb(dbg);
+}
+
 static debugger_key_t debugger_key_toggle = {
     .label = "Toggle Debugger",
     .key = KEY_F1,
@@ -45,6 +53,7 @@ static debugger_key_t debugger_key_toggle = {
 static debugger_key_t main_keys[] = {
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
     { .label = "Scale Down", .key = KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
+    { .label = "Restart", .key = KEY_F5, .callback = main_restart, .pressed = false, .shifted = true },
 };
 
 static debugger_key_t debugger_keys[] = {

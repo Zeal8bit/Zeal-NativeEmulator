@@ -235,6 +235,13 @@ static inline bool zvb_is_text_mode(const zvb_t* zvb)
  */
 int zvb_init(zvb_t* zvb, bool flipped_y, const memory_op_t* ops);
 
+/**
+ * @brief Reset ZVB
+ *
+ * @param zvb Context to fill and return
+ * @param flipped_y Whether to render the screen mirrored in Y axis
+ */
+int zvb_reset(zvb_t* zvb);
 
 /**
  * @brief Function to call to let the video board be aware of how many

@@ -220,10 +220,10 @@ void debugger_pause(dbg_t *dbg)
 
 void debugger_restart(dbg_t *dbg)
 {
-    log_printf("debugger_restart: dbg: %d, restart_cb: %d\n", dbg != NULL, dbg != NULL && dbg->restart_cb != NULL);
     if (dbg == NULL || dbg->restart_cb == NULL) {
         return;
     }
+    dbg->restart_cb(dbg);
 }
 
 
@@ -254,11 +254,13 @@ void debugger_handle_event(dbg_t *dbg, debug_event_t event)
 /* Symbol management */
 bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
     if (!dbg || !filename) {
+        log_perror("[MAP] No debugger or filename");
         return false;
     }
 
     FILE *file = fopen(filename, "r");
     if (!file) {
+        log_perror("[MAP] Could not open file to load");
         return false;
     }
 
@@ -282,6 +284,7 @@ bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
                 current->next = (symbols_t *)calloc(1, sizeof(symbols_t));
                 if (!current->next) {
                     fclose(file);
+                    log_perror("[MAP] Memory allocation failed");
                     return false;  // Memory allocation failed
                 }
                 current = current->next;
@@ -290,6 +293,7 @@ bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
     }
 
     fclose(file);
+    log_printf("[MAP] %s loaded successfully\n", filename);
     return true;
 }
 

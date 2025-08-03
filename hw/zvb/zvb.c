@@ -397,6 +397,13 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     return 0;
 }
 
+int zvb_reset(zvb_t* zvb) {
+    (void)zvb;
+    log_printf("[ZVB] Reset\n");
+    // TODO: reset some ZVB registers... ???
+    return 0;
+}
+
 
 /**
  * @brief Render the screen when `vid_ena` is set (screen disabled)

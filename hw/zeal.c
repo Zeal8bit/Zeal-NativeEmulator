@@ -314,6 +314,19 @@ static memory_op_t s_ops = {
     .phys_write_byte = zeal_phys_mem_write,
 };
 
+int zeal_restart(zeal_t* machine) {
+    int err = 0;
+    zeal_init_cpu(machine);
+
+    err = zvb_reset(&machine->zvb);
+    CHECK_ERR(err);
+
+    if(machine->dbg_enabled) {
+        machine->dbg_state = ST_PAUSED;
+    }
+    return 0;
+}
+
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -361,7 +374,8 @@ int zeal_init(zeal_t* machine)
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
 
-    zeal_init_cpu(machine);
+    err = zeal_restart(machine);
+    CHECK_ERR(err);
 
     // const mmu = new MMU();
     err = mmu_init(&machine->mmu);

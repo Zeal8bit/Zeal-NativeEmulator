@@ -126,8 +126,8 @@ static void zeal_debugger_continue_cb(dbg_t* dbg) {
 
 static void zeal_debugger_restart_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
-    (void)machine; // unreferenced
-    // machine->dbg_state = ST_RUNNING;
+    log_printf("[SYSTEM] Reset\n");
+    zeal_restart(machine);
 }
 
 
