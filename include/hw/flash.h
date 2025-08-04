@@ -27,6 +27,6 @@ typedef struct {
 
 int flash_init(flash_t*);
 
-int flash_load_from_file(flash_t*, const char* name);
+int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
 
 int flash_save_to_file(flash_t*, const char* name);

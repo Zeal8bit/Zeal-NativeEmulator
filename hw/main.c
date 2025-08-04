@@ -35,7 +35,8 @@ int main(int argc, char* argv[])
         goto deinit;
     }
 
-    if (flash_load_from_file(&machine.rom, config.arguments.rom_filename)) {
+    if (flash_load_from_file(&machine.rom, config.arguments.rom_filename,
+                             config.arguments.uprog_filename)) {
         goto deinit;
     }
 

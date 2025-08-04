@@ -14,6 +14,24 @@
 #include "utils/log.h"
 
 
+/**
+ * @brief Romdisk header and first entry
+ */
+typedef struct {
+    uint16_t entry;
+    char     name[16];
+    uint32_t size;
+    uint32_t offset;
+    uint8_t  year[2];
+    uint8_t  month;
+    uint8_t  day;
+    uint8_t  date;
+    uint8_t  hours;
+    uint8_t  minutes;
+    uint8_t  seconds;
+} __attribute__((packed)) romdisk_entry_t;
+
+
 static uint8_t flash_read(device_t* dev, uint32_t addr)
 {
     flash_t* f = (flash_t*) dev;
@@ -39,7 +57,8 @@ int flash_init(flash_t* f)
     if (f == NULL) {
         return 1;
     }
-    memset(f, 0, sizeof(*f));
+    /* Empty flash contains FF bytes*/
+    memset(f, 0xFF, sizeof(*f));
     f->size = NOR_FLASH_SIZE_KB;
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
@@ -54,16 +73,96 @@ int flash_init(flash_t* f)
     return 0;
 }
 
-
-int flash_load_from_file(flash_t* flash, const char* name)
+static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
 {
+    int err = 0;
+    int romdisk_offset = 0x8000;
+    const int romdisk_header = 64;
+    char* path = strdup(userprog_filename);
+    if (path == NULL) {
+        log_err_printf("[FLASH] No more memory!\n");
+        return -1;
+    }
+
+    /* Check if the parameter provides a romdisk address */
+    char* comma = strchr(path, ',');
+    if (comma) {
+        /* Make the filename end before the address */
+        *comma = 0;
+        char *endptr;
+        size_t address = strtoul(comma + 1, &endptr, 16);
+        if (address >= flash->size || *endptr != '\0') {
+            log_err_printf("[FLASH] Invalid user file address, ignoring\n");
+        } else {
+            romdisk_offset = address;
+        }
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        log_perror("[FLASH] Could not open user file: %s\n", path);
+        err = fd;
+        goto ret;
+    }
+
+    /* Get the file size and make sure it's not too big for the flash */
+    struct stat st;
+    if (fstat(fd, &st)) {
+        log_perror("[FLASH] Could not stat user file: %s\n", path);
+        err = -1;
+        goto ret_close;
+    }
+    const size_t size = st.st_size;
+
+    if (size > (flash->size - romdisk_offset - romdisk_header)) {
+        log_err_printf("[FLASH] User file is too big to fit in ROM\n");
+        err = -1;
+        goto ret_close;
+    }
+
+    /* Generate a small header for the romdisk */
+    uint8_t* romdisk = flash->data + romdisk_offset;
+    /* FIXME: Made the assumption that the host CPU is little-endian */
+    const romdisk_entry_t entry = {
+        /* Single entry in the romdisk */
+        .entry = 1,
+        .name = "init.bin",
+        .size = size,
+        .offset = romdisk_header,
+        /* Ignore the date, let them be 0 */
+    };
+    memcpy(romdisk, &entry, sizeof(entry));
+
+    /* Read the data directly in flash */
+    int rd = read(fd, flash->data + romdisk_offset + romdisk_header, flash->size);
+    if (rd < 0) {
+        log_perror("[FLASH] Could not read user file: %s\n", path);
+        err = rd;
+        goto ret_close;
+    }
+
+    log_printf("[FLASH] User program %s loaded successfully @ 0x%x\n", path, romdisk_offset);
+
+    err = 0;
+    /* Fall-through */
+ret_close:
+    close(fd);
+ret:
+    free(path);
+    return err;
+}
+
+
+int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename)
+{
+    char rom_path[PATH_MAX];
+
     if (flash == NULL) {
         return -1;
     }
 
-    char rom_path[PATH_MAX];
-    if(name != NULL) {
-        snprintf(rom_path, sizeof(rom_path), "%s", name);
+    if(rom_filename != NULL) {
+        snprintf(rom_path, sizeof(rom_path), "%s", rom_filename);
     } else {
         const char* default_name = "roms/default.img";
         log_printf("[FLASH] Trying to load %s\n", default_name);
@@ -89,6 +188,12 @@ int flash_load_from_file(flash_t* flash, const char* name)
     log_printf("[FLASH] %s loaded successfully\n", rom_path);
 
     close(fd);
+
+    /* Try to load the user program, if any */
+    if (userprog_filename != NULL ) {
+        return flash_override_romdisk(flash, userprog_filename);
+    }
+
     return 0;
 }
 
