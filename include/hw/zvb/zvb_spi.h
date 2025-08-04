@@ -85,7 +85,7 @@ typedef struct {
 
 
 /**
- * @brief Type for the text controller
+ * @brief Type for the SPI controller
  */
 typedef struct {
     uint8_t         clk_div;
@@ -101,14 +101,20 @@ typedef struct {
 /**
  * @brief Initialize the SPI, must be called before using it.
  */
-void zvb_spi_init(zvb_spi_t* text);
+void zvb_spi_init(zvb_spi_t* spi);
+
+
+/**
+ * @brief Simulate a hardware reset on the SPI controller.
+ */
+void zvb_spi_reset(zvb_spi_t* spi);
 
 
 /**
  * @brief Function to call when a write occurs on the SPI I/O controller.
  *
  * @param addr Address relative to the SPI address space.
- * @param data Byte to write in the text
+ * @param data Byte to write
  */
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
 

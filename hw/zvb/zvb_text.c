@@ -13,14 +13,39 @@ void zvb_text_init(zvb_text_t* text)
     assert(text != NULL);
     memset(text, 0, sizeof(*text));
 
+    zvb_text_reset(text);
+}
+
+
+void zvb_text_reset(zvb_text_t* text)
+{
     /* Set the default values */
-    text->color        = TEXT_DEFAULT_COLOR;
-    text->cursor_color = TEXT_DEFAULT_CURSOR_COLOR;
-    text->cursor_time  = TEXT_DEFAULT_CURSOR_TIME;
-    text->cursor_char  = TEXT_DEFAULT_CURSOR_CHAR;
+    text->cursor_pos.raw  = 0;
+    text->cursor_save.raw = 0;
+    text->scroll.raw      = 0;
+    text->wait_for_next_char = false;
+    text->color         = TEXT_DEFAULT_COLOR;
+    text->cursor_color  = TEXT_DEFAULT_CURSOR_COLOR;
+    text->cursor_time   = TEXT_DEFAULT_CURSOR_TIME;
+    text->cursor_char   = TEXT_DEFAULT_CURSOR_CHAR;
+    text->flags.val     = 0;
+    text->frame_counter = 0;
+    text->cursor_shown  = false;
     /* By default, we start in 80x40 mode */
     text->visible_lines   = TEXT_MAXIMUM_LINES;
     text->visible_columns = TEXT_MAXIMUM_COLUMNS;
+}
+
+
+void zvb_text_mode(zvb_text_t* text, bool col_80)
+{
+    if (col_80) {
+        text->visible_lines   = TEXT_MAXIMUM_LINES;
+        text->visible_columns = TEXT_MAXIMUM_COLUMNS;
+    } else {
+        text->visible_lines   = TEXT_MAXIMUM_LINES / 2;
+        text->visible_columns = TEXT_MAXIMUM_COLUMNS / 2;
+    }
 }
 
 
@@ -131,7 +156,7 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
     if (text->cursor_time != 0 && text->cursor_time != 0xff) {
         if (++text->frame_counter == text->cursor_time) {
             text->cursor_shown = !text->cursor_shown;
-            text->frame_counter = 0;   
+            text->frame_counter = 0;
         }
     }
 
@@ -145,7 +170,7 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
 
     if (!text->cursor_shown) {
         /* Hide the cursor by making the X coordinate out of bounds */
-        info->pos[0] |= 0x80;  
+        info->pos[0] |= 0x80;
     }
 
     return text->cursor_shown;
@@ -183,7 +208,7 @@ static void print_and_increment(zvb_text_t* text, uint8_t value, zvb_tilemap_t* 
         }
     }
 }
-    
+
 
 static void cursor_next_line(zvb_text_t* text)
 {

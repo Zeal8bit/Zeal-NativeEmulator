@@ -100,6 +100,12 @@ void zvb_sound_init(zvb_sound_t* sound);
 
 
 /**
+ * @brief Simulate a hardware reset on the sound controller.
+ */
+void zvb_sound_reset(zvb_sound_t* sound);
+
+
+/**
  * @brief Function to call when a read occurs on the sound I/O controller.
  *
  * @param port Sound register to read

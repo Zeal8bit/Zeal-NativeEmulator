@@ -54,10 +54,18 @@ static void dma_start_transfer(zvb_dma_t* dma)
 
 void zvb_dma_init(zvb_dma_t* dma, const memory_op_t* ops)
 {
-    dma->clk.rd_cycle = 6;
-    dma->clk.wr_cycle = 5;
+    dma->clk.rd_cycle = 1;
+    dma->clk.wr_cycle = 1;
     dma->desc_addr = 0;
     dma->ops = ops;
+}
+
+void zvb_dma_reset(zvb_dma_t* dma)
+{
+    /* Different than boot values */
+    dma->clk.rd_cycle = 6;
+    dma->clk.wr_cycle = 5;
+    /* Descriptor address unchanged on reset */
 }
 
 

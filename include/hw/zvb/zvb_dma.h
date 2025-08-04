@@ -80,6 +80,12 @@ void zvb_dma_init(zvb_dma_t* dma, const memory_op_t* ops);
 
 
 /**
+ * @brief Simulate a hardware reset on the DMA controller.
+ */
+void zvb_dma_reset(zvb_dma_t* dma);
+
+
+/**
  * @brief Function to call when a read occurs on the dma I/O controller.
  *
  * @param port DMA register to read

@@ -402,8 +402,11 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
 static void zvb_reset(device_t* dev)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    // TODO: reset some ZVB registers... ???
-    (void)zvb;
+    zvb_text_reset(&zvb->text);
+    zvb_spi_reset(&zvb->spi);
+    zvb_crc32_reset(&zvb->peri_crc32);
+    zvb_sound_reset(&zvb->sound);
+    zvb_dma_reset(&zvb->dma);
 }
 
 

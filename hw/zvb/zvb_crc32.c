@@ -54,8 +54,14 @@ static void update(zvb_crc32_t* crc32, uint8_t byte) {
 int zvb_crc32_init(zvb_crc32_t* crc32)
 {
     assert(crc32 != NULL);
-    crc32->sum = 0xFFFFFFFF;
+    zvb_crc32_reset(crc32);
     return 0;
+}
+
+
+void zvb_crc32_reset(zvb_crc32_t* crc32)
+{
+    crc32->sum = 0xFFFFFFFF;
 }
 
 

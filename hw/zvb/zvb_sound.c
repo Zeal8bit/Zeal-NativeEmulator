@@ -56,6 +56,35 @@ void zvb_sound_init(zvb_sound_t* sound) {
     PlayAudioStream(sound->stream);
 }
 
+void zvb_sound_reset(zvb_sound_t* sound)
+{
+    /* Master registers */
+    sound->hold_voices    = 0;
+    sound->enabled_voices = 0;
+    sound->left_voices    = 0;
+    sound->right_voices   = 0;
+    /* Both channels disabled */
+    sound->master_volume  = 0xc0;
+
+    /* Voices registers */
+    for (int i = 0; i < VOICE_COUNT; i++) {
+        sound->voices[i] = (zvb_voice_t) { 0 };
+    }
+    sound->sample_table.fifo_bytes = 0;
+    sound->sample_table.baud_count = 0;
+    sound->sample_table.is_signed  = false;
+    sound->sample_table.fifo_head  = 0;
+    sound->sample_table.fifo_tail  = 0;
+    sound->sample_table.divider = 0;
+    sound->sample_table.config  = 0;
+    sound->sample_table.is_u8   = false;
+    atomic_store(&sound->sample_table.fifo_bytes, 0);
+
+    /* Internal registers */
+    sound->left_volume = 0.f;
+    sound->right_volume = 0.f;
+}
+
 void zvb_sound_deinit(zvb_sound_t* sound)
 {
     StopAudioStream(sound->stream);

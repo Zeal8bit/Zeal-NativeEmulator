@@ -34,9 +34,19 @@ void zvb_spi_init(zvb_spi_t* spi)
 {
     assert(spi != NULL);
     memset(spi, 0, sizeof(*spi));
-    spi->clk_div = 1;
+    zvb_spi_reset(spi);
 }
 
+void zvb_spi_reset(zvb_spi_t* spi)
+{
+    spi->clk_div = 10;
+    spi->ram_rd.idx = 0;
+    spi->ram_wr.idx = 0;
+    spi->ram_len = 0;
+    spi->tf_cs = 0;
+    /* Reset TF card */
+    spi->tf.state = TF_IDLE;
+}
 
 int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
 {

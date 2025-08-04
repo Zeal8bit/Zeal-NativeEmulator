@@ -102,6 +102,18 @@ void zvb_text_init(zvb_text_t* text);
 
 
 /**
+ * @brief Simulate a hardware reset on the text controller.
+ */
+void zvb_text_reset(zvb_text_t* text);
+
+
+/**
+ * @brief Switch text mode: swap between 80 and 40 columns modes
+ */
+void zvb_text_mode(zvb_text_t* text, bool col_80);
+
+
+/**
  * @brief Function to call when a write occurs on the text I/O controller.
  *
  * @param layer Layer to write to (0 or 1)
