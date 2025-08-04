@@ -31,6 +31,13 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 bool zeal_ui_input(zeal_t* machine);
 
 /**
+ * @brief Array used to key tracked of the key states on the host. This array will help simulate
+ * key press, release and repeat.
+ */
+static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+
+
+/**
  * @brief Callback invoked when the CPU tries to read a byte in memory space
  */
 static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
@@ -217,9 +224,20 @@ static int key_can_repeat(int code)
 }
 
 
-static void zeal_read_keyboard(zeal_t* machine, int delta) {
-    static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+static void zeal_read_keyboard_reset(zeal_t* machine)
+{
+    (void) machine;
+    /* Clear Raylib's key states */
+    while(GetKeyPressed()) {}
 
+    for (int i = 0; i < RAYLIB_KEY_COUNT; i++) {
+        RAYLIB_KEYS[i].duration = 0;
+        RAYLIB_KEYS[i].state = KEY_NOT_PRESSED;
+    }
+}
+
+static void zeal_read_keyboard(zeal_t* machine, int delta)
+{
     int keyCode;
 
     /* The initial delay is ~500ms before repeat starts */
@@ -316,6 +334,7 @@ static memory_op_t s_ops = {
 
 int zeal_reset(zeal_t* machine) {
     zeal_init_cpu(machine);
+    zeal_read_keyboard_reset(machine);
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
