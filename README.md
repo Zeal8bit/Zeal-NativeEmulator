@@ -15,7 +15,7 @@ This project is written entirely in C, using Raylib for 2D rendering and Nuklear
 
 Thanks to its native implementation, this emulator is also much more portable, it can be adapted to other platforms including (but not limited to) WASM and Android. See the [Ports](#ports) section for more details.
 
-Additionally, because the emulator runs directly on the host system, it's much easier to work with local files, for example, using files to emulate EEPROMs, microSD/TF cards, CF cards, and more. The emulator supports a several command-line options, making it ideal for automation.
+Additionally, because the emulator runs directly on the host system, it's much easier to work with local files, for example, using files to emulate EEPROMs, microSD/TF cards, CF cards, and more. The emulator supports several command-line options, making it ideal for automation.
 
 ## Build
 
@@ -36,7 +36,7 @@ To compile the emulator, you will need the following software:
 
 To compile the emulator natively to your operating system, use the following commands:
 
-```
+```sh
 meson setup build
 cd build
 meson compile
@@ -48,7 +48,7 @@ You will then have a `zeal.elf` binary that you can run. You can check all the p
 
 To compile to WASM, use the following commands:
 
-```
+```sh
 meson setup build-wasm --cross-file wasm-cross.build
 cd build-wasm
 meson compile
@@ -62,7 +62,7 @@ All the compilation options are listed in the `meson_options.txt` file. Check it
 
 For example, if Raylib is not installed in the system's default path, you can pass its location to the Meson command line by adding `-Draylib_path=/path/to/your/raylib`. For native compilation, the command would be:
 
-```
+```sh
 meson setup build -Draylib_path=/path/to/your/raylib
 ```
 
@@ -70,12 +70,11 @@ meson setup build -Draylib_path=/path/to/your/raylib
 
 To clean the build, you can either use:
 
-```
+```sh
 meson compile --clean
 ```
 
 Or simply delete the build directory.
-
 
 ## Supported Features
 
@@ -87,30 +86,29 @@ Currently, the following features from Zeal 8-bit Computer are emulated:
 * 256KB NOR flash (read-only currently)
 * 512KB RAM
 * Zeal 8-bit Video Card, **firmware v1.0.0** :
-    * All text, graphics, bitmap modes, including sprites, palette, layers, etc...
-    * Text controller
-    * DMA controller
-    * Audio controller (all voices, including the sample table)
-    * CRC controller
-    * SPI controller
+  * All text, graphics, bitmap modes, including sprites, palette, layers, etc...
+  * Text controller
+  * DMA controller
+  * Audio controller (all voices, including the sample table)
+  * CRC controller
+  * SPI controller
 * PS/2 Keyboard, with interrupts
 * UART TX: prints to stdout
 * I2C: bus emulated, supporting write/read/write-read operations
-    * DS1307 RTC
-    * 24C512 (64KB) EEPROM is emulated
+  * DS1307 RTC
+  * 24C512 (64KB) EEPROM is emulated
 * microSD/TF card support
 * HostFS support to access a directory of the desktop computer in the emulator directly
 
-The emulator also implement a debugger, with the following features:
+The emulator also implements a debugger, with the following features:
 
 * Breakpoints
 * Step/stop/restart/continue
 * Disassembler: when the emulator reaches a breakpoint, the code at program counter is disassembled. Clicking on one of the instructions will toggle a breakpoint.
 * Load a map file generated from `z88dk-z88dk` to view symbols in the assembly view when doing step-by-step debugging
 * Set breakpoints with either a hexadecimal PC address or a symbol (from the map file)
-* View RAM memory content at any virtual address, updated in live
+* View RAM memory content at any virtual address, updated in real-time
 * View VRAM memory content, including the current palette, tileset, tilemaps and font
-
 
 ## Ports
 
@@ -118,13 +116,16 @@ Raylib supports a wide range of platforms, which makes the Zeal Native Emulator 
 
 ### WebAssembly
 
+> [!NOTE]
+> This port is still in progress.
+
 To compile the emulator to WebAssembly, follow the steps described above in [WebAssembly compilation](#webassembly-compilation).
 
 After compilation, the `build-wasm` directory will contain an `index.html`, `index.css`, and all other necessary files.
 
 **Note:** You cannot simply open the `index.html` file directly in your browser to run the emulator. You need to start a local web server to serve the files properly. This can be as simple as serving the current directory. For example, the easiest way is:
 
-```
+```sh
 cd build-wasm
 python3 -m http.server
 ```
@@ -133,7 +134,10 @@ Then, open http://0.0.0.0:8000/ in any modern web browser (Chrome-based browsers
 
 ### Android (WIP)
 
-This port is still in progress. It requires the Android NDK in order to compile the C code for the Android execution environment.
+> [!NOTE]
+> This port is still in progress.
+
+It requires the Android NDK in order to compile the C code for the Android execution environment.
 
 ## Contributing
 
@@ -151,7 +155,7 @@ To contribute:
 
 (*) A good commit message is as follows:
 
-```
+```text
 Module: add/fix/remove a from b
 
 Explanation on what/how/why
@@ -159,7 +163,7 @@ Explanation on what/how/why
 
 For example:
 
-```
+```text
 hw/zvb: implement 320x240 text-mode
 
 It is now possible to switch to 320x240 text-mode and display text.
@@ -167,14 +171,18 @@ It is now possible to switch to 320x240 text-mode and display text.
 
 ## License
 
-Z80 CPU C implementation from [Superzazu](https://github.com/superzazu/z80) is distributed under the MIT licence.
+* Z80 CPU C implementation from [Superzazu](https://github.com/superzazu/z80) is distributed under the [MIT licence](https://github.com/superzazu/z80/blob/master/LICENSE).
+* [Raylib](https://github.com/raysan5/raylib) is distributed under this [LICENSE](raylib/LICENSE.txt)
+* [raylib-nuklear](https://github.com/RobLoach/raylib-nuklear) is distributed under an [unmodified zlib/libpng license](include/ui//raylib-nuklear.h)
+* [nuklear](https://github.com/Immediate-Mode-UI/Nuklear/) is distributed under [various licenses](include/ui/nuklear.h)
+* ProggyClean font is distributed under this [LICENSE](https://github.com/chrissimpkins/codeface/blob/master/fonts/proggy-clean/license.txt)
 
-All the other files are distributed under the Apache 2.0 License. See LICENSE file for more information.
+All other files are distributed under the Apache 2.0 License, unless noted otherwise. See LICENSE file for more information.
 
 You are free to use it for personal and commercial use, the boilerplate present in each file must not be removed.
 
 ## Contact
 
-For any suggestion or request, you can contact me at contact [at] zeal8bit [dot] com
+For any suggestion or request, you can contact me at `contact [at] zeal8bit [dot] com`
 
 For feature requests, you can also open an issue or a pull request.
