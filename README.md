@@ -1,5 +1,9 @@
 # Zeal Native Emulator
 
+<center>
+    <img src="img/screenshot.png" alt="Screenshot" />
+</center>
+
 This project is a software emulator for Zeal 8-bit Computer: a homebrew 8-bit computer based on a Z80 CPU.
 
 The emulator is written in C, and runs natively on desktop platforms. It features hardware-accelerated rendering for efficient graphics and is designed to precisely replicate the behavior of the original hardware.
