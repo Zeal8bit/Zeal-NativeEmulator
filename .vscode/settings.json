@@ -1,15 +1,10 @@
 {
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/include",
-    "${env:ZVB_SDK_PATH}/include",
-    "${env:ZVB_SDK_PATH}/sdcc",
-    "${env:ZOS_PATH}/kernel_headers/sdcc/include",
-    "${env:ZGDK_PATH}/include"
   ],
   "C_Cpp.clang_format_sortIncludes": false,
-  "C_Cpp.clang_format_style": "file:${ZDE_PATH}/.clang-format",
   "C_Cpp.autoAddFileAssociations": false,
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/builddir/compile_commands.json",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
   "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
   "files.insertFinalNewline": true,
   "editor.tabSize": 4,
@@ -21,7 +16,4 @@
     ".vs": "vert"
   },
   "glsllint.fallBackStage": "frag",
-  "files.associations": {
-    "*.asm": "z80-macroasm"
-  }
 }
