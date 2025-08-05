@@ -1,4 +1,6 @@
-# Zeal Native Emulator
+<center>
+    <img src="img/title.png" alt="Zeal Native Emulator" />
+</center>
 
 <center>
     <img src="img/screenshot.png" alt="Screenshot" />
