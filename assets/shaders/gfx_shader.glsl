@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #define MODE_GFX_640_8BIT   4
 #define MODE_GFX_320_8BIT   5
 #define MODE_GFX_640_4BIT   6

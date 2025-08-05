@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #define PALETTE_SIZE    256
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
