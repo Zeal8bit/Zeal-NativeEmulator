@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>

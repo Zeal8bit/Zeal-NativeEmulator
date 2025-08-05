@@ -1,6 +1,6 @@
 /**
  * SPDX-FileCopyrightText: 2019 superzazu/Nicolas Allemand <contact@nicolasallemand.com>; 2024 Zeal 8-bit Computer
- * <contact@zeal8bit.com>
+ * <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: MIT
  *
