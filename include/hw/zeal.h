@@ -121,6 +121,11 @@ int zeal_reset(zeal_t* machine);
 int zeal_run(zeal_t* machine);
 
 /**
+ * @brief Stop the virtual machine, and call CloseWindow()
+ */
+void zeal_exit(void);
+
+/**
  * @brief Enable Zeal Debugger view
  */
 int zeal_debug_enable(zeal_t* machine);

@@ -660,6 +660,12 @@ static void zeal_loop(zeal_t* machine)
     }
 }
 
+
+static bool shouldCloseWindow = false;
+void zeal_exit(void) {
+    shouldCloseWindow = true;
+}
+
 int zeal_run(zeal_t* machine)
 {
     int ret = 0;
@@ -668,12 +674,16 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!WindowShouldClose()) {
+    while (!shouldCloseWindow && !WindowShouldClose()) {
         if(!machine->dbg.running) {
             break;
         }
         zeal_loop(machine);
     }
+
+#ifdef PLATFORM_WEB
+    CloseAudioDevice();
+#endif
 
     config_window_update(machine->dbg_enabled);
 

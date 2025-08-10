@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zeal Native WASM Emulator</title>
     <link rel="stylesheet" href="index.css" />
+    <script src="zeal.elf.js"></script>
 </head>
 <body>
     <div class="canvas_container">
@@ -12,6 +13,7 @@
     </div>
     <div class="controls">
         <button id="unmute">Unmute</button>
+        <button id="reload">Reload</button>
         <label>
             <input id="canvas-smoothing" type="checkbox" />
             Canvas Smoothing
@@ -35,42 +37,48 @@
         const consoleError = document.getElementById('errors');
         const canvas = document.getElementById('canvas');
 
-        var Module = {
-            print: function(text) {
-                    console.log("Log: " + text);
-                    consoleOutput.innerHTML += text + "<br>";
-                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        let moduleInstance = null;
+        function loadModule() {
+            const defaultModule = {
+                print: function(text) {
+                        console.log("Log: " + text);
+                        consoleOutput.innerHTML += text + "<br>";
+                        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    },
+                    printErr: function(text) {
+                        console.log("Error: " + text);
+                        consoleError.innerHTML += text + "<br>";
+                        consoleError.scrollTop = consoleError.scrollHeight;
                 },
-                printErr: function(text) {
-                    console.log("Error: " + text);
-                    consoleError.innerHTML += text + "<br>";
-                    consoleError.scrollTop = consoleError.scrollHeight;
-            },
-            canvas: (function() {
-                return canvas;
-            })(),
-            onRuntimeInitialized: function() {
-                canvas.setAttribute('tabindex', '0');
-                canvas.focus();
+                canvas: (function() {
+                    return canvas;
+                })(),
+                onRuntimeInitialized: function() {
+                    canvas.setAttribute('tabindex', '0');
+                    canvas.focus();
 
-                canvas.addEventListener('keydown', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, true);
-
-                canvas.addEventListener('keyup', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, true);
-
-                window.addEventListener('keydown', function(e) {
-                    if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Tab", "Escape"].includes(e.key)) {
+                    canvas.addEventListener('keydown', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
-                    }
-                }, true);
-            }
-        };
+                    }, true);
+
+                    canvas.addEventListener('keyup', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, true);
+
+                    window.addEventListener('keydown', function(e) {
+                        if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Tab", "Escape"].includes(e.key)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }, true);
+                }
+            };
+            Module(defaultModule).then(mod => moduleInstance = mod);
+        }
+
+        window.addEventListener('load', loadModule);
 
         function resumeAudioIfNeeded() {
             if (Module.audioContext && Module.audioContext.state === 'suspended') {
@@ -80,6 +88,13 @@
             }
         }
         document.getElementById('unmute').addEventListener("click", resumeAudioIfNeeded);
+        document.getElementById('reload').addEventListener('click', () => {
+            moduleInstance?._zeal_exit();
+            moduleInstance = null;
+            setTimeout(() => {
+                loadModule();
+            }, 100);
+        });
         document.getElementById('canvas-smoothing').addEventListener('change', function(e) {
             const checked = e.target.checked;
             console.log('canvas-smoothing', checked);
@@ -91,6 +106,5 @@
         });
 
     </script>
-    <script src="zeal.elf.js"></script>
 </body>
 </html>
