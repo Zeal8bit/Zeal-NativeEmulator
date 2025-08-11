@@ -89,5 +89,15 @@ if (host_machine.system() == 'emscripten')
         output: 'index.css',
         copy: true
     )
+
+    patch_script = join_paths(meson.source_root(), 'tools', 'wasm_patch.py')
+
+    patch_wasm = custom_target('patch_wasm',
+        output: 'dummy_file',
+        command: ['python3', patch_script, OUTPUT_BIN + '.js'],
+        depends: exec,
+        build_by_default: true,
+    )
+
 endif
 

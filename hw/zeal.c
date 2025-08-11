@@ -50,7 +50,7 @@ static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 #ifdef PLATFORM_WEB
 EMSCRIPTEN_KEEPALIVE volatile
 #endif
-#ifdef SHOW_FPS
+#if SHOW_FPS
 bool show_fps = true;
 #else
 bool show_fps = false;
