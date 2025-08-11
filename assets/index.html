@@ -14,6 +14,7 @@
     <div class="controls">
         <button id="unmute">Unmute</button>
         <button id="reload">Reload</button>
+        <button id="toggle-fps">Toggle FPS</button>
         <label>
             <input id="canvas-smoothing" type="checkbox" />
             Canvas Smoothing
@@ -94,6 +95,12 @@
             setTimeout(() => {
                 loadModule();
             }, 100);
+        });
+        document.getElementById('toggle-fps').addEventListener("click", () => {
+            if(!moduleInstance) return;
+            const show_fps = !!moduleInstance.getValue(moduleInstance._show_fps, 'i8');
+            console.log('show_fps', show_fps);
+            moduleInstance.setValue(moduleInstance._show_fps, !show_fps ? 1 : 0, 'i8');
         });
         document.getElementById('canvas-smoothing').addEventListener('change', function(e) {
             const checked = e.target.checked;

@@ -22,8 +22,9 @@ link_args = ['--emit-symbol-map',
              '-sUSE_WEBGL2=1',
              '-sEXIT_RUNTIME=1',
              '-sMODULARIZE=1',
-             '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32"]',
+             '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32", "getValue", "setValue"]',
              '-sEXPORTED_FUNCTIONS=["_main", "_zeal_exit"]',
+             '-SEXPORTED_GLOBALS=["_show_fps"]',
               '--embed-file', 'assets',
               '--embed-file', 'roms']
 raylib_path = '../raylib/web'

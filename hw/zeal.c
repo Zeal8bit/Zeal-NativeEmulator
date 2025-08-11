@@ -12,6 +12,9 @@
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "utils/config.h"
+#ifdef PLATFORM_WEB
+#include <emscripten.h>
+#endif
 
 #define RAYLIB_KEY_COUNT    384
 
@@ -42,6 +45,16 @@ bool zeal_ui_input(zeal_t* machine);
  * key press, release and repeat.
  */
 static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+
+
+#ifdef PLATFORM_WEB
+EMSCRIPTEN_KEEPALIVE volatile
+#endif
+#ifdef SHOW_FPS
+bool show_fps = true;
+#else
+bool show_fps = false;
+#endif
 
 
 /**
@@ -523,9 +536,10 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         /* Grey brackground */
         ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
         debugger_ui_render(machine->dbg_ui, &machine->dbg);
-#if SHOW_FPS
+    if(show_fps == true) {
         DrawFPS(10, 10);
-#endif
+    }
+
     EndDrawing();
 
     return 1;
@@ -628,9 +642,9 @@ static int zeal_normal_mode_run(zeal_t* machine)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
-#if SHOW_FPS
-        DrawFPS(10, 10);
-#endif
+        if(show_fps == true) {
+            DrawFPS(10, 10);
+        }
         EndDrawing();
     }
     return rendered;
