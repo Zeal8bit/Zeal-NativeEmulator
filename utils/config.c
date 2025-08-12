@@ -215,7 +215,8 @@ void config_parse_file(const char* file) {
     config.debugger.hex_upper = rini_get_config_value_fallback(config.ini, "DEBUG_HEX_UPPER", 1);
 }
 
-int config_save() {
+int config_save(void)
+{
     rini_config ini = rini_load_config(NULL);
 
     // main header
@@ -245,6 +246,7 @@ int config_save() {
     rini_set_config_value(&ini, "WIN_POS_Y", window->y, "Y Position");
     rini_set_config_value(&ini, "WIN_DISPLAY", window->display, "Display Number");
 
+#if CONFIG_ENABLE_DEBUGGER
     config_debugger_t *debugger = &config.debugger;
     rini_set_config_comment_line(&ini, "Debugger");
     rini_set_config_value(&ini, "DEBUG_WIDTH", debugger->width, "Width");
@@ -255,6 +257,7 @@ int config_save() {
     rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
 
     dbg_ui_config_save(&ini);
+#endif // CONFIG_ENABLE_DEBUGGER
 
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);

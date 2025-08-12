@@ -9,12 +9,14 @@ sources += files([
         'uart.c',
         'z80.c',
         'zeal.c',
-        'zeal_input.c',
         'i2c.c',
         'i2c/ds1307.c',
         'i2c/at24c512.c',
-        'compactflash.c',
-        'zeal_debugger.c' ])
+        'compactflash.c' ])
+
+if get_option('enable_debugger')
+    sources += files(['zeal_debugger.c', 'zeal_input.c'])
+    subdir('debugger')
+endif
 
 subdir('zvb')
-subdir('debugger')

@@ -88,15 +88,19 @@ struct zeal_t {
     at24c512_t eeprom;
     compactflash_t compactflash;
 
+    /* Renderer */
+    RenderTexture2D  zvb_out;
+
     /* Misc features */
     zeal_hostfs_t hostfs;
 
     /* Debugger related */
+#if CONFIG_ENABLE_DEBUGGER
     bool             dbg_enabled;
-    RenderTexture2D  zvb_out;
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     struct dbg_ui_t* dbg_ui;
+#endif
 };
 
 typedef struct zeal_t zeal_t;

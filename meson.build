@@ -50,7 +50,11 @@ run_command(
 )
 
 if (get_option('show_fps'))
-    add_project_arguments('-DSHOW_FPS', language: 'c')
+    add_project_arguments('-DCONFIG_SHOW_FPS', language: 'c')
+endif
+
+if get_option('enable_debugger')
+    add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L',

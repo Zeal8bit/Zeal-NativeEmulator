@@ -50,7 +50,7 @@ static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 #ifdef PLATFORM_WEB
 EMSCRIPTEN_KEEPALIVE volatile
 #endif
-#if SHOW_FPS
+#if CONFIG_SHOW_FPS
 bool show_fps = true;
 #else
 bool show_fps = false;
@@ -302,49 +302,6 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
 }
 
 
-int zeal_debug_enable(zeal_t* machine)
-{
-    config_window_update(machine->dbg_enabled);
-    int ret = 0;
-    machine->dbg_enabled = true;
-    machine->dbg_state = ST_PAUSED;
-    config_window_set(true);
-    if(machine->dbg_ui == NULL) {
-        dbg_ui_init_args_t args = {
-            .main_view = &machine->zvb_out,
-            .zvb = &machine->zvb,
-        };
-        args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
-        ret = debugger_ui_init(&machine->dbg_ui, &args);
-    }
-    return ret;
-}
-
-
-int zeal_debug_disable(zeal_t* machine)
-{
-    config_window_update(machine->dbg_enabled);
-    machine->dbg_enabled = false;
-    machine->dbg_state = ST_RUNNING;
-    config_window_set(false);
-    return 0;
-}
-
-
-void zeal_debug_toggle(dbg_t *dbg)
-{
-    if (dbg == NULL) return;
-    zeal_t* machine = (zeal_t*) (dbg->arg);
-
-    if (machine->dbg_enabled) {
-        log_printf("[DEBUGGER]: Disabled\n");
-        zeal_debug_disable(machine);
-    } else {
-        log_printf("[DEBUGGER]: Enabled\n");
-        zeal_debug_enable(machine);
-    }
-}
-
 static memory_op_t s_ops = {
     .read_byte = zeal_mem_read,
     .write_byte = zeal_mem_write,
@@ -359,9 +316,11 @@ int zeal_reset(zeal_t* machine) {
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
 
+#if CONFIG_ENABLE_DEBUGGER
     if(machine->dbg_enabled) {
         machine->dbg_state = ST_PAUSED;
     }
+#endif // CONFIG_ENABLE_DEBUGGER
     return 0;
 }
 
@@ -380,10 +339,11 @@ int zeal_init(zeal_t* machine)
     s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
+#if CONFIG_ENABLE_DEBUGGER
     machine->dbg.running = true;
     /* Set the debug mode in the machine structure as soon as possible */
     machine->dbg_enabled = config_debugger_enabled();
-
+#endif // CONFIG_ENABLE_DEBUGGER
 
     /* Initialize the UI. It must be done before any shader is created! */
     SetTraceLogLevel(WIN_LOG_LEVEL);
@@ -393,7 +353,6 @@ int zeal_init(zeal_t* machine)
 
     /* initialize raylib window */
     InitWindow(640, 480, WIN_NAME);
-    config_window_set(machine->dbg_enabled);
     SetExitKey(KEY_NULL);
 #ifndef PLATFORM_WEB
     SetWindowFocused(); // force focus on the window to capture keypresses
@@ -405,12 +364,15 @@ int zeal_init(zeal_t* machine)
     /* Since we want to enable scaling, make the ZVB output always go to a texture first */
     machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
+#if CONFIG_ENABLE_DEBUGGER
+    config_window_set(machine->dbg_enabled);
     /* Initialize the debugger */
     zeal_debugger_init(machine, &machine->dbg);
     /* Load symbols if provided */
     if (config.arguments.map_file) {
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
+#endif // CONFIG_ENABLE_DEBUGGER
 
     zeal_init_cpu(machine);
 
@@ -491,14 +453,60 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
 
+#if CONFIG_ENABLE_DEBUGGER
     /* Since the debugger may depend on some components, make sure they are all initialized */
     if (machine->dbg_enabled) {
         zeal_debug_enable(machine);
         /* Force the machine in RUNNING mode */
         machine->dbg_state = ST_RUNNING;
     }
+#endif // CONFIG_ENABLE_DEBUGGER
 
     return 0;
+}
+
+#if CONFIG_ENABLE_DEBUGGER
+int zeal_debug_enable(zeal_t* machine)
+{
+    config_window_update(machine->dbg_enabled);
+    int ret = 0;
+    machine->dbg_enabled = true;
+    machine->dbg_state = ST_PAUSED;
+    config_window_set(true);
+    if(machine->dbg_ui == NULL) {
+        dbg_ui_init_args_t args = {
+            .main_view = &machine->zvb_out,
+            .zvb = &machine->zvb,
+        };
+        args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
+        ret = debugger_ui_init(&machine->dbg_ui, &args);
+    }
+    return ret;
+}
+
+
+int zeal_debug_disable(zeal_t* machine)
+{
+    config_window_update(machine->dbg_enabled);
+    machine->dbg_enabled = false;
+    machine->dbg_state = ST_RUNNING;
+    config_window_set(false);
+    return 0;
+}
+
+
+void zeal_debug_toggle(dbg_t *dbg)
+{
+    if (dbg == NULL) return;
+    zeal_t* machine = (zeal_t*) (dbg->arg);
+
+    if (machine->dbg_enabled) {
+        log_printf("[DEBUGGER]: Disabled\n");
+        zeal_debug_disable(machine);
+    } else {
+        log_printf("[DEBUGGER]: Enabled\n");
+        zeal_debug_enable(machine);
+    }
 }
 
 /**
@@ -574,9 +582,6 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         }
     }
 
-
-    // return zeal_dbg_mode_display(machine);
-
     int rendered = zeal_dbg_mode_display(machine);
     /* If the CPU is paused, we didn't check the UI input! Check it once per frame */
     if (rendered && machine->dbg_state == ST_PAUSED) {
@@ -584,6 +589,7 @@ static int zeal_dbg_mode_run(zeal_t* machine)
     }
     return rendered;
 }
+#endif // CONFIG_ENABLE_DEBUGGER
 
 
 /**
@@ -597,7 +603,11 @@ static int zeal_normal_mode_run(zeal_t* machine)
     const int elapsed_tstates = z80_step(&machine->cpu);
 
     /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
-    if (keyboard_check(&machine->keyboard, elapsed_tstates) && !zeal_ui_input(machine)) {
+    if (keyboard_check(&machine->keyboard, elapsed_tstates)
+#if CONFIG_ENABLE_DEBUGGER
+        && !zeal_ui_input(machine)
+#endif
+       ) {
         zeal_read_keyboard(machine, elapsed_tstates);
     }
 
@@ -666,9 +676,13 @@ static void zeal_loop(zeal_t* machine)
 #else
     while(rendered != 1) {
 #endif
+
+#if CONFIG_ENABLE_DEBUGGER
         if (machine->dbg_enabled) {
             rendered += zeal_dbg_mode_run(machine);
-        } else {
+        } else
+#endif // CONFIG_ENABLE_DEBUGGER
+        {
             rendered += zeal_normal_mode_run(machine);
         }
     }
@@ -689,9 +703,11 @@ int zeal_run(zeal_t* machine)
     }
 
     while (!shouldCloseWindow && !WindowShouldClose()) {
+#if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;
         }
+#endif // CONFIG_ENABLE_DEBUGGER
         zeal_loop(machine);
     }
 
@@ -699,11 +715,15 @@ int zeal_run(zeal_t* machine)
     CloseAudioDevice();
 #endif
 
+#if CONFIG_ENABLE_DEBUGGER
     config_window_update(machine->dbg_enabled);
 
     if(machine->dbg_ui != NULL) {
         debugger_ui_deinit(machine->dbg_ui);
     }
+#else
+    config_window_update(false);
+#endif // CONFIG_ENABLE_DEBUGGER
 
     zvb_deinit(&machine->zvb);
 
