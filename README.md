@@ -82,6 +82,35 @@ meson compile --clean
 
 Or simply delete the build directory.
 
+### Running
+
+You can add `zeal.elf` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
+
+For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
+You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
+download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Zeal8bit/Zeal-8-bit-OS/releases) page.
+
+```sh
+$ zeal.elf -h
+Usage: build/zeal.elf [OPTIONS]
+
+Options:
+  -c, --config <file>           Zeal Config
+  -s, --save <file>             Save * arguments to Zeal Config
+  -r, --rom <file>              * Load ROM file
+  -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address
+  -e, --eeprom <file>           Load EEPROM file
+  -t, --tf <file>               Load TF/SDcard file
+  -H, --hostfs <path>           Set host filesystem path
+  -m, --map <file>              Load memory map file (for debugging)
+  -g, --debug                   * Enable debug mode
+  -v, --verbose                 Verbose console output
+  -h, --help                    Show this help message
+
+Example:
+  build/zeal.elf --rom game.bin --map mem.map --debug
+```
+
 ## Supported Features
 
 Currently, the following features from Zeal 8-bit Computer are emulated:
