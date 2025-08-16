@@ -83,18 +83,27 @@ run_target(
 
 # We have to do it here so that the final file is at the root of the build dir
 if (host_machine.system() == 'emscripten')
+    wasm_template = get_option('wasm_template')
+    wasm_dir = join_paths(meson.project_source_root(), 'assets', 'wasm', wasm_template)
     configure_file(
-        input: 'assets/index.html',
+        input: join_paths(wasm_dir, 'index.html'),
         output: 'index.html',
         copy: true
     )
+    if(wasm_template == 'minimal')
+        configure_file(
+            input: join_paths(wasm_dir, 'index.js'),
+            output: 'index.js',
+            copy: true
+        )
+    endif
     configure_file(
-        input: 'assets/index.css',
+        input: join_paths(wasm_dir, 'index.css'),
         output: 'index.css',
         copy: true
     )
 
-    patch_script = join_paths(meson.source_root(), 'tools', 'wasm_patch.py')
+    patch_script = join_paths(meson.project_source_root(), 'tools', 'wasm_patch.py')
 
     patch_wasm = custom_target('patch_wasm',
         output: 'dummy_file',

@@ -2,3 +2,4 @@
 option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
 option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
+option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
