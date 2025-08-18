@@ -9,7 +9,7 @@
 #define MODE_GFX_640_4BIT   6
 #define MODE_GFX_320_4BIT   7
 
-#define PALETTE_SIZE    256
+#define PALETTE_SIZE    256.0
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
 #define MODE_TEXT_320   1
@@ -28,7 +28,8 @@
 
 #define TILEMAP_ENTRIES     3199.0
 /* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
-#define TILESET_TEX_WIDTH   16384.0
+#define TILESET_TEX_WIDTH   64
+#define TILESET_TEX_HEIGHT  256
 /* Size of a single tile in bytes: 256 */
 #define TILESET_SIZE        (256)
 
@@ -47,7 +48,7 @@ uniform sampler2D   texture0;
 uniform sampler2D   tilemaps;
 uniform sampler2D   sprites;
 uniform sampler2D   tileset;
-uniform vec3        palette[PALETTE_SIZE];
+uniform sampler2D   palette;
 uniform int         video_mode;
 uniform ivec2       scroll_l0;
 uniform ivec2       scroll_l1;
@@ -71,7 +72,11 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    vec2 addr = vec2(float(final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
+    /* Each pixel in the texture has 4 colors */
+    int pixel_index = final_idx / SIZEOF_COLOR;
+    ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
+    vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(64.0, 256.0);
+
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = final_idx % SIZEOF_COLOR;
@@ -144,7 +149,8 @@ vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
         /* The color is between 0 and 15, append the palette index to it */
         int palette_idx = attr & 0xf0;
         /* No transparency in 4-bit mode */
-        return vec4(palette[color + palette_idx], 1.0f);
+        float color_idx = float(color + palette_idx) + 0.5;
+        return texture(palette, vec2(color_idx / PALETTE_SIZE, 0.5));
     } else {
         /* 8-bit color mode */
         /* Get the two indexes */
@@ -156,9 +162,13 @@ vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
 
         /* If layer1 color index is 0, count it as transparent */
         if (l1_icolor == 0) {
-            return vec4(palette[l0_icolor], 0.0f);
+            vec4 color = texture(palette, vec2((float(l0_icolor) + 0.5) / PALETTE_SIZE, 0.5));
+            color.a = 0.0;
+            return color;
         } else {
-            return vec4(palette[l1_icolor], 1.0f);
+            vec4 color = texture(palette, vec2((float(l1_icolor) + 0.5) / PALETTE_SIZE, 0.5));
+            /* Alpha channel is already 1.0f */
+            return color;
         }
     }
 }
@@ -205,8 +215,8 @@ void main() {
             fcoord.y >= sprite_pos.y &&
             fcoord.y <  sprite_pos.y + sprite_height &&
             /* Check if we have to show the layer1 instead:
-             * If the layers_color variable comes from layer1, the `w` field is not 0 */
-            (f_behind_fg < 0.1 || layers_color.w < 0.5)
+             * If the layers_color variable comes from layer1, the `a` field is not 0 */
+            (f_behind_fg < 0.1 || layers_color.a < 0.5)
             )
         {
             vec2 pix_pos = fcoord - sprite_pos;
@@ -220,7 +230,8 @@ void main() {
             int in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;
             int icolor = color_from_idx(tile_number, in_tile, color_4bit);
             if (icolor != 0) {
-                sprite_color = vec4(palette[palette_msk + icolor], 1.0);
+                float color_idx = float(palette_msk + icolor) + 0.5;
+                sprite_color = texture(palette, vec2(color_idx / PALETTE_SIZE, 0.5));
             }
         }
     }

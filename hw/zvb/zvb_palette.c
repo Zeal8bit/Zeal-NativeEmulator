@@ -11,7 +11,7 @@
 #include "hw/zvb/zvb_palette.h"
 
 
-static void palette_rgb565_to_color(uint_fast16_t rgb, zvb_color_t *color);
+static void palette_rgb565_to_color(uint_fast16_t rgb, Color *color);
 
 /**
  * @brief Default palette, loaded on boot only (not on reset). Each color is an RGB565 value, stored in little-endian in memory.
@@ -57,16 +57,17 @@ void zvb_palette_init(zvb_palette_t* pal)
 {
     assert(pal != NULL);
 
-    /* Load the default palette in memory and convert it to the shader colors */
     memcpy(pal->raw_palette, default_palette_565, sizeof(default_palette_565));
+    pal->img_pal = GenImageColor(ZVB_COLOR_PALETTE_COUNT, 1, BLACK);
+
     /* Each color is 2 bytes big, in little-endian format */
+    Color* colors = (Color*) pal->img_pal.data;
     for (size_t i = 0; i < sizeof(default_palette_565); i += 2) {
         const uint_fast16_t rgb = default_palette_565[i] + (default_palette_565[i + 1] << 8);
-        palette_rgb565_to_color(rgb, &pal->vec_palette[i / 2]);
+        palette_rgb565_to_color(rgb, &colors[i / 2]);
     }
-
-    /* Set it to dirty so that it the palette it uploaded at least once */
-    pal->dirty = 1;
+    pal->tex_pal = LoadTextureFromImage(pal->img_pal);
+    pal->dirty = false;
 }
 
 
@@ -76,14 +77,16 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
         pal->wr_latch = data;
         return;
     }
+    Color* colors = (Color*) (pal->img_pal.data);
+
     /* Odd address (MSB) written! */
     pal->raw_palette[addr - 1] = pal->wr_latch;
     pal->raw_palette[addr] = data;
 
     /* Update the color in the dediacted table, so get the RGB565 out of the two bytes */
     const uint_fast16_t rgb565 = (data << 8) | pal->wr_latch;
-    palette_rgb565_to_color(rgb565, &pal->vec_palette[addr / 2]);
-    pal->dirty = 1;
+    palette_rgb565_to_color(rgb565, &colors[addr / 2]);
+    pal->dirty = true;
 }
 
 
@@ -93,33 +96,21 @@ uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr)
 }
 
 
-void zvb_palette_update(zvb_palette_t* pal, const Shader* shader, int idx)
+void zvb_palette_update(zvb_palette_t* pal)
 {
-    assert(pal != NULL);
-
-    /* Push the new palette to the shader if dirty */
-    if (pal->dirty != 0) {
-        SetShaderValueV(*shader, idx,
-                        pal->vec_palette,
-                        SHADER_UNIFORM_VEC3, ZVB_COLOR_PALETTE_COUNT);
-        pal->dirty = 0;
+    if (pal->dirty) {
+        UpdateTexture(pal->tex_pal, pal->img_pal.data);
+        pal->dirty = false;
     }
 }
 
-void zvb_palette_force_update(zvb_palette_t* pal, const Shader* shader, int idx)
-{
-    SetShaderValueV(*shader, idx, pal->vec_palette, SHADER_UNIFORM_VEC3, ZVB_COLOR_PALETTE_COUNT);
-}
-
-
-static void palette_rgb565_to_color(uint_fast16_t rgb, zvb_color_t *color)
+static void palette_rgb565_to_color(uint_fast16_t rgb, Color *color)
 {
     const uint_fast8_t r = (rgb >> 11) & 0x1F;  // 5 bits for red
     const uint_fast8_t g = (rgb >> 5)  & 0x3F;  // 6 bits for green
     const uint_fast8_t b = (rgb >> 0)  & 0x1F;  // 5 bits for blue
-
-    /* Normalize to [0.0, 1.0] range by dividing by the max value for each color channel */
-    color->x = r / 31.0f;  // Red is normalized to 31
-    color->y = g / 63.0f;  // Green is normalized to 63 (since it uses 6 bits)
-    color->z = b / 31.0f;  // Blue is normalized to 31
+    color->r = (r << 3) | 0;  // convert 5->8 bits
+    color->g = (g << 2) | 0;  // convert 6->8 bits
+    color->b = (b << 3) | 0;  // convert 5->8 bits
+    color->a = 0xFF;
 }
