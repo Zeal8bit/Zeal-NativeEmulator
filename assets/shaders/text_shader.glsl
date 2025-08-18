@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define PALETTE_SIZE    256
+#define PALETTE_SIZE    256.0
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
 #define MODE_TEXT_320   1
@@ -36,7 +36,7 @@ in vec4 fragColor;
 uniform sampler2D   texture0;
 uniform sampler2D   tilemaps;
 uniform sampler2D   font;
-uniform vec3        palette[PALETTE_SIZE];
+uniform sampler2D   palette;
 uniform int         video_mode;
 
 /* Cursor display related */
@@ -52,13 +52,13 @@ vec4 text_mode(ivec2 flipped) {
     ivec2 char_size = ivec2(CHAR_WIDTH, CHAR_HEIGHT);
     ivec2 char_pos = flipped / char_size;
     float tile_idx;
-    int bg_color;
-    int fg_color;
+    float bg_color;
+    float fg_color;
 
     if (char_pos == curpos) {
         tile_idx = float(curchar) / 255.01;
-        bg_color = curcolor.x;
-        fg_color = curcolor.y;
+        bg_color = (float(curcolor.x) + 0.5) / PALETTE_SIZE;
+        fg_color = (float(curcolor.y) + 0.5) / PALETTE_SIZE;
     } else {
         /* Take scrolling into account */
         char_pos.x = (char_pos.x + scroll.x) % MAX_X;
@@ -69,8 +69,9 @@ vec4 text_mode(ivec2 flipped) {
         vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
          /* The tile number is in the RED attribute ([0.0,1.0]) */
         tile_idx = attr.r;
-        fg_color = int(attr.a * 255.0);
-        bg_color = int(attr.b * 255.0);
+        /* We can use attr.a and attr.b out of the box since they are 8-bit big, just like the palette */
+        fg_color = attr.a;
+        bg_color = attr.b;
     }
 
     // Get the address of the pixel to show
@@ -84,13 +85,9 @@ vec4 text_mode(ivec2 flipped) {
     float is_fg = texture(font, addr).r;
 
     if (is_fg > 0.5f) {
-        // Alpha channel (.w) for foreground color. In the texture,
-        // the colors are between 0f and 1f, so to get back the original data,
-        // multiply by 255 (0 becomes 0 and 1 becomes 255).
-        return vec4(palette[fg_color], 1.0f);
+        return texture(palette, vec2(fg_color, 0.5));
     } else {
-        // Blue channel (.z) for background color
-        return vec4(palette[bg_color], 1.0f);
+        return texture(palette, vec2(bg_color, 0.5));
     }
 }
 

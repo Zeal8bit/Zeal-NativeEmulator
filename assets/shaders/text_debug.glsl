@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define PALETTE_SIZE    256
+#define PALETTE_SIZE    256.0
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
 #define MODE_TEXT_320   1
@@ -43,7 +43,7 @@ in vec4 fragColor;
 uniform sampler2D   texture0;
 uniform sampler2D   tilemaps;
 uniform sampler2D   font;
-uniform vec3        palette[PALETTE_SIZE];
+uniform sampler2D   palette;
 uniform int         video_mode;
 uniform int         debug_mode;
 
@@ -63,8 +63,8 @@ vec4 text_mode(ivec2 char_pos, ivec2 in_tile,
         vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
         /* The tile number is in the RED attribute ([0.0,1.0]) */
         float tile_idx = attr.r;
-        fg_color = vec4(palette[int(attr.a * 255.0)], 1.0f);
-        bg_color = vec4(palette[int(attr.b * 255.0)], 1.0f);
+        fg_color = texture(palette, vec2(attr.a, 0.5));
+        bg_color = texture(palette, vec2(attr.b, 0.5));
         /* As the address will be used to get a pixel from the texture,
          * it must also be between 0.0 and 1.0 */
         /* (CHAR_COUNT - 1) = 255 */
@@ -73,7 +73,7 @@ vec4 text_mode(ivec2 char_pos, ivec2 in_tile,
     } else {
         fg_color = vec4 (1.0, 1.0, 1.0, 1.0);
         bg_color = vec4 (0.0, 0.0, 0.0, 1.0);
-        /* We only hav 16 characters per line for the font texture */
+        /* We only have 16 characters per line for the font texture */
         int char_idx = char_pos.x + char_pos.y * 16;
         addr = (vec2(float(char_idx * CHAR_WIDTH), 0.0) + vec2(in_tile))
             / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
@@ -103,7 +103,8 @@ void main() {
     } else if (debug_mode == TEXT_DEBUG_PALETTE_MODE) {
         /* In this mode we have 16 colors per line */
         int color = cell_idx.y * 16 + cell_idx.x;
-        finalColor = vec4(palette[color], 1.0f);
+        float fcolor = float(color) + 0.5;
+        finalColor = texture(palette, vec2(fcolor / PALETTE_SIZE, 0.5));
     } else {
         /* Get the coordinate of the pixel in cell, without the grid */
         in_cell -= ivec2(GRID_THICKNESS, GRID_THICKNESS);

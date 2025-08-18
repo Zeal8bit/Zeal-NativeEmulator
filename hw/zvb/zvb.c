@@ -432,6 +432,7 @@ static void zvb_render_disabled_mode(zvb_t* zvb)
  */
 static void zvb_prepare_render_text_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_font_update(&zvb->font);
     zvb_tilemap_update(&zvb->layers);
 }
@@ -456,9 +457,9 @@ static void zvb_render_text_mode(zvb_t* zvb)
     zvb_text_update(&zvb->text, &info);
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
         SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
         /* Transfer the text-related variables */
@@ -502,9 +503,9 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
         BeginShaderMode(shader);
             ClearBackground(BLANK);
             /* Transfer all the texture to the GPU */
-            zvb_palette_force_update(&zvb->palette, &st_shader->shader, palette_idx);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
             DrawTextureRec(zvb->tex_dummy.texture,
@@ -545,6 +546,7 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
 
 static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_tileset_update(&zvb->tileset);
     zvb_tilemap_update(&zvb->layers);
     zvb_sprites_update(&zvb->sprites);
@@ -552,6 +554,7 @@ static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
 
 static void zvb_prepare_render_bitmap_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_tileset_update(&zvb->tileset);
 }
 
@@ -568,7 +571,7 @@ static void zvb_render_bitmap_mode(zvb_t* zvb)
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
@@ -601,9 +604,9 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
         SetShaderValueTexture(shader, sprites_idx, *zvb_sprites_texture(&zvb->sprites));
@@ -639,9 +642,9 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
     BeginTextureMode(*texture);
         BeginShaderMode(shader);
             /* Transfer all the texture to the GPU */
-            zvb_palette_force_update(&zvb->palette, &st_shader->shader, palette_idx);
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
 

@@ -7,7 +7,7 @@
 #define MODE_BITMAP_256   2
 #define MODE_BITMAP_320   3
 
-#define PALETTE_SIZE    256
+#define PALETTE_SIZE    256.0
 #define PALETTE_LAST    (PALETTE_SIZE - 1)
 
 #define SCREEN_WIDTH    (320.0)
@@ -30,7 +30,7 @@ in vec4 fragColor;
 
 uniform sampler2D   texture0;
 uniform sampler2D   tileset;
-uniform vec3        palette[PALETTE_SIZE];
+uniform sampler2D   palette;
 uniform int         video_mode;
 
 
@@ -76,8 +76,8 @@ void main() {
     }
 
     /* Get the color out of the `tileset` texture */
-    int color_idx = color_from_idx(index);
+    float color_idx = float(color_from_idx(index)) + 0.5;
 
     /* Convert the color index into an RGB color */
-    finalColor = vec4(palette[color_idx], 1.0f);
+    finalColor = texture(palette, vec2(color_idx / PALETTE_SIZE, 0.5));
 }
