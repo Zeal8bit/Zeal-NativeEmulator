@@ -24,10 +24,6 @@ int main(int argc, char* argv[])
     config_parse_file(config.arguments.config_path);
     if(config.arguments.verbose) config_debug();
 
-    if (config.arguments.rom_filename == NULL) {
-        log_printf("No ROM file specified.\n");
-    }
-
     if (config.arguments.hostfs_path == NULL) {
         log_printf("No HostFS path specified.\n");
     }
