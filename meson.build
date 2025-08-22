@@ -59,6 +59,7 @@ endif
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L',
                       '-D_DARWIN_C_SOURCE',
+                      '-D_GNU_SOURCE',  # Necessary on gcc 15.2.1 on ArchLinux to compensate for _POSIX_C_SOURCE
                       '-Iinclude',
                       language: 'c')
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
