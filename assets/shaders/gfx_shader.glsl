@@ -26,7 +26,7 @@
 #define MAX_X           (80)
 #define MAX_Y           (40)
 
-#define TILEMAP_ENTRIES     3199.0
+#define TILEMAP_ENTRIES     3200.0
 /* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
 #define TILESET_TEX_WIDTH   64
 #define TILESET_TEX_HEIGHT  256
@@ -112,7 +112,7 @@ vec4 get_attr(ivec2 orig, ivec2 scroll, out ivec2 offset_in_tile) {
     int in_tile = offset_in_tile.x + (offset_in_tile.y * TILE_WIDTH);
 
     /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-    float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
+    float float_idx = (float(tile_idx) + 0.5) / TILEMAP_ENTRIES;
     vec4 ret = texture(tilemaps, vec2(float_idx, 1.0));
 
     /* Replace unused B attribute with in_tile value */

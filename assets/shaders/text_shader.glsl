@@ -21,7 +21,7 @@
 #define MAX_X           (80)
 #define MAX_Y           (40)
 
-#define TILEMAP_ENTRIES  3199.0
+#define TILEMAP_ENTRIES  3200.0
 
 #ifdef OPENGL_ES
 precision highp float;
@@ -64,8 +64,7 @@ vec4 text_mode(ivec2 flipped) {
         char_pos.x = (char_pos.x + scroll.x) % MAX_X;
         char_pos.y = (char_pos.y + scroll.y) % MAX_Y;
         int char_idx = char_pos.x + char_pos.y * MAX_X;
-        /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-        float float_idx = float(char_idx) / (TILEMAP_ENTRIES + 0.1);
+        float float_idx = (float(char_idx) + 0.5) / TILEMAP_ENTRIES;
         vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
          /* The tile number is in the RED attribute ([0.0,1.0]) */
         tile_idx = attr.r;
@@ -78,7 +77,7 @@ vec4 text_mode(ivec2 flipped) {
     ivec2 in_tile = flipped % char_size;
     // As the address will be used to get a pixel from the texture, it must also be between 0.0 and 1.0
     float coord_x = tile_idx * float((CHAR_COUNT -  1) * CHAR_WIDTH);
-    vec2 addr = (vec2(coord_x, 0.0) + vec2(in_tile))
+    vec2 addr = (vec2(coord_x + 0.5, 0.5) + vec2(in_tile))
                / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
 
     // Check whether the color to show is foreground or background

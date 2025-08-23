@@ -34,7 +34,7 @@
 /* Number of tiles per row when debugging the tileset */
 #define TILESET_MAX_X   (16)
 
-#define TILEMAP_ENTRIES     3199.0
+#define TILEMAP_ENTRIES     3200.0
 /* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
 #define TILESET_TEX_WIDTH   64
 #define TILESET_TEX_HEIGHT  256
@@ -82,7 +82,6 @@ int color_from_idx(int idx, int offset, bool color_4bit)
     int pixel_index = final_idx / SIZEOF_COLOR;
     ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
     vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(64.0, 256.0);
-    // vec2 addr = vec2(float(final_idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.0);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = final_idx % SIZEOF_COLOR;
@@ -117,7 +116,7 @@ vec4 get_attr(ivec2 pix_pos, out ivec3 offset_in_tile) {
     } else {
         int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
         /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-        float float_idx = float(tile_idx) / (TILEMAP_ENTRIES + 0.1);
+        float float_idx = (float(tile_idx) + 0.5) / TILEMAP_ENTRIES;
         ret = texture(tilemaps, vec2(float_idx, 1.0));
     }
 
