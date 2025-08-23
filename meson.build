@@ -57,9 +57,14 @@ if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif
 
-add_project_arguments( '-D_XOPEN_SOURCE=700'.  # Necessary on gcc 15.2.1 on ArchLinux
+if (host_machine.system() == 'darwin')
+    add_project_arguments('-D_DARWIN_C_SOURCE', language: 'c')
+endif
+
+add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
+
 add_project_arguments('-I' + raylib_include_dir, language: 'c')
 add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
 
