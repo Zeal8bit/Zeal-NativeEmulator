@@ -38,7 +38,7 @@ out vec4 finalColor;
 
 int color_from_idx(int idx)
 {
-    vec2 addr = vec2(float(idx / SIZEOF_COLOR) / (TILESET_TEX_WIDTH + 0.0001), 0.5);
+    vec2 addr = vec2((float(idx / SIZEOF_COLOR) + 0.5) / TILESET_TEX_WIDTH, 0.5);
     /* Get one set of color per layer, each containing 4 pixels */
     vec4 set = texture(tileset, addr);
     int channel = idx % SIZEOF_COLOR;

@@ -68,14 +68,14 @@ vec4 text_mode(ivec2 char_pos, ivec2 in_tile,
         /* As the address will be used to get a pixel from the texture,
          * it must also be between 0.0 and 1.0 */
         /* (CHAR_COUNT - 1) = 255 */
-        addr = (vec2(tile_idx * 255.0 * float(CHAR_WIDTH), 0.0) + vec2(in_tile))
+        addr = (vec2(tile_idx * 255.0 * float(CHAR_WIDTH) + 0.5, 0.5) + vec2(in_tile))
             / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
     } else {
         fg_color = vec4 (1.0, 1.0, 1.0, 1.0);
         bg_color = vec4 (0.0, 0.0, 0.0, 1.0);
         /* We only have 16 characters per line for the font texture */
         int char_idx = char_pos.x + char_pos.y * 16;
-        addr = (vec2(float(char_idx * CHAR_WIDTH), 0.0) + vec2(in_tile))
+        addr = (vec2(float(char_idx * CHAR_WIDTH) + 0.5, 0.5) + vec2(in_tile))
             / vec2(FONT_TEX_WIDTH, CHAR_HEIGHT);
     }
 
