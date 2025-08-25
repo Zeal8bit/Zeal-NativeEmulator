@@ -1,7 +1,5 @@
 {
-  "C_Cpp.default.includePath": [
-    "${workspaceFolder}/include",
-  ],
+  "C_Cpp.default.includePath": ["${workspaceFolder}/include"],
   "C_Cpp.clang_format_sortIncludes": false,
   "C_Cpp.autoAddFileAssociations": false,
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
@@ -16,4 +14,7 @@
     ".vs": "vert"
   },
   "glsllint.fallBackStage": "frag",
+  "files.associations": {
+    "*.build": "meson"
+  }
 }
