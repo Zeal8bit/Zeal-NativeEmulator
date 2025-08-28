@@ -422,6 +422,15 @@ int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
     return bytes;
 }
 
+/* Custom operations */
+bool debugger_custom(dbg_t *dbg, int operation, void* arg)
+{
+    if (dbg == NULL || dbg->alt_op == NULL) {
+        return false;
+    }
+    return dbg->alt_op(dbg, operation, arg);
+}
+
 
 /* Debugger initialization */
 void debugger_init(dbg_t *dbg)

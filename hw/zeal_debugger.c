@@ -11,6 +11,7 @@
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "debugger/debugger_impl.h"
+#include "debugger/zeal_debugger.h"
 
 
 #define MAKE16(a,b)     ((a) << 8 | (b))
@@ -157,6 +158,42 @@ static void zeal_debugger_breakpoint_cb(dbg_t* dbg) {
     }
 }
 
+static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
+{
+    zeal_t* machine = (zeal_t*) (dbg->arg);
+
+    if (op == ZEAL_DBG_OP_GET_MMU) {
+        _Static_assert(MMU_PAGES_COUNT == ZEAL_DBG_MMU_PAGES, "MMU debug info and emulated MMU must have the same number of pages.");
+
+        dbg_mmu_t* mmu = (dbg_mmu_t*) arg;
+        if (arg == NULL) {
+            log_err_printf("[DEBUGGER] Invalid NULL argument for operation ZEAL_DBG_OP_GET_MMU\n");
+            return false;
+        }
+        for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
+            const int virt  = i * 16*1024;
+            const int value = machine->mmu.pages[i];
+
+            mmu->entries[i] = (dbg_mmu_entry_t) {
+                .virt_addr = virt,
+                .value     = value,
+                .phys_addr = mmu_get_phys_addr(&machine->mmu, virt),
+            };
+            /* Get the device being mapped there */
+            if (value >= MEM_MAPPING_SIZE) {
+                log_err_printf("[DEBUGGER] MMU value cannot exceed total memory space\n");
+                return false;
+            }
+            const device_t* mapped_dev = machine->mem_mapping[value].dev;
+            if (mapped_dev != NULL) {
+                mmu->entries[i].device = mapped_dev->name;
+            }
+        }
+        return true;
+    } else {
+        return false;
+    }
+}
 
 /**
  * ===========================================================
@@ -275,7 +312,7 @@ static int process_ixiy_opcodes(const uint8_t mem[4], dbg_instr_t* instr)
 }
 
 
-int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
+static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 {
     const char* label = NULL;
     uint8_t mem[4];
@@ -380,6 +417,7 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
     dbg->get_mem_cb = zeal_debugger_get_mem;
     dbg->set_mem_cb = zeal_debugger_set_mem;
     dbg->disassemble_cb = zeal_debugger_disassemble_address;
+    dbg->alt_op = zeal_custom_operations;
 
     return 0;
 }

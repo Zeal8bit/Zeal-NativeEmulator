@@ -38,6 +38,7 @@ typedef enum {
     DBG_UI_PANEL_MEMORY,
     DBG_UI_PANEL_DISASSEMBLER,
     DBG_UI_PANEL_VRAM,
+    DBG_UI_PANEL_MMU,
     DBG_UI_PANEL_TOTAL
 } dbg_ui_panels_idx_t;
 
@@ -81,14 +82,15 @@ extern char DEBUG_BUFFER[256];
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
 
-/** Debug Panels */
 void ui_panel_display(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_scale_up(dbg_t *dbg);
 void debugger_scale_down(dbg_t *dbg);
 
+/* Debug Panels */
 void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void ui_panel_mmu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 

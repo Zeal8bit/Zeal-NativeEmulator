@@ -73,6 +73,13 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .rect_default = { 640, MENUBAR_HEIGHT + CPU_CTRL_HEIGHT, 640, 480 },
         .hidden_default = true,
     },
+    [DBG_UI_PANEL_MMU] = {
+        .key = "P_MMU",
+        .title = "MMU Viewer",
+        .render = ui_panel_mmu,
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
+        .rect_default = { 0, MENUBAR_HEIGHT + 830, 348, 200 },
+    },
 };
 static const size_t dbg_panels_size = DBG_UI_PANEL_TOTAL;
 static dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[DBG_UI_PANEL_VIDEO];

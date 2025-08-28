@@ -31,6 +31,9 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t* wps, unsigned int size);
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);
 void debugger_write_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);
 
+/* Custom operations for the current target */
+bool debugger_custom(dbg_t *dbg, int operation, void* arg);
+
 /* Register access */
 void debugger_get_registers(dbg_t *dbg, regs_t *regs);
 void debugger_set_registers(dbg_t *dbg, regs_t *regs);
