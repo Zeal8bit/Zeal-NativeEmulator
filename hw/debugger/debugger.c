@@ -43,6 +43,44 @@ bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address)
     return false;
 }
 
+
+void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
+{
+    if (list == NULL || list[0] == 0) {
+        return;
+    }
+
+    /* Copy the string to be able to odify it */
+    char *copy = strdup(list);
+    if (!copy) {
+        return;
+    }
+
+    char *tok = strtok(copy, ",");
+    while (tok) {
+        char *endptr = NULL;
+        /* strtoul will auto-detect the base */
+        hwaddr val = strtoul(tok, &endptr, 0);
+        if (*endptr == '\0') {
+            /* The entry is a number */
+            debugger_set_breakpoint(dbg, val);
+        } else {
+            /* The entry is not a number, interpret it as a symbol */
+            hwaddr addr = 0;
+            if (debugger_find_symbol(dbg, tok, &addr)) {
+                debugger_set_breakpoint(dbg, addr);
+            } else {
+                log_printf("[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
+            }
+        }
+
+        tok = strtok(NULL, ",");
+    }
+
+    free(copy);
+}
+
+
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
 {
     if (dbg == NULL || address == 0) {
@@ -259,7 +297,8 @@ void debugger_handle_event(dbg_t *dbg, debug_event_t event)
 
 
 /* Symbol management */
-bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
+bool debugger_load_symbols(dbg_t *dbg, const char *filename)
+{
     if (!dbg || !filename) {
         log_perror("[MAP] No debugger or filename");
         return false;

@@ -53,6 +53,7 @@ typedef struct {
     const char* cf_filename;
     const char* hostfs_path;
     const char* map_file;
+    const char* breakpoints;
     bool config_save;
     bool verbose;
 } config_arguments_t;

@@ -96,17 +96,18 @@ int usage(const char* progname)
 {
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
-    log_printf("  -c, --config <file>           Zeal Config\n");
-    log_printf("  -s, --save <file>             Save * arguments to Zeal Config\n");
-    log_printf("  -r, --rom <file>              * Load ROM file\n");
-    log_printf("  -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address\n");
-    log_printf("  -e, --eeprom <file>           Load EEPROM file\n");
-    log_printf("  -t, --tf <file>               Load TF/SDcard file\n");
-    log_printf("  -H, --hostfs <path>           Set host filesystem path\n");
-    log_printf("  -m, --map <file>              Load memory map file (for debugging)\n");
-    log_printf("  -g, --debug                   * Enable debug mode\n");
-    log_printf("  -v, --verbose                 Verbose console output\n");
-    log_printf("  -h, --help                    Show this help message\n");
+    log_printf("  -c, --config <file>                Zeal Config\n");
+    log_printf("  -s, --save <file>                  Save * arguments to Zeal Config\n");
+    log_printf("  -r, --rom <file>                   * Load ROM file\n");
+    log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
+    log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
+    log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
+    log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
+    log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
+    log_printf("  -g, --debug                        * Enable debug mode\n");
+    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
+    log_printf("  -v, --verbose                      Verbose console output\n");
+    log_printf("  -h, --help                         Show this help message\n");
     log_printf("\n");
     log_printf("Example:\n");
     log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
@@ -128,13 +129,14 @@ int parse_command_args(int argc, char* argv[])
         { "hostfs", required_argument, 0, 'H'},
         {    "map", required_argument, 0, 'm'},
         {  "debug", required_argument, 0, 'g'},
+        {    "brk", required_argument, 0, 'b'},
         {   "save",       no_argument, 0, 's'},
         {"verbose",       no_argument, 0, 'v'},
         {  "help",        no_argument, 0, 'h'},
         {        0,                 0, 0,   0}
     };
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:sgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:sgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -174,6 +176,9 @@ int parse_command_args(int argc, char* argv[])
                 } else {
                     config.debugger.enabled = DEBUGGER_STATE_ARG;
                 }
+                break;
+            case 'b':
+                config.arguments.breakpoints = optarg;
                 break;
             case 'v':
                 config.arguments.verbose = true;

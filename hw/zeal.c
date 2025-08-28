@@ -372,6 +372,9 @@ int zeal_init(zeal_t* machine)
     if (config.arguments.map_file) {
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
+    if (config.arguments.breakpoints) {
+        debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+    }
 #endif // CONFIG_ENABLE_DEBUGGER
 
     zeal_init_cpu(machine);
