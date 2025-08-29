@@ -58,8 +58,13 @@ struct regs_t {
 typedef struct {
     hwaddr            addr;
     watchpoint_type_t type;
-}  watchpoint_t;
+} watchpoint_t;
 
+typedef struct {
+    hwaddr  addr;
+    bool    active;
+    bool    temporary;  // True if it needs to be deleted when reached
+} breakpoint_t;
 
 typedef struct {
     const char* name;
@@ -76,7 +81,7 @@ typedef struct symbols_t {
 
 struct dbg_t {
     bool            running; // should the emulator continue running?
-    hwaddr          breakpoints[DBG_MAX_POINTS];
+    breakpoint_t    breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];
     symbols_t       symbols;
 

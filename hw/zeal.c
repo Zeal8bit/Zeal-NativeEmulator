@@ -563,6 +563,13 @@ static int zeal_dbg_mode_display(zeal_t* machine)
 static int zeal_dbg_mode_run(zeal_t* machine)
 {
     if (machine->dbg_state != ST_PAUSED) {
+
+        if (machine->dbg_state == ST_REQ_STEP_OVER) {
+            int instr_size = z80_instruction_size(&machine->cpu);
+            debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + instr_size);
+            machine->dbg_state = ST_RUNNING;
+        }
+
         const int elapsed_tstates = z80_step(&machine->cpu);
 
         /* Check if we need to poll the keyboard and transmit the data to the VM */
@@ -582,6 +589,7 @@ static int zeal_dbg_mode_run(zeal_t* machine)
             debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc))
         {
             machine->dbg_state = ST_PAUSED;
+            debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
         }
     }
 

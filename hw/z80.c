@@ -1,18 +1,58 @@
 /**
- * SPDX-FileCopyrightText: 2019 superzazu/Nicolas Allemand <contact@nicolasallemand.com>; 2024 Zeal 8-bit Computer
+ * SPDX-FileCopyrightText: 2019 superzazu/Nicolas Allemand <contact@nicolasallemand.com>; 2024-2025 Zeal 8-bit Computer
  * <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: MIT
  *
  * Original source code comes from https://github.com/superzazu/z80
- * Modifications made by @zeal8bit: make I/O port operations on 16-bit addresses; make operations on F register public;
- * make step function return the number of clock cycles elapsed;
+ * Modifications made by @zeal8bit:
+ *  - make I/O port operations on 16-bit addresses;
+ *  - make operations on F register public;
+ *  - make step function return the number of clock cycles elapsed;
+ *  - added opcodes size tables;
  */
 
 #include "utils/log.h"
 #include "hw/z80.h"
 
 // MARK: timings
+static const uint8_t op_size[256] = {
+    1,  3,  1,  1,  1,  1,  2,  1,  1,  1,  1,  1,  1,  1,  2,  1,  2,  3,  1,  1,  1,  1,  2,  1,  2,  1,  1,  1,  1,
+    1,  2,  1,  2,  3,  3,  1,  1,  1,  2,  1,  2,  1,  3,  1,  1,  1,  2,  1,  2,  3,  3,  1,  1,  1,  2,  1,  2,  1,
+    3,  1,  1,  1,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  3,  3,  3,  1,  2,  1,  1,  1,  3,
+    2,  3,  3,  2,  1,  1,  1,  3,  2,  3,  1,  2,  1,  1,  1,  3,  2,  3,  0,  2,  1,  1,  1,  3,  1,  3,  1,  2,  1,
+    1,  1,  3,  1,  3,  0,  2,  1,  1,  1,  3,  1,  3,  1,  2,  1,  1,  1,  3,  1,  3,  0,  2,  1,
+};
+
+static const uint8_t op_fddd_size[256] = {
+    0,  0,  0,  0,  2,  2,  3,  0,  0,  2,  0,  0,  2,  2,  3,  0,  0,  0,  0,  0,  2,  2,  3,  0,  0,  2,  0,  0,  2,
+    2,  3,  0,  0,  4,  4,  2,  2,  2,  3,  0,  0,  2,  4,  2,  2,  2,  3,  0,  0,  0,  0,  0,  3,  3,  4,  0,  0,  2,
+    0,  0,  2,  2,  3,  0,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,
+    2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  3,  3,  3,  3,
+    3,  3,  0,  3,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,
+    2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,
+    3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  2,  2,  2,  2,  2,  2,  3,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    4,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  0,  2,  0,  2,  0,  0,
+    0,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,  0,
+};
+
+static const uint8_t op_ed_size[256] = {
+    3,  3,  0,  0,  2,  0,  0,  0,  3,  3,  0,  0,  2,  0,  0,  0,  3,  3,  0,  0,  2,  0,  0,  0,  3,  3,  0,  0,  2,
+    0,  0,  0,  3,  3,  0,  0,  2,  0,  0,  0,  3,  3,  0,  0,  2,  0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  3,  3,
+    0,  0,  2,  0,  0,  0,  2,  2,  2,  4,  2,  2,  2,  2,  2,  2,  2,  4,  2,  2,  0,  2,  2,  2,  2,  4,  0,  0,  2,
+    2,  2,  2,  2,  4,  2,  0,  2,  2,  2,  2,  2,  4,  3,  0,  0,  2,  2,  2,  2,  4,  2,  0,  0,  2,  2,  2,  2,  4,
+    3,  0,  2,  0,  2,  2,  2,  4,  2,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,
+    0,  0,  2,  0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  2,  2,  2,  2,  0,  0,  0,  0,  2,  2,  2,  2,  0,  0,
+    0,  0,  2,  2,  2,  2,  0,  0,  0,  0,  2,  2,  2,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+};
+
+
 static const uint8_t cyc_00[256] = {
     4,  10, 7,  6, 4,  4,  7,  4,  4,  11, 7,  6, 4,  4,  7, 4,  8,  10, 7,  6,  4,  4,  7,  4,  12, 11, 7,  6,  4,
     4,  7,  4,  7, 10, 16, 6,  4,  4,  7,  4,  7, 11, 16, 6, 4,  4,  7,  4,  7,  10, 13, 6,  11, 11, 10, 4,  7,  11,
@@ -832,6 +872,32 @@ void z80_init(z80* const z)
     z->nmi_pending    = 0;
     z->int_data       = 0;
 }
+
+/* Get the size of the next instruction to execute, in bytes */
+int z80_instruction_size(z80* const z)
+{
+    uint8_t opcode = rb(z, z->pc);
+    int size = op_size[opcode];
+
+    if (size != 0) {
+        return size;
+    }
+    /* Opcode is a prefix, we need to read the next byte */
+    uint8_t opcode2 = rb(z, z->pc + 1);
+    if (opcode == 0xFD || opcode == 0xDD) {
+        size = op_fddd_size[opcode2];
+        /* If the size is 0, the instruction is invalid */
+        return (size != 0) ? size : 4;
+    } else if (opcode == 0xED) {
+        size = op_ed_size[opcode2];
+        /* If the size is 0, the instruction is invalid */
+        return (size != 0) ? size : 2;
+    } else {
+        log_err_printf("[Z80] Invalid size for opcode %x\n", opcode);
+    }
+    return 1;
+}
+
 
 // executes the next instruction in memory + handles interrupts
 int z80_step(z80* const z)

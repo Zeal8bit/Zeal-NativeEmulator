@@ -14,6 +14,8 @@
 
 
 /* Breakpoint management */
+bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address);
+bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address);
 bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address);
 void debugger_set_breakpoints_str(dbg_t *dbg, const char* list);
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address);
