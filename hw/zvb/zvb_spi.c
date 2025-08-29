@@ -304,7 +304,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 /* TODO: check the size of the file against the block number */
                 const size_t offset = param * TF_BLK_SIZE;
                 if (offset >= tf->img_size) {
-                    log_err_printf("[TF] Invalid write offset: 0x%lx/0x%lx\n", offset, tf->img_size);
+                    log_err_printf("[TF] Invalid write offset: 0x%zx/0x%zx\n", offset, tf->img_size);
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     tf->state = TF_IDLE;

@@ -30,8 +30,8 @@ elif raylib_target_path != ''
     raylib_lib_dir = raylib_target_path / 'lib'
 else
     # No path provided, rely on system's default libraries (i.e., /usr/include and /usr/lib)
-    raylib_include_dir = '/usr/include'
-    raylib_lib_dir = '/usr/lib'
+    raylib_include_dir = ''
+    raylib_lib_dir = ''
 endif
 
 
@@ -65,8 +65,15 @@ add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
 
-add_project_arguments('-I' + raylib_include_dir, language: 'c')
-add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
+if raylib_include_dir != ''
+    add_project_arguments('-I' + raylib_include_dir, language: 'c')
+endif
+
+if raylib_lib_dir != ''
+    add_project_link_arguments('-L' + raylib_lib_dir, language: 'c')
+endif
+
+add_project_link_arguments('-lraylib', '-lm', language: 'c')
 
 linker_args = meson.get_external_property('link_args', [])
 

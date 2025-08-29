@@ -9,8 +9,9 @@
 #include <string.h>
 
 #ifdef _WIN32
-    #include <windows.h>
-    #define PATH_MAX    _MAX_PATH
+    /* Including windows.h can lead to conflicts with Raylib API */
+    #define PATH_MAX    256
+    #define realpath(N,R) _fullpath((R),(N),_MAX_PATH)
 #elif __linux__
     #include <unistd.h>
     #include <linux/limits.h>

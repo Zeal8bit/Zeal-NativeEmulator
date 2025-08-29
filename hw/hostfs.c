@@ -440,7 +440,11 @@ static void fs_mkdir(zeal_hostfs_t *host) {
         return;
     }
 
+#ifdef _WIN32
+    if (mkdir(path) != 0) {
+#else
     if (mkdir(path, 0755) != 0) {
+#endif // _WIN32
         log_perror("[HostFS] Could not create directory");
         set_status(host, ZOS_FAILURE);
         return;
@@ -514,7 +518,11 @@ static void fs_readdir(zeal_hostfs_t *host) {
         }
         /* Make sure to skip `.`, `..`, or special files */
         if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")
-         && (entry->d_type == DT_DIR || entry->d_type == DT_REG)) {
+#ifndef _WIN32
+        /* On Windows, files are either directories or files, no need to check */
+            && (entry->d_type == DT_DIR || entry->d_type == DT_REG)
+#endif
+        ) {
             break;
         }
     }
@@ -525,7 +533,12 @@ static void fs_readdir(zeal_hostfs_t *host) {
      * dir_entry_flags   DS.B 1  ; Is the entry a file ? A dir ?
      * dir_entry_name_t  DS.B 16 ; File name NULL-terminated, including the extension
      */
+#ifdef _WIN32
+    /* FIXME! Windows doens't have DT_REG flag */
+    const uint8_t is_file = 1;
+#else
     const uint8_t is_file = (entry->d_type == DT_REG) ? 1 : 0;
+#endif
     memory_write_byte(host->host_ops, buffer_addr++, is_file);
     memory_write_bytes(host->host_ops, buffer_addr, (void*) out_name, ZOS_MAX_NAME_LENGTH);
     set_status(host, ZOS_SUCCESS);
@@ -631,11 +644,7 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
     }
 
     const char* resolved_path = NULL;
-#ifdef _WIN32
-    resolved_path = _fullpath(resolved_path_buffer, root_path, _MAX_PATH)
-#else
     resolved_path = realpath(root_path, resolved_path_buffer);
-#endif
 
     if(resolved_path == NULL) {
         log_err_printf("[HostFS] Error resolving path %s\n", root_path);
