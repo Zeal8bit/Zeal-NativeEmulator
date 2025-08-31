@@ -42,12 +42,17 @@ subdir('utils')
 subdir('assets')
 
 run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)
-run_command(
+res = run_command(
     'cp',
     'roms/default.img',
     join_paths(meson.project_build_root(), 'roms/default.img'),
-    check: true,
+    check: false,
 )
+
+if res.returncode() != 0
+  warning('default.img not found, skipping copy')
+endif
+
 
 if (get_option('show_fps'))
     add_project_arguments('-DCONFIG_SHOW_FPS', language: 'c')
