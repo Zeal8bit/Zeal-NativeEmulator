@@ -57,7 +57,6 @@ void get_executable_dir(char *buffer, size_t size) {
     memmove(buffer, dir, strlen(dir) + 1);
 }
 
-
 int get_install_dir_file(char dst[PATH_MAX], const char* name) {
     /* Only get it once */
     if (path_buffer[0] == 0) {
@@ -65,20 +64,6 @@ int get_install_dir_file(char dst[PATH_MAX], const char* name) {
     }
     const int wrote = snprintf(dst, PATH_MAX, "%s/%s", path_buffer, name);
     return wrote < PATH_MAX;
-}
-
-const char* get_shaders_path(char dst[PATH_MAX], const char* name)
-{
-    const char* assets_dir = "assets/shaders/";
-    if (path_buffer[0] == 0) {
-        get_executable_dir(path_buffer, PATH_MAX);
-    }
-    int written = snprintf(dst, PATH_MAX, "%s/%s/%s", path_buffer, assets_dir, name);
-    if (written == PATH_MAX) {
-        log_err_printf("Could not load shader %s, path is too long!\n", name);
-        return NULL;
-    }
-    return dst;
 }
 
 int path_exists(const char *path) {

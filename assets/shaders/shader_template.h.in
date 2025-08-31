@@ -1,0 +1,10 @@
+#pragma once
+
+static const char s_@SHADER_NAME@[] =
+#if OPENGL_ES
+    "#version 300 es\n"
+    "#define OPENGL_ES 1\n"
+#else
+    "#version 330 core\n"
+#endif
+@SHADER_SRC@;
