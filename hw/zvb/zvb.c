@@ -271,6 +271,7 @@ static void zvb_shader_init(zvb_t* dev)
 {
     /* Get the indexes of the objects in the shaders */
     zvb_shader_t* st_shader = &dev->shaders[SHADER_TEXT];
+    log_printf("Compiling shader text_shader\n");
     Shader shader = LoadShaderFromMemory(NULL, s_text_shader);
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
@@ -284,6 +285,7 @@ static void zvb_shader_init(zvb_t* dev)
 
     /* Text debug shaders */
     st_shader = &dev->shaders[SHADER_TEXT_DEBUG];
+    log_printf("Compiling shader text_debug\n");
     shader = LoadShaderFromMemory(NULL, s_text_debug);
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
@@ -293,6 +295,7 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
 
     st_shader = &dev->shaders[SHADER_GFX];
+    log_printf("Compiling shader gfx_shader\n");
     shader = LoadShaderFromMemory(NULL, s_gfx_shader);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
@@ -304,6 +307,7 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_BITMAP];
+    log_printf("Compiling shader bitmap_shader\n");
     shader = LoadShaderFromMemory(NULL, s_bitmap_shader);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
@@ -311,6 +315,7 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_GFX_DEBUG];
+    log_printf("Compiling shader gfx_debug\n");
     shader = LoadShaderFromMemory(NULL, s_gfx_debug);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
