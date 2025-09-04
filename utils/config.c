@@ -136,6 +136,9 @@ int parse_command_args(int argc, char* argv[])
         {        0,                 0, 0,   0}
     };
 
+    const char* config_path = get_config_path();
+    if(config_path) config.arguments.config_path = config_path;
+
     while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:sgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
@@ -194,6 +197,7 @@ int parse_command_args(int argc, char* argv[])
 }
 
 void config_parse_file(const char* file) {
+    printf("[CONFIG] %s\n", path_sanitize(file));
     if(!path_exists(file)) return;
 
     config.ini = rini_load_config(file);

@@ -652,17 +652,17 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
     }
 
     if (stat(resolved_path, &path_stat) != 0) {
-        log_err_printf("[HostFS] Path %s does not exist or is not accessible\n", resolved_path);
+        log_err_printf("[HostFS] Path %s does not exist or is not accessible\n", path_sanitize(resolved_path));
         return 1;
     }
 
     if (!S_ISDIR(path_stat.st_mode)) {
-        log_err_printf("[HostFS] Path %s must be a directory!\n", resolved_path);
+        log_err_printf("[HostFS] Path %s must be a directory!\n", path_sanitize(resolved_path));
         return 1;
     }
 
     if (access(resolved_path, R_OK | W_OK) != 0) {
-        log_err_printf("[HostFS] Path %s must be accessible in both read and write!\n", resolved_path);
+        log_err_printf("[HostFS] Path %s must be accessible in both read and write!\n", path_sanitize(resolved_path));
         return 1;
     }
 
@@ -672,7 +672,7 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
         return 1;
     }
 
-    log_printf("[HostFS] %s loaded successfully\n", get_relative_path(hostfs->root_path));
+    log_printf("[HostFS] %s loaded successfully\n", path_sanitize(get_relative_path(hostfs->root_path)));
 
     return 0;
 }

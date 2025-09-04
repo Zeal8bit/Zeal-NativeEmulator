@@ -107,7 +107,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
 
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
-        log_perror("[FLASH] Could not open user file: %s\n", path);
+        log_perror("[FLASH] Could not open user file: %s\n", path_sanitize(path));
         err = fd;
         goto ret;
     }
@@ -115,7 +115,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     /* Get the file size and make sure it's not too big for the flash */
     struct stat st;
     if (fstat(fd, &st)) {
-        log_perror("[FLASH] Could not stat user file: %s\n", path);
+        log_perror("[FLASH] Could not stat user file: %s\n", path_sanitize(path));
         err = -1;
         goto ret_close;
     }
@@ -148,7 +148,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
         goto ret_close;
     }
 
-    log_printf("[FLASH] User program %s loaded successfully @ 0x%x\n", path, romdisk_offset);
+    log_printf("[FLASH] User program %s loaded successfully @ 0x%x\n", path_sanitize(path), romdisk_offset);
 
     err = 0;
     /* Fall-through */
@@ -168,14 +168,37 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
         return -1;
     }
 
-    if(rom_filename != NULL) {
+    if (rom_filename != NULL) {
         snprintf(rom_path, sizeof(rom_path), "%s", rom_filename);
     } else {
-        const char* default_name = "roms/default.img";
-        log_printf("[FLASH] Trying to load %s\n", default_name);
-        if (get_install_dir_file(rom_path, default_name) == 0) {
-            log_err_printf("[FLASH] Could not get %s\n", default_name);
-            return -1;
+        const char* env_rom = getenv("ZEAL_NATIVE_ROM");
+        if (env_rom != NULL && env_rom[0] != '\0' && access(env_rom, F_OK) == 0) {
+            // Environment variable exists and file is accessible
+            snprintf(rom_path, sizeof(rom_path), "%s", env_rom);
+        } else {
+            // Check $HOME/.zde/roms/default.img
+            const char* config_dir = get_config_dir();
+            if (config_dir != NULL) {
+                snprintf(rom_path, sizeof(rom_path), "%s/roms/default.img", config_dir);
+                log_printf("[FLASH] Trying to load %s\n", path_sanitize( rom_path));
+                if (access(rom_path, F_OK) != 0) {
+                    // Fallback to relative path
+                    const char* default_name = "roms/default.img";
+                    log_printf("[FLASH] Trying to load (install-dir) %s\n", default_name);
+                    if (get_install_dir_file(rom_path, default_name) == 0) {
+                        log_err_printf("[FLASH] Could not get %s\n", default_name);
+                        return -1;
+                    }
+                }
+            } else {
+                // HOME not set, fallback to relative path
+                const char* default_name = "roms/default.img";
+                log_printf("[FLASH] Trying to load %s\n", default_name);
+                if (get_install_dir_file(rom_path, default_name) == 0) {
+                    log_err_printf("[FLASH] Could not get (install-dir) %s\n", default_name);
+                    return -1;
+                }
+            }
         }
     }
 
@@ -192,7 +215,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
         return rd;
     }
 
-    log_printf("[FLASH] %s loaded successfully\n", rom_path);
+    log_printf("[FLASH] %s loaded successfully\n", path_sanitize(rom_path));
 
     close(fd);
 

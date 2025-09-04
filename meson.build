@@ -14,7 +14,10 @@ project(
 
 # Output binary
 dependencies = []
-OUTPUT_BIN = 'zeal.elf'
+OUTPUT_BIN = 'zeal-native'
+if (host_machine.system() == 'emscripten')
+    OUTPUT_BIN = 'zeal.elf'
+endif
 
 # Retrieve raylib_path option (set via command line or use system defaults)
 raylib_path = get_option('raylib_path')
@@ -89,6 +92,7 @@ exec = executable(
     include_directories: ['include'],
     dependencies: dependencies,
     link_args: linker_args,
+    install: true
 )
 
 # meson compile run to launch emulator after building
@@ -127,6 +131,5 @@ if (host_machine.system() == 'emscripten')
         depends: exec,
         build_by_default: true,
     )
-
 endif
 

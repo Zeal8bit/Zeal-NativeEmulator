@@ -93,9 +93,17 @@ char* get_relative_path(const char* absolute_path)
     const char* path_ptr = abs_path;
 
     // Find the common prefix
-    size_t common_prefix_len = strspn(cwd_ptr, path_ptr);
-    cwd_ptr += common_prefix_len;
-    path_ptr += common_prefix_len;
+    while (*cwd_ptr && *path_ptr && *cwd_ptr == *path_ptr) {
+        cwd_ptr++;
+        path_ptr++;
+    }
+
+
+    // If they are identical → return "."
+    if (*cwd_ptr == '\0' && *path_ptr == '\0') {
+        strcpy(relative_path, ".");
+        return relative_path;
+    }
 
     // Count the remaining directories in cwd
     int up_levels = 0;
@@ -115,4 +123,56 @@ char* get_relative_path(const char* absolute_path)
 
 
     return relative_path;
+}
+
+char* get_home_dir(void) {
+    static char path[PATH_MAX];
+    const char* home = getenv("HOME");
+    if (!home) {
+        fprintf(stderr, "HOME environment variable not set\n");
+        return NULL;
+    }
+    strcpy(path, home);
+    return path;
+}
+
+
+char *get_config_dir(void) {
+    static char path[PATH_MAX];
+    const char* home = get_home_dir();
+    snprintf(path, sizeof(path), "%s/.zeal8bit", home);
+
+    if(mkdir(path, 0755) != 0 && errno != EEXIST) {
+        perror("mkdir");
+        return NULL;
+    }
+
+    return path;
+}
+
+char *get_config_path(void) {
+    static char path[PATH_MAX];
+    const char* config_dir = get_config_dir();
+
+    if(mkdir(config_dir, 0755) != 0 && errno != EEXIST) {
+        perror("mkdir");
+        return NULL;
+    }
+
+    snprintf(path, sizeof(path), "%s/zeal.ini", config_dir);
+    return path;
+}
+
+const char* path_sanitize(const char* path) {
+    static char sanitized[PATH_MAX];
+    const char* home = get_home_dir();
+    size_t home_len = home ? strlen(home) : 0;
+
+    if (home && strncmp(path, home, home_len) == 0) {
+        snprintf(sanitized, sizeof(sanitized), "~/%s", path + home_len + 1);
+    } else {
+        snprintf(sanitized, sizeof(sanitized), "%s", path);
+    }
+
+    return sanitized;
 }

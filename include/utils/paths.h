@@ -31,3 +31,7 @@ const char* get_shaders_path(char dst[PATH_MAX], const char* name);
 
 int path_exists(const char *path);
 char* get_relative_path(const char* absolute_path);
+char* get_home_dir();
+char* get_config_dir();
+char* get_config_path();
+const char* path_sanitize(const char* path);
