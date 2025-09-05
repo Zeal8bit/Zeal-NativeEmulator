@@ -125,24 +125,22 @@ char* get_relative_path(const char* absolute_path)
     return relative_path;
 }
 
-char* get_home_dir(void) {
-    static char path[PATH_MAX];
-    const char* home = getenv("HOME");
+const char* get_home_dir(void) {
+    const char* home = getenv(HOME_VAR);
     if (!home) {
-        fprintf(stderr, "HOME environment variable not set\n");
+        fprintf(stderr, HOME_VAR " environment variable not set\n");
         return NULL;
     }
-    strcpy(path, home);
-    return path;
+    return home;
 }
 
 
-char *get_config_dir(void) {
+const char *get_config_dir(void) {
     static char path[PATH_MAX];
     const char* home = get_home_dir();
     snprintf(path, sizeof(path), "%s/.zeal8bit", home);
 
-    if(mkdir(path, 0755) != 0 && errno != EEXIST) {
+    if(os_mkdir(path, 0755) != 0 && errno != EEXIST) {
         perror("mkdir");
         return NULL;
     }
@@ -150,11 +148,11 @@ char *get_config_dir(void) {
     return path;
 }
 
-char *get_config_path(void) {
+const char *get_config_path(void) {
     static char path[PATH_MAX];
     const char* config_dir = get_config_dir();
 
-    if(mkdir(config_dir, 0755) != 0 && errno != EEXIST) {
+    if(os_mkdir(config_dir, 0755) != 0 && errno != EEXIST) {
         perror("mkdir");
         return NULL;
     }
@@ -169,7 +167,7 @@ const char* path_sanitize(const char* path) {
     size_t home_len = home ? strlen(home) : 0;
 
     if (home && strncmp(path, home, home_len) == 0) {
-        snprintf(sanitized, sizeof(sanitized), "~/%s", path + home_len + 1);
+        snprintf(sanitized, sizeof(sanitized), HOME_SANITIZE "/%s", path + home_len + 1);
     } else {
         snprintf(sanitized, sizeof(sanitized), "%s", path);
     }

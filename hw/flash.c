@@ -180,7 +180,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
             const char* config_dir = get_config_dir();
             if (config_dir != NULL) {
                 snprintf(rom_path, sizeof(rom_path), "%s/roms/default.img", config_dir);
-                log_printf("[FLASH] Trying to load %s\n", path_sanitize( rom_path));
+                log_printf("[FLASH] Trying to load %s\n", path_sanitize(rom_path));
                 if (access(rom_path, F_OK) != 0) {
                     // Fallback to relative path
                     const char* default_name = "roms/default.img";
