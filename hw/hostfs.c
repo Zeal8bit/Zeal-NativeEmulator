@@ -440,11 +440,7 @@ static void fs_mkdir(zeal_hostfs_t *host) {
         return;
     }
 
-#ifdef _WIN32
-    if (mkdir(path) != 0) {
-#else
-    if (mkdir(path, 0755) != 0) {
-#endif // _WIN32
+    if (os_mkdir(path, 0755) != 0) {
         log_perror("[HostFS] Could not create directory");
         set_status(host, ZOS_FAILURE);
         return;
