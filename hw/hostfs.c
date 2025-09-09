@@ -98,7 +98,7 @@ static void zos_format_name(const char *input_name, char *output_name) {
 }
 
 
-static char *resolve_path(const char *path) {
+static char *resolve_path(const char *path, int prefix_len) {
     if (path == NULL || strlen(path) == 0) return NULL;
 
     // Allocate a buffer for the resolved path
@@ -113,7 +113,10 @@ static char *resolve_path(const char *path) {
         return NULL;
     }
 
-    char *token = strtok(copy + 1, "/");
+    /* This is used for Windows, where the drive letter may be present */
+    memcpy(resolved, path, prefix_len);
+
+    char *token = strtok(copy + prefix_len + 1, "/");
     while (token != NULL) {
         if (strcmp(token, "..") == 0) {
             size_t len = strlen(resolved);
@@ -164,7 +167,15 @@ static char *get_path(zeal_hostfs_t *host) {
         root_length--;
     }
 
-    char* resolved = resolve_path(full_path);
+    int prefix_length = 0;
+#ifdef _WIN32
+    /* For Windows, let's skip the drive letter, if any, the root path does NOT have backslashes */
+    if (root_length > 2 && full_path[1] == ':' && full_path[2] == '/') {
+        prefix_length = 2;
+    }
+#endif
+
+    char* resolved = resolve_path(full_path, prefix_length);
     if (resolved == NULL ||
         strncmp(resolved, host->root_path, root_length) != 0)
     {
@@ -207,7 +218,7 @@ FILE *fopen_with_flags(const char *path, int zos_flags) {
         open_flags |= O_APPEND;
 
     // Open file with appropriate mode
-    int fd = open(path, open_flags, 0644);
+    int fd = open(path, open_flags | OPEN_BINARY, 0644);
     if (fd == -1)
         return NULL;
 
@@ -217,11 +228,11 @@ FILE *fopen_with_flags(const char *path, int zos_flags) {
     int is_write = (zos_flags & 0x3) == ZOS_FL_WRONLY || (zos_flags & 0x3) == ZOS_FL_RDWR;
 
     if (is_read && is_write) {
-        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a+" : "r+";
+        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a" FOPEN_BINARY "+" : "r" FOPEN_BINARY "+";
     } else if (is_write) {
-        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a" : "w";
+        mode_str = (zos_flags & ZOS_FL_APPEND) ? "a" FOPEN_BINARY : "w" FOPEN_BINARY;
     } else if (is_read) {
-        mode_str = "r";
+        mode_str = "r" FOPEN_BINARY;
     }
 
     FILE *file = fdopen(fd, mode_str);
@@ -662,11 +673,19 @@ int hostfs_load_path(zeal_hostfs_t* hostfs, const char* root_path)
         return 1;
     }
 
-    hostfs->root_path = strdup(resolved_path);
-    if (hostfs->root_path == NULL) {
+    char* final_path = strdup(resolved_path);
+
+#ifdef _WIN32
+    for (char *p = final_path; *p; ++p) {
+        if (*p == '\\') *p = '/';
+    }
+#endif
+
+    if (final_path == NULL) {
         log_err_printf("[HostFS] Could not allocate memory!\n");
         return 1;
     }
+    hostfs->root_path = final_path;
 
     log_printf("[HostFS] %s loaded successfully\n", path_sanitize(get_relative_path(hostfs->root_path)));
 
