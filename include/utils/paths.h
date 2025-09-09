@@ -14,20 +14,28 @@
     #define realpath(N,R) _fullpath((R),(N),_MAX_PATH)
     #define HOME_VAR      "APPDATA"
     #define HOME_SANITIZE "%%APPDATA%%"
+    #define FOPEN_BINARY  "b"
+    #define OPEN_BINARY   O_BINARY
 #elif __linux__
     #include <unistd.h>
     #include <linux/limits.h>
     #define HOME_VAR      "HOME"
     #define HOME_SANITIZE "~"
+    #define FOPEN_BINARY  ""
+    #define OPEN_BINARY   0
 #elif __APPLE__
     #include <mach-o/dyld.h>
     #include <limits.h>
     #define HOME_VAR      "HOME"
     #define HOME_SANITIZE "~"
+    #define FOPEN_BINARY  ""
+    #define OPEN_BINARY   0
 #elif PLATFORM_WEB
     #define PATH_MAX 4096
     #define HOME_VAR      "HOME"
     #define HOME_SANITIZE "~"
+    #define FOPEN_BINARY  ""
+    #define OPEN_BINARY   0
 #endif
 
 
