@@ -619,7 +619,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
         && !zeal_ui_input(machine)
 #endif
        ) {
-        zeal_read_keyboard(machine, elapsed_tstates);
+        zeal_read_keyboard(machine, KEYBOARD_CHECK_PERIOD);
     }
 
     /* Go through all the devices that have a tick function */
