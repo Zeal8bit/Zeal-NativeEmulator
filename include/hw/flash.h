@@ -29,11 +29,18 @@ typedef struct {
 #else
     uint8_t data[NOR_FLASH_SIZE_KB];
 #endif
+    int state;
+    /* Byte being written to flash */
+    uint8_t writing_byte;
+    /* Number of ticks remaining in case of a delay */
+    int ticks_remaining;
 } flash_t;
 
 
-int flash_init(flash_t*);
+int flash_init(flash_t* flash);
+
+void flash_tick(flash_t* flash, int elapsed_tstates);
 
 int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
 
-int flash_save_to_file(flash_t*, const char* name);
+int flash_save_to_file(flash_t* flash, const char* name);

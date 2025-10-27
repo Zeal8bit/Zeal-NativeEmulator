@@ -118,7 +118,7 @@ Currently, the following features from Zeal 8-bit Computer are emulated:
 * Z80 CPU (from [Superzazu](https://github.com/superzazu/z80), modified by @Zeal8bit)
 * Z80 PIO: all modes supported, both port A and B. Implementation is independent of connected devices.
 * 22-bit MMU
-* 256KB NOR flash (read-only currently)
+* 256KB NOR flash (R/W following the SST39 NOR flash specification)
 * 512KB RAM
 * Zeal 8-bit Video Card, **firmware v1.0.0** :
   * All text, graphics, bitmap modes, including sprites, palette, layers, etc...

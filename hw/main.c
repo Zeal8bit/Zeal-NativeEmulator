@@ -54,6 +54,8 @@ int main(int argc, char* argv[])
 
     code = zeal_run(&machine);
 
+    flash_save_to_file(&machine.rom, config.arguments.rom_filename);
+
     int saved = config_save();
     config_unload();
     if(!saved && code == 0) return saved; // ???
