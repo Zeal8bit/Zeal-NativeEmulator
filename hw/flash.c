@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 /* **** */
+#include "utils/helpers.h"
 #include "hw/flash.h"
 #include "utils/paths.h"
 #include "utils/log.h"
@@ -38,10 +39,52 @@ typedef struct {
     uint8_t  seconds;
 } __attribute__((packed)) romdisk_entry_t;
 
+typedef enum {
+    STATE_IDLE,
+    STATE_SOFTWARE_ID,
+    /* State reached after *(0x5555)=0xAA operation is detected.
+     * This operation is common to all erase, software id and write commands */
+    STATE_SPECIAL_STEP0,
+    STATE_SPECIAL_STEP1,    /* Similarly, with *(0x2AAAA)=0x55 */
+    STATE_SPECIAL_STEP2,    /* Similarly, only relevant for erase command */
+    STATE_SPECIAL_STEP3,    /* Similarly, only relevant for erase command */
+    /* In this state, writing a byte is allowed, then a delay is applied */
+    STATE_PERFORM_WRITE,
+    /* During this state, the flash is being written */
+    STATE_PERFORM_WRITE_DELAY,
+    /* Ready to erase a block/sector */
+    STATE_PERFORM_ERASE,
+    /* Erasing a sector, delaying */
+    STATE_PERFORM_ERASE_DELAY,
+} fsm_state_t;
 
 static uint8_t flash_read(device_t* dev, uint32_t addr)
 {
     flash_t* f = (flash_t*) dev;
+
+    switch (f->state) {
+        case STATE_PERFORM_ERASE_DELAY:
+            return 0xff;
+        case STATE_PERFORM_WRITE_DELAY: {
+            /* DQ7 has already been flipped before programming the write */
+            const uint8_t ret = f->writing_byte;
+            /* Bit 6 must be flipped here */
+            f->writing_byte ^= 0x40;
+            return ret;
+        }
+        case STATE_SOFTWARE_ID:
+            /**
+             * On address 0, return SST Manufacturer's ID: 0xBF
+             * On address 1, return the Device ID: 0xB6 (SST39SF020)
+             */
+            if (addr == 0) return 0xBF;
+            if (addr == 1) return 0xB6;
+            /* TODO: Verify on real hardware the behavior here */
+            return 0xFF;
+        default:
+            break;
+    }
+
     if (addr >= f->size) {
         log_err_printf("[FLASH] Invalid read size: %08x\n", addr);
         return 0;
@@ -52,10 +95,94 @@ static uint8_t flash_read(device_t* dev, uint32_t addr)
 
 static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
 {
-    // TODO: Support flashing at runtime?
-    (void) dev;
-    (void) addr;
-    (void) data;
+    flash_t* f = (flash_t*) dev;
+
+    switch (f->state) {
+        case STATE_IDLE:
+            if (addr == 0x5555 && data == 0xaa) {
+                f->state = STATE_SPECIAL_STEP0;
+            }
+            break;
+        case STATE_SPECIAL_STEP0:
+            if (addr == 0x2aaa && data == 0x55) {
+                f->state = STATE_SPECIAL_STEP1;
+            }
+            break;
+        case STATE_SPECIAL_STEP1:
+            if (addr == 0x5555 && data == 0x90) {
+                f->state = STATE_SOFTWARE_ID;
+            } else if (addr == 0x5555 && data == 0xa0) {
+                f->state = STATE_PERFORM_WRITE;
+            } else if (addr == 0x5555 && data == 0x80) {
+                f->state = STATE_SPECIAL_STEP2;
+            }
+            break;
+        case STATE_SPECIAL_STEP2:
+            if (addr == 0x5555 && data == 0xaa) {
+                f->state = STATE_SPECIAL_STEP3;
+            }
+            break;
+        case STATE_SPECIAL_STEP3:
+            if (addr == 0x2aaa && data == 0x55) {
+                f->state = STATE_PERFORM_ERASE;
+            }
+            break;
+
+        case STATE_PERFORM_WRITE:
+            /* The NOR flash accepts writing a byte! Only bits that are 1 can be set to 0.
+             * Write the value right now to simplify the logic after */
+            data = data & f->data[addr];
+            log_printf("[FLASH] Writing byte 0x%x @ 0x%x\n", data, addr);
+            f->data[addr] = data;
+            /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
+            f->writing_byte = data ^ 0x80;
+            /* Writing a byte takes 20us on real hardware, register a callback to actually reflect this */
+            f->ticks_remaining = us_to_tstates(20);
+            f->state = STATE_PERFORM_WRITE_DELAY;
+            break;
+
+        case STATE_PERFORM_ERASE:
+            if (data == 0x30) {
+                /* Erase sector transaction! */
+                f->state = STATE_PERFORM_ERASE_DELAY;
+                /* Erasing a sector takes 25ms on real hardware */
+                f->ticks_remaining = us_to_tstates(25000);
+                /* Get the corresponding 4KB-sector to erase out of the 22-bit address */
+                const uint32_t sector = addr & 0x3ff000;
+                log_printf("[FLASH] Erasing sector %d @ address 0x%x\n", sector / 4096, sector);
+                memset(&f->data[sector], 0xff, 4096);
+            } else if (data == 0x10 && addr == 0x5555) {
+                /* Chip erase! */
+                log_printf("[FLASH] Erasing chip\n");
+                f->state = STATE_PERFORM_ERASE_DELAY;
+                /* Erasing the chip takes 100ms on real hardware */
+                f->ticks_remaining = us_to_tstates(100000);
+                memset(f->data, 0xff, f->size);
+            } else {
+                /* Invalid state, try again */
+                f->state = STATE_IDLE;
+                flash_write(dev, addr, data);
+            }
+            break;
+
+        case STATE_PERFORM_ERASE_DELAY:
+        case STATE_PERFORM_WRITE_DELAY:
+            /* Delaying the write to simulate a real NOR flash */
+            break;
+
+        case STATE_SOFTWARE_ID:
+            if (data == 0xf0) {
+                f->state = STATE_IDLE;
+            }
+            break;
+
+        default:
+            /* The combination was invalid, reset the state and retry, else,
+             * the current byte being written would be lost and not part of the FSM. */
+            f->state = STATE_IDLE;
+            flash_write(dev, addr, data);
+            break;
+    }
 }
 
 
@@ -67,6 +194,7 @@ int flash_init(flash_t* f)
     /* Empty flash contains FF bytes*/
     memset(f, 0xFF, sizeof(*f));
     f->size = NOR_FLASH_SIZE_KB;
+    f->state = STATE_IDLE;
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     f->data = malloc(f->size);
@@ -79,6 +207,17 @@ int flash_init(flash_t* f)
     device_init_mem(DEVICE(f), "nor_flash_dev", flash_read, flash_write, f->size);
     return 0;
 }
+
+void flash_tick(flash_t* flash, int elapsed_tstates)
+{
+    if (flash->state == STATE_PERFORM_ERASE_DELAY || flash->state == STATE_PERFORM_WRITE_DELAY) {
+        flash->ticks_remaining -= elapsed_tstates;
+        if (flash->ticks_remaining <= 0) {
+            flash->state = STATE_IDLE;
+        }
+    }
+}
+
 
 static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
 {
@@ -176,7 +315,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
             // Environment variable exists and file is accessible
             snprintf(rom_path, sizeof(rom_path), "%s", env_rom);
         } else {
-            // Check $HOME/.zde/roms/default.img
+            // Check $HOME/.zeal8bit/roms/default.img
             const char* config_dir = get_config_dir();
             if (config_dir != NULL) {
                 snprintf(rom_path, sizeof(rom_path), "%s/roms/default.img", config_dir);
