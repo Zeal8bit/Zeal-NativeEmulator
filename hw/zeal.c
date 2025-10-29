@@ -98,6 +98,30 @@ static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
     return 0;
 }
 
+
+#if CONFIG_ENABLE_DEBUGGER
+/**
+ * @brief Read a byte from memory for the debugger, so write-only areas can still be read
+ */
+static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
+{
+    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
+
+    if (device) {
+        return device->mem_region.debug_read ?
+                    device->mem_region.debug_read(device, phys_addr - start_addr) :
+                    device->mem_region.read(device, phys_addr - start_addr);
+    }
+
+    log_printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
+    return 0;
+}
+#endif
+
+
 static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
     const zeal_t* machine    = (zeal_t*) opaque;
@@ -340,6 +364,7 @@ int zeal_init(zeal_t* machine)
 
     memset(machine, 0, sizeof(*machine));
 #if CONFIG_ENABLE_DEBUGGER
+    machine->dbg_read_memory = debug_read_memory;
     machine->dbg.running = true;
     /* Set the debug mode in the machine structure as soon as possible */
     machine->dbg_enabled = config_debugger_enabled();

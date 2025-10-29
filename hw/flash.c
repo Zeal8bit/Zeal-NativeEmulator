@@ -92,6 +92,15 @@ static uint8_t flash_read(device_t* dev, uint32_t addr)
     return f->data[addr];
 }
 
+static uint8_t flash_debug_read(device_t* dev, uint32_t addr)
+{
+    flash_t* f = (flash_t*) dev;
+    if (addr >= f->size) {
+        log_err_printf("[FLASH] Invalid debug read size: %08x\n", addr);
+        return 0;
+    }
+    return f->data[addr];
+}
 
 static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
 {
@@ -203,7 +212,7 @@ int flash_init(flash_t* f)
     }
 #endif
 
-    device_init_mem(DEVICE(f), "nor_flash_dev", flash_read, flash_write, f->size);
+    device_init_mem_debug(DEVICE(f), "nor_flash_dev", flash_read, flash_write, flash_debug_read, f->size);
     return 0;
 }
 

@@ -79,8 +79,7 @@ static int zeal_debugger_get_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
         log_printf("TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
-            // TODO: Use a specialized function from Zeal component?
-            val[i] = machine->cpu.read_byte(machine, (uint16_t) (addr + i));
+            val[i] = machine->dbg_read_memory(machine, (uint16_t) (addr + i));
         }
     } else {
         // Invalid address
