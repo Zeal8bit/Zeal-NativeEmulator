@@ -92,6 +92,15 @@ static uint8_t flash_read(device_t* dev, uint32_t addr)
     return f->data[addr];
 }
 
+static uint8_t flash_debug_read(device_t* dev, uint32_t addr)
+{
+    flash_t* f = (flash_t*) dev;
+    if (addr >= f->size) {
+        log_err_printf("[FLASH] Invalid debug read size: %08x\n", addr);
+        return 0;
+    }
+    return f->data[addr];
+}
 
 static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
 {
@@ -131,9 +140,8 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
         case STATE_PERFORM_WRITE:
             /* The NOR flash accepts writing a byte! Only bits that are 1 can be set to 0.
              * Write the value right now to simplify the logic after */
-            data = data & f->data[addr];
-            log_printf("[FLASH] Writing byte 0x%x @ 0x%x\n", data, addr);
-            f->data[addr] = data;
+            log_printf("[FLASH] Writing byte 0x%x (& %x = %x) @ 0x%x\n", data, f->data[addr], data & f->data[addr], addr);
+            f->data[addr] &= data;
             /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
             f->writing_byte = data ^ 0x80;
             /* Writing a byte takes 20us on real hardware, register a callback to actually reflect this */
@@ -204,7 +212,7 @@ int flash_init(flash_t* f)
     }
 #endif
 
-    device_init_mem(DEVICE(f), "nor_flash_dev", flash_read, flash_write, f->size);
+    device_init_mem_debug(DEVICE(f), "nor_flash_dev", flash_read, flash_write, flash_debug_read, f->size);
     return 0;
 }
 

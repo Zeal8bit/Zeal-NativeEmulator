@@ -100,6 +100,7 @@ struct zeal_t {
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     struct dbg_ui_t* dbg_ui;
+    uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);
 #endif
 };
 
