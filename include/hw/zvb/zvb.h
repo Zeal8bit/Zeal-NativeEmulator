@@ -25,6 +25,9 @@
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
  */
+#define ZVB_EMULATED_REV    0
+#define ZVB_EMULATED_MINOR  0
+#define ZVB_EMULATED_MAJOR  1
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480

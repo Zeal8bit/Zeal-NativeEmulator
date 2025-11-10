@@ -160,11 +160,11 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
-        return 0;
+        return ZVB_EMULATED_REV;
     } else if (addr == ZVB_IO_MINOR_REG) {
-        return 2;
+        return ZVB_EMULATED_MINOR;
     } else if (addr == ZVB_IO_MAJOR_REG) {
-        return 0;
+        return ZVB_EMULATED_MAJOR;
     } else if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         return zvb->scratch[addr - ZVB_IO_SCRAT0_REG];
     } else if (addr == ZVB_IO_BANK_REG) {
