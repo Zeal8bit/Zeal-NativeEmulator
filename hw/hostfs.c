@@ -65,25 +65,26 @@
 #define ZOS_FL_CREAT        (4 << 2)
 
 
-static int descriptor_valid(void* desc) {
-    return desc != NULL;
+static int descriptor_valid(hostfs_fd_t* desc)
+{
+    return desc->raw != NULL;
 }
 
-
-static void set_status(zeal_hostfs_t *host, uint8_t status) {
+static void set_status(zeal_hostfs_t *host, uint8_t status)
+{
     host->registers[0xF] = status;
 }
 
-
-static void fs_whoami(zeal_hostfs_t *host) {
+static void fs_whoami(zeal_hostfs_t *host)
+{
     set_status(host, 0xD3);
 }
-
 
 /**
  * @brief Helper to always make a file name 16 bytes big
 */
-static void zos_format_name(const char *input_name, char *output_name) {
+static void zos_format_name(const char *input_name, char *output_name)
+{
     size_t input_length = strlen(input_name);
 
     if (input_length < ZOS_MAX_NAME_LENGTH) {
@@ -98,7 +99,8 @@ static void zos_format_name(const char *input_name, char *output_name) {
 }
 
 
-static char *resolve_path(const char *path, int prefix_len) {
+static char *resolve_path(const char *path, int prefix_len)
+{
     if (path == NULL || strlen(path) == 0) return NULL;
 
     // Allocate a buffer for the resolved path
@@ -140,7 +142,8 @@ static char *resolve_path(const char *path, int prefix_len) {
 
 
 
-static char *get_path(zeal_hostfs_t *host) {
+static char *get_path(zeal_hostfs_t *host)
+{
     uint16_t virt_addr = (host->registers[2] << 8) | host->registers[1];
     static char full_path[PATH_MAX];
     char path[256];
@@ -191,7 +194,8 @@ static char *get_path(zeal_hostfs_t *host) {
     return full_path;
 }
 
-FILE *fopen_with_flags(const char *path, int zos_flags) {
+static FILE *fopen_with_flags(const char *path, int zos_flags)
+{
     int open_flags = 0;
 
     // Determine access mode
@@ -244,32 +248,75 @@ FILE *fopen_with_flags(const char *path, int zos_flags) {
     return file;
 }
 
-static void fs_open(zeal_hostfs_t *host) {
+static void populate_opendir(zeal_hostfs_t *host, char* path)
+{
+    DIR *dir = opendir(path);
+
+    if (!dir) {
+        set_status(host, ZOS_NO_SUCH_ENTRY);
+        return;
+    }
+
+    for (int i = 0; i < MAX_OPENED_FILES; i++) {
+        hostfs_fd_t* fd = &host->descriptors[i];
+        if (!descriptor_valid(fd)) {
+            strncpy(fd->name, basename(path), ZOS_MAX_NAME_LENGTH);
+#ifdef _WIN32
+            strncpy(fd->path, path, sizeof(fd->path) - 1);
+#endif
+            fd->dir = dir;
+            fd->is_dir = 1;
+            host->registers[4] = (uint8_t) i;
+            /* Tell the Z80 this is a directory */
+            host->registers[5] = 1;
+            set_status(host, ZOS_SUCCESS);
+            return;
+        }
+    }
+
+    closedir(dir);
+    set_status(host, ZOS_CANNOT_REGISTER_MORE);
+}
+
+static void fs_open(zeal_hostfs_t *host)
+{
     char *path = get_path(host);
+    struct stat st;
 
     if (path == NULL) {
         return;
     }
 
-    uint8_t flags = host->registers[0];
+    /* Check if the path points to a directory, if yes, switch to opendir */
+    if (stat(path, &st) != 0) {
+        set_status(host, ZOS_NO_SUCH_ENTRY);
+        return;
+    }
 
+    if (S_ISDIR(st.st_mode)) {
+        populate_opendir(host, path);
+        return;
+    }
+
+    uint8_t flags = host->registers[0];
     FILE *file = fopen_with_flags(path, flags);
     if (!file) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
     }
     for (int i = 0; i < MAX_OPENED_FILES; i++) {
-        if (!host->descriptors[i]) {
-            strncpy(host->names[i], basename(path), ZOS_MAX_NAME_LENGTH);
-            host->descriptors[i] = file;
-            host->registers[4] = (uint8_t)i;
-            fseek(file, 0, SEEK_END);
-            long size = ftell(file);
-            fseek(file, 0, SEEK_SET);
-            host->registers[0] = (size >> 0) & 0xFF;
-            host->registers[1] = (size >> 8) & 0xFF;
-            host->registers[2] = (size >> 16) & 0xFF;
-            host->registers[3] = (size >> 24) & 0xFF;
+        hostfs_fd_t* fd = &host->descriptors[i];
+        if (!descriptor_valid(fd)) {
+            strncpy(fd->name, basename(path), ZOS_MAX_NAME_LENGTH);
+            fd->file = file;
+            fd->is_dir = 0;
+            host->registers[0] = (st.st_size >> 0) & 0xFF;
+            host->registers[1] = (st.st_size >> 8) & 0xFF;
+            host->registers[2] = (st.st_size >> 16) & 0xFF;
+            host->registers[3] = (st.st_size >> 24) & 0xFF;
+            host->registers[4] = (uint8_t) i;
+            /* Tell the Z80 this is a file (not directory) */
+            host->registers[5] = 0;
             set_status(host, ZOS_SUCCESS);
             return;
         }
@@ -279,79 +326,105 @@ static void fs_open(zeal_hostfs_t *host) {
 }
 
 
-static void fs_close(zeal_hostfs_t *host) {
-    uint8_t desc = host->registers[0];
-    FILE *file = host->descriptors[desc];
-    DIR *dir = host->directories[desc];
-
-    if (descriptor_valid(file)) {
-        fclose(file);
-        host->descriptors[desc] = NULL;
-        set_status(host, ZOS_SUCCESS);
-    } else if (descriptor_valid(dir)) {
-        closedir(dir);
-        host->directories[desc] = NULL;
-        set_status(host, ZOS_SUCCESS);
-    } else {
+static void fs_close(zeal_hostfs_t *host)
+{
+    const int desc = host->registers[0];
+    if (desc >= MAX_OPENED_FILES) {
         set_status(host, ZOS_FAILURE);
+        return;
     }
+
+    hostfs_fd_t* fd = &host->descriptors[desc];
+
+    if (!fd->is_dir) {
+        fclose(fd->file);
+    } else {
+        closedir(fd->dir);
+    }
+
+    fd->raw = NULL;
+    set_status(host, ZOS_SUCCESS);
 }
 
 
-static void fs_stat(zeal_hostfs_t *host) {
+static void fs_stat(zeal_hostfs_t *host)
+{
     struct stat st;
 
     const int desc = host->registers[2];
     uint16_t struct_addr = (host->registers[1] << 8) | host->registers[0];
-    int is_dir = 0;
-    FILE *file = host->descriptors[desc];
-    DIR *dir = host->directories[desc];
-    int fd = -1;
+    hostfs_fd_t* descriptor = &host->descriptors[desc];
 
-    if (descriptor_valid(file)) {
-        fd = fileno(file);
-    } else if (descriptor_valid(dir)) {
-        is_dir = 1;
-    } else {
+    /* Target stat structure. For files, the pointer received points to `s_date`  */
+    struct {
+        uint32_t   s_size;  // in bytes
+        uint8_t    s_date[8];
+        char       s_name[ZOS_MAX_NAME_LENGTH];
+    } zos_stat = { 0 };
+
+    if (!descriptor_valid(descriptor)) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
     }
 
-    uint8_t regs[8] = {0};
-
-    if (is_dir == 0) {
-        if (fstat(fd, &st)) {
+#ifdef _WIN32
+    /* On Windows, we cannot get a file descriptor out of a DIR* structure  */
+    if (descriptor->is_dir) {
+        if (stat(descriptor->path, &st)) {
             log_err_printf("[HostFS] Could not stat file\n");
             set_status(host, ZOS_FAILURE);
             return;
         }
-
-        struct tm *tm_info = localtime(&st.st_mtime);
-        /* Convert the date components to BCD */
-        regs[0] = (tm_info->tm_year + 1900) / 100; // High year
-        regs[1] = (tm_info->tm_year + 1900) % 100; // Year
-        regs[2] = tm_info->tm_mon + 1;             // Month
-        regs[3] = tm_info->tm_mday;                // Date
-        regs[4] = tm_info->tm_wday;                // Day
-        regs[5] = tm_info->tm_hour;                // Hours
-        regs[6] = tm_info->tm_min;                 // Minutes
-        regs[7] = tm_info->tm_sec;                 // Seconds
-
-        /* Convert to BCD (hexadecimal representation) */
-        for (int i = 0; i < 8; i++) {
-            regs[i] = (regs[i] / 10) << 4 | (regs[i] % 10);
+    } else {
+        if (fstat(fileno(descriptor->file), &st)) {
+            log_err_printf("[HostFS] Could not stat file\n");
+            set_status(host, ZOS_FAILURE);
+            return;
         }
     }
+#else
+    int fd = -1;
 
-    // Write the BCD date to the structure
-    memory_write_bytes(host->host_ops, struct_addr, regs, sizeof(regs));
-    struct_addr += sizeof(regs);
+    if (descriptor->is_dir) {
+        fd = dirfd(descriptor->dir);
+    } else {
+        fd = fileno(descriptor->file);
+    }
 
-    // Write the 16-character file name
-    memory_write_bytes(host->host_ops, struct_addr, (void*) host->names[desc], ZOS_MAX_NAME_LENGTH);
-    struct_addr += ZOS_MAX_NAME_LENGTH;
+    if (fstat(fd, &st)) {
+        log_err_printf("[HostFS] Could not stat file\n");
+        set_status(host, ZOS_FAILURE);
+        return;
+    }
+#endif
 
-    // Set success status
+    zos_stat.s_size = st.st_size > 0x100000000L ? 0xffffffff : st.st_size;
+
+    struct tm *tm_info = localtime(&st.st_mtime);
+    zos_stat.s_date[0] = (tm_info->tm_year + 1900) / 100; // High year
+    zos_stat.s_date[1] = (tm_info->tm_year + 1900) % 100; // Year
+    zos_stat.s_date[2] = tm_info->tm_mon + 1;             // Month
+    zos_stat.s_date[3] = tm_info->tm_mday;                // Date
+    zos_stat.s_date[4] = tm_info->tm_wday;                // Day
+    zos_stat.s_date[5] = tm_info->tm_hour;                // Hours
+    zos_stat.s_date[6] = tm_info->tm_min;                 // Minutes
+    zos_stat.s_date[7] = tm_info->tm_sec;                 // Seconds
+    /* Convert to BCD (hexadecimal representation) */
+    for (int i = 0; i < 8; i++) {
+        zos_stat.s_date[i] = (zos_stat.s_date[i] / 10) << 4 | (zos_stat.s_date[i] % 10);
+    }
+    /* Write the name in the structure */
+    memcpy(zos_stat.s_name, descriptor->name, ZOS_MAX_NAME_LENGTH);
+
+    /* Write the structure to memory so that the Z80 sees it */
+    if (descriptor->is_dir) {
+        memory_write_bytes(host->host_ops, struct_addr, (uint8_t*) &zos_stat, sizeof(zos_stat));
+    } else {
+        memory_write_bytes(host->host_ops, struct_addr, (uint8_t*) &zos_stat.s_date,
+                           sizeof(zos_stat) - sizeof(zos_stat.s_size));
+    }
+
+    /* Set success status */
     set_status(host, ZOS_SUCCESS);
 }
 
@@ -369,7 +442,8 @@ static int seek_file(zeal_hostfs_t *host, uint16_t struct_addr, FILE* file)
 }
 
 
-static void fs_read(zeal_hostfs_t *host) {
+static void fs_read(zeal_hostfs_t *host)
+{
     uint8_t buffer[1024];
 
     const uint16_t struct_addr = (host->registers[1] << 8) | host->registers[0];
@@ -380,9 +454,13 @@ static void fs_read(zeal_hostfs_t *host) {
 
     /* Get the abstract context from the structure */
     const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
+    if (desc >= MAX_OPENED_FILES) {
+        set_status(host, ZOS_FAILURE);
+        return;
+    }
 
-    FILE *file = host->descriptors[desc];
-    if (!descriptor_valid(file)) {
+    FILE *file = host->descriptors[desc].file;
+    if (file == NULL) {
         set_status(host, ZOS_FAILURE);
         return;
     }
@@ -420,9 +498,13 @@ static void fs_write(zeal_hostfs_t *host) {
 
     /* Get the abstract context from the structure */
     const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
+    if (desc >= MAX_OPENED_FILES) {
+        set_status(host, ZOS_FAILURE);
+        return;
+    }
 
-    FILE *file = host->descriptors[desc];
-    if (!descriptor_valid(file)) {
+    FILE *file = host->descriptors[desc].file;
+    if (file == NULL) {
         set_status(host, ZOS_FAILURE);
         return;
     }
@@ -444,7 +526,8 @@ static void fs_write(zeal_hostfs_t *host) {
 }
 
 
-static void fs_mkdir(zeal_hostfs_t *host) {
+static void fs_mkdir(zeal_hostfs_t *host)
+{
     char *path = get_path(host);
     if (path == NULL) {
         set_status(host, ZOS_FAILURE);
@@ -461,7 +544,8 @@ static void fs_mkdir(zeal_hostfs_t *host) {
 }
 
 
-static void fs_rm(zeal_hostfs_t *host) {
+static void fs_rm(zeal_hostfs_t *host)
+{
     char *path = get_path(host);
     if (path == NULL) {
         return;
@@ -476,44 +560,28 @@ static void fs_rm(zeal_hostfs_t *host) {
 }
 
 
-static void fs_opendir(zeal_hostfs_t *host) {
+static void fs_opendir(zeal_hostfs_t *host)
+{
     char *path = get_path(host);
-
     if (path == NULL) {
         return;
     }
-
-    DIR *dir = opendir(path);
-
-    if (!dir) {
-        set_status(host, ZOS_NO_SUCH_ENTRY);
-        return;
-    }
-
-    for (int i = 0; i < MAX_OPENED_FILES; i++) {
-        if (!host->directories[i]) {
-            host->directories[i] = dir;
-            host->registers[4] = i;
-            set_status(host, ZOS_SUCCESS);
-            return;
-        }
-    }
-
-    closedir(dir);
-    set_status(host, ZOS_CANNOT_REGISTER_MORE);
+    populate_opendir(host, path);
 }
 
 
-static void fs_readdir(zeal_hostfs_t *host) {
+static void fs_readdir(zeal_hostfs_t *host)
+{
     char out_name[ZOS_MAX_NAME_LENGTH];
-    uint8_t desc = host->registers[2];
+    int desc = host->registers[2];
 
-    if (!descriptor_valid(host->directories[desc])) {
+    hostfs_fd_t* fd = &host->descriptors[desc];
+    if (desc >= MAX_OPENED_FILES || !descriptor_valid(fd)) {
         set_status(host, ZOS_FAILURE);
         return;
     }
 
-    DIR *dir = host->directories[desc];
+    DIR *dir = fd->dir;
     struct dirent *entry = NULL;
 
     /* Look for a valid entry */
@@ -552,7 +620,8 @@ static void fs_readdir(zeal_hostfs_t *host) {
 }
 
 
-static void handle_operation(zeal_hostfs_t *host, uint8_t operation) {
+static void handle_operation(zeal_hostfs_t *host, uint8_t operation)
+{
     switch (operation) {
         case OP_WHOAMI:
             fs_whoami(host);
