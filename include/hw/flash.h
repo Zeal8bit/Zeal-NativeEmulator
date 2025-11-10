@@ -34,6 +34,8 @@ typedef struct {
     uint8_t writing_byte;
     /* Number of ticks remaining in case of a delay */
     int ticks_remaining;
+    /* Flag set if any byte was changed (and needs write-back) */
+    int dirty;
 } flash_t;
 
 

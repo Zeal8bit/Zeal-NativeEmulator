@@ -142,6 +142,7 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
              * Write the value right now to simplify the logic after */
             log_printf("[FLASH] Writing byte 0x%x (& %x = %x) @ 0x%x\n", data, f->data[addr], data & f->data[addr], addr);
             f->data[addr] &= data;
+            f->dirty = 1;
             /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
             f->writing_byte = data ^ 0x80;
             /* Writing a byte takes 20us on real hardware, register a callback to actually reflect this */
@@ -158,6 +159,7 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
                 /* Get the corresponding 4KB-sector to erase out of the 22-bit address */
                 const uint32_t sector = addr & 0x3ff000;
                 log_printf("[FLASH] Erasing sector %d @ address 0x%x\n", sector / 4096, sector);
+                f->dirty = 1;
                 memset(&f->data[sector], 0xff, 4096);
             } else if (data == 0x10 && addr == 0x5555) {
                 /* Chip erase! */
@@ -165,6 +167,7 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
                 f->state = STATE_PERFORM_ERASE_DELAY;
                 /* Erasing the chip takes 100ms on real hardware */
                 f->ticks_remaining = us_to_tstates(100000);
+                f->dirty = 1;
                 memset(f->data, 0xff, f->size);
             } else {
                 /* Invalid state, try again */
@@ -203,6 +206,7 @@ int flash_init(flash_t* f)
     memset(f, 0xFF, sizeof(*f));
     f->size = NOR_FLASH_SIZE_KB;
     f->state = STATE_IDLE;
+    f->dirty = 0;
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     f->data = malloc(f->size);
@@ -379,6 +383,11 @@ int flash_save_to_file(flash_t* flash, const char* name)
 {
     if (flash == NULL || name == NULL) {
         return -1;
+    }
+
+    /* No change performed on the flash, nothing to write */
+    if (flash->dirty == 0) {
+        return 0;
     }
 
     int fd = open(name, O_WRONLY | O_TRUNC | O_CREAT, 0666);
