@@ -9,7 +9,6 @@ exe_wrapper = 'node'  # allows Meson to run test programs if needed
 
 [built-in options]
 c_args = ['-D_DEFAULT_SOURCE',
-          '-DCONFIG_SHOW_FPS',
           '-DPLATFORM_WEB',
           '-DOPENGL_ES']
 

@@ -60,6 +60,10 @@ cd build-wasm
 meson compile
 ```
 
+> [!NOTE]
+> You can optionally pass `-Denable_debugger=false` to disable the debugger
+> You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
+
 Keep in mind that this build will use the Raylib 5.5 release that is present at the root of the project, in `raylib/wasm`. If you wish to override this library and use your own version
 
 ### Compilation options
