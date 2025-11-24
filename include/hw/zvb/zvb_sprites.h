@@ -71,13 +71,16 @@ typedef struct {
     zvb_sprite_t    data[ZVB_SPRITES_COUNT];
     zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
     int             wr_latch;
+#if CONFIG_USE_SHADERS
     /* Make rendering faster by using an Image and a Texture for both layers */
     Image           img_sprites;
     Texture         tex_sprites;
     int             dirty;
+#endif
 } zvb_sprites_t;
 
 
+#if CONFIG_USE_SHADERS
 /**
  * @brief Get the shader out of the sprites
  */
@@ -85,6 +88,7 @@ static inline Texture* zvb_sprites_texture(zvb_sprites_t* sprites)
 {
     return &sprites->tex_sprites;
 }
+#endif
 
 
 /**

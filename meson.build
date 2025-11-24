@@ -61,6 +61,12 @@ if (get_option('show_fps'))
     add_project_arguments('-DCONFIG_SHOW_FPS', language: 'c')
 endif
 
+if (get_option('use_shaders'))
+    add_project_arguments('-DCONFIG_USE_SHADERS=1', language: 'c')
+else
+    add_project_arguments('-DCONFIG_USE_SHADERS=0', language: 'c')
+endif
+
 if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif

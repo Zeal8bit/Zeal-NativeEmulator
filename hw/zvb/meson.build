@@ -12,3 +12,9 @@ sources += files([
     'zvb_dma.c',
     'zvb_sound.c'
 ])
+
+if (get_option('use_shaders'))
+    sources += files(['zvb_render_shaders.c'])
+else
+    sources += files(['zvb_render_cpu.c'])
+endif

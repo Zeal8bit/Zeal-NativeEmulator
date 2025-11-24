@@ -22,6 +22,12 @@
 #include "hw/zvb/zvb_sound.h"
 #include "hw/zvb/zvb_dma.h"
 
+#if CONFIG_USE_SHADERS
+#include "hw/zvb/zvb_render_shaders.h"
+#else
+#include "hw/zvb/zvb_render_cpu.h"
+#endif
+
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
  */
@@ -86,49 +92,6 @@
 #define STATE_VBLANK        1
 #define STATE_COUNT         2
 
-
-/**
- * @brief Macros listing of all the objects in the shaders
- */
-#define TEXT_SHADER_VIDMODE_IDX     0
-#define TEXT_SHADER_TILEMAPS_IDX    1
-#define TEXT_SHADER_FONT_IDX        2
-#define TEXT_SHADER_PALETTE_IDX     3
-#define TEXT_SHADER_CURPOS_IDX      4
-#define TEXT_SHADER_CURCOLOR_IDX    5
-#define TEXT_SHADER_CURCHAR_IDX     6
-#define TEXT_SHADER_TSCROLL_IDX     7
-#define TEXT_SHADER_DBGMODE_IDX     4
-
-#define TEXT_SHADER_OBJ_COUNT       8
-
-
-#define GFX_SHADER_VIDMODE_IDX      0
-#define GFX_SHADER_TILEMAPS_IDX     1
-#define GFX_SHADER_TILESET_IDX      2
-#define GFX_SHADER_SPRITES_IDX      3
-#define GFX_SHADER_SCROLL0_IDX      4
-#define GFX_SHADER_SCROLL1_IDX      5
-#define GFX_SHADER_PALETTE_IDX      6
-#define GFX_SHADER_DBGMODE_IDX      3
-
-#define GFX_SHADER_OBJ_COUNT        7
-
-#define ZVB_SHADER_MAX_OBJ_COUNT    8
-
-/* Special mode to tell the shader to debug the texture */
-#define TEXT_DEBUG_MODE             0xffffffff
-#define GFX_DEBUG_TILESET_MODE      0
-#define GFX_DEBUG_LAYER0_MODE       1
-#define GFX_DEBUG_LAYER1_MODE       2
-#define GFX_DEBUG_PALETTE_MODE      3
-
-#define TEXT_DEBUG_FONT_MODE        0
-#define TEXT_DEBUG_LAYER0_MODE      1
-#define TEXT_DEBUG_LAYER1_MODE      2
-#define TEXT_DEBUG_PALETTE_MODE     3
-
-
 typedef enum {
     MODE_TEXT_640     = 0,
     MODE_TEXT_320     = 1,
@@ -167,22 +130,6 @@ typedef struct {
 } zvb_ctrl_t;
 
 
-typedef enum {
-    SHADER_TEXT = 0,
-    SHADER_GFX,
-    SHADER_BITMAP,
-    SHADER_GFX_DEBUG,
-    SHADER_TEXT_DEBUG,
-    SHADERS_COUNT,
-} zvb_shaders_type_t;
-
-
-typedef struct {
-    Shader shader;
-    int    objects[ZVB_SHADER_MAX_OBJ_COUNT];
-} zvb_shader_t;
-
-
 typedef struct {
     device_t         parent;
     zvb_video_mode_t mode;
@@ -200,7 +147,7 @@ typedef struct {
     zvb_dma_t        dma;
 
     /* Internally used to make the shader work on the whole screen */
-    zvb_shader_t     shaders[SHADERS_COUNT];
+    zvb_render_t     render;
     RenderTexture    tex_dummy;
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
 

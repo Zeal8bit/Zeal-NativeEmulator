@@ -26,13 +26,16 @@
 typedef struct {
     /* Raw data, as organized in the real hardware. Each character is a bitmap. */
     uint8_t raw_font[ZVB_FONT_SIZE];
+#if CONFIG_USE_SHADERS
     /* Make rendering faster by using an Image and a Texture underneath */
     Image   img_font;
     Texture tex_font;
     int     dirty;
+#endif
 } zvb_font_t;
 
 
+#if CONFIG_USE_SHADERS
 /**
  * @brief Get the texture out of the font
  */
@@ -40,6 +43,7 @@ static inline Texture zvb_font_texture(zvb_font_t* font)
 {
     return font->tex_font;
 }
+#endif
 
 
 /**
@@ -50,7 +54,7 @@ void zvb_font_init(zvb_font_t* font);
 
 /**
  * @brief Function to call when a write occurs on the Font memory area.
- * 
+ *
  * @param addr Address relative to the font address space.
  * @param data Byte to write in the font
  */

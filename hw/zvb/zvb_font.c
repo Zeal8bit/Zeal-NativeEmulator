@@ -10,53 +10,10 @@
 #include <string.h>
 #include "hw/zvb/zvb_font.h"
 
-static void font_update_img(zvb_font_t* font, uint32_t addr, uint_fast8_t data);
-
 /* Make sure the default font has the correct size */
 _Static_assert(sizeof(default_font) == DEFAULT_FONT_SIZE, "Default font has to have the same size as the font area in VRAM");
 
-void zvb_font_init(zvb_font_t* font)
-{
-    assert(font != NULL);
-
-    /* Load the default font in memory */
-    memcpy(font->raw_font, default_font, sizeof(font->raw_font));
-
-    /* Convert the bitmaps into a proper image  */
-    font->img_font = GenImageColor(ZVB_FONT_CHAR_COUNT * ZVB_FONT_CHAR_WIDTH, ZVB_FONT_CHAR_HEIGHT, BLACK);
-
-    /* Trigger an update to update the Image */
-    for (size_t i = 0; i < sizeof(font->raw_font); i++) {
-        font_update_img(font, i, font->raw_font[i]);
-    }
-
-    font->tex_font = LoadTextureFromImage(font->img_font);
-    font->dirty = 0;
-}
-
-
-void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data)
-{
-    font->raw_font[addr] = data;
-    font_update_img(font, addr, data);
-}
-
-
-uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr)
-{
-    return font->raw_font[addr];
-}
-
-
-void zvb_font_update(zvb_font_t* font)
-{
-    if (font->dirty != 0) {
-        UpdateTexture(font->tex_font, font->img_font.data);
-        font->dirty = 0;
-    }
-}
-
-
+#if CONFIG_USE_SHADERS
 /**
  * @brief Update the image with an incoming byte that must be interpreted as a bitmap
  */
@@ -83,3 +40,57 @@ static void font_update_img(zvb_font_t* font, uint32_t addr, uint_fast8_t data)
 
     font->dirty = 1;
 }
+#endif // CONFIG_USE_SHADERS
+
+
+void zvb_font_init(zvb_font_t* font)
+{
+    assert(font != NULL);
+
+    /* Load the default font in memory */
+    memcpy(font->raw_font, default_font, sizeof(font->raw_font));
+
+#if CONFIG_USE_SHADERS
+    /* Convert the bitmaps into a proper image  */
+    font->img_font = GenImageColor(ZVB_FONT_CHAR_COUNT * ZVB_FONT_CHAR_WIDTH, ZVB_FONT_CHAR_HEIGHT, BLACK);
+
+    /* Trigger an update to update the Image */
+    for (size_t i = 0; i < sizeof(font->raw_font); i++) {
+        font_update_img(font, i, font->raw_font[i]);
+    }
+
+    font->tex_font = LoadTextureFromImage(font->img_font);
+    font->dirty = 0;
+#endif // CONFIG_USE_SHADERS
+}
+
+
+void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data)
+{
+    font->raw_font[addr] = data;
+#if CONFIG_USE_SHADERS
+    font_update_img(font, addr, data);
+#endif // CONFIG_USE_SHADERS
+}
+
+
+uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr)
+{
+    return font->raw_font[addr];
+}
+
+
+void zvb_font_update(zvb_font_t* font)
+{
+#if CONFIG_USE_SHADERS
+    if (font->dirty != 0) {
+        UpdateTexture(font->tex_font, font->img_font.data);
+        font->dirty = 0;
+    }
+#else
+    /* Prevent a warning from the compiler */
+    (void) font;
+#endif
+}
+
+

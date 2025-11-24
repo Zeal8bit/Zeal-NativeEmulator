@@ -25,12 +25,14 @@ typedef struct {
     uint8_t raw_palette[ZVB_COLOR_PALETTE_COUNT * 2];
     /* Writes are now latched */
     int     wr_latch;
+#if CONFIG_USE_SHADERS
     Image   img_pal;
     Texture tex_pal;
     bool    dirty;
+#endif
 } zvb_palette_t;
 
-
+#if CONFIG_USE_SHADERS
 /**
  * @brief Get the texture out of the palette
  */
@@ -38,6 +40,7 @@ static inline Texture zvb_pal_texture(zvb_palette_t* pal)
 {
     return pal->tex_pal;
 }
+#endif
 
 
 /**
@@ -65,3 +68,9 @@ uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr);
  * @brief Update the palette renderer, needs to be called before starting drawing anything on screen.
  */
 void zvb_palette_update(zvb_palette_t* pal);
+
+
+/**
+ * @brief Get a Color out of color idnex from the palette
+ */
+Color zvb_palette_get_color(zvb_palette_t* pal, uint32_t idx);
