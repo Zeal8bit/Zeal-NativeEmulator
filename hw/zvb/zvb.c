@@ -271,13 +271,19 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     zvb_dma_init(&dev->dma, ops);
 
     dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+#if CONFIG_ENABLE_DEBUGGER
     dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
     dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
     /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
     dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
     dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
     dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
-
+    /* For the debugger */
+    dev->flipped_y = flipped_y;
+#else
+    /* Unused, prevent a warning */
+    (void) flipped_y;
+#endif
     zvb_render_init(&dev->render, dev);
 
     /* Set the state to STATE_IDLE, waiting for the next event */
@@ -288,8 +294,6 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     dev->status.vid_ena = 1;
     dev->need_render = false;
 
-    /* For the debugger */
-    dev->flipped_y = flipped_y;
     return 0;
 }
 
@@ -368,6 +372,7 @@ bool zvb_prepare_render(zvb_t* zvb)
     return true;
 }
 
+#if CONFIG_ENABLE_DEBUGGER
 void zvb_render_debug_textures(zvb_t* zvb)
 {
     switch (zvb->mode) {
@@ -386,6 +391,7 @@ void zvb_render_debug_textures(zvb_t* zvb)
             break;
     }
 }
+#endif
 
 void zvb_render(zvb_t* zvb)
 {
@@ -464,7 +470,9 @@ void zvb_tick(zvb_t* zvb, const int tstates)
 void zvb_deinit(zvb_t* zvb)
 {
     UnloadRenderTexture(zvb->tex_dummy);
+#if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         UnloadRenderTexture(zvb->debug_tex[i]);
     }
+#endif
 }

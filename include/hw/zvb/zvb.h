@@ -149,7 +149,12 @@ typedef struct {
     /* Internally used to make the shader work on the whole screen */
     zvb_render_t     render;
     RenderTexture    tex_dummy;
+#if CONFIG_ENABLE_DEBUGGER
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
+    /* When rendering to the screen directly, Y must be flipped,
+     * But when rendering to a texture (debugger UI), it must not be*/
+    bool             flipped_y;
+#endif
 
     /* Internal values */
     zvb_status_t     status;
@@ -160,9 +165,6 @@ typedef struct {
     int              state; // Any of the STATE_* macros
     long             tstates_counter;
     bool             need_render;
-    /* When rendering to the screen directly, Y must be flipped,
-     * But when rendering to a texture (debugger UI), it must not be*/
-    bool             flipped_y;
 } zvb_t;
 
 
@@ -227,6 +229,7 @@ void zvb_force_render(zvb_t* zvb);
 void zvb_deinit(zvb_t* zvb);
 
 
+#if CONFIG_ENABLE_DEBUGGER
 /**
  * @brief Render the current VRAM state in the debug textures, must be called after `render` function
  */
@@ -243,3 +246,4 @@ static inline const RenderTexture* zvb_get_debug_textures(zvb_t* zvb, int* count
     }
     return zvb->debug_tex;
 }
+#endif
