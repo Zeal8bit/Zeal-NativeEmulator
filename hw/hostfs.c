@@ -287,18 +287,22 @@ static void fs_open(zeal_hostfs_t *host)
         return;
     }
 
-    /* Check if the path points to a directory, if yes, switch to opendir */
-    if (stat(path, &st) != 0) {
-        set_status(host, ZOS_NO_SUCH_ENTRY);
-        return;
-    }
+    int exists = (stat(path, &st) == 0);
 
-    if (S_ISDIR(st.st_mode)) {
+    /* Check if the path points to a directory, if yes, switch to opendir */
+    if (exists && S_ISDIR(st.st_mode)) {
         populate_opendir(host, path);
         return;
     }
 
     uint8_t flags = host->registers[0];
+
+    /* If it doesn't exist and CREAT is not set, error */
+    if(!exists && !(flags & ZOS_FL_CREAT)) {
+        set_status(host, ZOS_NO_SUCH_ENTRY);
+        return;
+    }
+
     FILE *file = fopen_with_flags(path, flags);
     if (!file) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
@@ -310,6 +314,8 @@ static void fs_open(zeal_hostfs_t *host)
             strncpy(fd->name, basename(path), ZOS_MAX_NAME_LENGTH);
             fd->file = file;
             fd->is_dir = 0;
+            /* If file was just created, st may be uninitialized, so stat again */
+            if (!exists) stat(path, &st);
             host->registers[0] = (st.st_size >> 0) & 0xFF;
             host->registers[1] = (st.st_size >> 8) & 0xFF;
             host->registers[2] = (st.st_size >> 16) & 0xFF;
