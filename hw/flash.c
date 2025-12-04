@@ -254,7 +254,7 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
         /* The config is always with the first 4KB but after the reset vectors, make sure the
          * first byte is referring to Zeal 8-bit computer (1) */
         if (config_addr >= 0x40 && config_addr < 0x1000 && flash->data[i + config_addr] == zeal_computer_target) {
-            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%lx\n", i);
+            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%x\n", (uint32_t) i);
             if (out_config_addr) {
                 *out_config_addr = config_addr;
             }
