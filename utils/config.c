@@ -112,7 +112,7 @@ int usage(const char* progname)
     log_printf("Example:\n");
     log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
 
-    return 1;
+    exit(0);
 }
 
 int parse_command_args(int argc, char* argv[])
