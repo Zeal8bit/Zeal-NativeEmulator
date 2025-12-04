@@ -1,0 +1,123 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches:
+      - main
+      - build-deploy
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-linux:
+    name: Build Linux
+    uses: ./.github/workflows/build-linux.yml
+
+  build-macos:
+    name: Build MacOS
+    uses: ./.github/workflows/build-macos.yml
+
+  build-windows:
+    name: Build Windows
+    uses: ./.github/workflows/build-windows.yml
+
+  build-wasm:
+    name: Build WebAssembly
+    uses: ./.github/workflows/build-wasm.yml
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download WASM Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-wasm
+          path: ./wasm-build
+
+      - name: Deploy to GitHub Pages
+        uses: ./.github/actions/deploy-pages
+        with:
+          deploy-path: ./wasm-build
+
+  create-release:
+    name: Create Draft Release
+    needs: [build-linux, build-macos, build-windows, build-wasm]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Delete Existing Draft Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Get all draft releases and delete them
+          gh release list --json tagName,isDraft --jq '.[] | select(.isDraft == true) | .tagName' | \
+          while read -r tag; do
+            echo "Deleting draft release: $tag"
+            gh release delete "$tag" --yes
+          done
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-linux
+          path: ./artifacts/linux
+
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-macos
+          path: ./artifacts/macos
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-windows
+          path: ./artifacts/windows
+
+      - name: Download WASM Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-wasm
+          path: ./artifacts/wasm
+
+      - name: Create Release Archives
+        run: |
+          cd artifacts/linux
+          tar -czf ../../zeal-native-linux-x64.tar.gz zeal-native
+          cd ../macos
+          tar -czf ../../zeal-native-macos-x64.tar.gz zeal-native
+          cd ../windows
+          zip ../../zeal-native-windows-x64.zip zeal-native.exe
+          cd ../wasm
+          zip -r ../../zeal-native-wasm.zip .
+          cd ../..
+
+      - name: Generate Release Tag
+        id: tag
+        run: echo "tag=v$(date +%Y%m%d)-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          name: Latest ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            zeal-native-linux-x64.tar.gz
+            zeal-native-macos-x64.tar.gz
+            zeal-native-windows-x64.zip
+            zeal-native-wasm.zip
+

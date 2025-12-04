@@ -1,0 +1,44 @@
+name: "Meson Build"
+description: "Set up and compile a project using Meson"
+inputs:
+  build-dir:
+    description: "Build directory name"
+    required: false
+    default: "build"
+  raylib-path:
+    description: "Path to Raylib"
+    required: false
+    default: ""
+  meson-args:
+    description: "Additional arguments to pass to meson setup"
+    required: false
+    default: ""
+  cross-file:
+    description: "Cross-compilation file to use"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Build Directory
+      shell: bash
+      run: |
+        MESON_ARGS=""
+
+        if [ -n "${{ inputs.cross-file }}" ]; then
+          MESON_ARGS="$MESON_ARGS --cross-file ${{ inputs.cross-file }}"
+        fi
+
+        if [ -n "${{ inputs.raylib-path }}" ]; then
+          MESON_ARGS="$MESON_ARGS -Draylib_path=${{ inputs.raylib-path }}"
+        fi
+
+        if [ -n "${{ inputs.meson-args }}" ]; then
+          MESON_ARGS="$MESON_ARGS ${{ inputs.meson-args }}"
+        fi
+
+        meson setup ${{ inputs.build-dir }} $MESON_ARGS
+
+    - name: Compile
+      shell: bash
+      run: meson compile -C ${{ inputs.build-dir }}

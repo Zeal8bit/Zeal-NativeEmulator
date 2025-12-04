@@ -15,7 +15,7 @@ cpu = 'x86_64'
 endian = 'little'
 
 [properties]
-raylib_path = '../raylib-5.5_win64_mingw-w64/'
+raylib_path = '../raylib/win64'
 needs_exe_wrapper = false
 exe_wrapper = ['wine']
 link_args = ['-lwinmm']
