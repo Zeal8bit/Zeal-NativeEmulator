@@ -1,0 +1,31 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build gcc-mingw-w64-x86-64 pkg-config cmake
+
+      - name: Setup Build Directory
+        run: meson setup build-win64 --cross-file win64-cross.build -Draylib_path=${{ github.workspace }}/raylib/win64
+
+      - name: Compile
+        run: meson compile -C build-win64
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-native-windows
+          path: build-win64/zeal-native.exe
+          retention-days: 30

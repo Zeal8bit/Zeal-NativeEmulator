@@ -1,0 +1,23 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches:
+      - main
+      - ci/build_actions
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  # build-macos:
+  #   uses: ./.github/workflows/build-macos.yml
+
+  build-windows:
+    uses: ./.github/workflows/build-windows.yml
