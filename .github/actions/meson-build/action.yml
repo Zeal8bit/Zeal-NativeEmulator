@@ -42,3 +42,9 @@ runs:
     - name: Compile
       shell: bash
       run: meson compile -C ${{ inputs.build-dir }}
+
+    - name: Strip binary
+      shell: bash
+      run: |
+        strip ${{ inputs.build-dir }}/zeal-native || strip ${{ inputs.build-dir }}/zeal-native.exe || echo "No binary found, skipping strip."
+

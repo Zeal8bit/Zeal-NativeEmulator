@@ -1,0 +1,14 @@
+[binaries]
+c = 'gcc'
+cpp = 'g++'
+ar = 'ar'
+strip = 'strip'
+pkgconfig = 'config'
+
+[built-in options]
+c_args = ['-m32']
+
+[properties]
+raylib_path = '../raylib/linux32'
+needs_exe_wrapper = false
+link_args = ['-m32']

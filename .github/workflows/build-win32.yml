@@ -1,11 +1,11 @@
-name: Build Linux
+name: Build Windows 32-bit
 
 on:
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  build-linux:
+  build-win32:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,21 +15,18 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc pkg-config cmake
+          sudo apt-get install -y meson ninja-build gcc-mingw-w64-i686 pkg-config cmake
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
-          raylib-path: ${{ github.workspace }}/raylib/linux64
-
-      # Test execution after having an AppImage
-      #- name: Test Executable
-      #  run: |
-      #    LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib ./build/zeal-native --help
+          build-dir: build
+          cross-file: win32-cross.build
+          raylib-path: ${{ github.workspace }}/raylib/win32
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zeal-native-linux
-          path: build/zeal-native
+          name: zeal-native-win32
+          path: build/zeal-native.exe
           retention-days: 30

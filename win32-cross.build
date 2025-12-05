@@ -1,28 +1,28 @@
 [binaries]
-c = 'x86_64-w64-mingw32-gcc'
-cpp = 'x86_64-w64-mingw32-g++'
-ar = 'x86_64-w64-mingw32-ar'
-strip = 'x86_64-w64-mingw32-strip'
-pkgconfig = 'x86_64-w64-mingw32-pkg-config'
+c = 'i686-w64-mingw32-gcc'
+cpp = 'i686-w64-mingw32-g++'
+ar = 'i686-w64-mingw32-ar'
+strip = 'i686-w64-mingw32-strip'
+pkgconfig = 'i686-w64-mingw32-pkg-config'
 
 [built-in options]
 c_args = ['-mno-ms-bitfields']
 
 [host_machine]
 system = 'windows'
-cpu_family = 'x86_64'
-cpu = 'x86_64'
+cpu_family = 'i686'
+cpu = 'i686'
 endian = 'little'
 
 [properties]
-raylib_path = '../raylib/win64'
+raylib_path = '../raylib/win32'
 needs_exe_wrapper = false
 exe_wrapper = ['wine']
 link_args = ['-lwinmm', '-static', '-mwindows']
 
 
 [paths]
-prefix = '/usr/x86_64-w64-mingw32'
+prefix = '/usr/i686-w64-mingw32'
 bindir = 'bin'
 libdir = 'lib'
 includedir = 'include'

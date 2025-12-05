@@ -1,0 +1,35 @@
+name: Build Linux 64-bit
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-linux64:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build gcc pkg-config cmake
+
+      - name: Build with Meson
+        uses: ./.github/actions/meson-build
+        with:
+          raylib-path: ${{ github.workspace }}/raylib/linux64
+
+      # Test execution after having an AppImage
+      #- name: Test Executable
+      #  run: |
+      #    LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib ./build/zeal-native --help
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-native-linux64
+          path: build/zeal-native
+          retention-days: 30

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - build-deploy
+      - feat/add_linux32_win32_builds
   workflow_dispatch:
 
 permissions:
@@ -13,17 +14,25 @@ permissions:
   id-token: write
 
 jobs:
-  build-linux:
-    name: Build Linux
-    uses: ./.github/workflows/build-linux.yml
+  build-linux32:
+    name: Build Linux 32-bit
+    uses: ./.github/workflows/build-linux32.yml
+
+  build-linux64:
+    name: Build Linux 64-bit
+    uses: ./.github/workflows/build-linux64.yml
 
   build-macos:
     name: Build MacOS
     uses: ./.github/workflows/build-macos.yml
 
-  build-windows:
-    name: Build Windows
-    uses: ./.github/workflows/build-windows.yml
+  build-win32:
+    name: Build Windows 32-bit
+    uses: ./.github/workflows/build-win32.yml
+
+  build-win64:
+    name: Build Windows 64-bit
+    uses: ./.github/workflows/build-win64.yml
 
   build-wasm:
     name: Build WebAssembly
@@ -50,9 +59,9 @@ jobs:
 
   create-release:
     name: Create Draft Release
-    needs: [build-linux, build-macos, build-windows, build-wasm]
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-linux32, build-linux64, build-macos, build-win32, build-win64, build-wasm]
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
