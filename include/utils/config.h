@@ -56,6 +56,7 @@ typedef struct {
     const char* breakpoints;
     bool config_save;
     bool verbose;
+    bool no_reset;
 } config_arguments_t;
 
 typedef struct {

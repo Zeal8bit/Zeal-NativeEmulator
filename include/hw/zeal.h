@@ -93,6 +93,7 @@ struct zeal_t {
 
     /* Misc features */
     zeal_hostfs_t hostfs;
+    bool pc_reset;
 
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER

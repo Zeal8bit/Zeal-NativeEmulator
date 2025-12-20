@@ -336,6 +336,7 @@ static memory_op_t s_ops = {
 int zeal_reset(zeal_t* machine) {
     zeal_init_cpu(machine);
     zeal_read_keyboard_reset(machine);
+    machine->pc_reset = false;
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
@@ -638,6 +639,16 @@ static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
+    if (config.arguments.no_reset) {
+        if (machine->cpu.pc != 0) {
+            machine->pc_reset = true;
+        } else if (machine->pc_reset) {
+            log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+            zeal_exit();
+            /* avoid repeated logging if exit takes a few iterations */
+            machine->pc_reset = false;
+        }
+    }
 
     /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
     if (keyboard_check(&machine->keyboard, elapsed_tstates)
