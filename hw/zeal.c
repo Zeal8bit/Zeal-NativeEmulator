@@ -335,11 +335,15 @@ static memory_op_t s_ops = {
 
 int zeal_reset(zeal_t* machine) {
     zeal_init_cpu(machine);
-    zeal_read_keyboard_reset(machine);
+    if (!machine->headless) {
+        zeal_read_keyboard_reset(machine);
+    }
     machine->pc_reset = false;
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
-    device_reset(DEVICE(&machine->zvb));
+    if (!machine->headless) {
+        device_reset(DEVICE(&machine->zvb));
+    }
 
 #if CONFIG_ENABLE_DEBUGGER
     if(machine->dbg_enabled) {
@@ -364,44 +368,47 @@ int zeal_init(zeal_t* machine)
     s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
+    machine->headless = config.arguments.headless;
 #if CONFIG_ENABLE_DEBUGGER
     machine->dbg_read_memory = debug_read_memory;
     machine->dbg.running = true;
     /* Set the debug mode in the machine structure as soon as possible */
-    machine->dbg_enabled = config_debugger_enabled();
+    machine->dbg_enabled = config_debugger_enabled() && !machine->headless;
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    /* Initialize the UI. It must be done before any shader is created! */
-    SetTraceLogLevel(WIN_LOG_LEVEL);
+    if (!machine->headless) {
+        /* Initialize the UI. It must be done before any shader is created! */
+        SetTraceLogLevel(WIN_LOG_LEVEL);
 #ifndef PLATFORM_WEB
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+        SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #endif
 
-    /* initialize raylib window */
-    InitWindow(640, 480, WIN_NAME);
-    SetExitKey(KEY_NULL);
+        /* initialize raylib window */
+        InitWindow(640, 480, WIN_NAME);
+        SetExitKey(KEY_NULL);
 #ifndef PLATFORM_WEB
-    SetWindowFocused(); // force focus on the window to capture keypresses
+        SetWindowFocused(); // force focus on the window to capture keypresses
 #endif
 #if !BENCHMARK
-    SetTargetFPS(60);
+        SetTargetFPS(60);
 #endif
 
-    /* Since we want to enable scaling, make the ZVB output always go to a texture first */
-    machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+        /* Since we want to enable scaling, make the ZVB output always go to a texture first */
+        machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
 #if CONFIG_ENABLE_DEBUGGER
-    config_window_set(machine->dbg_enabled);
-    /* Initialize the debugger */
-    zeal_debugger_init(machine, &machine->dbg);
-    /* Load symbols if provided */
-    if (config.arguments.map_file) {
-        debugger_load_symbols(&machine->dbg, config.arguments.map_file);
-    }
-    if (config.arguments.breakpoints) {
-        debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
-    }
+        config_window_set(machine->dbg_enabled);
+        /* Initialize the debugger */
+        zeal_debugger_init(machine, &machine->dbg);
+        /* Load symbols if provided */
+        if (config.arguments.map_file) {
+            debugger_load_symbols(&machine->dbg, config.arguments.map_file);
+        }
+        if (config.arguments.breakpoints) {
+            debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+        }
 #endif // CONFIG_ENABLE_DEBUGGER
+    }
 
     zeal_init_cpu(machine);
 
@@ -419,10 +426,6 @@ int zeal_init(zeal_t* machine)
 
     // const pio = new PIO(this);
     err = pio_init(machine, &machine->pio);
-    CHECK_ERR(err);
-
-    /* Flip the rendering if we are not in debug mode (since we will draw directly to the screen) */
-    err = zvb_init(&machine->zvb, false, &s_ops);
     CHECK_ERR(err);
 
     // const uart = new UART(this, pio);
@@ -470,13 +473,19 @@ int zeal_init(zeal_t* machine)
     }
 
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
-    zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
+    if (!machine->headless) {
+        err = zvb_init(&machine->zvb, false, &s_ops);
+        CHECK_ERR(err);
+        zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
+    }
 
     /* Register the devices in the I/O space */
     if (cf_err == 0) {
         zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
     }
-    zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
+    if (!machine->headless) {
+        zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
+    }
     zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
@@ -497,6 +506,9 @@ int zeal_init(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
 int zeal_debug_enable(zeal_t* machine)
 {
+    if (machine->headless) {
+        return -1;
+    }
     config_window_update(machine->dbg_enabled);
     int ret = 0;
     machine->dbg_enabled = true;
@@ -580,6 +592,28 @@ static int zeal_dbg_mode_display(zeal_t* machine)
     EndDrawing();
 
     return 1;
+}
+
+
+/**
+ * @brief Run Zeal 8-bit Computer VM in headless mode (no rendering/input)
+ */
+static int zeal_headless_mode_run(zeal_t* machine)
+{
+    const int elapsed_tstates = z80_step(&machine->cpu);
+    if (config.arguments.no_reset) {
+        if (machine->cpu.pc != 0) {
+            machine->pc_reset = true;
+        } else if (machine->pc_reset) {
+            log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+            zeal_exit();
+            machine->pc_reset = false;
+        }
+    }
+
+    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
+    flash_tick(&machine->rom, elapsed_tstates);
+    return 0;
 }
 
 
@@ -711,6 +745,10 @@ static int zeal_normal_mode_run(zeal_t* machine)
 
 static void zeal_loop(zeal_t* machine)
 {
+    if (machine->headless) {
+        zeal_headless_mode_run(machine);
+        return;
+    }
     int rendered = 0;
     /**
      * When compiling for WASM, it is not necessary to execute WindowShouldClose as often as possible.
@@ -751,7 +789,7 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!shouldCloseWindow && !WindowShouldClose()) {
+    while (!shouldCloseWindow && (machine->headless || !WindowShouldClose())) {
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;
@@ -761,23 +799,30 @@ int zeal_run(zeal_t* machine)
     }
 
 #ifdef PLATFORM_WEB
-    CloseAudioDevice();
+    if (!machine->headless) {
+        CloseAudioDevice();
+    }
 #endif
 
 #if CONFIG_ENABLE_DEBUGGER
-    config_window_update(machine->dbg_enabled);
+    if (!machine->headless) {
+        config_window_update(machine->dbg_enabled);
 
-    if(machine->dbg_ui != NULL) {
-        debugger_ui_deinit(machine->dbg_ui);
+        if(machine->dbg_ui != NULL) {
+            debugger_ui_deinit(machine->dbg_ui);
+        }
     }
 #else
-    config_window_update(false);
+    if (!machine->headless) {
+        config_window_update(false);
+    }
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    zvb_deinit(&machine->zvb);
+    if (!machine->headless) {
+        zvb_deinit(&machine->zvb);
 
-    CloseWindow();
+        CloseWindow();
+    }
 
     return ret;
 }
-

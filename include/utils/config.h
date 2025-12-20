@@ -54,6 +54,7 @@ typedef struct {
     const char* hostfs_path;
     const char* map_file;
     const char* breakpoints;
+    bool headless;
     bool config_save;
     bool verbose;
     bool no_reset;

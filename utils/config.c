@@ -21,6 +21,7 @@ config_t config = {
         .hostfs_path = ".",
         .config_save = false,
         .no_reset = false,
+        .headless = false,
     },
 
     .debugger = {
@@ -70,6 +71,7 @@ void config_debug(void) {
     log_printf("  hostfs_path: %s\n", config.arguments.hostfs_path);
     log_printf("     map_file: %s\n", config.arguments.map_file);
     log_printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("    headless: %s\n", config.arguments.headless ? "True" : "False");
     log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
     log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
 
@@ -108,6 +110,7 @@ int usage(const char* progname)
     log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
     log_printf("  -g, --debug                        * Enable debug mode\n");
     log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
+    log_printf("  -n, --headless                     Run without GUI (no window/input/rendering)\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
     log_printf("  -v, --verbose                      Verbose console output\n");
     log_printf("  -h, --help                         Show this help message\n");
@@ -133,6 +136,7 @@ int parse_command_args(int argc, char* argv[])
         {      "map", required_argument, 0, 'm'},
         {    "debug", required_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
+        { "headless",       no_argument, 0, 'n'},
         { "no-reset",       no_argument, 0, 'q'},
         {     "save",       no_argument, 0, 's'},
         {  "verbose",       no_argument, 0, 'v'},
@@ -143,7 +147,7 @@ int parse_command_args(int argc, char* argv[])
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:qsgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:nqsgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -186,6 +190,11 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 'b':
                 config.arguments.breakpoints = optarg;
+                break;
+            case 'n':
+                config.arguments.headless = true;
+                /* force debugger off in headless mode */
+                config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
                 break;
             case 'v':
                 config.arguments.verbose = true;

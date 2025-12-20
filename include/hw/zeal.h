@@ -91,6 +91,7 @@ struct zeal_t {
     /* Renderer */
     RenderTexture2D  zvb_out;
 
+    bool headless;
     /* Misc features */
     zeal_hostfs_t hostfs;
     bool pc_reset;
