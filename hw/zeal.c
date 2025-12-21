@@ -338,7 +338,6 @@ int zeal_reset(zeal_t* machine) {
     if (!machine->headless) {
         zeal_read_keyboard_reset(machine);
     }
-    machine->pc_reset = false;
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
     if (!machine->headless) {
@@ -601,14 +600,11 @@ static int zeal_dbg_mode_display(zeal_t* machine)
 static int zeal_headless_mode_run(zeal_t* machine)
 {
     const int elapsed_tstates = z80_step(&machine->cpu);
-    if (config.arguments.no_reset) {
-        if (machine->cpu.pc != 0) {
-            machine->pc_reset = true;
-        } else if (machine->pc_reset) {
-            log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
-            zeal_exit();
-            machine->pc_reset = false;
-        }
+    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+        /* PC is back to 0, that's a software reset! */
+        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+        zeal_exit(machine);
+        return 0;
     }
 
     keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
@@ -673,15 +669,13 @@ static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
-    if (config.arguments.no_reset) {
-        if (machine->cpu.pc != 0) {
-            machine->pc_reset = true;
-        } else if (machine->pc_reset) {
-            log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
-            zeal_exit();
-            /* avoid repeated logging if exit takes a few iterations */
-            machine->pc_reset = false;
-        }
+    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+        /* PC is back to 0, that's a software reset!
+         * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
+         * check for the close/exit flag */
+        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+        zeal_exit(machine);
+        return 2;
     }
 
     /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
@@ -759,9 +753,9 @@ static void zeal_loop(zeal_t* machine)
      * once per frame, just like in Raylib examples.
      */
 #if PLATFORM_WEB
-    while(rendered != 2) {
+    while(rendered < 2) {
 #else
-    while(rendered != 1) {
+    while(rendered < 1) {
 #endif
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -775,10 +769,9 @@ static void zeal_loop(zeal_t* machine)
     }
 }
 
-
-static bool shouldCloseWindow = false;
-void zeal_exit(void) {
-    shouldCloseWindow = true;
+void zeal_exit(zeal_t* machine)
+{
+    machine->should_exit = true;
 }
 
 int zeal_run(zeal_t* machine)
@@ -789,7 +782,7 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!shouldCloseWindow && (machine->headless || !WindowShouldClose())) {
+    while (!machine->should_exit && (machine->headless || !WindowShouldClose())) {
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;

@@ -90,11 +90,11 @@ struct zeal_t {
 
     /* Renderer */
     RenderTexture2D  zvb_out;
-
     bool headless;
+    bool should_exit;
+
     /* Misc features */
     zeal_hostfs_t hostfs;
-    bool pc_reset;
 
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER
@@ -130,7 +130,7 @@ int zeal_run(zeal_t* machine);
 /**
  * @brief Stop the virtual machine, and call CloseWindow()
  */
-void zeal_exit(void);
+void zeal_exit(zeal_t* machine);
 
 /**
  * @brief Enable Zeal Debugger view
