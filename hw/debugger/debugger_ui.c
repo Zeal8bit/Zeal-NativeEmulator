@@ -55,7 +55,7 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .key = "P_MEMORY",
         .title = "Memory Viewer",
         .render = ui_panel_memory,
-        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR ),
         .rect_default = { 0, MENUBAR_HEIGHT + 530, 640 + CPU_CTRL_WIDTH, 300 },
     },
     [DBG_UI_PANEL_DISASSEMBLER] = {
