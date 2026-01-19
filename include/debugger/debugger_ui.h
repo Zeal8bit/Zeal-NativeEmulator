@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,7 @@
 #include "debugger/debugger.h"
 #include "ui/raylib-nuklear.h"
 #include "utils/config.h"
+#include "debugger_ui_mem.h"
 /* Workaround to have access to more info of the VRAM */
 #include "hw/zvb/zvb.h"
 
@@ -44,6 +45,7 @@ typedef enum {
 
 
 typedef struct dbg_ui_panel_t dbg_ui_panel_t;
+
 struct dbg_ui_t {
     struct nk_context* ctx;
     struct nk_image    view;
@@ -53,6 +55,7 @@ struct dbg_ui_t {
     hwaddr             dis_size;
     struct nk_image    vram[DBG_MAX_VRAM_VIEWS];
     zvb_t*             zvb;
+    dbg_ui_mem_t       mem;
 };
 
 typedef void (*dbg_ui_panel_fn)(struct dbg_ui_panel_t*, struct dbg_ui_t*, dbg_t*);

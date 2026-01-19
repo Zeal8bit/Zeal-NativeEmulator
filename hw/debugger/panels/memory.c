@@ -27,7 +27,6 @@
 #define ROWS        16   // Number of rows visible at a time
 #define COLS        16   // Bytes per row
 
-#define TABS_MAX_COUNT  16
 
 #define BOTTOM_LINES    2
 #define BOTTOM_HEIGHT   (BOTTOM_LINES) * 50
@@ -53,25 +52,12 @@ static int size_values[] = {
     [SIZE_1024] = 1024,
 };
 
-/* Each tab has its own address range and bytes count */
-typedef struct {
-    int addr;
-    int size;
-    int size_index;
-    uint8_t* mem;
-} tab_t;
-
-static tab_t tabs_addr[TABS_MAX_COUNT] = { 0 };
-static int current_tab = 0;
-
 /* Define the colors for the tabs */
 static const struct nk_color s_active_color   = { .r = 0, .g = 0x2d, .b = 0x78, .a = 0xff };
 static const struct nk_color s_inactive_color = { .r = 0x6c, .g = 0x70, .b = 0x86, .a = 0xff };
 
-/* At all time, we have one tab opened, and another one that has a `+`. When the user clicks on the `+`, a new tab is opened */
-static int tabs_count = 1;
 
-static void create_new_tab(tab_t* tab)
+static void create_new_tab(dbg_ui_mem_tab_t* tab)
 {
     tab->addr = 0;
     tab->size = size_values[SIZE_256];
@@ -83,14 +69,16 @@ static void create_new_tab(tab_t* tab)
 }
 
 /* Initialize the first tab, check `mem` to know whether we need to initialize it or not */
-static void init_first_tab(void)
+static void init_first_tab(dbg_ui_mem_t* mem)
 {
-    if (!tabs_addr[0].mem) {
-        create_new_tab(&tabs_addr[0]);
+    if (!mem->tabs[0].mem) {
+        create_new_tab(mem->tabs);
+        mem->tabs_count = 1;
+        mem->current_tab = 0;
     }
 }
 
-static void render_memory_content(struct nk_context* ctx, dbg_t* dbg, tab_t* tab, int tab_index)
+static void render_memory_content(struct nk_context* ctx, dbg_t* dbg, dbg_ui_mem_tab_t* tab, int tab_index)
 {
     /* Scrollable region, each tab refers to a different memory address range, call the dump function for each tab */
     char group_name[32];
@@ -127,7 +115,7 @@ static void render_memory_content(struct nk_context* ctx, dbg_t* dbg, tab_t* tab
     }
 }
 
-static void render_bottom_controls(struct nk_context* ctx, dbg_t* dbg, tab_t* tab)
+static void render_controls(struct nk_context* ctx, dbg_t* dbg, dbg_ui_mem_tab_t* tab)
 {
     /* Single line with address input, View button, and Size dropdown */
     /* Use a template: address field (flexible), button (fixed), dropdown (fixed) */
@@ -185,7 +173,7 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
     (void)panel;
     struct nk_context* ctx = dctx->ctx;
 
-    init_first_tab();
+    init_first_tab(&dctx->mem);
 
     const float tab_row_height = 30.0f;
     const float bottom_controls_height = 30.0f;
@@ -199,45 +187,66 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 
     /* Use template layout for fixed-width tabs */
     nk_layout_row_template_begin(ctx, tab_row_height);
-    for (int i = 0; i < tabs_count; ++i) {
+    for (int i = 0; i < dctx->mem.tabs_count; ++i) {
         nk_layout_row_template_push_static(ctx, tab_button_width);
     }
-    if (tabs_count < TABS_MAX_COUNT) {
+    if (dctx->mem.tabs_count < DBG_UI_MEM_TABS_MAX_COUNT) {
+        nk_layout_row_template_push_static(ctx, add_button_width);
+    }
+    /* '-' button */
+    if (dctx->mem.tabs_count > 1) {
         nk_layout_row_template_push_static(ctx, add_button_width);
     }
     nk_layout_row_template_end(ctx);
 
     /* Render tab buttons */
-    for (int i = 0; i < tabs_count; ++i) {
-        if (i == current_tab) {
+    for (int i = 0; i < dctx->mem.tabs_count; ++i) {
+        if (i == dctx->mem.current_tab) {
             nk_style_push_color(ctx, &ctx->style.button.normal.data.color, s_active_color);
         } else {
             nk_style_push_color(ctx, &ctx->style.button.normal.data.color, s_inactive_color);
         }
 
         char tab_label[16];
-        snprintf(tab_label, sizeof(tab_label), "%04X", tabs_addr[i].addr);
+        snprintf(tab_label, sizeof(tab_label), "%04X", dctx->mem.tabs[i].addr);
         if (nk_button_label(ctx, tab_label)) {
-            current_tab = i;
+            dctx->mem.current_tab = i;
         }
 
         nk_style_pop_color(ctx);
     }
 
-    /* Show the '+' button to add new tabs */
-    if (tabs_count < TABS_MAX_COUNT) {
-        if (nk_button_label(ctx, "+")) {
-            current_tab = tabs_count;
-            create_new_tab(&tabs_addr[current_tab]);
-            tabs_count++;
+    /* Show the '-' button to remove the current tab */
+    if (dctx->mem.tabs_count > 1) {
+        if (nk_button_label(ctx, "-")) {
+            free(dctx->mem.tabs[dctx->mem.current_tab].mem);
+            /* Shift the tabs starting at `current_tab + 1` left */
+            for (int i = dctx->mem.current_tab; i < dctx->mem.tabs_count - 1; i++) {
+                dctx->mem.tabs[i] = dctx->mem.tabs[i + 1];
+            }
+            dctx->mem.tabs[dctx->mem.tabs_count - 1] = (dbg_ui_mem_tab_t) { 0 };
+            dctx->mem.tabs_count--;
+            /* Adjust current_tab if it's now out of bounds */
+            if (dctx->mem.current_tab >= dctx->mem.tabs_count) {
+                dctx->mem.current_tab = dctx->mem.tabs_count - 1;
+            }
         }
     }
 
-    /* Render the scrollable memory content of the current tab */
-    nk_layout_row_dynamic(ctx, scroll_height, 1);
-    render_memory_content(ctx, dbg, &tabs_addr[current_tab], current_tab);
+    /* Show the '+' button to add new tabs */
+    if (dctx->mem.tabs_count < DBG_UI_MEM_TABS_MAX_COUNT) {
+        if (nk_button_label(ctx, "+")) {
+            dctx->mem.current_tab = dctx->mem.tabs_count;
+            create_new_tab(&dctx->mem.tabs[dctx->mem.current_tab]);
+            dctx->mem.tabs_count++;
+        }
+    }
 
     /* Render the bottom controls (always visible, not scrollable) */
-    render_bottom_controls(ctx, dbg, &tabs_addr[current_tab]);
+    render_controls(ctx, dbg, &dctx->mem.tabs[dctx->mem.current_tab]);
+
+    /* Render the scrollable memory content of the current tab */
+    nk_layout_row_dynamic(ctx, scroll_height, 1);
+    render_memory_content(ctx, dbg, &dctx->mem.tabs[dctx->mem.current_tab], dctx->mem.current_tab);
 }
 

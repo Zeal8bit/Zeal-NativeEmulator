@@ -206,7 +206,8 @@ void dbg_ui_word_to_hex(uint16_t word, char* out, char separator) {
 
 void dbg_ui_go_to_mem(struct dbg_ui_t* dctx, hwaddr addr)
 {
-    dctx->mem_view_addr = addr;
+    /* Set the current memory view to address */
+    dctx->mem.tabs[dctx->mem.current_tab].addr = addr;
 }
 
 void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
