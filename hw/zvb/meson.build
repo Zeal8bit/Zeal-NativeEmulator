@@ -10,5 +10,6 @@ sources += files([
     'zvb_tileset.c',
     'zvb_crc32.c',
     'zvb_dma.c',
+    'zvb_affine2d.c',
     'zvb_sound.c'
 ])

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,6 +21,7 @@
 #include "hw/zvb/zvb_crc32.h"
 #include "hw/zvb/zvb_sound.h"
 #include "hw/zvb/zvb_dma.h"
+#include "hw/zvb/zvb_affine2d.h"
 
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
@@ -77,6 +78,7 @@
 #define ZVB_IO_MAPPING_CRC      2
 #define ZVB_IO_MAPPING_SOUND    3
 #define ZVB_IO_MAPPING_DMA      4
+#define ZVB_IO_MAPPING_A2D      7
 
 
 /**
@@ -107,14 +109,17 @@
 #define GFX_SHADER_TILEMAPS_IDX     1
 #define GFX_SHADER_TILESET_IDX      2
 #define GFX_SHADER_SPRITES_IDX      3
+#define GFX_SHADER_DBGMODE_IDX      3
 #define GFX_SHADER_SCROLL0_IDX      4
 #define GFX_SHADER_SCROLL1_IDX      5
 #define GFX_SHADER_PALETTE_IDX      6
-#define GFX_SHADER_DBGMODE_IDX      3
+#define GFX_SHADER_A2D_MATRIX_IDX   7
+#define GFX_SHADER_A2D_PERSPECTIVE_IDX 8
+#define GFX_SHADER_A2D_CENTER_IDX   9
 
-#define GFX_SHADER_OBJ_COUNT        7
+#define GFX_SHADER_OBJ_COUNT        10
 
-#define ZVB_SHADER_MAX_OBJ_COUNT    8
+#define ZVB_SHADER_MAX_OBJ_COUNT    10
 
 /* Special mode to tell the shader to debug the texture */
 #define TEXT_DEBUG_MODE             0xffffffff
@@ -198,6 +203,7 @@ typedef struct {
     zvb_crc32_t      peri_crc32;
     zvb_sound_t      sound;
     zvb_dma_t        dma;
+    zvb_affine2d_t   a2d;
 
     /* Internally used to make the shader work on the whole screen */
     zvb_shader_t     shaders[SHADERS_COUNT];
