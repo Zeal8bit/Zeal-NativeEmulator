@@ -124,7 +124,7 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 
 static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
-    const zeal_t* machine    = (zeal_t*) opaque;
+    zeal_t* machine          = (zeal_t*) opaque;
     const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
     const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
@@ -348,6 +348,23 @@ int zeal_reset(zeal_t* machine) {
     return 0;
 }
 
+static void debug_write(device_t* dev, uint32_t addr, uint8_t data)
+{
+    printf("[Debug] %x\n", data);
+    (void) dev;
+    (void) addr;
+}
+
+static device_t debug_dev = {
+    .name = "debug_dev",
+    .io_region = {
+        .size = 0x10,
+        .write = debug_write,
+    },
+    .reset = NULL,
+};
+
+
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -480,6 +497,8 @@ int zeal_init(zeal_t* machine)
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
     zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+
+    zeal_add_io_device(machine, 0x10, &debug_dev);
 
 #if CONFIG_ENABLE_DEBUGGER
     /* Since the debugger may depend on some components, make sure they are all initialized */

@@ -53,6 +53,9 @@ uniform int         video_mode;
 uniform ivec2       scroll_l0;
 uniform ivec2       scroll_l1;
 
+uniform ivec4       a2d_matrix; // (A, B, C, D) in signed Q8.8, column-major
+uniform ivec2       a2d_perspective; // (F, G) in signed Q2.14
+uniform ivec2       a2d_center;
 
 out vec4 finalColor;
 
@@ -124,7 +127,31 @@ vec4 get_attr(ivec2 orig, ivec2 scroll, out ivec2 offset_in_tile) {
 vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
     ivec2 l0_offset;
     ivec2 l1_offset;
-    vec4 attr_l0 = get_attr(flipped, scroll_l0, l0_offset);
+
+    /* Apply the affine transformation as follows:
+     * [u, v] = [A/Z, B, C, D/Z] * [x-Cx-Xscroll, y-Cy-Yscroll] + [Cx, Cy]
+     * where Z = F*y + G
+     */
+    ivec2 p = flipped - a2d_center + scroll_l0;
+    ivec2 aff_q8;
+    aff_q8.x = a2d_matrix.x * p.x + a2d_matrix.z * p.y + a2d_center.x; // A*x + C*y + CX
+    aff_q8.y = a2d_matrix.y * p.x + a2d_matrix.w * p.y + a2d_center.y; // B*x + D*y + CY
+
+    // Perspective Z (Q10.22)
+    int z_q22 = a2d_perspective.x * aff_q8.y + (a2d_perspective.y << 8);
+
+    // Perspective divide, we only want to keep 8.8 fixed point precision of the quotient
+    ivec2 src = ivec2(
+        (aff_q8.x << 14) / (z_q22 >> 8),
+        (aff_q8.y << 14) / (z_q22 >> 8)
+    );
+    src = ivec2(src.x >> 8, src.y >> 8);
+
+    /* Scrolling was already applied to the source coordinates, so we don't need to add it again */
+    vec4 attr_l0 = get_attr(src, ivec2(0, 0), l0_offset);
+    // vec4 attr_l0 = get_attr(flipped, scroll_l0, l0_offset);
+
+    /* Affine transformation is only applied to layer0 */
     vec4 attr_l1 = get_attr(flipped, scroll_l1, l1_offset);
 
     if (color_4bit) {

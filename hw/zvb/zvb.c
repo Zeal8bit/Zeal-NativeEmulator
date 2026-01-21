@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -78,6 +78,10 @@
 /* Scrolling vlaues for GFX mode */
 #define SHADER_SCROLL0_NAME         "scroll_l0"
 #define SHADER_SCROLL1_NAME         "scroll_l1"
+/* Affine2D related indices */
+#define SHADER_A2D_MATRIX_NAME      "a2d_matrix"
+#define SHADER_A2D_PERSPECTIVE_NAME "a2d_perspective"
+#define SHADER_A2D_CENTER_NAME      "a2d_center"
 
 static void zvb_reset(device_t* dev);
 
@@ -181,6 +185,7 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
             case ZVB_IO_MAPPING_CRC:   return zvb_crc32_read(&zvb->peri_crc32, subaddr);
             case ZVB_IO_MAPPING_SOUND: return zvb_sound_read(&zvb->sound, subaddr);
             case ZVB_IO_MAPPING_DMA:   return zvb_dma_read(&zvb->dma, subaddr);
+            case ZVB_IO_MAPPING_A2D:   return zvb_affine2d_read(&zvb->a2d, subaddr);
             default: break;
         }
     }
@@ -261,6 +266,9 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
             case ZVB_IO_MAPPING_DMA:
                 zvb_dma_write(&zvb->dma, subaddr, data);
                 break;
+            case ZVB_IO_MAPPING_A2D:
+                zvb_affine2d_write(&zvb->a2d, subaddr, data);
+                break;
             default:
                 break;
         }
@@ -305,6 +313,10 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_SCROLL0_IDX]  = GetShaderLocation(shader, SHADER_SCROLL0_NAME);
     st_shader->objects[GFX_SHADER_SCROLL1_IDX]  = GetShaderLocation(shader, SHADER_SCROLL1_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    /* Affine2D related indices */
+    st_shader->objects[GFX_SHADER_A2D_MATRIX_IDX]      = GetShaderLocation(shader, SHADER_A2D_MATRIX_NAME);
+    st_shader->objects[GFX_SHADER_A2D_PERSPECTIVE_IDX] = GetShaderLocation(shader, SHADER_A2D_PERSPECTIVE_NAME);
+    st_shader->objects[GFX_SHADER_A2D_CENTER_IDX]      = GetShaderLocation(shader, SHADER_A2D_CENTER_NAME);
 
     st_shader = &dev->shaders[SHADER_BITMAP];
     log_printf("Compiling shader bitmap_shader\n");
@@ -349,6 +361,7 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound);
     zvb_dma_init(&dev->dma, ops);
+    zvb_affine2d_init(&dev->a2d);
 
     dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
     dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
@@ -569,6 +582,9 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int scroll0_idx  = st_shader->objects[GFX_SHADER_SCROLL0_IDX];
     const int scroll1_idx  = st_shader->objects[GFX_SHADER_SCROLL1_IDX];
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
+    const int a2d_matrix_idx      = st_shader->objects[GFX_SHADER_A2D_MATRIX_IDX];
+    const int a2d_perspective_idx = st_shader->objects[GFX_SHADER_A2D_PERSPECTIVE_IDX];
+    const int a2d_center_idx      = st_shader->objects[GFX_SHADER_A2D_CENTER_IDX];
 
     BeginShaderMode(shader);
         /* Transfer all the texture to the GPU */
@@ -580,6 +596,12 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
         /* Transfer the text-related variables */
         SetShaderValue(shader, scroll0_idx,  &zvb->ctrl.l0_scroll_x, SHADER_UNIFORM_IVEC2);
         SetShaderValue(shader, scroll1_idx,  &zvb->ctrl.l1_scroll_x, SHADER_UNIFORM_IVEC2);
+        /* Set the affine transformation matrix (A, B, C, D) */
+        SetShaderValue(shader, a2d_matrix_idx, zvb_affine2d_matrix(&zvb->a2d), SHADER_UNIFORM_IVEC4);
+        /* Set the affine perspective matrix (F, G) */
+        SetShaderValue(shader, a2d_perspective_idx, zvb_affine2d_perspective(&zvb->a2d), SHADER_UNIFORM_IVEC2);
+        /* Set the affine transformation center (CX, CY) */
+        SetShaderValue(shader, a2d_center_idx, zvb_affine2d_center(&zvb->a2d), SHADER_UNIFORM_IVEC2);
 
         /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
         DrawTextureRec(zvb->tex_dummy.texture,
