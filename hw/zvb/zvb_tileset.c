@@ -34,6 +34,14 @@ void zvb_tileset_init(zvb_tileset_t* tileset)
 
     tileset->tex_tileset = LoadTextureFromImage(tileset->img_tileset);
     tileset->dirty = 0;
+    
+    /* Initialize the tileset's tiles 1 to 21 */
+    for (int i = 1; i <= 21; i++) {
+        /* Set each tile to 32+i */
+        for (int j = 0; j < 256; j++) {
+            zvb_tileset_write(tileset, i * 256 + j, i + 32);
+        }
+    }
 }
 
 

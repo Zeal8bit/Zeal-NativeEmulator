@@ -144,7 +144,7 @@ typedef enum {
     MODE_GFX_640_4BIT = 6,
     MODE_GFX_320_4BIT = 7,
     MODE_LAST         = MODE_GFX_320_4BIT,
-    MODE_DEFAULT      = MODE_TEXT_640,
+    MODE_DEFAULT      = MODE_GFX_320_8BIT,
 } zvb_video_mode_t;
 
 

@@ -36,6 +36,13 @@ void zvb_tilemap_init(zvb_tilemap_t* tilemap)
 
     tilemap->tex_tilemap = LoadTextureFromImage(tilemap->img_tilemap);
     tilemap->dirty = 0;
+
+    /* Let's use zvb_tilemap_write to initialize the tilemap top left 40x20 rectangle to col + 1 */
+    for (int col = 0; col < 40; col++) {
+        for (int row = 0; row < 20; row++) {
+            zvb_tilemap_write(tilemap, 0, row * 80 + col, (col % 21) + 1);
+        }
+    }
 }
 
 

@@ -20,22 +20,29 @@
 #define AFFINE2D_ADDR_REG_CX    7
 #define AFFINE2D_ADDR_REG_CY    8
 
+
+static void test_values(zvb_affine2d_t* a2d)
+{
+    a2d->regs[AFFINE2D_REG_F] = 0x118;
+    a2d->regs[AFFINE2D_REG_G] = 0x10;
+    /* Set the center to the middle of the screen */
+    a2d->regs[AFFINE2D_REG_CX] = 320 / 2;
+    a2d->regs[AFFINE2D_REG_CY] = 240 / 2;
+}
+
 void zvb_affine2d_init(zvb_affine2d_t* a2d)
 {
     a2d->ctrl = AFFINE2D_REG_CTRL_ENABLE;
     for (int i = 0; i < AFFINE2D_REG_COUNT; i++) {
         a2d->regs[i] = 0;
     }
-    /* Scale * 2 */
+    /* Scale * 1 */
     a2d->regs[AFFINE2D_REG_A] = 1 << 8;
     a2d->regs[AFFINE2D_REG_D] = 1 << 8;
 
-    a2d->regs[AFFINE2D_REG_F] = 0.0777 * (1 << 14);
     a2d->regs[AFFINE2D_REG_G] = 1 << 14;
 
-    /* Set the center to the middle of the screen */
-    a2d->regs[AFFINE2D_REG_CX] = 320 / 2;
-    a2d->regs[AFFINE2D_REG_CY] = 240 / 2;
+    test_values(a2d);
 }
 
 
