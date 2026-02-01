@@ -23,8 +23,17 @@
 
 static void test_values(zvb_affine2d_t* a2d)
 {
+    a2d->ctrl = AFFINE2D_REG_CTRL_ENABLE;
+    a2d->regs[AFFINE2D_REG_A] = 1 << 8;
+    a2d->regs[AFFINE2D_REG_D] = 1 << 8;
+
+    a2d->regs[AFFINE2D_REG_A] = 181;
+    a2d->regs[AFFINE2D_REG_B] = -181;
+    a2d->regs[AFFINE2D_REG_C] = 181;
+    a2d->regs[AFFINE2D_REG_D] = 181;
+
     a2d->regs[AFFINE2D_REG_F] = 0x118;
-    a2d->regs[AFFINE2D_REG_G] = 0x10;
+    a2d->regs[AFFINE2D_REG_G] = 0x01;
     /* Set the center to the middle of the screen */
     a2d->regs[AFFINE2D_REG_CX] = 320 / 2;
     a2d->regs[AFFINE2D_REG_CY] = 240 / 2;
@@ -32,19 +41,31 @@ static void test_values(zvb_affine2d_t* a2d)
 
 void zvb_affine2d_init(zvb_affine2d_t* a2d)
 {
-    a2d->ctrl = AFFINE2D_REG_CTRL_ENABLE;
+    a2d->ctrl = 0;
     for (int i = 0; i < AFFINE2D_REG_COUNT; i++) {
         a2d->regs[i] = 0;
     }
-    /* Scale * 1 */
+    /* Rotation 90 degres */
     a2d->regs[AFFINE2D_REG_A] = 1 << 8;
     a2d->regs[AFFINE2D_REG_D] = 1 << 8;
 
     a2d->regs[AFFINE2D_REG_G] = 1 << 14;
-
     test_values(a2d);
 }
 
+static void print_matrix(zvb_affine2d_t* a2d)
+{
+    printf("A = %04x\n", a2d->regs[0]);
+    printf("B = %04x\n", a2d->regs[1]);
+    printf("C = %04x\n", a2d->regs[2]);
+    printf("D = %04x\n", a2d->regs[3]);
+
+    printf("F = %04x\n", a2d->regs[4]);
+    printf("G = %04x\n", a2d->regs[5]);
+
+    printf("CX = %04x\n", a2d->regs[6]);
+    printf("CY = %04x\n", a2d->regs[7]);
+}
 
 void zvb_affine2d_write(zvb_affine2d_t* a2d, uint32_t addr, uint8_t data)
 {
@@ -53,9 +74,11 @@ void zvb_affine2d_write(zvb_affine2d_t* a2d, uint32_t addr, uint8_t data)
     if (addr == AFFINE2D_REG_CTRL) {
         a2d->ctrl = data;
     } else if (!a2d->latched) {
+        a2d->latched = true;
         a2d->latch = data;
     } else if (addr <= AFFINE2D_ADDR_REG_CY) {
-        a2d->regs[addr - AFFINE2D_REG_A] = value;
+        print_matrix(a2d);
+        a2d->regs[addr - AFFINE2D_ADDR_REG_A] = value;
         a2d->latched = false;
     } else {
         log_err_printf("[AFFINE2D] Unknown register %x\n", addr);
@@ -69,7 +92,7 @@ uint8_t zvb_affine2d_read(zvb_affine2d_t* a2d, uint32_t addr)
     if (addr == AFFINE2D_REG_CTRL) {
         return a2d->ctrl;
     } else if (addr <= AFFINE2D_ADDR_REG_CY) {
-        reg = &a2d->regs[addr - AFFINE2D_REG_A];
+        reg = &a2d->regs[addr - AFFINE2D_ADDR_REG_A];
     } else {
         log_err_printf("[AFFINE2D] Unknown register %x\n", addr);
         return 0;
@@ -78,8 +101,10 @@ uint8_t zvb_affine2d_read(zvb_affine2d_t* a2d, uint32_t addr)
     if (a2d->latched) {
         a2d->latched = false;
         return (uint8_t) (*reg >> 8);
+    } else {
+        a2d->latched = true;
+        return (uint8_t) (*reg & 0xff);
     }
-    return (uint8_t) (*reg & 0xff);
 }
 
 const int* zvb_affine2d_matrix(zvb_affine2d_t* a2d)
