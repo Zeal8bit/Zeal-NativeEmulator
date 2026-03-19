@@ -15,7 +15,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc pkg-config cmake
+          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build

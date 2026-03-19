@@ -502,6 +502,25 @@ int zeal_init(zeal_t* machine)
     return 0;
 }
 
+/**
+ * @brief Run Zeal 8-bit Computer VM in headless mode (no rendering/input)
+ */
+static int zeal_headless_mode_run(zeal_t* machine)
+{
+    const int elapsed_tstates = z80_step(&machine->cpu);
+    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+        /* PC is back to 0, that's a software reset! */
+        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+        zeal_exit(machine);
+        return 0;
+    }
+
+    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
+    flash_tick(&machine->rom, elapsed_tstates);
+    return 0;
+}
+
+
 #if CONFIG_ENABLE_DEBUGGER
 int zeal_debug_enable(zeal_t* machine)
 {
@@ -591,25 +610,6 @@ static int zeal_dbg_mode_display(zeal_t* machine)
     EndDrawing();
 
     return 1;
-}
-
-
-/**
- * @brief Run Zeal 8-bit Computer VM in headless mode (no rendering/input)
- */
-static int zeal_headless_mode_run(zeal_t* machine)
-{
-    const int elapsed_tstates = z80_step(&machine->cpu);
-    if (config.arguments.no_reset && machine->cpu.pc == 0) {
-        /* PC is back to 0, that's a software reset! */
-        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
-        zeal_exit(machine);
-        return 0;
-    }
-
-    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
-    flash_tick(&machine->rom, elapsed_tstates);
-    return 0;
 }
 
 
