@@ -83,6 +83,10 @@ endif
 
 add_project_link_arguments('-lraylib', '-lm', language: 'c')
 
+if host_machine.system() == 'linux'
+    add_project_link_arguments('-lX11', language: 'c')
+endif
+
 linker_args = meson.get_external_property('link_args', [])
 
 if host_machine.system() == 'emscripten'
