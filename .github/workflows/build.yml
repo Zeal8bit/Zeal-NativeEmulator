@@ -57,17 +57,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Delete Existing Draft Releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Get all draft releases and delete them
-          gh release list --json tagName,isDraft --jq '.[] | select(.isDraft == true) | .tagName' | \
-          while read -r tag; do
-            echo "Deleting draft release: $tag"
-            gh release delete "$tag" --yes
-          done
-
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
         with:
@@ -104,20 +93,33 @@ jobs:
           zip -r ../../zeal-native-wasm.zip .
           cd ../..
 
-      - name: Generate Release Tag
+      - name: Generate Release Info
         id: tag
-        run: echo "tag=v$(date +%Y%m%d)-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: |
+          echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "release_date=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Create Draft Release
-        uses: softprops/action-gh-release@v1
+      - name: Delete Existing Draft Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "latest" --yes || true
+
+      - name: Create or Update Latest Release
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: Latest ${{ steps.tag.outputs.tag }}
-          tag_name: ${{ steps.tag.outputs.tag }}
-          generate_release_notes: true
+          name: Latest build (${{ steps.tag.outputs.sha }})
+          body: |
+            Built from commit: ${{ steps.tag.outputs.sha }}
+            Branch: ${{ github.ref_name }}
+            Date: ${{ steps.tag.outputs.release_date }}
+          tag_name: latest
+          preserve_order: true
+          generate_release_notes: false
           files: |
             zeal-native-linux-x64.tar.gz
             zeal-native-macos-x64.tar.gz
             zeal-native-windows-x64.zip
             zeal-native-wasm.zip
-
