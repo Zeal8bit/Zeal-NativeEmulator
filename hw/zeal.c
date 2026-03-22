@@ -462,6 +462,10 @@ int zeal_init(zeal_t* machine)
     err = hostfs_init(&machine->hostfs, &s_ops);
     CHECK_ERR(err);
 
+    /* Initialize the semihosting device with CPU pointer for register access */
+    err = semihost_init(&machine->semihost, &machine->cpu);
+    CHECK_ERR(err);
+
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
     if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
@@ -479,6 +483,7 @@ int zeal_init(zeal_t* machine)
     zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
+    zeal_add_io_device(machine, 0x10, &machine->semihost.parent);
     if (cf_err == 0) {
         zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
     }
