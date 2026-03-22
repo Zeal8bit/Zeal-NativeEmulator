@@ -16,6 +16,7 @@
 #define ONE_MILLIS us_to_tstates(1000)
 
 #define US_TO_TSTATES(v)    ((v) * 10)
+#define TSTATES_TO_US(v)    ((v) / 10ULL)
 
 #define BIT(val, n) (((val) >> (n)) & 1)
 #define DIM(t)  (sizeof(t) / sizeof(*t))
