@@ -22,6 +22,7 @@
 #include "hw/uart.h"
 #include "hw/hostfs.h"
 #include "hw/compactflash.h"
+#include "hw/semihost.h"
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
 
@@ -82,6 +83,7 @@ struct zeal_t {
     pio_t   pio;
     keyboard_t keyboard;
     uart_t uart;
+    semihost_t semihost;
     /* I2C related */
     i2c_t    i2c_bus;
     ds1307_t rtc;
