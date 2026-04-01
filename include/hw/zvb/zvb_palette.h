@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -43,7 +43,7 @@ static inline Texture zvb_pal_texture(zvb_palette_t* pal)
 /**
  * @brief Initialize the palette, must be called before using it.
  */
-void zvb_palette_init(zvb_palette_t* pal);
+void zvb_palette_init(zvb_palette_t* pal, bool rendering_enabled);
 
 
 /**

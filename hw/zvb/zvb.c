@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -326,11 +326,13 @@ static void zvb_shader_init(zvb_t* dev)
 }
 
 
-int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
+int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 {
-    if (dev == NULL) {
+    if (dev == NULL || config == NULL) {
         return 1;
     }
+
+    const bool rendering_enabled = config->rendering_enabled;
 
     /* Initialize the structure and register it on both the memory and I/O buses */
     memset(dev, 0, sizeof(zvb_t));
@@ -338,27 +340,30 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
+    dev->rendering_enabled = rendering_enabled;
 
-    zvb_palette_init(&dev->palette);
-    zvb_font_init(&dev->font);
-    zvb_tilemap_init(&dev->layers);
-    zvb_tileset_init(&dev->tileset);
+    zvb_palette_init(&dev->palette, rendering_enabled);
+    zvb_font_init(&dev->font, rendering_enabled);
+    zvb_tilemap_init(&dev->layers, rendering_enabled);
+    zvb_tileset_init(&dev->tileset, rendering_enabled);
     zvb_text_init(&dev->text);
-    zvb_sprites_init(&dev->sprites);
+    zvb_sprites_init(&dev->sprites, rendering_enabled);
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
-    zvb_sound_init(&dev->sound);
+    zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, ops);
 
-    dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
-    dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-    dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-    /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-    dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-    dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-    dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
+    if (rendering_enabled) {
+        dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+        dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
+        dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
+        dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
+        dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
 
-    zvb_shader_init(dev);
+        zvb_shader_init(dev);
+    }
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_IDLE;
@@ -369,7 +374,7 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     dev->need_render = false;
 
     /* For the debugger */
-    dev->flipped_y = flipped_y;
+    dev->flipped_y = config->flipped_y;
     return 0;
 }
 
@@ -665,9 +670,14 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
 }
 
 
-/* Prepare the rendering by updating the udnerneath textures */
+/* Prepare the rendering by updating the underneath textures */
 bool zvb_prepare_render(zvb_t* zvb)
 {
+    /* In headless mode, no need to update any texture */
+    if (!zvb->rendering_enabled) {
+        return false;
+    }
+
     /* Only update the texture if we are going to render anything */
     if (!zvb->need_render) {
         return false;
@@ -694,6 +704,10 @@ bool zvb_prepare_render(zvb_t* zvb)
 
 void zvb_render_debug_textures(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
+
     switch (zvb->mode) {
         case MODE_TEXT_640:
         case MODE_TEXT_320:
@@ -713,6 +727,11 @@ void zvb_render_debug_textures(zvb_t* zvb)
 
 void zvb_render(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        zvb->need_render = false;
+        return;
+    }
+
     if (zvb->need_render == false) {
         return;
     }
@@ -760,6 +779,9 @@ void zvb_render(zvb_t* zvb)
 
 void zvb_force_render(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
     zvb->need_render = true;
     zvb_prepare_render(zvb);
     zvb_render(zvb);
@@ -787,6 +809,10 @@ void zvb_tick(zvb_t* zvb, const int tstates)
 
 void zvb_deinit(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
+
     UnloadRenderTexture(zvb->tex_dummy);
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         UnloadRenderTexture(zvb->debug_tex[i]);

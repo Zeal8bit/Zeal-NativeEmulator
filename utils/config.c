@@ -1,11 +1,13 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #define RINI_VALUE_DELIMITER '='
 #define RINI_IMPLEMENTATION
+
+#include <stdlib.h>
 
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
@@ -14,7 +16,7 @@
 #include "utils/log.h"
 #include "raylib.h"
 
-config_t config = {
+config_t config ={
     .arguments = {
         .config_path = "zeal.ini",
         .rom_filename = NULL,
@@ -22,6 +24,7 @@ config_t config = {
         .config_save = false,
         .no_reset = false,
         .headless = false,
+        .headless_run_ticks = 0,
     },
 
     .debugger = {
@@ -61,7 +64,8 @@ const Vector2 vga_resolutions[] = {
 const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
 
 
-void config_debug(void) {
+void config_debug(void)
+{
     log_printf("== CONFIG ==\n");
 
     log_printf("\n");
@@ -72,6 +76,7 @@ void config_debug(void) {
     log_printf("     map_file: %s\n", config.arguments.map_file);
     log_printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
     log_printf("    headless: %s\n", config.arguments.headless ? "True" : "False");
+    log_printf("headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
     log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
     log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
 
@@ -110,7 +115,8 @@ int usage(const char* progname)
     log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
     log_printf("  -g, --debug                        * Enable debug mode\n");
     log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
-    log_printf("  -n, --headless                     Run without GUI (no window/input/rendering)\n");
+    log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
+    log_printf("                                     Optional tstates number to execute can be given\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
     log_printf("  -v, --verbose                      Verbose console output\n");
     log_printf("  -h, --help                         Show this help message\n");
@@ -136,7 +142,7 @@ int parse_command_args(int argc, char* argv[])
         {      "map", required_argument, 0, 'm'},
         {    "debug", required_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
-        { "headless",       no_argument, 0, 'n'},
+        { "headless", optional_argument, 0, 'n'},
         { "no-reset",       no_argument, 0, 'q'},
         {     "save",       no_argument, 0, 's'},
         {  "verbose",       no_argument, 0, 'v'},
@@ -147,7 +153,7 @@ int parse_command_args(int argc, char* argv[])
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:nqsgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::qsgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -193,6 +199,19 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 'n':
                 config.arguments.headless = true;
+                if (optarg != NULL) {
+                    config.arguments.headless_run_ticks = strtoul(optarg, NULL, 0);
+                } else if (optind < argc) {
+                    /* Optional argument requires the long form to be followed by `=`, so
+                     * --headless 500 is invalid as is, it needs `--headless=500`.
+                     * This branch will parse the next parameter to allow `--headless 500` */
+                    char* endptr = NULL;
+                    unsigned long ticks = strtoul(argv[optind], &endptr, 0);
+                    if (endptr != argv[optind] && endptr != NULL && *endptr == '\0') {
+                        config.arguments.headless_run_ticks = ticks;
+                        optind++;
+                    }
+                }
                 /* force debugger off in headless mode */
                 config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
                 break;

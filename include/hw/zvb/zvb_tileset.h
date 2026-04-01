@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "raylib.h"
 
@@ -39,7 +40,7 @@ static inline Texture* zvb_tileset_texture(zvb_tileset_t* tileset)
 /**
  * @brief Initialize the tileset, must be called before using it.
  */
-void zvb_tileset_init(zvb_tileset_t* tileset);
+void zvb_tileset_init(zvb_tileset_t* tileset, bool rendering_enabled);
 
 
 /**

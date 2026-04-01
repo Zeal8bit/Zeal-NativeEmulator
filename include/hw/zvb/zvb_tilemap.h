@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "raylib.h"
 
@@ -40,7 +41,7 @@ static inline Texture* zvb_tilemap_texture(zvb_tilemap_t* tilemap)
 /**
  * @brief Initialize the tilemap, must be called before using it.
  */
-void zvb_tilemap_init(zvb_tilemap_t* tilemap);
+void zvb_tilemap_init(zvb_tilemap_t* tilemap, bool rendering_enabled);
 
 
 /**

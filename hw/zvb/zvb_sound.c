@@ -46,14 +46,21 @@ static void audio_callback(void *buffer, unsigned int frames);
 
 static zvb_sound_t* g_sound;
 
-void zvb_sound_init(zvb_sound_t* sound) {
-    InitAudioDevice();
+void zvb_sound_init(zvb_sound_t* sound, bool enabled)
+{
     assert(sound);
     memset(sound, 0, sizeof(*sound));
+    sound->enabled = enabled;
     sound->left_volume = 0.f;
     sound->right_volume = 0.f;
     sound->sample_table.fifo_bytes = 0;
     sound->sample_table.baud_count = 0;
+
+    if (!enabled) {
+        return;
+    }
+
+    InitAudioDevice();
 
     /* Dirty hack but the callback doesn't take a context/opaque parameter... */
     g_sound = sound;
@@ -94,7 +101,12 @@ void zvb_sound_reset(zvb_sound_t* sound)
 
 void zvb_sound_deinit(zvb_sound_t* sound)
 {
+    if (sound == NULL || !sound->enabled) {
+        return;
+    }
+
     StopAudioStream(sound->stream);
+    UnloadAudioStream(sound->stream);
     CloseAudioDevice();
 }
 

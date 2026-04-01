@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -53,11 +53,15 @@ static const uint8_t default_palette_565[] = {
 
 _Static_assert(sizeof(default_palette_565) == ZVB_COLOR_PALETTE_COUNT * 2, "Default palette should be as big as the palette in VRAM");
 
-void zvb_palette_init(zvb_palette_t* pal)
+void zvb_palette_init(zvb_palette_t* pal, bool rendering_enabled)
 {
     assert(pal != NULL);
 
     memcpy(pal->raw_palette, default_palette_565, sizeof(default_palette_565));
+    if (!rendering_enabled) {
+        pal->dirty = false;
+        return;
+    }
     pal->img_pal = GenImageColor(ZVB_COLOR_PALETTE_COUNT, 1, BLACK);
 
     /* Each color is 2 bytes big, in little-endian format */
@@ -77,12 +81,15 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
         pal->wr_latch = data;
         return;
     }
-    Color* colors = (Color*) (pal->img_pal.data);
-
     /* Odd address (MSB) written! */
     pal->raw_palette[addr - 1] = pal->wr_latch;
     pal->raw_palette[addr] = data;
 
+    if (pal->img_pal.data == NULL) {
+        return;
+    }
+
+    Color* colors = (Color*) (pal->img_pal.data);
     /* Update the color in the dediacted table, so get the RGB565 out of the two bytes */
     const uint_fast16_t rgb565 = (data << 8) | pal->wr_latch;
     palette_rgb565_to_color(rgb565, &colors[addr / 2]);
@@ -98,7 +105,7 @@ uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr)
 
 void zvb_palette_update(zvb_palette_t* pal)
 {
-    if (pal->dirty) {
+    if (pal->dirty && pal->tex_pal.id != 0) {
         UpdateTexture(pal->tex_pal, pal->img_pal.data);
         pal->dirty = false;
     }

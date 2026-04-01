@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -340,9 +340,7 @@ int zeal_reset(zeal_t* machine) {
     }
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
-    if (!machine->headless) {
-        device_reset(DEVICE(&machine->zvb));
-    }
+    device_reset(DEVICE(&machine->zvb));
 
 #if CONFIG_ENABLE_DEBUGGER
     if(machine->dbg_enabled) {
@@ -472,19 +470,19 @@ int zeal_init(zeal_t* machine)
     }
 
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
-    if (!machine->headless) {
-        err = zvb_init(&machine->zvb, false, &s_ops);
-        CHECK_ERR(err);
-        zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
-    }
+    const zvb_config_t zvb_config = {
+        .flipped_y = false,
+        .rendering_enabled = !machine->headless,
+    };
+    err = zvb_init(&machine->zvb, &zvb_config, &s_ops);
+    CHECK_ERR(err);
+    zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
     if (cf_err == 0) {
         zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
     }
-    if (!machine->headless) {
-        zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
-    }
+    zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
     zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
     zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
     zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
@@ -503,7 +501,7 @@ int zeal_init(zeal_t* machine)
 }
 
 /**
- * @brief Run Zeal 8-bit Computer VM in headless mode (no rendering/input)
+ * @brief Run Zeal 8-bit Computer VM in headless mode (no window/input/presentation)
  */
 static int zeal_headless_mode_run(zeal_t* machine)
 {
@@ -515,6 +513,7 @@ static int zeal_headless_mode_run(zeal_t* machine)
         return 0;
     }
 
+    zvb_tick(&machine->zvb, elapsed_tstates);
     keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
     flash_tick(&machine->rom, elapsed_tstates);
     return 0;
@@ -683,7 +682,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
         && !zeal_ui_input(machine)
 #endif
-       ) {
+       )
+    {
         zeal_read_keyboard(machine, KEYBOARD_CHECK_PERIOD);
     }
 
@@ -739,10 +739,6 @@ static int zeal_normal_mode_run(zeal_t* machine)
 
 static void zeal_loop(zeal_t* machine)
 {
-    if (machine->headless) {
-        zeal_headless_mode_run(machine);
-        return;
-    }
     int rendered = 0;
     /**
      * When compiling for WASM, it is not necessary to execute WindowShouldClose as often as possible.
@@ -769,6 +765,19 @@ static void zeal_loop(zeal_t* machine)
     }
 }
 
+static void zeal_run_headless(zeal_t* machine)
+{
+    while (!machine->should_exit) {
+        zeal_headless_mode_run(machine);
+        if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
+            log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
+            break;
+        }
+    }
+
+    zvb_deinit(&machine->zvb);
+}
+
 void zeal_exit(zeal_t* machine)
 {
     machine->should_exit = true;
@@ -782,7 +791,12 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!machine->should_exit && (machine->headless || !WindowShouldClose())) {
+    if (machine->headless) {
+        zeal_run_headless(machine);
+        return 0;
+    }
+
+    while (!machine->should_exit && !WindowShouldClose()) {
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;
@@ -791,31 +805,18 @@ int zeal_run(zeal_t* machine)
         zeal_loop(machine);
     }
 
-#ifdef PLATFORM_WEB
-    if (!machine->headless) {
-        CloseAudioDevice();
-    }
-#endif
-
 #if CONFIG_ENABLE_DEBUGGER
-    if (!machine->headless) {
-        config_window_update(machine->dbg_enabled);
+    config_window_update(machine->dbg_enabled);
 
-        if(machine->dbg_ui != NULL) {
-            debugger_ui_deinit(machine->dbg_ui);
-        }
+    if(machine->dbg_ui != NULL) {
+        debugger_ui_deinit(machine->dbg_ui);
     }
 #else
-    if (!machine->headless) {
         config_window_update(false);
-    }
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    if (!machine->headless) {
-        zvb_deinit(&machine->zvb);
-
-        CloseWindow();
-    }
+    zvb_deinit(&machine->zvb);
+    CloseWindow();
 
     return ret;
 }

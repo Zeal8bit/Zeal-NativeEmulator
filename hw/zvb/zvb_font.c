@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,12 +15,17 @@ static void font_update_img(zvb_font_t* font, uint32_t addr, uint_fast8_t data);
 /* Make sure the default font has the correct size */
 _Static_assert(sizeof(default_font) == DEFAULT_FONT_SIZE, "Default font has to have the same size as the font area in VRAM");
 
-void zvb_font_init(zvb_font_t* font)
+void zvb_font_init(zvb_font_t* font, bool rendering_enabled)
 {
     assert(font != NULL);
 
     /* Load the default font in memory */
     memcpy(font->raw_font, default_font, sizeof(font->raw_font));
+
+    if (!rendering_enabled) {
+        font->dirty = 0;
+        return;
+    }
 
     /* Convert the bitmaps into a proper image  */
     font->img_font = GenImageColor(ZVB_FONT_CHAR_COUNT * ZVB_FONT_CHAR_WIDTH, ZVB_FONT_CHAR_HEIGHT, BLACK);
@@ -38,7 +43,9 @@ void zvb_font_init(zvb_font_t* font)
 void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data)
 {
     font->raw_font[addr] = data;
-    font_update_img(font, addr, data);
+    if (font->img_font.data != NULL) {
+        font_update_img(font, addr, data);
+    }
 }
 
 
@@ -50,7 +57,7 @@ uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr)
 
 void zvb_font_update(zvb_font_t* font)
 {
-    if (font->dirty != 0) {
+    if (font->dirty != 0 && font->tex_font.id != 0) {
         UpdateTexture(font->tex_font, font->img_font.data);
         font->dirty = 0;
     }
