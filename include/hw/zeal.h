@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -146,3 +146,8 @@ int zeal_debug_disable(zeal_t* machine);
  * @brief Toggle the Zeal Debugger view
  */
 void zeal_debug_toggle(dbg_t *dbg);
+
+/**
+ * @brief Quantize a scale factor to the next or previous 10% step.
+ */
+float zeal_scale_quantize_tenths(float scale, float step);

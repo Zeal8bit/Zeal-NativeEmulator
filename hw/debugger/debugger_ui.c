@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "ui/raylib-nuklear.h"
+#include "hw/zvb/zvb.h"
+#include "hw/zeal.h"
+#include "utils/notif.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 #include "utils/log.h"
@@ -280,17 +283,22 @@ void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect) {
     SetMouseCursor(cursorType);
 }
 
+static void debugger_scale(float step)
+{
+    const float scale = zeal_scale_quantize_tenths(PANEL_VIDEO->rect.w / ZVB_MAX_RES_WIDTH, step);
+    PANEL_VIDEO->rect.w = ZVB_MAX_RES_WIDTH * scale;
+    PANEL_VIDEO->rect.h = ZVB_MAX_RES_HEIGHT * scale + NK_WIDGET_TITLE_HEIGHT;
+    notif_show("Scale: x%.1f", scale);
+}
+
 void debugger_scale_up(dbg_t *dbg) {
     (void)dbg; // unreferenced
-    Vector2 size = config_get_next_resolution(PANEL_VIDEO->rect.w);
-    PANEL_VIDEO->rect.w = size.x;
-    PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
+    debugger_scale(1.0f);
+
 }
 void debugger_scale_down(dbg_t *dbg) {
     (void)dbg; // unreferenced
-    Vector2 size = config_get_prev_resolution(PANEL_VIDEO->rect.w);
-    PANEL_VIDEO->rect.w = size.x;
-    PANEL_VIDEO->rect.h = size.y + NK_WIDGET_TITLE_HEIGHT;
+    debugger_scale(-1.0f);
 }
 
 /**

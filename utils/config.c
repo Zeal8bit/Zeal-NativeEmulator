@@ -17,6 +17,10 @@
 #include "raylib.h"
 
 config_t config ={
+    .audio = {
+        .volume = 100,
+    },
+
     .arguments = {
         .config_path = "zeal.ini",
         .rom_filename = NULL,
@@ -46,24 +50,6 @@ config_t config ={
     },
 };
 
-const Vector2 vga_resolutions[] = {
-    {320, 240},
-    {400, 300},
-    {512, 384},
-    {640, 480},
-    {800, 600},
-    {1024, 768},
-    {1152, 864},
-    {1280, 960},
-    {1400, 1050},
-    {1600, 1200},
-    {1856, 1392},
-    {1920, 1440},
-    {2048, 1536}
-};
-const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
-
-
 void config_debug(void)
 {
     log_printf("== CONFIG ==\n");
@@ -79,6 +65,10 @@ void config_debug(void)
     log_printf("headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
     log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
     log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
+
+    log_printf("\n");
+    log_printf("=== audio ===\n");
+    log_printf(" volume: %d\n", config.audio.volume);
 
     log_printf("\n");
     log_printf("=== debugger ===\n");
@@ -245,6 +235,12 @@ void config_parse_file(const char* file) {
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
+    config.audio.volume = rini_get_config_value_fallback(config.ini, "AUDIO_VOLUME", 100);
+    if (config.audio.volume < 0) {
+        config.audio.volume = 0;
+    } else if (config.audio.volume > 100) {
+        config.audio.volume = 100;
+    }
 
     config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
     config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
@@ -283,6 +279,9 @@ int config_save(void)
     }
 
     config_window_t *window = &config.window;
+    rini_set_config_comment_line(&ini, "Audio");
+    rini_set_config_value(&ini, "AUDIO_VOLUME", config.audio.volume, "Master Volume Percent");
+
     rini_set_config_comment_line(&ini, "Main Window");
     rini_set_config_value(&ini, "WIN_WIDTH", window->width, "Width");
     rini_set_config_value(&ini, "WIN_HEIGHT", window->height, "Height");
@@ -428,28 +427,4 @@ void config_window_set(bool dbg_enabled) {
     if(window_pos.x < 0) window_pos.x = screen_offset.x + ((screen.x - window_size.x) / 2);
     if(window_pos.y < 0) window_pos.y = screen_offset.y + ((screen.y - window_size.y) / 2);
     SetWindowPosition(window_pos.x, window_pos.y);
-}
-
-Vector2 config_get_next_resolution(int width)
-{
-    Vector2 size = vga_resolutions[vga_resolutions_size - 1];
-    for(int i = 0; i < vga_resolutions_size; i++) {
-        if(vga_resolutions[i].x > width) {
-            size = vga_resolutions[i];
-            break;
-        }
-    }
-    return size;
-}
-
-Vector2 config_get_prev_resolution(int width)
-{
-    Vector2 size = vga_resolutions[0];
-    for(int i = vga_resolutions_size-1; i >= 0; i--) {
-        if(vga_resolutions[i].x < width) {
-            size = vga_resolutions[i];
-            break;
-        }
-    }
-    return size;
 }

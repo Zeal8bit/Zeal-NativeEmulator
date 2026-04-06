@@ -142,4 +142,3 @@ if (host_machine.system() == 'emscripten')
         build_by_default: true,
     )
 endif
-

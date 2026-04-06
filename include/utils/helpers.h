@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,7 +8,6 @@
 #pragma once
 
 #include <stdio.h>
-#include <math.h>
 
 #define KB         1024
 #define CPUFREQ    10000000UL

@@ -12,6 +12,7 @@
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "utils/config.h"
+#include "utils/notif.h"
 #ifdef PLATFORM_WEB
 #include <emscripten.h>
 #endif
@@ -333,7 +334,8 @@ static memory_op_t s_ops = {
     .phys_write_byte = zeal_phys_mem_write,
 };
 
-int zeal_reset(zeal_t* machine) {
+int zeal_reset(zeal_t* machine)
+{
     zeal_init_cpu(machine);
     if (!machine->headless) {
         zeal_read_keyboard_reset(machine);
@@ -389,6 +391,7 @@ int zeal_init(zeal_t* machine)
 #if !BENCHMARK
         SetTargetFPS(60);
 #endif
+        notif_reset();
 
         /* Since we want to enable scaling, make the ZVB output always go to a texture first */
         machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
@@ -476,6 +479,12 @@ int zeal_init(zeal_t* machine)
     };
     err = zvb_init(&machine->zvb, &zvb_config, &s_ops);
     CHECK_ERR(err);
+    if (!machine->headless) {
+        SetMasterVolume(config.audio.volume / 100.0f);
+        if (config.audio.volume != 100) {
+            notif_show("Volume: %d%%", config.audio.volume);
+        }
+    }
     zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
@@ -602,9 +611,10 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         /* Grey brackground */
         ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
         debugger_ui_render(machine->dbg_ui, &machine->dbg);
-    if(show_fps == true) {
-        DrawFPS(10, 10);
-    }
+        notif_render(GetScreenWidth() - notif_estimate_width() - 20, 10);
+        if(show_fps == true) {
+            DrawFPS(10, 10);
+        }
 
     EndDrawing();
 
@@ -729,9 +739,11 @@ static int zeal_normal_mode_run(zeal_t* machine)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
-        if(show_fps == true) {
-            DrawFPS(10, 10);
-        }
+            /* Show notifications on the top-right of the visible content */
+            notif_render(pos_x + draw_w - notif_estimate_width() - 20, pos_y + 10);
+            if(show_fps == true) {
+                DrawFPS(10, 10);
+            }
         EndDrawing();
     }
     return rendered;

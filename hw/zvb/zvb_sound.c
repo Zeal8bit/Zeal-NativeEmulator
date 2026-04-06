@@ -65,6 +65,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
     /* Dirty hack but the callback doesn't take a context/opaque parameter... */
     g_sound = sound;
 
+    SetMasterVolume(1.0f);
     sound->stream = LoadAudioStream(SAMPLE_RATE, 16, SOUND_CHANNELS);
     SetAudioStreamCallback(sound->stream, audio_callback);
     PlayAudioStream(sound->stream);
