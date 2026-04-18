@@ -7,15 +7,19 @@
 #pragma once
 
 #include <stdint.h>
+#include "hw/z80.h"
 #include "hw/device.h"
-
-typedef struct z80 z80;
 
 #define SEMIHOST_MAX_COUNTERS 8
 
 typedef struct {
     uint64_t start_cyc;  /* t-states value when counter was started */
     uint64_t last_split_cyc; /* t-states value at last split/start */
+    uint64_t min_us;          /* minimum sampled interval in microseconds */
+    uint64_t max_us;          /* maximum sampled interval in microseconds */
+    uint64_t total_interval_us; /* sum of sampled intervals in microseconds */
+    uint64_t last_total_us;   /* most recent total time in microseconds */
+    uint32_t sample_count;    /* number of interval samples collected */
     bool running;             /* whether counter is currently running */
 } semihost_counter_t;
 

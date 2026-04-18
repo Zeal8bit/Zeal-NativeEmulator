@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
@@ -17,6 +18,32 @@
 #include "utils/helpers.h"
 
 #define SEMIHOST_MAX_STRING_LEN 256
+
+static void semihost_counter_reset_stats(semihost_counter_t* counter)
+{
+    counter->start_cyc = 0;
+    counter->last_split_cyc = 0;
+    counter->min_us = 0;
+    counter->max_us = 0;
+    counter->total_interval_us = 0;
+    counter->last_total_us = 0;
+    counter->sample_count = 0;
+    counter->running = false;
+}
+
+static void semihost_counter_record_sample(semihost_counter_t* counter, uint64_t interval_us, uint64_t total_us)
+{
+    if (counter->sample_count == 0 || interval_us < counter->min_us) {
+        counter->min_us = interval_us;
+    }
+    if (counter->sample_count == 0 || interval_us > counter->max_us) {
+        counter->max_us = interval_us;
+    }
+
+    counter->sample_count++;
+    counter->total_interval_us += interval_us;
+    counter->last_total_us = total_us;
+}
 
 static inline uint16_t concat_registers(uint8_t h, uint8_t l)
 {
@@ -150,11 +177,14 @@ static void semihost_op_counter_start(semihost_t* dev, uint8_t counter_id)
         log_printf("[SEMIHOST] COUNTER_START: Invalid counter ID %u\n", counter_id);
         return;
     }
+    semihost_counter_reset_stats(&dev->counters[counter_id]);
     dev->counters[counter_id].start_cyc = dev->cpu->cyc;
     dev->counters[counter_id].last_split_cyc = dev->cpu->cyc;
+    dev->counters[counter_id].last_total_us = 0;
     dev->counters[counter_id].running = true;
     uint64_t us = TSTATES_TO_US(dev->cpu->cyc);
-    log_printf("[SEMIHOST] Counter %u: START (%lu t-states, %lu us, %lu ms)\n", counter_id, dev->cpu->cyc, us, us/1000);
+    log_printf("[SEMIHOST] Counter %u: START (%lu t-states, %" PRIu64 " us, %" PRIu64 " ms)\n",
+               counter_id, dev->cpu->cyc, us, us / 1000);
 }
 
 /**
@@ -171,9 +201,13 @@ static void semihost_op_counter_stop(semihost_t* dev, uint8_t counter_id)
         return;
     }
     uint64_t elapsed = dev->cpu->cyc - dev->counters[counter_id].start_cyc;
+    uint64_t interval = dev->cpu->cyc - dev->counters[counter_id].last_split_cyc;
     dev->counters[counter_id].running = false;
     uint64_t us = TSTATES_TO_US(elapsed);
-    log_printf("[SEMIHOST] Counter %u: STOP - Total: %lu t-states (%lu us, %lu ms)\n", counter_id, elapsed, us, us/1000);
+    uint64_t interval_us = TSTATES_TO_US(interval);
+    semihost_counter_record_sample(&dev->counters[counter_id], interval_us, us);
+    log_printf("[SEMIHOST] Counter %u: STOP - Total: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms)\n",
+               counter_id, elapsed, us, us / 1000);
 }
 
 /**
@@ -194,8 +228,10 @@ static void semihost_op_counter_split(semihost_t* dev, uint8_t counter_id)
     dev->counters[counter_id].last_split_cyc = dev->cpu->cyc;
     uint64_t split_us = TSTATES_TO_US(split_time);
     uint64_t total_us = TSTATES_TO_US(total_time);
-    log_printf("[SEMIHOST] Counter %u: SPLIT - Interval: %lu t-states (%lu us, %lu ms), Total: %lu t-states (%lu us, %lu ms)\n",
-               counter_id, split_time, split_us, split_us/1000, total_time, total_us, total_us/1000);
+    semihost_counter_record_sample(&dev->counters[counter_id], split_us, total_us);
+    log_printf("[SEMIHOST] Counter %u: SPLIT - Interval: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms), "
+               "Total: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms)\n",
+               counter_id, split_time, split_us, split_us / 1000, total_time, total_us, total_us / 1000);
 }
 
 /**
@@ -321,9 +357,7 @@ int semihost_init(semihost_t* dev, z80* cpu)
     
     /* Initialize all performance counters */
     for (int i = 0; i < SEMIHOST_MAX_COUNTERS; i++) {
-        dev->counters[i].start_cyc = 0;
-        dev->counters[i].last_split_cyc = 0;
-        dev->counters[i].running = false;
+        semihost_counter_reset_stats(&dev->counters[i]);
     }
     
     device_init_io(DEVICE(dev), "semihost", semihost_io_read, semihost_io_write, 1);

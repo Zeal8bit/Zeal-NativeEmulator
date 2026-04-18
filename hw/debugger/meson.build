@@ -10,5 +10,6 @@ sources += files([
     'panels/memory.c',
     'panels/menubar.c',
     'panels/mmu.c',
+    'panels/semihost.c',
     'panels/vram.c',
 ])

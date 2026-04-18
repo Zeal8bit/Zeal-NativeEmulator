@@ -83,6 +83,13 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
         .rect_default = { 0, MENUBAR_HEIGHT + 830, 348, 200 },
     },
+    [DBG_UI_PANEL_SEMIHOST] = {
+        .key = "P_SEMIHOST",
+        .title = "Semihost",
+        .render = ui_panel_semihost,
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR ),
+        .rect_default = { 348, MENUBAR_HEIGHT + 830, 932, 220 },
+    },
 };
 static const size_t dbg_panels_size = DBG_UI_PANEL_TOTAL;
 static dbg_ui_panel_t *PANEL_VIDEO = &dbg_panels[DBG_UI_PANEL_VIDEO];

@@ -39,6 +39,7 @@ typedef enum {
     DBG_UI_PANEL_DISASSEMBLER,
     DBG_UI_PANEL_VRAM,
     DBG_UI_PANEL_MMU,
+    DBG_UI_PANEL_SEMIHOST,
     DBG_UI_PANEL_TOTAL
 } dbg_ui_panels_idx_t;
 
@@ -91,6 +92,7 @@ void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_mmu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void ui_panel_semihost(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 
