@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include "ui/raylib-nuklear.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
@@ -59,7 +60,7 @@ void ui_panel_semihost(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_
         nk_label(ctx, "total(us, ms)", NK_TEXT_RIGHT);
 
         for (uint8_t i = 0; i < SEMIHOST_MAX_COUNTERS; i++) {
-            const semihost_counter_t* counter = &semihost->counters[i];
+            semihost_counter_t* counter = &semihost->counters[i];
             const uint64_t avg_us = counter->sample_count == 0 ? 0 : counter->total_interval_us / counter->sample_count;
             const uint64_t total_us = semihost_counter_total_us(semihost, counter);
 
@@ -70,8 +71,24 @@ void ui_panel_semihost(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_
             nk_layout_row_template_push_dynamic(ctx);
             nk_layout_row_template_end(ctx);
 
-            snprintf(buffer, sizeof(buffer), "%u%s", i, counter->running ? "*" : "");
-            nk_label(ctx, buffer, NK_TEXT_LEFT);
+            snprintf(buffer, sizeof(buffer), "%u%s%s",
+                     i,
+                     counter->running ? "*" : "",
+                     counter->break_on_update ? "!" : "");
+            if (counter->break_on_update) {
+                nk_style_push_color(ctx, &ctx->style.selectable.text_normal, nk_rgba(255, 200, 80, 255));
+                nk_style_push_color(ctx, &ctx->style.selectable.text_hover, ctx->style.selectable.text_normal);
+                dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
+                if (nk_select_label(ctx, buffer, NK_TEXT_LEFT, false)) {
+                    counter->break_on_update = !counter->break_on_update;
+                }
+                nk_style_pop_color(ctx);
+                nk_style_pop_color(ctx);
+            } else {
+                if (dbg_ui_clickable_value(ctx, buffer, true)) {
+                    counter->break_on_update = !counter->break_on_update;
+                }
+            }
 
             snprintf(buffer, sizeof(buffer), "%" PRIu64 ", %" PRIu64 ", %" PRIu64,
                      counter->min_us, avg_us, counter->max_us);
@@ -90,5 +107,5 @@ void ui_panel_semihost(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_
     }
 
     nk_layout_row_dynamic(ctx, footer_height, 1);
-    nk_label(ctx, "* running", NK_TEXT_LEFT);
+    nk_label(ctx, "* running, ! break on update", NK_TEXT_LEFT);
 }

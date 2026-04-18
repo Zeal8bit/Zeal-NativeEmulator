@@ -31,6 +31,19 @@ static void semihost_counter_reset_stats(semihost_counter_t* counter)
     counter->running = false;
 }
 
+static void semihost_counter_maybe_break(semihost_t* dev, uint8_t counter_id)
+{
+    if (counter_id >= SEMIHOST_MAX_COUNTERS) {
+        return;
+    }
+    if (!dev->counters[counter_id].break_on_update) {
+        return;
+    }
+    if (dev->break_cb != NULL) {
+        dev->break_cb(dev->break_cb_arg);
+    }
+}
+
 static void semihost_counter_record_sample(semihost_counter_t* counter, uint64_t interval_us, uint64_t total_us)
 {
     if (counter->sample_count == 0 || interval_us < counter->min_us) {
@@ -185,6 +198,7 @@ static void semihost_op_counter_start(semihost_t* dev, uint8_t counter_id)
     uint64_t us = TSTATES_TO_US(dev->cpu->cyc);
     log_printf("[SEMIHOST] Counter %u: START (%lu t-states, %" PRIu64 " us, %" PRIu64 " ms)\n",
                counter_id, dev->cpu->cyc, us, us / 1000);
+    semihost_counter_maybe_break(dev, counter_id);
 }
 
 /**
@@ -208,6 +222,7 @@ static void semihost_op_counter_stop(semihost_t* dev, uint8_t counter_id)
     semihost_counter_record_sample(&dev->counters[counter_id], interval_us, us);
     log_printf("[SEMIHOST] Counter %u: STOP - Total: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms)\n",
                counter_id, elapsed, us, us / 1000);
+    semihost_counter_maybe_break(dev, counter_id);
 }
 
 /**
@@ -232,6 +247,7 @@ static void semihost_op_counter_split(semihost_t* dev, uint8_t counter_id)
     log_printf("[SEMIHOST] Counter %u: SPLIT - Interval: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms), "
                "Total: %" PRIu64 " t-states (%" PRIu64 " us, %" PRIu64 " ms)\n",
                counter_id, split_time, split_us, split_us / 1000, total_time, total_us, total_us / 1000);
+    semihost_counter_maybe_break(dev, counter_id);
 }
 
 /**
@@ -351,13 +367,16 @@ static void semihost_io_write(device_t* dev, uint32_t addr, uint8_t data)
     }
 }
 
-int semihost_init(semihost_t* dev, z80* cpu)
+int semihost_init(semihost_t* dev, z80* cpu, void (*break_cb)(void*), void* break_cb_arg)
 {
     dev->cpu = cpu;
+    dev->break_cb = break_cb;
+    dev->break_cb_arg = break_cb_arg;
     
     /* Initialize all performance counters */
     for (int i = 0; i < SEMIHOST_MAX_COUNTERS; i++) {
         semihost_counter_reset_stats(&dev->counters[i]);
+        dev->counters[i].break_on_update = false;
     }
     
     device_init_io(DEVICE(dev), "semihost", semihost_io_read, semihost_io_write, 1);

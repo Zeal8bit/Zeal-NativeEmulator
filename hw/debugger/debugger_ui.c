@@ -170,6 +170,11 @@ void set_theme(struct nk_context *ctx) {
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active)
 {
     nk_label(ctx, label, NK_TEXT_LEFT);
+    return dbg_ui_clickable_value(ctx, value, active);
+}
+
+bool dbg_ui_clickable_value(struct nk_context* ctx, const char* value, bool active)
+{
     nk_style_push_color(ctx, &ctx->style.selectable.text_hover, ctx->style.selectable.text_normal);
     nk_style_push_color(ctx, &ctx->style.selectable.text_normal, nk_rgba(0, 112, 255, 255));
 

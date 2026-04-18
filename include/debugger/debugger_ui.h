@@ -107,6 +107,7 @@ bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
 
 /** Helpers */
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active);
+bool dbg_ui_clickable_value(struct nk_context* ctx, const char* value, bool active);
 void dbg_ui_mouse_hover(struct nk_context *ctx, int cursor);
 void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect);
 void dbg_ui_byte_to_hex(uint8_t byte, char* out, char separator);
