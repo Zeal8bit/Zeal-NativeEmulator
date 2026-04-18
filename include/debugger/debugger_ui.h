@@ -16,6 +16,7 @@
 #include "hw/zvb/zvb.h"
 
 #define WIN_UI_FONT_SIZE        13
+#define BIGBLUE_FONT_SIZE       16
 
 #define MENUBAR_HEIGHT          30
 #define NK_WIDGET_TITLE_HEIGHT  50
@@ -46,8 +47,10 @@ typedef enum {
 
 typedef struct dbg_ui_panel_t dbg_ui_panel_t;
 struct dbg_ui_t {
-    struct nk_context* ctx;
-    struct nk_image    view;
+    struct nk_context*     ctx;
+    Font                   font;
+    struct nk_user_font*   font_bigblue;
+    struct nk_image        view;
     hwaddr             mem_view_addr;
     hwaddr             mem_view_size;
     hwaddr             dis_addr;
@@ -80,6 +83,7 @@ typedef struct {
 } dbg_ui_init_args_t;
 
 extern char DEBUG_BUFFER[256];
+extern const uint16_t s_cp437_to_unicode[256];
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
 
@@ -113,3 +117,4 @@ void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect);
 void dbg_ui_byte_to_hex(uint8_t byte, char* out, char separator);
 void dbg_ui_word_to_hex(uint16_t word, char* out, char separator);
 void dbg_ui_go_to_mem(struct dbg_ui_t* dctx, hwaddr addr);
+void dbg_ui_cp437_to_utf8(uint8_t byte, char out[5]);

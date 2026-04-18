@@ -38,10 +38,15 @@ static float ui_memory_text_width(struct nk_context* ctx, const char* text, floa
     return font->width(font->userdata, font->height, text, (int)strlen(text)) + padding;
 }
 
+
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     (void)panel; // unreferenced
     struct nk_context* ctx = dctx->ctx;
+
+    static nk_bool use_cp437 = nk_false;
+    const bool has_cp437 = (dctx->font_bigblue != NULL);
+    const bool show_cp437 = has_cp437 && use_cp437;
 
     const float buttons_height = 85;
     struct nk_rect parent_bounds = nk_window_get_bounds(ctx);
@@ -50,13 +55,17 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
     nk_layout_row_dynamic(ctx, scroll_height, 1);
 
     /* Scrollable region */
+    const struct nk_user_font* prev_font = ctx->style.font;
+    if (show_cp437) {
+        nk_style_set_font(ctx, dctx->font_bigblue);
+    }
     if (nk_group_begin(ctx, "Memory_Scroll", NK_WINDOW_BORDER)) {
         nk_layout_row_dynamic(ctx, 10, 1);
 
         const float addr_col_width = ui_memory_text_width(ctx, "0000", 6.0f);
         const float byte_col_width = ui_memory_text_width(ctx, "00", 2.0f);
-        const float spacer_col_width = ui_memory_text_width(ctx, "|", 2.0f);
-        const float ascii_gap_width = ui_memory_text_width(ctx, "  ", 0.0f);
+        const float spacer_col_width = ui_memory_text_width(ctx, " ", 0.0f);
+        const float ascii_gap_width = ui_memory_text_width(ctx, " ", 0.0f);
         const float ascii_char_width = ui_memory_text_width(ctx, "W", 0.0f);
         const float row_height = 18.0f;
         const struct nk_color ascii_highlight_bg = ctx->style.selectable.hover.data.color;
@@ -67,7 +76,7 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 
         char addr_text[16] = {0};
         char byte_text[3] = {0};
-        char ascii_char[2] = {0};
+        char ascii_char[5] = {0};
 
         /* Retrieve the memory data */
         uint8_t mem[MEM_SIZE];
@@ -92,7 +101,7 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
                 const uint8_t byte = mem[i + j];
                 if (j == 8) {
                     nk_layout_row_push(ctx, spacer_col_width);
-                    nk_label(ctx, "|", NK_TEXT_CENTERED);
+                    nk_label(ctx, " ", NK_TEXT_CENTERED);
                 }
                 dbg_ui_byte_to_hex(byte, byte_text, -1);
                 nk_layout_row_push(ctx, byte_col_width);
@@ -122,16 +131,17 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
                 nk_style_pop_style_item(ctx);
                 nk_style_pop_style_item(ctx);
                 nk_style_pop_style_item(ctx);
-                /* Check if the character is printable */
-                ascii_char[0] = isprint((char) byte) ? byte : '.';
-                ascii_char[1] = 0;
             }
             nk_layout_row_push(ctx, ascii_gap_width);
             nk_label(ctx, "", NK_TEXT_LEFT);
             for (int j = 0; j < COLS; j++) {
                 const uint8_t byte = mem[i + j];
-                ascii_char[0] = isprint((char) byte) ? byte : '.';
-                ascii_char[1] = 0;
+                if(show_cp437) {
+                    dbg_ui_cp437_to_utf8(byte, ascii_char);
+                } else {
+                    ascii_char[0] = isprint((char) byte) ? byte : '.';
+                    ascii_char[1] = 0;
+                }
                 nk_layout_row_push(ctx, ascii_char_width);
                 const struct nk_color bg =
                     (hovered_row_addr == current_addr && hovered_col == j) ? ascii_highlight_bg : ascii_normal_bg;
@@ -177,9 +187,10 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
 
         nk_group_end(ctx);
     }
+    nk_style_set_font(ctx, prev_font);
 
     /* Add a line for the address to check and the dump */
-    nk_layout_row_dynamic(ctx, 30, 2);
+    nk_layout_row_dynamic(ctx, 30, has_cp437 ? 3 : 2);
     static char edit_addr[64] = { 0 };
     dbg_ui_mouse_hover(ctx, MOUSE_TEXT);
     nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, sizeof(edit_addr), NULL);
@@ -195,5 +206,9 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
         if (sscanf(edit_addr, "%x", &addr) == 1 || debugger_find_symbol(dbg, edit_addr, &addr)) {
             dctx->mem_view_addr = (int) addr;
         }
+    }
+
+    if (has_cp437) {
+        nk_checkbox_label(ctx, "CP437", &use_cp437);
     }
 }
