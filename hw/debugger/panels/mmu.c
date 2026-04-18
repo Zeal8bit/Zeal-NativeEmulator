@@ -34,7 +34,7 @@ void ui_panel_mmu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* db
     nk_layout_row_dynamic(ctx, 25, 3);
     nk_label(ctx, "Virt Addr", NK_TEXT_CENTERED);
     nk_label(ctx, "Phys Addr", NK_TEXT_CENTERED);
-    nk_label(ctx, "Device", NK_TEXT_CENTERED);
+    nk_label(ctx, "Device", NK_TEXT_LEFT);
 
     for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
         dbg_mmu_entry_t* e = &info.entries[i];

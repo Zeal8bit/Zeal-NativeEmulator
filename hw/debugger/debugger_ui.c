@@ -59,14 +59,14 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .title = "Memory Viewer",
         .render = ui_panel_memory,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
-        .rect_default = { 0, MENUBAR_HEIGHT + 530, 640 + CPU_CTRL_WIDTH, 300 },
+        .rect_default = { 0, MENUBAR_HEIGHT + 530, 640, 360 },
     },
     [DBG_UI_PANEL_DISASSEMBLER] = {
         .key = "P_DISASSEMBLER",
         .title = "Disassembler",
         .render = ui_panel_disassembler,
-        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_TITLE ),
-        .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 390, 830 },
+        .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
+        .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 0, 390, 530 },
     },
     [DBG_UI_PANEL_VRAM] = {
         .key = "P_VRAM",
@@ -81,14 +81,14 @@ static struct dbg_ui_panel_t dbg_panels[] = {
         .title = "MMU Viewer",
         .render = ui_panel_mmu,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE ),
-        .rect_default = { 0, MENUBAR_HEIGHT + 830, 348, 200 },
+        .rect_default = { 640, MENUBAR_HEIGHT + 530, CPU_CTRL_WIDTH, 360 },
     },
     [DBG_UI_PANEL_SEMIHOST] = {
         .key = "P_SEMIHOST",
         .title = "Semihost",
         .render = ui_panel_semihost,
         .flags = ( PANEL_DEFAULT_FLAGS | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR ),
-        .rect_default = { 348, MENUBAR_HEIGHT + 830, 932, 220 },
+        .rect_default = { 640 + CPU_CTRL_WIDTH, MENUBAR_HEIGHT + 530, 390, 360 },
     },
 };
 static const size_t dbg_panels_size = DBG_UI_PANEL_TOTAL;
