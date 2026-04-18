@@ -22,10 +22,14 @@
 
 #define ROWS        16   // Number of rows visible at a time
 #define COLS        16   // Bytes per row
-#define MEM_SIZE    256
+#define MEM_SIZE_MAX    4096
+#define MEM_SIZES_COUNT 7
 
 #define BOTTOM_LINES    2
 #define BOTTOM_HEIGHT   (BOTTOM_LINES) * 50
+
+static const int   s_mem_sizes[MEM_SIZES_COUNT]       = { 128, 256, 512, 768, 1024, 2048, 4096 };
+static const char* s_mem_size_labels[MEM_SIZES_COUNT] = { "128", "256", "512", "768", "1024", "2048", "4096" };
 
 static float ui_memory_text_width(struct nk_context* ctx, const char* text, float padding)
 {
@@ -79,11 +83,12 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
         char ascii_char[5] = {0};
 
         /* Retrieve the memory data */
-        uint8_t mem[MEM_SIZE];
-        debugger_read_memory(dbg, dctx->mem_view_addr, MEM_SIZE, mem);
+        uint8_t mem[MEM_SIZE_MAX];
+        const int mem_size = (int)dctx->mem_view_size;
+        debugger_read_memory(dbg, dctx->mem_view_addr, mem_size, mem);
         bool hover_found = false;
 
-        for (int i = 0; i < MEM_SIZE; i += COLS) {
+        for (int i = 0; i < mem_size; i += COLS) {
             const int current_addr = dctx->mem_view_addr + i;
             int next_hovered_byte = -1;
 
@@ -97,7 +102,6 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
             }
 
             for (int j = 0; j < COLS; j++) {
-                _Static_assert(MEM_SIZE % COLS == 0, "The memory dump size must be a multiple of columns");
                 const uint8_t byte = mem[i + j];
                 if (j == 8) {
                     nk_layout_row_push(ctx, spacer_col_width);
@@ -189,25 +193,32 @@ void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t*
     }
     nk_style_set_font(ctx, prev_font);
 
-    /* Add a line for the address to check and the dump */
-    nk_layout_row_dynamic(ctx, 30, has_cp437 ? 3 : 2);
+    /* Single row: [address field] [View] [Size] [CP437?] */
+    if (has_cp437) {
+        const float ratios[] = { 0.40f, 0.15f, 0.25f, 0.20f };
+        nk_layout_row(ctx, NK_DYNAMIC, 30, 4, ratios);
+    } else {
+        const float ratios[] = { 0.55f, 0.20f, 0.25f };
+        nk_layout_row(ctx, NK_DYNAMIC, 30, 3, ratios);
+    }
     static char edit_addr[64] = { 0 };
     dbg_ui_mouse_hover(ctx, MOUSE_TEXT);
     nk_flags flags = nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD | NK_EDIT_SIG_ENTER, edit_addr, sizeof(edit_addr), NULL);
-
-    /**
-     * Show a 'View' button to dump the memory
-     * Parse the typed address if Enter was pressed or the buttonw as clicked
-     */
     dbg_ui_mouse_hover(ctx, MOUSE_POINTER);
     if ((nk_button_label(ctx, "View") || (flags & NK_EDIT_COMMITED))) {
-        /* Make sure it is a hex value */
         hwaddr addr = 0;
         if (sscanf(edit_addr, "%x", &addr) == 1 || debugger_find_symbol(dbg, edit_addr, &addr)) {
             dctx->mem_view_addr = (int) addr;
         }
     }
-
+    int size_idx = 0;
+    for (int si = 0; si < MEM_SIZES_COUNT; si++) {
+        if ((int)dctx->mem_view_size == s_mem_sizes[si]) { size_idx = si; break; }
+    }
+    int new_size_idx = nk_combo(ctx, s_mem_size_labels, MEM_SIZES_COUNT, size_idx, 25, nk_vec2(100, 160));
+    if (new_size_idx != size_idx) {
+        dctx->mem_view_size = s_mem_sizes[new_size_idx];
+    }
     if (has_cp437) {
         nk_checkbox_label(ctx, "CP437", &use_cp437);
     }
