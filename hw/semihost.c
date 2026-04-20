@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -16,6 +17,7 @@
 #include "hw/device.h"
 #include "utils/log.h"
 #include "utils/helpers.h"
+#include "hw/zeal.h"
 
 #define SEMIHOST_MAX_STRING_LEN 256
 
@@ -39,9 +41,17 @@ static void semihost_counter_maybe_break(semihost_t* dev, uint8_t counter_id)
     if (!dev->counters[counter_id].break_on_update) {
         return;
     }
-    if (dev->break_cb != NULL) {
-        dev->break_cb(dev->break_cb_arg);
+    
+#if CONFIG_ENABLE_DEBUGGER
+    /* Make the assumption that the semihost` object is always part of a machine */
+    zeal_t* machine = container_of(dev, zeal_t, semihost);
+
+    if (machine == NULL || !machine->dbg_enabled) {
+        return;
     }
+
+    debugger_pause(&machine->dbg);
+#endif
 }
 
 static void semihost_counter_record_sample(semihost_counter_t* counter, uint64_t interval_us, uint64_t total_us)
@@ -367,11 +377,9 @@ static void semihost_io_write(device_t* dev, uint32_t addr, uint8_t data)
     }
 }
 
-int semihost_init(semihost_t* dev, z80* cpu, void (*break_cb)(void*), void* break_cb_arg)
+int semihost_init(semihost_t* dev, z80* cpu)
 {
     dev->cpu = cpu;
-    dev->break_cb = break_cb;
-    dev->break_cb_arg = break_cb_arg;
     
     /* Initialize all performance counters */
     for (int i = 0; i < SEMIHOST_MAX_COUNTERS; i++) {

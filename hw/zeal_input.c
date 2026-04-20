@@ -43,6 +43,20 @@ float zeal_scale_quantize_tenths(float scale, float step)
     return target_tenths / 10.0f;
 }
 
+#ifdef PLATFORM_WEB
+
+static void main_scale_up(dbg_t *dbg)
+{
+    (void) dbg;
+}
+
+static void main_scale_down(dbg_t *dbg)
+{
+    (void) dbg;
+}
+
+#else
+
 static void scale_window(float step)
 {
     const float scale = zeal_scale_quantize_tenths((float) GetScreenWidth() / ZVB_MAX_RES_WIDTH, step);
@@ -52,26 +66,20 @@ static void scale_window(float step)
     notif_show("Scale: x%.1f", scale);
 }
 
-
 static void main_scale_up(dbg_t *dbg)
 {
     (void) dbg;
-#ifdef PLATFORM_WEB
-    return;
-#else
     scale_window(1.0f);
-#endif
 }
 
 static void main_scale_down(dbg_t *dbg)
 {
     (void) dbg;
-#ifdef PLATFORM_WEB
-    return;
-#else
     scale_window(-1.0f);
-#endif
 }
+
+#endif
+
 
 static void main_volume_up(dbg_t *dbg)
 {

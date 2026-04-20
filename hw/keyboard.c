@@ -19,7 +19,6 @@
 
 static unsigned long PS2_SCANCODE_DURATION = 0;
 static unsigned long PS2_KEY_TIMING = 0;
-static unsigned long PS2_RELEASE_DELAY = 0;
 
 
 static const uint16_t TABLE[384] = {
@@ -154,7 +153,6 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     /* We have a delay of 3.9ms between each scancode */
     PS2_KEY_TIMING = us_to_tstates(3900); // 39000
     /* The release code happens 30ms after the first code is issued */
-    PS2_RELEASE_DELAY = us_to_tstates(30000);
 
     keyboard->pio = pio;
     keyboard->size = 0x10;

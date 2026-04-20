@@ -40,16 +40,6 @@ typedef struct {
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
-static void semihost_counter_break_cb(void* arg)
-{
-    zeal_t* machine = (zeal_t*)arg;
-
-    if (machine == NULL || !machine->dbg_enabled) {
-        return;
-    }
-
-    debugger_pause(&machine->dbg);
-}
 bool zeal_ui_input(zeal_t* machine);
 
 /**
@@ -477,7 +467,7 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
 
     /* Initialize the semihosting device with CPU pointer for register access */
-    err = semihost_init(&machine->semihost, &machine->cpu, semihost_counter_break_cb, machine);
+    err = semihost_init(&machine->semihost, &machine->cpu);
     CHECK_ERR(err);
 
     /* Register the devices in the memory space */

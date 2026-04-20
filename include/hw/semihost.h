@@ -44,9 +44,7 @@ typedef enum {
 
 typedef struct {
     device_t parent;
-    z80* cpu;                                       /* Pointer to CPU registers for register access */
-    void (*break_cb)(void* arg);                    /* Callback invoked when counter update should break */
-    void* break_cb_arg;                             /* User data passed to break callback */
+    z80*     cpu;                                       /* Pointer to CPU registers for register access */
     semihost_counter_t counters[SEMIHOST_MAX_COUNTERS]; /* Array of performance counters */
 } semihost_t;
 
@@ -59,4 +57,4 @@ typedef struct {
  * @param cpu Pointer to Z80 CPU for register access
  * @return 0 on success, negative on failure
  */
-int semihost_init(semihost_t* dev, z80* cpu, void (*break_cb)(void*), void* break_cb_arg);
+int semihost_init(semihost_t* dev, z80* cpu);

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stddef.h>
 
 #define KB         1024
 #define CPUFREQ    10000000UL
@@ -20,6 +21,9 @@
 
 #define BIT(val, n) (((val) >> (n)) & 1)
 #define DIM(t)  (sizeof(t) / sizeof(*t))
+
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static inline unsigned long us_to_tstates(double us)
 {
