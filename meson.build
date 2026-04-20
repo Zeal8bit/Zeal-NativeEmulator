@@ -73,6 +73,9 @@ add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
 
+zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')
+add_project_arguments('-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"', language: 'c')
+
 if raylib_include_dir != ''
     add_project_arguments('-I' + raylib_include_dir, language: 'c')
 endif

@@ -22,7 +22,12 @@
 char DEBUG_BUFFER[256];
 int mouse_cursor = MOUSE_CURSOR_DEFAULT;
 
-#define BIGBLUE_PATH "assets/fonts/BigBlue_Terminal_437TT.TTF"
+#ifndef ZEAL_ASSETS_DIR
+#define ZEAL_ASSETS_DIR "assets"
+#endif
+
+#define BIGBLUE_DEV_PATH "assets/fonts/BigBlue_Terminal_437TT.TTF"
+#define BIGBLUE_INSTALL_PATH ZEAL_ASSETS_DIR "/fonts/BigBlue_Terminal_437TT.TTF"
 
 /**
  * ===========================================================
@@ -406,7 +411,10 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
     dbg_ctx->ctx = ctx;
 
     /* Load BigBlue font for the memory viewer; remains NULL if not found */
-    const char *font_path = TextFormat("%s" BIGBLUE_PATH, GetApplicationDirectory());
+    const char *font_path = TextFormat("%s" BIGBLUE_DEV_PATH, GetApplicationDirectory());
+    if (!FileExists(font_path)) {
+        font_path = BIGBLUE_INSTALL_PATH;
+    }
     if (FileExists(font_path)) {
         int codepoints[256];
         for (int i = 0; i < 256; i++) {
@@ -428,7 +436,7 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
             dbg_ctx->font = font_bigblue;
         }
     } else {
-        log_printf("[DEBUGGER] Missing: %s", BIGBLUE_PATH);
+        log_printf("[DEBUGGER] Missing font paths: %s, %s", BIGBLUE_DEV_PATH, BIGBLUE_INSTALL_PATH);
     }
     SetNuklearScaling(ctx, 1);
 
