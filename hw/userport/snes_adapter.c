@@ -7,12 +7,17 @@
 
 #include "raylib.h"
 #include "utils/helpers.h"
+#include "utils/paths.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/pio.h"
 #include "hw/zeal.h"
-#include "utils/paths.h"
 
-static const char* customMappingFilename = "resources/gamecontrollerdb.txt";
+#ifndef ZEAL_ASSETS_DIR
+#define ZEAL_ASSETS_DIR "assets"
+#endif
+
+#define GAMECONTROLLERDB_DEV_PATH     "assets/resources/gamecontrollerdb.txt"
+#define GAMECONTROLLERDB_INSTALL_PATH ZEAL_ASSETS_DIR "/resources/gamecontrollerdb.txt"
 
 int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio) {
     snes_adapter->size = 0x00;
@@ -24,17 +29,30 @@ int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio) {
         snes_adapter->controllers[i].attached = false;
     }
 
-    char path[PATH_MAX];
-    if (get_install_dir_file(path, customMappingFilename) == 0) {
-        printf("[SNES] Could not open %s\n", customMappingFilename);
-        return -1;
+    // Search order: user config dir (~/.zeal8bit/) → dev path → installed path
+    const char *config_dir = get_config_dir();
+    const char *db_path = config_dir
+        ? TextFormat("%s/gamecontrollerdb.txt", config_dir)
+        : NULL;
+
+    if (!db_path || !FileExists(db_path)) {
+        db_path = TextFormat("%s" GAMECONTROLLERDB_DEV_PATH, GetApplicationDirectory());
+    }
+    if (!FileExists(db_path)) {
+        db_path = GAMECONTROLLERDB_INSTALL_PATH;
     }
 
-    if (FileExists(path)) {
-        char* custom_mapping = LoadFileText(path);
-        SetGamepadMappings(custom_mapping);
+    if (FileExists(db_path)) {
+        char* custom_mapping = LoadFileText(db_path);
+        if (custom_mapping != NULL && custom_mapping[0] != '\0') {
+            SetGamepadMappings(custom_mapping);
+            printf("[SNES] Loaded custom gamepad mappings from %s\n", db_path);
+        } else {
+            printf("[SNES] gamecontrollerdb.txt is empty, skipping\n");
+        }
         UnloadFileText(custom_mapping);
-        printf("[SNES] Loaded custom gamepad mappings from %s\n", customMappingFilename);
+    } else {
+        printf("[SNES] gamecontrollerdb.txt not found, using built-in mappings\n");
     }
 
     for (uint8_t i = 0; i < SNES_CONTROLLER_COUNT; i++) {
