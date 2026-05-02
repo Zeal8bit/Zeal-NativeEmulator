@@ -1,0 +1,41 @@
+name: Build WebAssembly
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build
+
+      - name: Build with Meson
+        uses: ./.github/actions/meson-build
+        with:
+          cross-file: wasm-cross.build
+          meson-args: -Denable_debugger=false -Dwasm_template=minimal -Dshow_fps=false -Dembed_roms=false
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-native-wasm
+          path: |
+            build/index.html
+            build/index.css
+            build/index.js
+            build/zeal.elf.js
+            build/zeal.elf.wasm
+          retention-days: 30

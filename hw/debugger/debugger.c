@@ -14,51 +14,152 @@
 
 #define MAX_LINE_LENGTH     256
 
-bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address)
+static breakpoint_t* find_breakpoint(dbg_t *dbg, hwaddr address)
 {
-    /* Consider that 0 is invalid */
-    if (dbg == NULL || address == 0) {
-        return false;
-    }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->breakpoints[i] == address) {
-            return true;
+        if (dbg->breakpoints[i].active &&
+            dbg->breakpoints[i].addr == address)
+        {
+            return &dbg->breakpoints[i];
         }
     }
-    return false;
+
+    return NULL;
+}
+
+static breakpoint_t* find_free_breakpoint(dbg_t *dbg)
+{
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        if (!dbg->breakpoints[i].active) {
+            return &dbg->breakpoints[i];
+        }
+    }
+    return NULL;
+}
+
+
+bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    return find_breakpoint(dbg, address) != NULL;
+}
+
+
+bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address)
+{
+    /* No need to set a temporary breakpoint if there is a real breakpoint already */
+    if (debugger_is_breakpoint_set(dbg, address)) {
+        return false;
+    }
+    /* Add a temporary breakpoint */
+    breakpoint_t* brk = find_free_breakpoint(dbg);
+    if (brk != NULL) {
+        brk->active = true;
+        brk->temporary = true;
+        brk->addr = address;
+    }
+    return brk != NULL;
 }
 
 bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address)
 {
-    /* Forbid breakpoint at 0*/
-    if (dbg == NULL || address == 0 || debugger_is_breakpoint_set(dbg, address)) {
+    if (dbg == NULL) {
         return false;
     }
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->breakpoints[i] == 0) {
-            dbg->breakpoints[i] = address;
-            return true;
-        }
+    /* If the breakpoint already exists as a temporary one, make it permanent */
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    if (brk != NULL) {
+        const bool was_temp = brk->temporary;
+        /* Make it permanent in any case */
+        brk->temporary = false;
+        /* Count it as a new breakpoint if it was temporary */
+        return was_temp;
     }
-    return false;
+
+    brk = find_free_breakpoint(dbg);
+    if (brk != NULL) {
+        brk->active = true;
+        brk->temporary = false;
+        brk->addr = address;
+    }
+    return brk != NULL;
+}
+
+
+void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
+{
+    if (list == NULL || list[0] == 0) {
+        return;
+    }
+
+    /* Copy the string to be able to odify it */
+    char *copy = strdup(list);
+    if (!copy) {
+        return;
+    }
+
+    char *tok = strtok(copy, ",");
+    while (tok) {
+        char *endptr = NULL;
+        /* strtoul will auto-detect the base */
+        hwaddr val = strtoul(tok, &endptr, 0);
+        if (*endptr == '\0') {
+            /* The entry is a number */
+            debugger_set_breakpoint(dbg, val);
+        } else {
+            /* The entry is not a number, interpret it as a symbol */
+            hwaddr addr = 0;
+            if (debugger_find_symbol(dbg, tok, &addr)) {
+                debugger_set_breakpoint(dbg, addr);
+            } else {
+                log_printf("[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
+            }
+        }
+
+        tok = strtok(NULL, ",");
+    }
+
+    free(copy);
+}
+
+
+bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    const bool valid = brk != NULL && brk->temporary;
+    if (valid) {
+        brk->active = false;
+        return true;
+    }
+    return valid;
 }
 
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
 {
-    if (dbg == NULL || address == 0) {
+    if (dbg == NULL) {
         return false;
     }
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->breakpoints[i] == address) {
-            dbg->breakpoints[i] = 0;
-            return true;
-        }
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    /* It should not be possible clear a breakpoint that is temporary using this routine */
+    const bool valid = brk != NULL && !brk->temporary;
+    if (valid) {
+        brk->active = false;
     }
-    return false;
+    return valid;
 }
 
 bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address) {
-    if(debugger_is_breakpoint_set(dbg, address)) {
+    if (dbg == NULL) {
+        return false;
+    }
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    /* Toggling a temporary breakpoint doesn't make sense */
+    if (brk != NULL && !brk->temporary) {
         return debugger_clear_breakpoint(dbg, address);
     } else {
         return debugger_set_breakpoint(dbg, address);
@@ -73,8 +174,8 @@ int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
     }
     unsigned int found = 0;
     for (int i = 0; i < DBG_MAX_POINTS && found < size; i++) {
-        if (dbg->breakpoints[i] != 0) {
-            bp[found++] = dbg->breakpoints[i];
+        if (dbg->breakpoints[i].active && !dbg->breakpoints[i].temporary) {
+            bp[found++] = dbg->breakpoints[i].addr;
         }
     }
     return found;
@@ -197,8 +298,7 @@ void debugger_step_over(dbg_t *dbg)
     if (dbg == NULL || dbg->step_over_cb == NULL) {
         return;
     }
-    // dbg->step_cb(dbg);
-    log_printf("Step Over - not implemented\n");
+    dbg->step_over_cb(dbg);
 }
 
 void debugger_breakpoint(dbg_t *dbg) {
@@ -259,7 +359,8 @@ void debugger_handle_event(dbg_t *dbg, debug_event_t event)
 
 
 /* Symbol management */
-bool debugger_load_symbols(dbg_t *dbg, const char *filename) {
+bool debugger_load_symbols(dbg_t *dbg, const char *filename)
+{
     if (!dbg || !filename) {
         log_perror("[MAP] No debugger or filename");
         return false;
@@ -310,11 +411,6 @@ const char* debugger_get_symbol(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return NULL;
     }
-    /* FIXME */
-    if (address == 0) {
-        return "";
-    }
-
     symbols_t *current = &dbg->symbols;
 
     while (current) {
@@ -374,13 +470,22 @@ int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
     /* Check if the current address has a label */
     const char* label = debugger_get_symbol(dbg, address);
     if (label != NULL) {
-        strncpy(instr->label, label, sizeof(instr->label));
+        strncpy(instr->label, label, sizeof(instr->label) - 1);
     } else {
         /* Make sure to return an empty label */
         instr->label[0] = 0;
     }
 
     return bytes;
+}
+
+/* Custom operations */
+bool debugger_custom(dbg_t *dbg, int operation, void* arg)
+{
+    if (dbg == NULL || dbg->alt_op == NULL) {
+        return false;
+    }
+    return dbg->alt_op(dbg, operation, arg);
 }
 
 

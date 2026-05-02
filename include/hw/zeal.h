@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +22,7 @@
 #include "hw/uart.h"
 #include "hw/hostfs.h"
 #include "hw/compactflash.h"
+#include "hw/semihost.h"
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
 #include "hw/userport/snes_adapter.h"
@@ -83,6 +84,7 @@ struct zeal_t {
     pio_t   pio;
     keyboard_t keyboard;
     uart_t uart;
+    semihost_t semihost;
     /* I2C related */
     i2c_t    i2c_bus;
     ds1307_t rtc;
@@ -92,6 +94,8 @@ struct zeal_t {
 
     /* Renderer */
     RenderTexture2D  zvb_out;
+    bool headless;
+    bool should_exit;
 
     /* Misc features */
     zeal_hostfs_t hostfs;
@@ -102,6 +106,7 @@ struct zeal_t {
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     struct dbg_ui_t* dbg_ui;
+    uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);
 #endif
 };
 
@@ -129,7 +134,7 @@ int zeal_run(zeal_t* machine);
 /**
  * @brief Stop the virtual machine, and call CloseWindow()
  */
-void zeal_exit(void);
+void zeal_exit(zeal_t* machine);
 
 /**
  * @brief Enable Zeal Debugger view
@@ -145,3 +150,8 @@ int zeal_debug_disable(zeal_t* machine);
  * @brief Toggle the Zeal Debugger view
  */
 void zeal_debug_toggle(dbg_t *dbg);
+
+/**
+ * @brief Quantize a scale factor to the next or previous 10% step.
+ */
+float zeal_scale_quantize_tenths(float scale, float step);

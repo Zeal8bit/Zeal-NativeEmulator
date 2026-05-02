@@ -14,7 +14,10 @@
 
 
 /* Breakpoint management */
+bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address);
+bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address);
 bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address);
+void debugger_set_breakpoints_str(dbg_t *dbg, const char* list);
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address);
@@ -29,6 +32,9 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t* wps, unsigned int size);
 /* Memory inspection */
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);
 void debugger_write_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);
+
+/* Custom operations for the current target */
+bool debugger_custom(dbg_t *dbg, int operation, void* arg);
 
 /* Register access */
 void debugger_get_registers(dbg_t *dbg, regs_t *regs);

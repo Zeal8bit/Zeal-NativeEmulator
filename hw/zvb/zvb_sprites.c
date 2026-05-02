@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,10 +17,16 @@
 static void sprites_update_img(zvb_sprites_t* sprites, uint32_t idx);
 
 
-void zvb_sprites_init(zvb_sprites_t* sprites)
+void zvb_sprites_init(zvb_sprites_t* sprites, bool rendering_enabled)
 {
     assert(sprites != NULL);
     memset(sprites->data, 0, sizeof(sprites->data));
+    memset(sprites->fdata, 0, sizeof(sprites->fdata));
+
+    if (!rendering_enabled) {
+        sprites->dirty = 0;
+        return;
+    }
 
     /* Create an empty bitmap image that will be transfered to the GPU when rendering each frame */
     sprites->img_sprites = (Image) {
@@ -60,7 +66,7 @@ uint8_t zvb_sprites_read(zvb_sprites_t* sprites, uint32_t addr)
 
 void zvb_sprites_update(zvb_sprites_t* sprites)
 {
-    if (sprites->dirty != 0) {
+    if (sprites->dirty != 0 && sprites->tex_sprites.id != 0) {
         UpdateTexture(sprites->tex_sprites, sprites->img_sprites.data);
         sprites->dirty = 0;
     }

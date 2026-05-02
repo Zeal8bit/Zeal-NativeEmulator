@@ -1,0 +1,37 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          brew install meson ninja pkg-config raylib
+
+      - name: Setup Environment Variables
+        run: |
+          echo "CPATH=$(brew --prefix)/include:$CPATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$(brew --prefix)/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+
+      - name: Build with Meson
+        uses: ./.github/actions/meson-build
+
+      - name: Test Executable
+        run: |
+          ./build/zeal-native --help
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-native-macos
+          path: build/zeal-native
+          retention-days: 30

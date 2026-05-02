@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,18 +24,26 @@ typedef struct {
     /* Raw array representing the colors in VRAM, each color is 2 bytes big */
     uint8_t raw_palette[ZVB_COLOR_PALETTE_COUNT * 2];
     /* Writes are now latched */
-    int wr_latch;
-    /* Mirror used for the shader */
-    zvb_color_t vec_palette[ZVB_COLOR_PALETTE_COUNT];
-    /* Marker to register changes */
-    bool dirty;
+    int     wr_latch;
+    Image   img_pal;
+    Texture tex_pal;
+    bool    dirty;
 } zvb_palette_t;
+
+
+/**
+ * @brief Get the texture out of the palette
+ */
+static inline Texture zvb_pal_texture(zvb_palette_t* pal)
+{
+    return pal->tex_pal;
+}
 
 
 /**
  * @brief Initialize the palette, must be called before using it.
  */
-void zvb_palette_init(zvb_palette_t* pal);
+void zvb_palette_init(zvb_palette_t* pal, bool rendering_enabled);
 
 
 /**
@@ -56,7 +64,4 @@ uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr);
 /**
  * @brief Update the palette renderer, needs to be called before starting drawing anything on screen.
  */
-void zvb_palette_update(zvb_palette_t* pal, const Shader* shader, int idx);
-
-
-void zvb_palette_force_update(zvb_palette_t* pal, const Shader* shader, int idx);
+void zvb_palette_update(zvb_palette_t* pal);

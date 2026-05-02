@@ -60,6 +60,10 @@ cd build-wasm
 meson compile
 ```
 
+> [!NOTE]
+> You can optionally pass `-Denable_debugger=false` to disable the debugger
+> You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
+
 Keep in mind that this build will use the Raylib 5.5 release that is present at the root of the project, in `raylib/wasm`. If you wish to override this library and use your own version
 
 ### Compilation options
@@ -118,7 +122,7 @@ Currently, the following features from Zeal 8-bit Computer are emulated:
 * Z80 CPU (from [Superzazu](https://github.com/superzazu/z80), modified by @Zeal8bit)
 * Z80 PIO: all modes supported, both port A and B. Implementation is independent of connected devices.
 * 22-bit MMU
-* 256KB NOR flash (read-only currently)
+* 256KB NOR flash (R/W following the SST39 NOR flash specification)
 * 512KB RAM
 * Zeal 8-bit Video Card, **firmware v1.0.0** :
   * All text, graphics, bitmap modes, including sprites, palette, layers, etc...

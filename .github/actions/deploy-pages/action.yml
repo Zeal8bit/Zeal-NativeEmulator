@@ -1,0 +1,17 @@
+name: Deploy to GitHub Pages
+description: Upload and deploy to GitHub Pages
+inputs:
+  deploy-path:
+    description: 'Path to deploy'
+    required: false
+    default: .deploy
+runs:
+  using: "composite"
+  steps:
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{ inputs.deploy-path }}
+
+    - name: Deploy to GitHub Pages
+      uses: actions/deploy-pages@v4

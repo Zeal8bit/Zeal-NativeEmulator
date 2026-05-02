@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "raylib.h"
 #include "hw/zvb/default_font.h"
@@ -45,7 +46,7 @@ static inline Texture zvb_font_texture(zvb_font_t* font)
 /**
  * @brief Initialize the font, must be called before using it.
  */
-void zvb_font_init(zvb_font_t* font);
+void zvb_font_init(zvb_font_t* font, bool rendering_enabled);
 
 
 /**

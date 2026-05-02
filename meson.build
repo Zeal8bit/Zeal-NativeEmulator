@@ -14,7 +14,10 @@ project(
 
 # Output binary
 dependencies = []
-OUTPUT_BIN = 'zeal.elf'
+OUTPUT_BIN = 'zeal-native'
+if (host_machine.system() == 'emscripten')
+    OUTPUT_BIN = 'zeal.elf'
+endif
 
 # Retrieve raylib_path option (set via command line or use system defaults)
 raylib_path = get_option('raylib_path')
@@ -30,8 +33,8 @@ elif raylib_target_path != ''
     raylib_lib_dir = raylib_target_path / 'lib'
 else
     # No path provided, rely on system's default libraries (i.e., /usr/include and /usr/lib)
-    raylib_include_dir = '/usr/include'
-    raylib_lib_dir = '/usr/lib'
+    raylib_include_dir = ''
+    raylib_lib_dir = ''
 endif
 
 
@@ -43,12 +46,17 @@ subdir('assets')
 subdir('resources')
 
 run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)
-run_command(
+res = run_command(
     'cp',
     'roms/default.img',
     join_paths(meson.project_build_root(), 'roms/default.img'),
-    check: true,
+    check: false,
 )
+
+if res.returncode() != 0
+  warning('default.img not found, skipping copy')
+endif
+
 
 if (get_option('show_fps'))
     add_project_arguments('-DCONFIG_SHOW_FPS', language: 'c')
@@ -58,14 +66,38 @@ if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif
 
-add_project_arguments('-D_POSIX_C_SOURCE=200809L',
-                      '-D_DARWIN_C_SOURCE',
+if (host_machine.system() == 'darwin')
+    add_project_arguments('-D_DARWIN_C_SOURCE', language: 'c')
+endif
+
+add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
-add_project_arguments('-I' + raylib_include_dir, language: 'c')
-add_project_link_arguments('-L' + raylib_lib_dir, '-lraylib', '-lm', language: 'c')
+
+zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')
+add_project_arguments('-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"', language: 'c')
+
+if raylib_include_dir != ''
+    add_project_arguments('-I' + raylib_include_dir, language: 'c')
+endif
+
+if raylib_lib_dir != ''
+    add_project_link_arguments('-L' + raylib_lib_dir, language: 'c')
+endif
+
+add_project_link_arguments('-lraylib', '-lm', language: 'c')
+
+if host_machine.system() == 'linux'
+    add_project_link_arguments('-lX11', language: 'c')
+endif
 
 linker_args = meson.get_external_property('link_args', [])
+
+if host_machine.system() == 'emscripten'
+    if get_option('embed_roms')
+        linker_args += ['--embed-file', 'roms']
+    endif
+endif
 
 # Compiler and build targets
 exec = executable(
@@ -74,6 +106,7 @@ exec = executable(
     include_directories: ['include'],
     dependencies: dependencies,
     link_args: linker_args,
+    install: true
 )
 
 # meson compile run to launch emulator after building
@@ -112,6 +145,4 @@ if (host_machine.system() == 'emscripten')
         depends: exec,
         build_by_default: true,
     )
-
 endif
-

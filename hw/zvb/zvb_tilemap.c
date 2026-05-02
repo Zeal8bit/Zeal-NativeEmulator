@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,13 +13,18 @@
 static void tilemap_update_img(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint_fast8_t data);
 
 
-void zvb_tilemap_init(zvb_tilemap_t* tilemap)
+void zvb_tilemap_init(zvb_tilemap_t* tilemap, bool rendering_enabled)
 {
     assert(tilemap != NULL);
 
     /* Initialize both tilemaps to 0 on boot (not reset) */
     memset(tilemap->raw_layer0, 0, sizeof(tilemap->raw_layer0));
     memset(tilemap->raw_layer1, 0, sizeof(tilemap->raw_layer1));
+
+    if (!rendering_enabled) {
+        tilemap->dirty = 0;
+        return;
+    }
 
     /* Create an empty bitmap image, the goal is NOT to the have it represent the image
      * to show, the goal is to be able to provide both layers to the shader efficiently.
@@ -46,7 +51,9 @@ void zvb_tilemap_write(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint8_t
     } else {
         tilemap->raw_layer1[addr] = data;
     }
-    tilemap_update_img(tilemap, layer, addr, data);
+    if (tilemap->img_tilemap.data != NULL) {
+        tilemap_update_img(tilemap, layer, addr, data);
+    }
 }
 
 
@@ -62,7 +69,7 @@ uint8_t zvb_tilemap_read(zvb_tilemap_t* tilemap, int layer, uint32_t addr)
 
 void zvb_tilemap_update(zvb_tilemap_t* tilemap)
 {
-    if (tilemap->dirty != 0) {
+    if (tilemap->dirty != 0 && tilemap->tex_tilemap.id != 0) {
         UpdateTexture(tilemap->tex_tilemap, tilemap->img_tilemap.data);
         tilemap->dirty = 0;
     }

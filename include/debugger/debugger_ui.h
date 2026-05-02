@@ -16,6 +16,7 @@
 #include "hw/zvb/zvb.h"
 
 #define WIN_UI_FONT_SIZE        13
+#define BIGBLUE_FONT_SIZE       16
 
 #define MENUBAR_HEIGHT          30
 #define NK_WIDGET_TITLE_HEIGHT  50
@@ -38,14 +39,18 @@ typedef enum {
     DBG_UI_PANEL_MEMORY,
     DBG_UI_PANEL_DISASSEMBLER,
     DBG_UI_PANEL_VRAM,
+    DBG_UI_PANEL_MMU,
+    DBG_UI_PANEL_SEMIHOST,
     DBG_UI_PANEL_TOTAL
 } dbg_ui_panels_idx_t;
 
 
 typedef struct dbg_ui_panel_t dbg_ui_panel_t;
 struct dbg_ui_t {
-    struct nk_context* ctx;
-    struct nk_image    view;
+    struct nk_context*     ctx;
+    Font                   font;
+    struct nk_user_font*   font_bigblue;
+    struct nk_image        view;
     hwaddr             mem_view_addr;
     hwaddr             mem_view_size;
     hwaddr             dis_addr;
@@ -78,17 +83,20 @@ typedef struct {
 } dbg_ui_init_args_t;
 
 extern char DEBUG_BUFFER[256];
+extern const uint16_t s_cp437_to_unicode[256];
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size);
 
-/** Debug Panels */
 void ui_panel_display(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_scale_up(dbg_t *dbg);
 void debugger_scale_down(dbg_t *dbg);
 
+/* Debug Panels */
 void ui_panel_cpu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_breakpoints(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_memory(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void ui_panel_mmu(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
+void ui_panel_semihost(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_disassembler(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg);
 
@@ -103,8 +111,10 @@ bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
 
 /** Helpers */
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active);
+bool dbg_ui_clickable_value(struct nk_context* ctx, const char* value, bool active);
 void dbg_ui_mouse_hover(struct nk_context *ctx, int cursor);
 void dbg_ui_update_cursor(struct nk_context *ctx, struct nk_rect rect);
 void dbg_ui_byte_to_hex(uint8_t byte, char* out, char separator);
 void dbg_ui_word_to_hex(uint16_t word, char* out, char separator);
 void dbg_ui_go_to_mem(struct dbg_ui_t* dctx, hwaddr addr);
+void dbg_ui_cp437_to_utf8(uint8_t byte, char out[5]);

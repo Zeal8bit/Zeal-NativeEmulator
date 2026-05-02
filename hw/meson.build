@@ -6,6 +6,7 @@ sources += files([
         'mmu.c',
         'pio.c',
         'ram.c',
+        'semihost.c',
         'uart.c',
         'z80.c',
         'zeal.c',

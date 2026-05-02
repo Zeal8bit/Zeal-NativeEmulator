@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,6 +25,9 @@
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
  */
+#define ZVB_EMULATED_REV    0
+#define ZVB_EMULATED_MINOR  0
+#define ZVB_EMULATED_MAJOR  1
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480
@@ -179,6 +182,11 @@ typedef struct {
     int    objects[ZVB_SHADER_MAX_OBJ_COUNT];
 } zvb_shader_t;
 
+typedef struct {
+    bool flipped_y;
+    bool rendering_enabled;
+} zvb_config_t;
+
 
 typedef struct {
     device_t         parent;
@@ -210,6 +218,7 @@ typedef struct {
     int              state; // Any of the STATE_* macros
     long             tstates_counter;
     bool             need_render;
+    bool             rendering_enabled;
     /* When rendering to the screen directly, Y must be flipped,
      * But when rendering to a texture (debugger UI), it must not be*/
     bool             flipped_y;
@@ -238,9 +247,9 @@ static inline bool zvb_is_text_mode(const zvb_t* zvb)
  * @brief Initialize the video board
  *
  * @param zvb Context to fill and return
- * @param flipped_y Whether to render the screen mirrored in Y axis
+ * @param config Initialization options for the video board
  */
-int zvb_init(zvb_t* zvb, bool flipped_y, const memory_op_t* ops);
+int zvb_init(zvb_t* zvb, const zvb_config_t* config, const memory_op_t* ops);
 
 
 /**

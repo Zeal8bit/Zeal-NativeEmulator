@@ -97,13 +97,14 @@ typedef struct {
     /* Volume interpreted from the master_volume register */
     float              left_volume;
     float              right_volume;
+    bool               enabled;
 } zvb_sound_t;
 
 
 /**
  * @brief Initialize the sound controller
  */
-void zvb_sound_init(zvb_sound_t* sound);
+void zvb_sound_init(zvb_sound_t* sound, bool enabled);
 
 
 /**

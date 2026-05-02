@@ -9,11 +9,12 @@
 
 #include "hw/device.h"
 
-#define MMU_PAGE_SIZE (16 * 1024)
+#define MMU_PAGE_SIZE   (16 * 1024)
+#define MMU_PAGES_COUNT 4
 
 typedef struct {
     device_t parent;
-    uint8_t pages[4];
+    uint8_t pages[MMU_PAGES_COUNT];
 } mmu_t;
 
 

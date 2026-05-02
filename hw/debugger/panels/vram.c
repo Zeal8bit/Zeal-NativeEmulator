@@ -196,8 +196,13 @@ static void ui_tab_set(struct dbg_ui_t* dctx, const tab_args_t* args)
 
         if (nk_group_begin(ctx, "right_group", NK_WINDOW_NO_SCROLLBAR)) {
             char label[64];
+            const int entry_index = tile_y * tile_per_line + tile_x;
             nk_layout_row_dynamic(ctx, 30, 1);
-            snprintf(label, sizeof(label), "%s %d", args->entry_name, tile_y * tile_per_line + tile_x);
+            if (strcmp(args->entry_name, "Char") == 0) {
+                snprintf(label, sizeof(label), "%s %d (0x%02X)", args->entry_name, entry_index, entry_index);
+            } else {
+                snprintf(label, sizeof(label), "%s %d", args->entry_name, entry_index);
+            }
             nk_label(ctx, label, NK_TEXT_LEFT);
             nk_layout_row_static(ctx, sub.h * tile_scale, sub.w * tile_scale, 1);
             nk_image(ctx, sub);

@@ -9,7 +9,6 @@ exe_wrapper = 'node'  # allows Meson to run test programs if needed
 
 [built-in options]
 c_args = ['-D_DEFAULT_SOURCE',
-          '-DCONFIG_SHOW_FPS',
           '-DPLATFORM_WEB',
           '-DOPENGL_ES']
 
@@ -17,6 +16,7 @@ c_args = ['-D_DEFAULT_SOURCE',
 link_args = ['--emit-symbol-map',
              '-sUSE_GLFW=3',
              '-sFORCE_FILESYSTEM=1',
+             '-sEXPORT_NAME="NativeModule"',
              '-sASYNCIFY=1',
              '-sMINIFY_HTML=1',
              '-sUSE_WEBGL2=1',
@@ -25,8 +25,8 @@ link_args = ['--emit-symbol-map',
              '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32", "getValue", "setValue"]',
              '-sEXPORTED_FUNCTIONS=["_main", "_zeal_exit"]',
              '-SEXPORTED_GLOBALS=["_show_fps"]',
-              '--embed-file', 'assets',
-              '--embed-file', 'roms']
+              '--embed-file', 'assets/shaders']
+
 raylib_path = '../raylib/web'
 
 [host_machine]

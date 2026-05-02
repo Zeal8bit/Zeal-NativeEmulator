@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,6 +45,10 @@ typedef struct {
 } config_debugger_t;
 
 typedef struct {
+    int volume;
+} config_audio_t;
+
+typedef struct {
     const char* config_path;
     const char* rom_filename;
     const char* eeprom_filename;
@@ -53,11 +57,16 @@ typedef struct {
     const char* cf_filename;
     const char* hostfs_path;
     const char* map_file;
+    const char* breakpoints;
+    unsigned long headless_run_ticks;
+    bool headless;
     bool config_save;
     bool verbose;
+    bool no_reset;
 } config_arguments_t;
 
 typedef struct {
+    config_audio_t audio;
     config_debugger_t debugger;
     config_window_t window; // main window options
     config_arguments_t arguments;
@@ -138,9 +147,6 @@ void config_window_set(bool dbg_enabled);
  * @return The size forced into the aspect ratio (larger dim remain)
  */
 Vector2 config_aspect_force(Vector2 size);
-
-Vector2 config_get_next_resolution(int width);
-Vector2 config_get_prev_resolution(int width);
 
 bool config_keyboard_passthru(bool dbg_enabled);
 

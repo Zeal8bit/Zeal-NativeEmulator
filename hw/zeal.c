@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,7 @@
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "utils/config.h"
+#include "utils/notif.h"
 #ifdef PLATFORM_WEB
 #include <emscripten.h>
 #endif
@@ -38,6 +39,7 @@ typedef struct {
 
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
+
 bool zeal_ui_input(zeal_t* machine);
 
 /**
@@ -97,6 +99,30 @@ static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
     log_printf("[INFO] No device replied to physical memory read: 0x%04x\n", phys_addr);
     return 0;
 }
+
+
+#if CONFIG_ENABLE_DEBUGGER
+/**
+ * @brief Read a byte from memory for the debugger, so write-only areas can still be read
+ */
+static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
+{
+    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
+    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
+    device_t* device         = entry->dev;
+    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
+
+    if (device) {
+        return device->mem_region.debug_read ?
+                    device->mem_region.debug_read(device, phys_addr - start_addr) :
+                    device->mem_region.read(device, phys_addr - start_addr);
+    }
+
+    log_printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
+    return 0;
+}
+#endif
+
 
 static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
 {
@@ -309,9 +335,12 @@ static memory_op_t s_ops = {
     .phys_write_byte = zeal_phys_mem_write,
 };
 
-int zeal_reset(zeal_t* machine) {
+int zeal_reset(zeal_t* machine)
+{
     zeal_init_cpu(machine);
-    zeal_read_keyboard_reset(machine);
+    if (!machine->headless) {
+        zeal_read_keyboard_reset(machine);
+    }
     device_reset(DEVICE(&machine->mmu));
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
@@ -339,46 +368,54 @@ int zeal_init(zeal_t* machine)
     s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
+    machine->headless = config.arguments.headless;
 #if CONFIG_ENABLE_DEBUGGER
+    machine->dbg_read_memory = debug_read_memory;
     machine->dbg.running = true;
     /* Set the debug mode in the machine structure as soon as possible */
-    machine->dbg_enabled = config_debugger_enabled();
+    machine->dbg_enabled = config_debugger_enabled() && !machine->headless;
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    /* Initialize the UI. It must be done before any shader is created! */
-    SetTraceLogLevel(WIN_LOG_LEVEL);
+    if (!machine->headless) {
+        /* Initialize the UI. It must be done before any shader is created! */
+        SetTraceLogLevel(WIN_LOG_LEVEL);
 #ifndef PLATFORM_WEB
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+        SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #endif
 
-    /* initialize raylib window */
-    InitWindow(640, 480, WIN_NAME);
-    SetExitKey(KEY_NULL);
+        /* initialize raylib window */
+        InitWindow(640, 480, WIN_NAME);
+        SetExitKey(KEY_NULL);
 #ifndef PLATFORM_WEB
-    SetWindowFocused(); // force focus on the window to capture keypresses
+        SetWindowFocused(); // force focus on the window to capture keypresses
 #endif
 
 #if !BENCHMARK
-    SetTargetFPS(60);
+        SetTargetFPS(60);
 #endif
+        notif_reset();
 
-    // force rendering the window, to allow Raylib periphs to attach (ie; gamepads)
-    BeginDrawing();
-        ClearBackground((Color){ 0x0, 0x0, 0x0, 0xff });
-    EndDrawing();
+        // force rendering the window, to allow Raylib periphs to attach (ie; gamepads)
+        BeginDrawing();
+            ClearBackground((Color){ 0x0, 0x0, 0x0, 0xff });
+        EndDrawing();
 
-    /* Since we want to enable scaling, make the ZVB output always go to a texture first */
-    machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+        /* Since we want to enable scaling, make the ZVB output always go to a texture first */
+        machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 
 #if CONFIG_ENABLE_DEBUGGER
-    config_window_set(machine->dbg_enabled);
-    /* Initialize the debugger */
-    zeal_debugger_init(machine, &machine->dbg);
-    /* Load symbols if provided */
-    if (config.arguments.map_file) {
-        debugger_load_symbols(&machine->dbg, config.arguments.map_file);
-    }
+        config_window_set(machine->dbg_enabled);
+        /* Initialize the debugger */
+        zeal_debugger_init(machine, &machine->dbg);
+        /* Load symbols if provided */
+        if (config.arguments.map_file) {
+            debugger_load_symbols(&machine->dbg, config.arguments.map_file);
+        }
+        if (config.arguments.breakpoints) {
+            debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+        }
 #endif // CONFIG_ENABLE_DEBUGGER
+    }
 
     zeal_init_cpu(machine);
 
@@ -396,10 +433,6 @@ int zeal_init(zeal_t* machine)
 
     // const pio = new PIO(this);
     err = pio_init(machine, &machine->pio);
-    CHECK_ERR(err);
-
-    /* Flip the rendering if we are not in debug mode (since we will draw directly to the screen) */
-    err = zvb_init(&machine->zvb, false, &s_ops);
     CHECK_ERR(err);
 
     // const uart = new UART(this, pio);
@@ -442,6 +475,10 @@ int zeal_init(zeal_t* machine)
     err = hostfs_init(&machine->hostfs, &s_ops);
     CHECK_ERR(err);
 
+    /* Initialize the semihosting device with CPU pointer for register access */
+    err = semihost_init(&machine->semihost, &machine->cpu);
+    CHECK_ERR(err);
+
     /* Register the devices in the memory space */
     zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
     if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
@@ -450,9 +487,22 @@ int zeal_init(zeal_t* machine)
     }
 
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
+    const zvb_config_t zvb_config = {
+        .flipped_y = false,
+        .rendering_enabled = !machine->headless,
+    };
+    err = zvb_init(&machine->zvb, &zvb_config, &s_ops);
+    CHECK_ERR(err);
+    if (!machine->headless) {
+        SetMasterVolume(config.audio.volume / 100.0f);
+        if (config.audio.volume != 100) {
+            notif_show("Volume: %d%%", config.audio.volume);
+        }
+    }
     zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
+    zeal_add_io_device(machine, 0x10, &machine->semihost.parent);
     if (cf_err == 0) {
         zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
     }
@@ -474,9 +524,32 @@ int zeal_init(zeal_t* machine)
     return 0;
 }
 
+/**
+ * @brief Run Zeal 8-bit Computer VM in headless mode (no window/input/presentation)
+ */
+static int zeal_headless_mode_run(zeal_t* machine)
+{
+    const int elapsed_tstates = z80_step(&machine->cpu);
+    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+        /* PC is back to 0, that's a software reset! */
+        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+        zeal_exit(machine);
+        return 0;
+    }
+
+    zvb_tick(&machine->zvb, elapsed_tstates);
+    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
+    flash_tick(&machine->rom, elapsed_tstates);
+    return 0;
+}
+
+
 #if CONFIG_ENABLE_DEBUGGER
 int zeal_debug_enable(zeal_t* machine)
 {
+    if (machine->headless) {
+        return -1;
+    }
     config_window_update(machine->dbg_enabled);
     int ret = 0;
     machine->dbg_enabled = true;
@@ -553,9 +626,10 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         /* Grey brackground */
         ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
         debugger_ui_render(machine->dbg_ui, &machine->dbg);
-    if(show_fps == true) {
-        DrawFPS(10, 10);
-    }
+        notif_render(GetScreenWidth() - notif_estimate_width() - 20, 10);
+        if(show_fps == true) {
+            DrawFPS(10, 10);
+        }
 
     EndDrawing();
 
@@ -569,6 +643,13 @@ static int zeal_dbg_mode_display(zeal_t* machine)
 static int zeal_dbg_mode_run(zeal_t* machine)
 {
     if (machine->dbg_state != ST_PAUSED) {
+
+        if (machine->dbg_state == ST_REQ_STEP_OVER) {
+            int instr_size = z80_instruction_size(&machine->cpu);
+            debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + instr_size);
+            machine->dbg_state = ST_RUNNING;
+        }
+
         const int elapsed_tstates = z80_step(&machine->cpu);
 
         /* Check if we need to poll the keyboard and transmit the data to the VM */
@@ -582,12 +663,14 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         /* Go through all the devices that have a tick function */
         zvb_tick(&machine->zvb, elapsed_tstates);
         keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
+        flash_tick(&machine->rom, elapsed_tstates);
 
         /* Check if we reached a breakpoint or if we have to do a single step */
         if (machine->dbg_state == ST_REQ_STEP ||
             debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc))
         {
             machine->dbg_state = ST_PAUSED;
+            debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
         }
     }
 
@@ -610,19 +693,29 @@ static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
+    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+        /* PC is back to 0, that's a software reset!
+         * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
+         * check for the close/exit flag */
+        log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+        zeal_exit(machine);
+        return 2;
+    }
 
     /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
     if (keyboard_check(&machine->keyboard, elapsed_tstates)
 #if CONFIG_ENABLE_DEBUGGER
         && !zeal_ui_input(machine)
 #endif
-       ) {
-        zeal_read_keyboard(machine, elapsed_tstates);
+       )
+    {
+        zeal_read_keyboard(machine, KEYBOARD_CHECK_PERIOD);
     }
 
     /* Go through all the devices that have a tick function */
     zvb_tick(&machine->zvb, elapsed_tstates);
     keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
+    flash_tick(&machine->rom, elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;
@@ -661,9 +754,11 @@ static int zeal_normal_mode_run(zeal_t* machine)
                             (Vector2){ 0, 0 },
                             0.0f,
                             WHITE);
-        if(show_fps == true) {
-            DrawFPS(10, 10);
-        }
+            /* Show notifications on the top-right of the visible content */
+            notif_render(pos_x + draw_w - notif_estimate_width() - 20, pos_y + 10);
+            if(show_fps == true) {
+                DrawFPS(10, 10);
+            }
         EndDrawing();
     }
     return rendered;
@@ -681,9 +776,9 @@ static void zeal_loop(zeal_t* machine)
      * once per frame, just like in Raylib examples.
      */
 #if PLATFORM_WEB
-    while(rendered != 2) {
+    while(rendered < 2) {
 #else
-    while(rendered != 1) {
+    while(rendered < 1) {
 #endif
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -697,10 +792,22 @@ static void zeal_loop(zeal_t* machine)
     }
 }
 
+static void zeal_run_headless(zeal_t* machine)
+{
+    while (!machine->should_exit) {
+        zeal_headless_mode_run(machine);
+        if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
+            log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
+            break;
+        }
+    }
 
-static bool shouldCloseWindow = false;
-void zeal_exit(void) {
-    shouldCloseWindow = true;
+    zvb_deinit(&machine->zvb);
+}
+
+void zeal_exit(zeal_t* machine)
+{
+    machine->should_exit = true;
 }
 
 int zeal_run(zeal_t* machine)
@@ -711,7 +818,12 @@ int zeal_run(zeal_t* machine)
         return -1;
     }
 
-    while (!shouldCloseWindow && !WindowShouldClose()) {
+    if (machine->headless) {
+        zeal_run_headless(machine);
+        return 0;
+    }
+
+    while (!machine->should_exit && !WindowShouldClose()) {
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;
@@ -720,10 +832,6 @@ int zeal_run(zeal_t* machine)
         zeal_loop(machine);
     }
 
-#ifdef PLATFORM_WEB
-    CloseAudioDevice();
-#endif
-
 #if CONFIG_ENABLE_DEBUGGER
     config_window_update(machine->dbg_enabled);
 
@@ -731,13 +839,11 @@ int zeal_run(zeal_t* machine)
         debugger_ui_deinit(machine->dbg_ui);
     }
 #else
-    config_window_update(false);
+        config_window_update(false);
 #endif // CONFIG_ENABLE_DEBUGGER
 
     zvb_deinit(&machine->zvb);
-
     CloseWindow();
 
     return ret;
 }
-

@@ -1,11 +1,13 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #define RINI_VALUE_DELIMITER '='
 #define RINI_IMPLEMENTATION
+
+#include <stdlib.h>
 
 #include "utils/config.h"
 #include "debugger/debugger_ui.h"
@@ -14,12 +16,19 @@
 #include "utils/log.h"
 #include "raylib.h"
 
-config_t config = {
+config_t config ={
+    .audio = {
+        .volume = 100,
+    },
+
     .arguments = {
         .config_path = "zeal.ini",
         .rom_filename = NULL,
         .hostfs_path = ".",
         .config_save = false,
+        .no_reset = false,
+        .headless = false,
+        .headless_run_ticks = 0,
     },
 
     .debugger = {
@@ -41,25 +50,8 @@ config_t config = {
     },
 };
 
-const Vector2 vga_resolutions[] = {
-    {320, 240},
-    {400, 300},
-    {512, 384},
-    {640, 480},
-    {800, 600},
-    {1024, 768},
-    {1152, 864},
-    {1280, 960},
-    {1400, 1050},
-    {1600, 1200},
-    {1856, 1392},
-    {1920, 1440},
-    {2048, 1536}
-};
-const int vga_resolutions_size = sizeof(vga_resolutions) / sizeof(Vector2);
-
-
-void config_debug(void) {
+void config_debug(void)
+{
     log_printf("== CONFIG ==\n");
 
     log_printf("\n");
@@ -69,7 +61,14 @@ void config_debug(void) {
     log_printf("  hostfs_path: %s\n", config.arguments.hostfs_path);
     log_printf("     map_file: %s\n", config.arguments.map_file);
     log_printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("    headless: %s\n", config.arguments.headless ? "True" : "False");
+    log_printf("headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
     log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
+    log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
+
+    log_printf("\n");
+    log_printf("=== audio ===\n");
+    log_printf(" volume: %d\n", config.audio.volume);
 
     log_printf("\n");
     log_printf("=== debugger ===\n");
@@ -96,22 +95,26 @@ int usage(const char* progname)
 {
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
-    log_printf("  -c, --config <file>           Zeal Config\n");
-    log_printf("  -s, --save <file>             Save * arguments to Zeal Config\n");
-    log_printf("  -r, --rom <file>              * Load ROM file\n");
-    log_printf("  -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address\n");
-    log_printf("  -e, --eeprom <file>           Load EEPROM file\n");
-    log_printf("  -t, --tf <file>               Load TF/SDcard file\n");
-    log_printf("  -H, --hostfs <path>           Set host filesystem path\n");
-    log_printf("  -m, --map <file>              Load memory map file (for debugging)\n");
-    log_printf("  -g, --debug                   * Enable debug mode\n");
-    log_printf("  -v, --verbose                 Verbose console output\n");
-    log_printf("  -h, --help                    Show this help message\n");
+    log_printf("  -c, --config <file>                Zeal Config\n");
+    log_printf("  -s, --save <file>                  Save * arguments to Zeal Config\n");
+    log_printf("  -r, --rom <file>                   * Load ROM file\n");
+    log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
+    log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
+    log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
+    log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
+    log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
+    log_printf("  -g, --debug                        * Enable debug mode\n");
+    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
+    log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
+    log_printf("                                     Optional tstates number to execute can be given\n");
+    log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
+    log_printf("  -v, --verbose                      Verbose console output\n");
+    log_printf("  -h, --help                         Show this help message\n");
     log_printf("\n");
     log_printf("Example:\n");
     log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
 
-    return 1;
+    exit(0);
 }
 
 int parse_command_args(int argc, char* argv[])
@@ -119,22 +122,28 @@ int parse_command_args(int argc, char* argv[])
     int opt;
 
     struct option long_options[] = {
-        { "config", required_argument, 0, 'c'},
-        {    "rom", required_argument, 0, 'r'},
-        { "eeprom", required_argument, 0, 'e'},
-        {     "tf", required_argument, 0, 't'},
-        {  "uprog", required_argument, 0, 'u'},
-        {     "cf", required_argument, 0, 'C'},
-        { "hostfs", required_argument, 0, 'H'},
-        {    "map", required_argument, 0, 'm'},
-        {  "debug", required_argument, 0, 'g'},
-        {   "save",       no_argument, 0, 's'},
-        {"verbose",       no_argument, 0, 'v'},
-        {  "help",        no_argument, 0, 'h'},
-        {        0,                 0, 0,   0}
+        {   "config", required_argument, 0, 'c'},
+        {      "rom", required_argument, 0, 'r'},
+        {   "eeprom", required_argument, 0, 'e'},
+        {       "tf", required_argument, 0, 't'},
+        {    "uprog", required_argument, 0, 'u'},
+        {       "cf", required_argument, 0, 'C'},
+        {   "hostfs", required_argument, 0, 'H'},
+        {      "map", required_argument, 0, 'm'},
+        {    "debug", required_argument, 0, 'g'},
+        {      "brk", required_argument, 0, 'b'},
+        { "headless", optional_argument, 0, 'n'},
+        { "no-reset",       no_argument, 0, 'q'},
+        {     "save",       no_argument, 0, 's'},
+        {  "verbose",       no_argument, 0, 'v'},
+        {    "help",        no_argument, 0, 'h'},
+        {          0,                 0, 0,   0}
     };
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:sgvh", long_options, NULL)) != -1) {
+    const char* config_path = get_config_path();
+    if(config_path) config.arguments.config_path = config_path;
+
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::qsgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -175,8 +184,32 @@ int parse_command_args(int argc, char* argv[])
                     config.debugger.enabled = DEBUGGER_STATE_ARG;
                 }
                 break;
+            case 'b':
+                config.arguments.breakpoints = optarg;
+                break;
+            case 'n':
+                config.arguments.headless = true;
+                if (optarg != NULL) {
+                    config.arguments.headless_run_ticks = strtoul(optarg, NULL, 0);
+                } else if (optind < argc) {
+                    /* Optional argument requires the long form to be followed by `=`, so
+                     * --headless 500 is invalid as is, it needs `--headless=500`.
+                     * This branch will parse the next parameter to allow `--headless 500` */
+                    char* endptr = NULL;
+                    unsigned long ticks = strtoul(argv[optind], &endptr, 0);
+                    if (endptr != argv[optind] && endptr != NULL && *endptr == '\0') {
+                        config.arguments.headless_run_ticks = ticks;
+                        optind++;
+                    }
+                }
+                /* force debugger off in headless mode */
+                config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
+                break;
             case 'v':
                 config.arguments.verbose = true;
+                break;
+            case 'q':
+                config.arguments.no_reset = true;
                 break;
             case '?':
                 // Handle unknown options
@@ -189,6 +222,7 @@ int parse_command_args(int argc, char* argv[])
 }
 
 void config_parse_file(const char* file) {
+    printf("[CONFIG] %s\n", path_sanitize(file));
     if(!path_exists(file)) return;
 
     config.ini = rini_load_config(file);
@@ -201,6 +235,12 @@ void config_parse_file(const char* file) {
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
+    config.audio.volume = rini_get_config_value_fallback(config.ini, "AUDIO_VOLUME", 100);
+    if (config.audio.volume < 0) {
+        config.audio.volume = 0;
+    } else if (config.audio.volume > 100) {
+        config.audio.volume = 100;
+    }
 
     config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
     config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
@@ -239,6 +279,9 @@ int config_save(void)
     }
 
     config_window_t *window = &config.window;
+    rini_set_config_comment_line(&ini, "Audio");
+    rini_set_config_value(&ini, "AUDIO_VOLUME", config.audio.volume, "Master Volume Percent");
+
     rini_set_config_comment_line(&ini, "Main Window");
     rini_set_config_value(&ini, "WIN_WIDTH", window->width, "Width");
     rini_set_config_value(&ini, "WIN_HEIGHT", window->height, "Height");
@@ -384,28 +427,4 @@ void config_window_set(bool dbg_enabled) {
     if(window_pos.x < 0) window_pos.x = screen_offset.x + ((screen.x - window_size.x) / 2);
     if(window_pos.y < 0) window_pos.y = screen_offset.y + ((screen.y - window_size.y) / 2);
     SetWindowPosition(window_pos.x, window_pos.y);
-}
-
-Vector2 config_get_next_resolution(int width)
-{
-    Vector2 size = vga_resolutions[vga_resolutions_size - 1];
-    for(int i = 0; i < vga_resolutions_size; i++) {
-        if(vga_resolutions[i].x > width) {
-            size = vga_resolutions[i];
-            break;
-        }
-    }
-    return size;
-}
-
-Vector2 config_get_prev_resolution(int width)
-{
-    Vector2 size = vga_resolutions[0];
-    for(int i = vga_resolutions_size-1; i >= 0; i--) {
-        if(vga_resolutions[i].x < width) {
-            size = vga_resolutions[i];
-            break;
-        }
-    }
-    return size;
 }

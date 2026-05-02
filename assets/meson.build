@@ -1,1 +1,3 @@
 subdir('shaders/')
+subdir('fonts/')
+

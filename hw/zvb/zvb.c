@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,7 +18,12 @@
 #include "hw/memory_op.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
-
+/* Shaders as static strings */
+#include "assets/shaders/gfx_shader.h"
+#include "assets/shaders/text_shader.h"
+#include "assets/shaders/text_debug.h"
+#include "assets/shaders/bitmap_shader.h"
+#include "assets/shaders/gfx_debug.h"
 
 #define BENCHMARK           0
 
@@ -155,11 +160,11 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
-        return 0;
+        return ZVB_EMULATED_REV;
     } else if (addr == ZVB_IO_MINOR_REG) {
-        return 2;
+        return ZVB_EMULATED_MINOR;
     } else if (addr == ZVB_IO_MAJOR_REG) {
-        return 0;
+        return ZVB_EMULATED_MAJOR;
     } else if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         return zvb->scratch[addr - ZVB_IO_SCRAT0_REG];
     } else if (addr == ZVB_IO_BANK_REG) {
@@ -262,54 +267,12 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     }
 }
 
-
-static Shader zvb_load_shader(const char* path)
-{
-    const char *header =
-#if OPENGL_ES
-    "#version 300 es\n"
-    "#define OPENGL_ES 1\n";
-#else
-    "#version 330 core\n";
-#endif
-    log_printf("Compiling shader %s\n", path);
-
-    char *source = LoadFileText(path);
-    if (!source) {
-        log_err_printf("Failed to load shader file: %s", path);
-        return (Shader){0};
-    }
-
-    size_t headerlen = strlen(header);
-    size_t sourcelen = strlen(source);
-    char *fullSource = malloc(headerlen + sourcelen + 1);
-    if (!fullSource) {
-        log_err_printf("Memory allocation failed for shader source");
-        UnloadFileText(source);
-        return (Shader){0};
-    }
-
-
-    memcpy(fullSource, header, headerlen);
-    /* Include NULL terminator */
-    memcpy(fullSource + headerlen, source, sourcelen + 1);
-
-    UnloadFileText(source);
-
-    Shader shader = LoadShaderFromMemory(NULL, fullSource);
-
-    free(fullSource);
-    return shader;
-}
-
-
 static void zvb_shader_init(zvb_t* dev)
 {
-    char path[PATH_MAX];
-
     /* Get the indexes of the objects in the shaders */
     zvb_shader_t* st_shader = &dev->shaders[SHADER_TEXT];
-    Shader shader = zvb_load_shader(get_shaders_path(path, "text_shader.glsl"));
+    log_printf("Compiling shader text_shader\n");
+    Shader shader = LoadShaderFromMemory(NULL, s_text_shader);
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -322,7 +285,8 @@ static void zvb_shader_init(zvb_t* dev)
 
     /* Text debug shaders */
     st_shader = &dev->shaders[SHADER_TEXT_DEBUG];
-    shader = zvb_load_shader(get_shaders_path(path, "text_debug.glsl"));
+    log_printf("Compiling shader text_debug\n");
+    shader = LoadShaderFromMemory(NULL, s_text_debug);
     st_shader->shader = shader;
     st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -331,7 +295,8 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
 
     st_shader = &dev->shaders[SHADER_GFX];
-    shader = zvb_load_shader(get_shaders_path(path, "gfx_shader.glsl"));
+    log_printf("Compiling shader gfx_shader\n");
+    shader = LoadShaderFromMemory(NULL, s_gfx_shader);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -342,14 +307,16 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_BITMAP];
-    shader = zvb_load_shader(get_shaders_path(path, "bitmap_shader.glsl"));
+    log_printf("Compiling shader bitmap_shader\n");
+    shader = LoadShaderFromMemory(NULL, s_bitmap_shader);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
     st_shader = &dev->shaders[SHADER_GFX_DEBUG];
-    shader = zvb_load_shader(get_shaders_path(path, "gfx_debug.glsl"));
+    log_printf("Compiling shader gfx_debug\n");
+    shader = LoadShaderFromMemory(NULL, s_gfx_debug);
     st_shader->shader = shader;
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
@@ -359,11 +326,13 @@ static void zvb_shader_init(zvb_t* dev)
 }
 
 
-int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
+int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 {
-    if (dev == NULL) {
+    if (dev == NULL || config == NULL) {
         return 1;
     }
+
+    const bool rendering_enabled = config->rendering_enabled;
 
     /* Initialize the structure and register it on both the memory and I/O buses */
     memset(dev, 0, sizeof(zvb_t));
@@ -371,27 +340,30 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
+    dev->rendering_enabled = rendering_enabled;
 
-    zvb_palette_init(&dev->palette);
-    zvb_font_init(&dev->font);
-    zvb_tilemap_init(&dev->layers);
-    zvb_tileset_init(&dev->tileset);
+    zvb_palette_init(&dev->palette, rendering_enabled);
+    zvb_font_init(&dev->font, rendering_enabled);
+    zvb_tilemap_init(&dev->layers, rendering_enabled);
+    zvb_tileset_init(&dev->tileset, rendering_enabled);
     zvb_text_init(&dev->text);
-    zvb_sprites_init(&dev->sprites);
+    zvb_sprites_init(&dev->sprites, rendering_enabled);
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
-    zvb_sound_init(&dev->sound);
+    zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, ops);
 
-    dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
-    dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-    dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-    /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-    dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-    dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-    dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
+    if (rendering_enabled) {
+        dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+        dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
+        dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
+        dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
+        dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
 
-    zvb_shader_init(dev);
+        zvb_shader_init(dev);
+    }
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_IDLE;
@@ -402,7 +374,7 @@ int zvb_init(zvb_t* dev, bool flipped_y, const memory_op_t* ops)
     dev->need_render = false;
 
     /* For the debugger */
-    dev->flipped_y = flipped_y;
+    dev->flipped_y = config->flipped_y;
     return 0;
 }
 
@@ -432,6 +404,7 @@ static void zvb_render_disabled_mode(zvb_t* zvb)
  */
 static void zvb_prepare_render_text_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_font_update(&zvb->font);
     zvb_tilemap_update(&zvb->layers);
 }
@@ -456,9 +429,9 @@ static void zvb_render_text_mode(zvb_t* zvb)
     zvb_text_update(&zvb->text, &info);
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
         SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
         /* Transfer the text-related variables */
@@ -502,9 +475,9 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
         BeginShaderMode(shader);
             ClearBackground(BLANK);
             /* Transfer all the texture to the GPU */
-            zvb_palette_force_update(&zvb->palette, &st_shader->shader, palette_idx);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
             DrawTextureRec(zvb->tex_dummy.texture,
@@ -545,6 +518,7 @@ static void zvb_render_debug_text_mode(zvb_t* zvb)
 
 static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_tileset_update(&zvb->tileset);
     zvb_tilemap_update(&zvb->layers);
     zvb_sprites_update(&zvb->sprites);
@@ -552,6 +526,7 @@ static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
 
 static void zvb_prepare_render_bitmap_mode(zvb_t* zvb)
 {
+    zvb_palette_update(&zvb->palette);
     zvb_tileset_update(&zvb->tileset);
 }
 
@@ -568,7 +543,7 @@ static void zvb_render_bitmap_mode(zvb_t* zvb)
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
@@ -601,9 +576,9 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
     BeginShaderMode(shader);
-        zvb_palette_update(&zvb->palette, &st_shader->shader, palette_idx);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
         SetShaderValueTexture(shader, sprites_idx, *zvb_sprites_texture(&zvb->sprites));
@@ -639,9 +614,9 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
     BeginTextureMode(*texture);
         BeginShaderMode(shader);
             /* Transfer all the texture to the GPU */
-            zvb_palette_force_update(&zvb->palette, &st_shader->shader, palette_idx);
             SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
+            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
 
@@ -695,9 +670,14 @@ static void zvb_render_debug_gfx_mode(zvb_t* zvb)
 }
 
 
-/* Prepare the rendering by updating the udnerneath textures */
+/* Prepare the rendering by updating the underneath textures */
 bool zvb_prepare_render(zvb_t* zvb)
 {
+    /* In headless mode, no need to update any texture */
+    if (!zvb->rendering_enabled) {
+        return false;
+    }
+
     /* Only update the texture if we are going to render anything */
     if (!zvb->need_render) {
         return false;
@@ -724,6 +704,10 @@ bool zvb_prepare_render(zvb_t* zvb)
 
 void zvb_render_debug_textures(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
+
     switch (zvb->mode) {
         case MODE_TEXT_640:
         case MODE_TEXT_320:
@@ -743,6 +727,11 @@ void zvb_render_debug_textures(zvb_t* zvb)
 
 void zvb_render(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        zvb->need_render = false;
+        return;
+    }
+
     if (zvb->need_render == false) {
         return;
     }
@@ -790,6 +779,9 @@ void zvb_render(zvb_t* zvb)
 
 void zvb_force_render(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
     zvb->need_render = true;
     zvb_prepare_render(zvb);
     zvb_render(zvb);
@@ -817,6 +809,10 @@ void zvb_tick(zvb_t* zvb, const int tstates)
 
 void zvb_deinit(zvb_t* zvb)
 {
+    if (!zvb->rendering_enabled) {
+        return;
+    }
+
     UnloadRenderTexture(zvb->tex_dummy);
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         UnloadRenderTexture(zvb->debug_tex[i]);
