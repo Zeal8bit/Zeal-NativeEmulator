@@ -456,8 +456,12 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
 
     /* Try to load the user program, if any */
     if (userprog_filename != NULL ) {
-        return flash_override_romdisk(flash, userprog_filename);
+        int err = flash_override_romdisk(flash, userprog_filename);
+        if (err != 0) return err;
     }
+
+    flash->state = STATE_IDLE;
+    flash->dirty = 0;
 
     return 0;
 }
