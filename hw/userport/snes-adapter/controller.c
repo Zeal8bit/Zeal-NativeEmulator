@@ -14,7 +14,6 @@
 #define GAMECONTROLLERDB_INSTALL_PATH ZEAL_ASSETS_DIR "/resources/gamecontrollerdb.txt"
 
 void snes_controller_init(snes_controller_t* ctrl, uint8_t index) {
-    ctrl->bits = 0x0000;
     ctrl->index = index;
     ctrl->attached = false;
 }

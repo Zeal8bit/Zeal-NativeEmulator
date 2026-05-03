@@ -6,6 +6,7 @@
 
 
 #include "hw/zeal.h"
+#include "hw/userport/snes-adapter/controller.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 
@@ -16,6 +17,66 @@
  */
 #define PANEL_FLAGS (NK_WINDOW_NO_SCROLLBAR)
 #define ROW_HEIGHT  30
+
+typedef enum {
+    SNES_UI_SUBMENU_NONE,
+    SNES_UI_SUBMENU_CONTROLLER,
+    SNES_UI_SUBMENU_MOUSE,
+} snes_ui_submenu_t;
+
+static snes_ui_submenu_t s_snes_submenu = SNES_UI_SUBMENU_NONE;
+static uint8_t s_snes_submenu_controller = 0;
+
+static const char* ui_snes_port_suffix(int port) {
+    switch (port) {
+        case 0: return " (Port 1)";
+        case 1: return " (Port 2)";
+        default: return "";
+    }
+}
+
+static void ui_snes_toggle_submenu(snes_ui_submenu_t submenu, uint8_t controller_index) {
+    if (s_snes_submenu == submenu &&
+        (submenu == SNES_UI_SUBMENU_MOUSE || s_snes_submenu_controller == controller_index)) {
+        s_snes_submenu = SNES_UI_SUBMENU_NONE;
+        return;
+    }
+
+    s_snes_submenu = submenu;
+    s_snes_submenu_controller = controller_index;
+}
+
+static void ui_snes_render_port_options(struct nk_context* ctx, snes_adapter_t* snes_adapter, snes_ui_submenu_t submenu, uint8_t controller_index) {
+    int current_port = submenu == SNES_UI_SUBMENU_MOUSE
+        ? snes_adapter_get_mouse_port(snes_adapter)
+        : snes_adapter_get_controller_port(snes_adapter, controller_index);
+
+    if (nk_button_label(ctx, current_port == SNES_PORT_DETACHED ? "  Detached *" : "  Detached")) {
+        if (submenu == SNES_UI_SUBMENU_MOUSE) {
+            snes_adapter_set_mouse_port(snes_adapter, SNES_PORT_DETACHED);
+        } else {
+            snes_adapter_set_controller_port(snes_adapter, controller_index, SNES_PORT_DETACHED);
+        }
+        s_snes_submenu = SNES_UI_SUBMENU_NONE;
+    }
+
+    for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
+        char port_label[32];
+        snprintf(port_label, sizeof(port_label), "  Port %u%s", port + 1, current_port == port ? " *" : "");
+        if (nk_button_label(ctx, port_label)) {
+            if (submenu == SNES_UI_SUBMENU_MOUSE) {
+                snes_adapter_set_mouse_port(snes_adapter, port);
+            } else {
+                snes_adapter_set_controller_port(snes_adapter, controller_index, port);
+            }
+            s_snes_submenu = SNES_UI_SUBMENU_NONE;
+        }
+    }
+
+    if (submenu == SNES_UI_SUBMENU_MOUSE && nk_button_label(ctx, "  Reset Scale")) {
+        snes_adapter_reset_mouse_scale(snes_adapter);
+    }
+}
 
 void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int panels_size)
 {
@@ -29,7 +90,7 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
     if (nk_begin(ctx, "Menubar", nk_rect(0, 0, GetScreenWidth(), MENUBAR_HEIGHT), PANEL_FLAGS)) {
 
         nk_menubar_begin(ctx);
-        nk_layout_row_begin(ctx, NK_STATIC, MENUBAR_HEIGHT, 4);
+        nk_layout_row_begin(ctx, NK_STATIC, MENUBAR_HEIGHT, 5);
 
 
         /* File Menu */
@@ -112,6 +173,40 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
                     nk_window_show(ctx, panel->title, NK_SHOWN);
                     nk_window_collapse(ctx, panel->title, NK_MAXIMIZED);
                 }
+            }
+            nk_menu_end(ctx);
+        }
+
+
+        /* SNES Menu */
+        nk_layout_row_push(ctx, 55);
+        if (nk_menu_begin_label(ctx, "SNES", NK_TEXT_LEFT, nk_vec2(300, windowHeight)))
+        {
+            nk_layout_row_dynamic(ctx, ROW_HEIGHT, 1);
+
+            for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
+                if (!snes_controller_available(i)) {
+                    continue;
+                }
+
+                int current_port = snes_adapter_get_controller_port(&machine->snes_adapter, i);
+                snprintf(buffer, sizeof(buffer), "%s [%d]%s", snes_controller_name(i), i, ui_snes_port_suffix(current_port));
+                if (nk_button_label(ctx, buffer)) {
+                    ui_snes_toggle_submenu(SNES_UI_SUBMENU_CONTROLLER, i);
+                }
+
+                if (s_snes_submenu == SNES_UI_SUBMENU_CONTROLLER && s_snes_submenu_controller == i) {
+                    ui_snes_render_port_options(ctx, &machine->snes_adapter, SNES_UI_SUBMENU_CONTROLLER, i);
+                }
+            }
+
+            snprintf(buffer, sizeof(buffer), "Mouse%s", ui_snes_port_suffix(snes_adapter_get_mouse_port(&machine->snes_adapter)));
+            if (nk_button_label(ctx, buffer)) {
+                ui_snes_toggle_submenu(SNES_UI_SUBMENU_MOUSE, 0);
+            }
+
+            if (s_snes_submenu == SNES_UI_SUBMENU_MOUSE) {
+                ui_snes_render_port_options(ctx, &machine->snes_adapter, SNES_UI_SUBMENU_MOUSE, 0);
             }
             nk_menu_end(ctx);
         }

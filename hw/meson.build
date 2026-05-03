@@ -15,6 +15,7 @@ sources += files([
         'i2c/at24c512.c',
         'compactflash.c',
         'userport/snes-adapter/controller.c',
+        'userport/snes-adapter/mouse.c',
         'userport/snes-adapter/snes_adapter.c'])
 
 if get_option('enable_debugger')

@@ -38,5 +38,13 @@ void ui_panel_display(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t
     }
 
     nk_layout_row_dynamic(ctx, height, 1);
+    struct nk_rect image_bounds = nk_widget_bounds(ctx);
+    dctx->main_view_bounds = (Rectangle) {
+        image_bounds.x,
+        image_bounds.y,
+        image_bounds.w,
+        image_bounds.h,
+    };
+    dctx->main_view_bounds_valid = true;
     nk_image(ctx, *img);
 }

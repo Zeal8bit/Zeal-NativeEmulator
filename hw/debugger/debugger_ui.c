@@ -492,6 +492,7 @@ void debugger_ui_deinit(struct dbg_ui_t* dctx)
 void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 {
     UpdateNuklear(dctx->ctx);
+    dctx->main_view_bounds_valid = false;
 
     mouse_cursor = MOUSE_DEFAULT;
 
@@ -559,6 +560,16 @@ void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg)
 bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx)
 {
     return nk_window_is_active(dctx->ctx, PANEL_VIDEO->title);
+}
+
+bool debugger_ui_main_view_bounds(const struct dbg_ui_t* dctx, Rectangle* bounds)
+{
+    if (dctx == NULL || bounds == NULL || !dctx->main_view_bounds_valid) {
+        return false;
+    }
+
+    *bounds = dctx->main_view_bounds;
+    return true;
 }
 
 bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx)

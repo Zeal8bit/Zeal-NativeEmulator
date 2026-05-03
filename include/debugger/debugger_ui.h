@@ -57,6 +57,8 @@ struct dbg_ui_t {
     hwaddr             dis_size;
     struct nk_image    vram[DBG_MAX_VRAM_VIEWS];
     zvb_t*             zvb;
+    bool               main_view_bounds_valid;
+    Rectangle          main_view_bounds;
 };
 
 typedef void (*dbg_ui_panel_fn)(struct dbg_ui_panel_t*, struct dbg_ui_t*, dbg_t*);
@@ -107,6 +109,7 @@ int dbg_ui_config_save(rini_config *config);
 void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx);
+bool debugger_ui_main_view_bounds(const struct dbg_ui_t* dctx, Rectangle* bounds);
 bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
 
 /** Helpers */
