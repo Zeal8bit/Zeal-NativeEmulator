@@ -13,16 +13,17 @@ struct zeal_t;
 #define SNES_IO_LATCH  2
 #define SNES_IO_CLOCK  3
 
-#define SNES_CONTROLLER_COUNT 2
-#define SNES_GAMEPAD_COUNT 4
+#define SNES_CONTROLLER_COUNT   2
+#define SNES_GAMEPAD_COUNT      4
 #define SNES_MOUSE_DEFAULT_PORT 1
-#define SNES_PORT_DETACHED -1
+#define SNES_PORT_DETACHED      -1
+
 // Convert host-window mouse pixels to SNES mouse mickeys. The mouse test app divides deltas by 4.
-#define SNES_MOUSE_DELTA_SCALE 1.0f
-#define SNES_MOUSE_DELTA_SCALE_MIN 0.25f
-#define SNES_MOUSE_DELTA_SCALE_MAX 8.0f
+#define SNES_MOUSE_DELTA_SCALE      1.0f
+#define SNES_MOUSE_DELTA_SCALE_MIN  0.25f
+#define SNES_MOUSE_DELTA_SCALE_MAX  8.0f
 #define SNES_MOUSE_DELTA_SCALE_STEP 0.05f
-#define SNES_MOUSE_DEFAULT_SPEED SNES_MOUSE_SPEED_SLOW
+#define SNES_MOUSE_DEFAULT_SPEED    SNES_MOUSE_SPEED_SLOW
 
 // Thumbstick axis threshold for D-pad emulation (range -1.0 to 1.0)
 #define SNES_STICK_DEADZONE 0.5f
@@ -52,22 +53,22 @@ struct zeal_t;
 // -------------------------------------------------------------------------
 // Super NES Mouse (32-bit serial protocol, active low buttons)
 //
-// Packet 1 — first 16 serial bits:
+// Packet 1 - first 16 serial bits:
 //   Bits 0-7:   always 0
 //   Bits 8-9:   buttons (right, left; 1 = pressed)
 //   Bits 10-11: speed select (00=slow, 01=medium, 10=fast)
 //   Bits 12-15: signature 0001
 //
-// Packet 2 — bits 16-31 (second latch pulse):
+// Packet 2 - bits 16-31 (second latch pulse):
 //   Bits 16-23: Y displacement  (bit 16 = sign: 1=up/0=down, bits 17-23 = magnitude 0-127)
 //   Bits 24-31: X displacement  (bit 24 = sign: 1=left/0=right, bits 25-31 = magnitude 0-127)
 // -------------------------------------------------------------------------
 
-// Packet 1 — buttons
+// Packet 1 - buttons
 #define SNES_MOUSE_BTN_RIGHT    0
 #define SNES_MOUSE_BTN_LEFT     1
 
-// Packet 1 — speed select (bits 6-7, mask with (3 << SNES_MOUSE_SPEED_SHIFT))
+// Packet 1 - speed select (bits 6-7, mask with (3 << SNES_MOUSE_SPEED_SHIFT))
 #define SNES_MOUSE_SPEED_SHIFT  6
 #define SNES_MOUSE_SPEED_SLOW   0
 #define SNES_MOUSE_SPEED_MEDIUM 1
@@ -82,11 +83,11 @@ struct zeal_t;
 
 #define SNES_MOUSE_MAG_MASK   0x7F
 
-// Packet 2 — Y displacement (bits 16-23)
+// Packet 2 - Y displacement (bits 16-23)
 #define SNES_MOUSE_Y_SIGN_BIT   16   // 1 = moving up, 0 = moving down
 #define SNES_MOUSE_Y_MAG_SHIFT  17   // 7-bit magnitude in bits 17-23
 
-// Packet 2 — X displacement (bits 24-31)
+// Packet 2 - X displacement (bits 24-31)
 #define SNES_MOUSE_X_SIGN_BIT   24   // 1 = moving left, 0 = moving right
 #define SNES_MOUSE_X_MAG_SHIFT  25   // 7-bit magnitude in bits 25-31
 
@@ -132,5 +133,3 @@ void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port);
 void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter);
 int snes_adapter_get_controller_port(const snes_adapter_t *snes_adapter, uint8_t index);
 int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter);
-void snes_adapter_latch(pio_t* pio, uint8_t pin, uint8_t bit);
-void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit);

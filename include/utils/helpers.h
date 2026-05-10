@@ -21,6 +21,8 @@
 
 #define BIT(val, n) (((val) >> (n)) & 1)
 #define DIM(t)  (sizeof(t) / sizeof(*t))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))

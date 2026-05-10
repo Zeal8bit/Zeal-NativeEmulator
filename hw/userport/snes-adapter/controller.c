@@ -3,6 +3,7 @@
 
 #include "raylib.h"
 #include "utils/paths.h"
+#include "utils/helpers.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes-adapter/controller.h"
 
@@ -13,12 +14,14 @@
 #define GAMECONTROLLERDB_DEV_PATH     "assets/resources/gamecontrollerdb.txt"
 #define GAMECONTROLLERDB_INSTALL_PATH ZEAL_ASSETS_DIR "/resources/gamecontrollerdb.txt"
 
-void snes_controller_init(snes_controller_t* ctrl, uint8_t index) {
+void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
+{
     ctrl->index = index;
     ctrl->attached = false;
 }
 
-void snes_controller_load_mappings(void) {
+void snes_controller_load_mappings(void)
+{
     // Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path
     const char *config_dir = get_config_dir();
     const char *db_path = config_dir
@@ -46,15 +49,18 @@ void snes_controller_load_mappings(void) {
     }
 }
 
-bool snes_controller_available(uint8_t index) {
+bool snes_controller_available(uint8_t index)
+{
     return IsGamepadAvailable(index);
 }
 
-const char* snes_controller_name(uint8_t index) {
+const char* snes_controller_name(uint8_t index)
+{
     return GetGamepadName(index);
 }
 
-uint16_t snes_controller_latch(snes_controller_t* ctrl) {
+uint16_t snes_controller_latch(snes_controller_t* ctrl)
+{
     int index = ctrl->index;
     uint16_t bits = 0xFFFF;  // no buttons pressed (active low)
 
