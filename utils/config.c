@@ -7,6 +7,7 @@
 #define RINI_VALUE_DELIMITER '='
 #define RINI_IMPLEMENTATION
 
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "utils/config.h"
@@ -29,6 +30,7 @@ config_t config ={
         .no_reset = false,
         .headless = false,
         .headless_run_ticks = 0,
+        .verbose = 0,
     },
 
     .debugger = {
@@ -64,6 +66,7 @@ void config_debug(void)
     log_printf("    headless: %s\n", config.arguments.headless ? "True" : "False");
     log_printf("headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
     log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
+    log_printf("      verbose: %u\n", config.arguments.verbose);
     log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
 
     log_printf("\n");
@@ -108,7 +111,7 @@ int usage(const char* progname)
     log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
     log_printf("                                     Optional tstates number to execute can be given\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
-    log_printf("  -v, --verbose                      Verbose console output\n");
+    log_printf("  -v, --verbose                      Verbose console output; repeat for more detail (-vvv)\n");
     log_printf("  -h, --help                         Show this help message\n");
     log_printf("\n");
     log_printf("Example:\n");
@@ -206,7 +209,9 @@ int parse_command_args(int argc, char* argv[])
                 config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
                 break;
             case 'v':
-                config.arguments.verbose = true;
+                if (config.arguments.verbose < UINT8_MAX) {
+                    config.arguments.verbose++;
+                }
                 break;
             case 'q':
                 config.arguments.no_reset = true;

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include "rini.h"
 #include "raylib.h"
 
@@ -61,7 +62,7 @@ typedef struct {
     unsigned long headless_run_ticks;
     bool headless;
     bool config_save;
-    bool verbose;
+    uint8_t verbose;
     bool no_reset;
 } config_arguments_t;
 

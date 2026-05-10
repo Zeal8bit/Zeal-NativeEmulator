@@ -108,7 +108,7 @@ Options:
   -H, --hostfs <path>           Set host filesystem path
   -m, --map <file>              Load memory map file (for debugging)
   -g, --debug                   * Enable debug mode
-  -v, --verbose                 Verbose console output
+  -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
   -h, --help                    Show this help message
 
 Example:

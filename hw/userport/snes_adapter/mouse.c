@@ -5,7 +5,7 @@
 #include "raylib.h"
 #include "hw/zeal.h"
 #include "hw/userport/snes_adapter.h"
-#include "hw/userport/snes-adapter/mouse.h"
+#include "hw/userport/snes_adapter/mouse.h"
 #include "hw/zvb/zvb.h"
 #include "utils/notif.h"
 

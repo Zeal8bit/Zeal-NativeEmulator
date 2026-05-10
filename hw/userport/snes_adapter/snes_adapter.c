@@ -2,11 +2,34 @@
 #include <stdio.h>
 
 #include "hw/userport/snes_adapter.h"
-#include "hw/userport/snes-adapter/controller.h"
-#include "hw/userport/snes-adapter/mouse.h"
+#include "hw/userport/snes_adapter/controller.h"
+#include "hw/userport/snes_adapter/mouse.h"
 #include "hw/pio.h"
 #include "hw/zeal.h"
 
+
+static uint8_t snes_adapter_data_pin(uint8_t port)
+{
+    return port == 0 ? SNES_IO_DATA_1 : SNES_IO_DATA_2;
+}
+
+static bool snes_adapter_port_attached(const snes_adapter_t* snes_adapter, uint8_t port)
+{
+    return snes_adapter->ports[port].device != SNES_PORT_DEVICE_DETACHED;
+}
+
+static const char* snes_adapter_device_name(snes_port_device_t device)
+{
+    switch (device) {
+        case SNES_PORT_DEVICE_CONTROLLER:
+            return "ctrl";
+        case SNES_PORT_DEVICE_MOUSE:
+            return "mouse";
+        case SNES_PORT_DEVICE_DETACHED:
+        default:
+            return "none";
+    }
+}
 
 static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
 {
@@ -16,14 +39,25 @@ static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
     zeal_t* machine = pio->machine;
     snes_adapter_t* snes_adapter = &machine->snes_adapter;
 
-    // Advance both ports' bit streams in lock-step
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
+        if (!snes_adapter_port_attached(snes_adapter, port)) {
+            continue;
+        }
+
         snes_adapter->port_bits[port] >>= 1;
         snes_adapter->port_bits[port] |= 0x80000000;
+        pio_set_a_pin(pio, snes_adapter_data_pin(port), snes_adapter->port_bits[port] & 0x01);
     }
 
-    pio_set_a_pin(pio, SNES_IO_DATA_1, snes_adapter->port_bits[0] & 0x01);
-    pio_set_a_pin(pio, SNES_IO_DATA_2, snes_adapter->port_bits[1] & 0x01);
+    if (config.arguments.verbose > 2) {
+        printf("[SNES] PIO clock port1=%s/%d/%08x port2=%s/%d/%08x\n",
+            snes_adapter_device_name(snes_adapter->ports[0].device),
+            snes_adapter->ports[0].controller_index,
+            snes_adapter->port_bits[0],
+            snes_adapter_device_name(snes_adapter->ports[1].device),
+            snes_adapter->ports[1].controller_index,
+            snes_adapter->port_bits[1]);
+    }
 }
 
 
@@ -46,13 +80,22 @@ static void snes_adapter_latch(pio_t* pio, uint8_t pin, uint8_t bit)
                 break;
             case SNES_PORT_DEVICE_DETACHED:
             default:
-                snes_adapter->port_bits[port] = 0xFFFFFFFF;
-                break;
+                continue;
         }
+
+        pio_set_a_pin(pio, snes_adapter_data_pin(port), snes_adapter->port_bits[port] & 0x01);
     }
 
-    pio_set_a_pin(pio, SNES_IO_DATA_1, snes_adapter->port_bits[0] & 0x01);
-    pio_set_a_pin(pio, SNES_IO_DATA_2, snes_adapter->port_bits[1] & 0x01);
+    if (config.arguments.verbose > 2) {
+        printf("[SNES] PIO latch port1=%s/%d/%04x port2=%s/%d/%04x\n",
+            snes_adapter_device_name(snes_adapter->ports[0].device),
+            snes_adapter->ports[0].controller_index,
+            snes_adapter->port_bits[0],
+            snes_adapter_device_name(snes_adapter->ports[1].device),
+            snes_adapter->ports[1].controller_index,
+            snes_adapter->port_bits[1]);
+    }
+
 }
 
 
@@ -72,6 +115,7 @@ static void snes_adapter_detach_port(snes_adapter_t* snes_adapter, uint8_t port)
 
         if (index >= 0 && index < SNES_GAMEPAD_COUNT) {
             snes_adapter->controllers[index].attached = false;
+            snes_adapter->controllers[index].port = SNES_PORT_DETACHED;
         }
     } else if (assignment->device == SNES_PORT_DEVICE_MOUSE) {
         snes_mouse_detach(&snes_adapter->mouse);
@@ -146,7 +190,8 @@ void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t inde
     snes_adapter->ports[port].device = SNES_PORT_DEVICE_CONTROLLER;
     snes_adapter->ports[port].controller_index = index;
     snes_adapter->controllers[index].index = index;
-    snes_adapter->controllers[index].attached = false;
+    snes_adapter->controllers[index].port = port;
+    snes_adapter->controllers[index].attached = snes_controller_available(index);
 
     printf("[SNES] Attached \"%s\" to port %d\n", snes_controller_name(index), port);
 }

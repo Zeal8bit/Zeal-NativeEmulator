@@ -5,7 +5,7 @@
 #include "utils/paths.h"
 #include "utils/helpers.h"
 #include "hw/userport/snes_adapter.h"
-#include "hw/userport/snes-adapter/controller.h"
+#include "hw/userport/snes_adapter/controller.h"
 
 #ifndef ZEAL_ASSETS_DIR
 #define ZEAL_ASSETS_DIR "assets"
@@ -17,6 +17,7 @@
 void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
 {
     ctrl->index = index;
+    ctrl->port = SNES_PORT_DETACHED;
     ctrl->attached = false;
 }
 
@@ -66,7 +67,7 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
 
     if (IsGamepadAvailable(index)) {
         if (!ctrl->attached) {
-            printf("[SNES] Gamepad %d is now available\n", index);
+            printf("[SNES] \"%s\" is now available\n", snes_controller_name(index));
             ctrl->attached = true;
         }
 
@@ -105,8 +106,8 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
         if (right_trigger) bits &= ~(1 << SNES_BTN_R);  // R
     } else {
         if (ctrl->attached) {
+            printf("[SNES] Controller on port %d no longer available\n", ctrl->port + 1);
             ctrl->attached = false;
-            printf("[SNES] Gamepad %d no longer available\n", index);
         }
     }
 

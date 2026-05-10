@@ -93,6 +93,7 @@ struct zeal_t;
 
 typedef struct {
     int index;      // gamepad index
+    int port;
     bool attached;
 } snes_controller_t;
 

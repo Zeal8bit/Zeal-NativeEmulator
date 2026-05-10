@@ -6,7 +6,7 @@
 
 
 #include "hw/zeal.h"
-#include "hw/userport/snes-adapter/controller.h"
+#include "hw/userport/snes_adapter/controller.h"
 #include "debugger/debugger.h"
 #include "debugger/debugger_ui.h"
 
