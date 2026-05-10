@@ -342,6 +342,7 @@ int zeal_reset(zeal_t* machine)
         zeal_read_keyboard_reset(machine);
     }
     device_reset(DEVICE(&machine->mmu));
+    device_reset(DEVICE(&machine->pio));
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
 
@@ -808,6 +809,7 @@ static void zeal_run_headless(zeal_t* machine)
         }
     }
 
+    snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
 }
 
@@ -848,6 +850,7 @@ int zeal_run(zeal_t* machine)
         config_window_update(false);
 #endif // CONFIG_ENABLE_DEBUGGER
 
+    snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
     CloseWindow();
 

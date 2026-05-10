@@ -63,6 +63,24 @@ static void snes_adapter_listen(snes_adapter_t* snes_adapter)
     pio_listen_a_pin_change(snes_adapter->pio, SNES_IO_CLOCK, 1, snes_adapter_clock);
 }
 
+static void snes_adapter_detach_port(snes_adapter_t* snes_adapter, uint8_t port)
+{
+    snes_port_assignment_t* assignment = &snes_adapter->ports[port];
+
+    if (assignment->device == SNES_PORT_DEVICE_CONTROLLER) {
+        int index = assignment->controller_index;
+
+        if (index >= 0 && index < SNES_GAMEPAD_COUNT) {
+            snes_adapter->controllers[index].attached = false;
+        }
+    } else if (assignment->device == SNES_PORT_DEVICE_MOUSE) {
+        snes_mouse_detach(&snes_adapter->mouse);
+    }
+
+    assignment->device = SNES_PORT_DEVICE_DETACHED;
+    assignment->controller_index = SNES_PORT_DETACHED;
+}
+
 int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio)
 {
     snes_adapter->size = 0x00;
@@ -115,8 +133,7 @@ void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t inde
     for (uint8_t i = 0; i < SNES_CONTROLLER_COUNT; i++) {
         if (snes_adapter->ports[i].device == SNES_PORT_DEVICE_CONTROLLER &&
             snes_adapter->ports[i].controller_index == index) {
-            snes_adapter->ports[i].device = SNES_PORT_DEVICE_DETACHED;
-            snes_adapter->ports[i].controller_index = SNES_PORT_DETACHED;
+            snes_adapter_detach_port(snes_adapter, i);
         }
     }
 
@@ -125,6 +142,7 @@ void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t inde
         return;
     }
 
+    snes_adapter_detach_port(snes_adapter, port);
     snes_adapter->ports[port].device = SNES_PORT_DEVICE_CONTROLLER;
     snes_adapter->ports[port].controller_index = index;
     snes_adapter->controllers[index].index = index;
@@ -137,8 +155,7 @@ void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port)
 {
     for (uint8_t i = 0; i < SNES_CONTROLLER_COUNT; i++) {
         if (snes_adapter->ports[i].device == SNES_PORT_DEVICE_MOUSE) {
-            snes_adapter->ports[i].device = SNES_PORT_DEVICE_DETACHED;
-            snes_adapter->ports[i].controller_index = SNES_PORT_DETACHED;
+            snes_adapter_detach_port(snes_adapter, i);
         }
     }
 
@@ -147,6 +164,8 @@ void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port)
         return;
     }
 
+    snes_adapter_detach_port(snes_adapter, port);
+    snes_adapter->mouse.attached = true;
     snes_adapter->ports[port].device = SNES_PORT_DEVICE_MOUSE;
     snes_adapter->ports[port].controller_index = SNES_PORT_DETACHED;
 

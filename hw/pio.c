@@ -94,37 +94,32 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
     }
 }
 
+static void pio_reset_port(port_t* port, char name)
+{
+    port->port         = name;
+    port->mode         = MODE_OUTPUT;
+    port->state        = 0xf0;
+    port->dir          = 0xff;
+    port->int_vector   = 0;
+    port->int_enable   = 0;
+    port->int_mask     = 0;
+    port->and_op       = 1;
+    port->active_high  = 0;
+    port->mask_follows = 0;
+    port->dir_follows  = 0;
+}
+
+static void pio_reset(device_t* dev)
+{
+    pio_t* pio = (pio_t*) dev;
+
+    pio_reset_port(&pio->port_a, 'a');
+    pio_reset_port(&pio->port_b, 'b');
+}
+
 
 int pio_init(void* machine, pio_t* pio)
 {
-    pio->port_a = (port_t){
-        .port         = 'a',
-        .mode         = MODE_OUTPUT,
-        .state        = 0xf0,
-        .dir          = 0xff,
-        .int_vector   = 0,
-        .int_enable   = 0,
-        .int_mask     = 0,
-        .and_op       = 1,
-        .active_high  = 0,
-        .mask_follows = 0,
-        .dir_follows  = 0,
-    };
-
-    pio->port_b = (port_t){
-        .port         = 'b',
-        .mode         = MODE_OUTPUT,
-        .state        = 0xf0,
-        .dir          = 0xff,
-        .int_vector   = 0,
-        .int_enable   = 0,
-        .int_mask     = 0,
-        .and_op       = 1,
-        .active_high  = 0,
-        .mask_follows = 0,
-        .dir_follows  = 0,
-    };
-
     for (uint8_t i = 0; i < PIO_PIN_COUNT; i++) {
         pio->port_a.listeners[i]        = (listener_t) { 0 };
         pio->port_b.listeners[i]        = (listener_t) { 0 };
@@ -136,6 +131,8 @@ int pio_init(void* machine, pio_t* pio)
     pio->machine = machine;
 
     device_init_io(DEVICE(pio), "pio_dev", io_read, io_write, pio->size);
+    device_register_reset(DEVICE(pio), pio_reset);
+    pio_reset(DEVICE(pio));
     return 0;
 }
 
