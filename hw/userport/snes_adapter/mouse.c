@@ -117,6 +117,7 @@ void snes_mouse_init(snes_mouse_t* mouse)
 {
     mouse->attached = true;
     mouse->captured = false;
+    mouse->capture_button_down = false;
     mouse->machine = NULL;
     mouse->delta_scale = SNES_MOUSE_DELTA_SCALE;
 }
@@ -140,14 +141,16 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse)
     uint32_t bits = 0xFFFFFFFF;
     Vector2 delta = GetMouseDelta();
     bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
+    bool capture_button_down = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE);
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
+    if (capture_button_down && !mouse->capture_button_down) {
         if (mouse->captured) {
             snes_mouse_release(mouse);
         } else if (IsWindowFocused() && cursor_in_bounds) {
             snes_mouse_capture(mouse);
         }
     }
+    mouse->capture_button_down = capture_button_down;
 
     if (mouse->captured) {
         snes_mouse_clamp_to_bounds(mouse);

@@ -100,6 +100,7 @@ typedef struct {
 typedef struct {
     bool attached;
     bool captured;
+    bool capture_button_down;
     struct zeal_t* machine;
     float delta_scale;
 } snes_mouse_t;
