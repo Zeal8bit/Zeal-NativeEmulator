@@ -68,27 +68,6 @@ static Rectangle snes_mouse_active_bounds(snes_mouse_t* mouse)
     return (Rectangle) { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() };
 }
 
-static void snes_mouse_clamp_to_bounds(snes_mouse_t* mouse)
-{
-    Rectangle bounds = snes_mouse_active_bounds(mouse);
-    Vector2 position = GetMousePosition();
-    int x = (int)roundf(position.x);
-    int y = (int)roundf(position.y);
-    int min_x = (int)roundf(bounds.x);
-    int min_y = (int)roundf(bounds.y);
-    int max_x = (int)roundf(bounds.x + bounds.width - 1.0f);
-    int max_y = (int)roundf(bounds.y + bounds.height - 1.0f);
-
-    x = MAX(x, min_x);
-    y = MAX(y, min_y);
-    x = MIN(x, max_x);
-    y = MIN(y, max_y);
-
-    if (x != (int)roundf(position.x) || y != (int)roundf(position.y)) {
-        SetMousePosition(x, y);
-    }
-}
-
 static void snes_mouse_capture(snes_mouse_t* mouse)
 {
     mouse->captured = true;
@@ -125,6 +104,7 @@ void snes_mouse_init(snes_mouse_t* mouse)
 void snes_mouse_detach(snes_mouse_t* mouse)
 {
     mouse->attached = false;
+    mouse->capture_button_down = false;
     if (mouse->captured) {
         snes_mouse_release(mouse);
     }
@@ -136,13 +116,19 @@ void snes_mouse_reset_scale(snes_mouse_t* mouse)
     notif_show("SNES Mouse Scale: x%.2f", mouse->delta_scale);
 }
 
-uint32_t snes_mouse_latch(snes_mouse_t* mouse)
+void snes_mouse_update(snes_mouse_t* mouse)
 {
-    uint32_t bits = 0xFFFFFFFF;
-    Vector2 delta = GetMouseDelta();
-    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
     bool capture_button_down = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE);
 
+    if (!mouse->attached) {
+        if (mouse->captured) {
+            snes_mouse_release(mouse);
+        }
+        mouse->capture_button_down = capture_button_down;
+        return;
+    }
+
+    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
     if (capture_button_down && !mouse->capture_button_down) {
         if (mouse->captured) {
             snes_mouse_release(mouse);
@@ -151,10 +137,6 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse)
         }
     }
     mouse->capture_button_down = capture_button_down;
-
-    if (mouse->captured) {
-        snes_mouse_clamp_to_bounds(mouse);
-    }
 
     bool active = mouse->captured || cursor_in_bounds;
     if (active) {
@@ -169,7 +151,15 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse)
             notif_show("SNES Mouse Speed: x%.2f", mouse->delta_scale);
         }
     }
+}
 
+uint32_t snes_mouse_latch(snes_mouse_t* mouse)
+{
+    uint32_t bits = 0xFFFFFFFF;
+    Vector2 delta = GetMouseDelta();
+    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
+
+    bool active = mouse->captured || cursor_in_bounds;
     if (!active) {
         delta = (Vector2) { 0.0f, 0.0f };
     }

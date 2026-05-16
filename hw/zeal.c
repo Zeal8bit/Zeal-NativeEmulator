@@ -788,13 +788,18 @@ static void zeal_loop(zeal_t* machine)
     while(rendered < 1) {
 #endif
 
+        int frame_rendered = 0;
 #if CONFIG_ENABLE_DEBUGGER
         if (machine->dbg_enabled) {
-            rendered += zeal_dbg_mode_run(machine);
+            frame_rendered = zeal_dbg_mode_run(machine);
         } else
 #endif // CONFIG_ENABLE_DEBUGGER
         {
-            rendered += zeal_normal_mode_run(machine);
+            frame_rendered = zeal_normal_mode_run(machine);
+        }
+        rendered += frame_rendered;
+        if (frame_rendered > 0) {
+            snes_adapter_update(&machine->snes_adapter);
         }
     }
 }

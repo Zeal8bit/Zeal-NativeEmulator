@@ -240,6 +240,12 @@ int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter)
     return SNES_PORT_DETACHED;
 }
 
+void snes_adapter_update(snes_adapter_t *snes_adapter)
+{
+    snes_adapter->mouse.attached = snes_adapter_get_mouse_port(snes_adapter) != SNES_PORT_DETACHED;
+    snes_mouse_update(&snes_adapter->mouse);
+}
+
 void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter)
 {
     snes_mouse_reset_scale(&snes_adapter->mouse);
