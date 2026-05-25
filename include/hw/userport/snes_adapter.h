@@ -100,6 +100,7 @@ typedef struct {
 typedef struct {
     bool attached;
     bool captured;
+    bool capture_button_down;
     struct zeal_t* machine;
     float delta_scale;
 } snes_mouse_t;
@@ -129,6 +130,7 @@ typedef struct {
 int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio);
 void snes_adapter_attach(snes_adapter_t *snes_adapter, uint8_t index);
 void snes_adapter_detach(snes_adapter_t *snes_adapter);
+void snes_adapter_update(snes_adapter_t *snes_adapter);
 void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t index, int port);
 void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port);
 void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter);
