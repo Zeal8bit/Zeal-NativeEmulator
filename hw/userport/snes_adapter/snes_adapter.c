@@ -41,6 +41,8 @@ static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
 
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (!snes_adapter_port_attached(snes_adapter, port)) {
+            /* Simulate a pull-up resistor */
+            pio_set_a_pin(pio, snes_adapter_data_pin(port), 1);
             continue;
         }
 
