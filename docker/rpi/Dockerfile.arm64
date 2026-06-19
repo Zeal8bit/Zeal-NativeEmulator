@@ -1,0 +1,35 @@
+FROM debian:bookworm
+
+ARG RAYLIB_VERSION=5.5
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    file \
+    git \
+    build-essential \
+    meson \
+    ninja-build \
+    pkg-config \
+    python3 \
+    patchelf \
+    libasound2-dev \
+    libdrm-dev \
+    libgbm-dev \
+    libegl1-mesa-dev \
+    libgles2-mesa-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth 1 --branch ${RAYLIB_VERSION} https://github.com/raysan5/raylib.git \
+ && sed -i 's/glDrawBuffersEXT/glDrawBuffers/g' raylib/src/rlgl.h \
+ && make -C raylib/src \
+    PLATFORM=PLATFORM_DRM \
+    GRAPHICS=GRAPHICS_API_OPENGL_ES3 \
+    RAYLIB_LIBTYPE=SHARED \
+    -j$(nproc) \
+ && mkdir -p /opt/raylib-target/include /opt/raylib-target/lib \
+ && cp raylib/src/raylib.h raylib/src/raymath.h raylib/src/rlgl.h /opt/raylib-target/include/ \
+ && cp -a raylib/src/libraylib.so* /opt/raylib-target/lib/
+
+WORKDIR /src

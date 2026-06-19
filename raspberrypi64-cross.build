@@ -1,0 +1,5 @@
+[built-in options]
+c_args = ['-D_DEFAULT_SOURCE',
+          '-DOPENGL_ES',
+          '-march=armv8-a']
+

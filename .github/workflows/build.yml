@@ -33,6 +33,10 @@ jobs:
     name: Build WebAssembly
     uses: ./.github/workflows/build-wasm.yml
 
+  build-rpi:
+    name: Build Raspberry Pi
+    uses: ./.github/workflows/build-rpi.yml
+
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build-wasm
@@ -54,7 +58,7 @@ jobs:
 
   create-release:
     name: Create Draft Release
-    needs: [build-linux, build-macos-arm, build-macos-intel, build-windows, build-wasm]
+    needs: [build-linux, build-macos-arm, build-macos-intel, build-windows, build-wasm, build-rpi]
     runs-on: ubuntu-latest
 
     steps:
@@ -91,6 +95,24 @@ jobs:
           name: zeal-native-wasm
           path: ./artifacts/wasm
 
+      - name: Download Raspberry Pi ARMv6 Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-rpi-armv6
+          path: ./artifacts/rpi-armv6
+
+      - name: Download Raspberry Pi ARMv7 Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-rpi-armv7
+          path: ./artifacts/rpi-armv7
+
+      - name: Download Raspberry Pi ARM64 Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-rpi-arm64
+          path: ./artifacts/rpi-arm64
+
       - name: Create Release Archives
         run: |
           cd artifacts/linux
@@ -103,6 +125,12 @@ jobs:
           zip ../../zeal-native-windows-x64.zip zeal-native.exe
           cd ../wasm
           zip -r ../../zeal-native-wasm.zip .
+          cd ../rpi-armv6
+          tar -czf ../../zeal-native-rpi-armv6.tar.gz zeal-native.armv6 lib
+          cd ../rpi-armv7
+          tar -czf ../../zeal-native-rpi-armv7.tar.gz zeal-native.armv7 lib
+          cd ../rpi-arm64
+          tar -czf ../../zeal-native-rpi-arm64.tar.gz zeal-native.arm64 lib
           cd ../..
 
       - name: Generate Release Info
@@ -135,3 +163,6 @@ jobs:
             zeal-native-macos-intel.tar.gz
             zeal-native-windows-x64.zip
             zeal-native-wasm.zip
+            zeal-native-rpi-armv6.tar.gz
+            zeal-native-rpi-armv7.tar.gz
+            zeal-native-rpi-arm64.tar.gz

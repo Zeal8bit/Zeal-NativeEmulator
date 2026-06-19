@@ -1,0 +1,23 @@
+[binaries]
+c = 'arm-linux-gnueabihf-gcc'
+cpp = 'arm-linux-gnueabihf-g++'
+ar = 'arm-linux-gnueabihf-ar'
+strip = 'arm-linux-gnueabihf-strip'
+pkg-config = 'false'
+
+[built-in options]
+c_args = ['-D_DEFAULT_SOURCE',
+          '-DOPENGL_ES',
+          '-mcpu=arm1176jzf-s',
+          '-marm',
+          '-mfpu=vfp',
+          '-mfloat-abi=hard']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'arm'
+cpu = 'armv6'
+endian = 'little'
+
+[properties]
+needs_exe_wrapper = false

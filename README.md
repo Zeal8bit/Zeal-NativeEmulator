@@ -50,6 +50,30 @@ meson compile
 
 You will then have a `zeal.elf` binary that you can run. You can check all the parameters via `./zeal.elf --help`.
 
+### Raspberry Pi compilation
+
+Raspberry Pi builds use separate Meson profiles for each target ABI:
+
+```sh
+meson setup build-rpi0 --native-file raspberrypi0-cross.build
+meson setup build-rpi3 --native-file raspberrypi3-cross.build
+meson setup build-rpi64 --native-file raspberrypi64-cross.build
+```
+
+When using the local Docker/Podman builder, run the Compose services from the repository root:
+
+```sh
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi0
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi3
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi64
+```
+
+The output binaries are:
+
+* `build-rpi0/zeal-native.armv6` for Pi Zero
+* `build-rpi3/zeal-native.armv7` for Pi 3
+* `build-rpi64/zeal-native.arm64` for Pi 4/5 64-bit OS
+
 ### WebAssembly compilation
 
 To compile to WASM, use the following commands:

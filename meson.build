@@ -88,7 +88,19 @@ endif
 add_project_link_arguments('-lraylib', '-lm', language: 'c')
 
 if host_machine.system() == 'linux'
-    add_project_link_arguments('-lX11', language: 'c')
+    if get_option('linux_display_backend') == 'x11'
+        add_project_link_arguments('-lX11', language: 'c')
+    elif get_option('linux_display_backend') == 'drm'
+        add_project_link_arguments('-lGLESv2',
+                                   '-lEGL',
+                                   '-ldrm',
+                                   '-lgbm',
+                                   '-lpthread',
+                                   '-ldl',
+                                   '-lrt',
+                                   '-latomic',
+                                   language: 'c')
+    endif
 endif
 
 linker_args = meson.get_external_property('link_args', [])

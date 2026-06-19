@@ -1,0 +1,53 @@
+FROM debian:buster
+
+ARG RAYLIB_VERSION=5.5
+ARG TARGET_CFLAGS
+
+RUN dpkg --add-architecture armhf \
+ && sed -i \
+    -e 's|deb.debian.org/debian|archive.debian.org/debian|g' \
+    -e 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' \
+    -e '/buster-updates/d' \
+    /etc/apt/sources.list \
+ && printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99no-check-valid-until \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    file \
+    git \
+    build-essential \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    patchelf \
+    gcc-arm-linux-gnueabihf \
+    g++-arm-linux-gnueabihf \
+    binutils-arm-linux-gnueabihf \
+    libasound2-dev:armhf \
+    libatomic1:armhf \
+    libdrm-dev:armhf \
+    libgbm-dev:armhf \
+    libegl1-mesa-dev:armhf \
+    libgles2-mesa-dev:armhf \
+ && python3 -m pip install --no-cache-dir 'meson==1.0.1' \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth 1 --branch ${RAYLIB_VERSION} https://github.com/raysan5/raylib.git \
+ && sed -i 's/glDrawBuffersEXT/glDrawBuffers/g' raylib/src/rlgl.h \
+ && make -C raylib/src \
+    PLATFORM=PLATFORM_DRM \
+    GRAPHICS=GRAPHICS_API_OPENGL_ES3 \
+    RAYLIB_LIBTYPE=SHARED \
+    CC=arm-linux-gnueabihf-gcc \
+    AR=arm-linux-gnueabihf-ar \
+    RANLIB=arm-linux-gnueabihf-ranlib \
+    CUSTOM_CFLAGS="${TARGET_CFLAGS}" \
+    -j$(nproc) \
+ && mkdir -p /opt/raylib-target/include /opt/raylib-target/lib \
+ && cp raylib/src/raylib.h raylib/src/raymath.h raylib/src/rlgl.h /opt/raylib-target/include/ \
+ && cp -a raylib/src/libraylib.so* /opt/raylib-target/lib/
+
+WORKDIR /src
