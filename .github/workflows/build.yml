@@ -17,9 +17,13 @@ jobs:
     name: Build Linux
     uses: ./.github/workflows/build-linux.yml
 
-  build-macos:
-    name: Build MacOS
-    uses: ./.github/workflows/build-macos.yml
+  build-macos-arm:
+    name: Build Mac OS ARM
+    uses: ./.github/workflows/build-macos-arm.yml
+
+  build-macos-intel:
+    name: Build Mac OS Intel
+    uses: ./.github/workflows/build-macos-intel.yml
 
   build-windows:
     name: Build Windows
@@ -50,7 +54,7 @@ jobs:
 
   create-release:
     name: Create Draft Release
-    needs: [build-linux, build-macos, build-windows, build-wasm]
+    needs: [build-linux, build-macos-arm, build-macos-intel, build-windows, build-wasm]
     runs-on: ubuntu-latest
 
     steps:
@@ -63,11 +67,17 @@ jobs:
           name: zeal-native-linux
           path: ./artifacts/linux
 
-      - name: Download macOS Artifact
+      - name: Download macOS ARM Artifact
         uses: actions/download-artifact@v4
         with:
-          name: zeal-native-macos
-          path: ./artifacts/macos
+          name: zeal-native-macos-arm
+          path: ./artifacts/macos-arm
+
+      - name: Download macOS Intel Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-macos-intel
+          path: ./artifacts/macos-intel
 
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
@@ -85,8 +95,10 @@ jobs:
         run: |
           cd artifacts/linux
           tar -czf ../../zeal-native-linux-x64.tar.gz zeal-native
-          cd ../macos
-          tar -czf ../../zeal-native-macos-x64.tar.gz zeal-native
+          cd ../macos-arm
+          tar -czf ../../zeal-native-macos-arm.tar.gz zeal-native
+          cd ../macos-intel
+          tar -czf ../../zeal-native-macos-intel.tar.gz zeal-native
           cd ../windows
           zip ../../zeal-native-windows-x64.zip zeal-native.exe
           cd ../wasm
@@ -119,6 +131,7 @@ jobs:
           generate_release_notes: false
           files: |
             zeal-native-linux-x64.tar.gz
-            zeal-native-macos-x64.tar.gz
+            zeal-native-macos-arm.tar.gz
+            zeal-native-macos-intel.tar.gz
             zeal-native-windows-x64.zip
             zeal-native-wasm.zip
