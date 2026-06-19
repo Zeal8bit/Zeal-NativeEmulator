@@ -1,0 +1,56 @@
+name: Build Raspberry Pi
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-rpi:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: build-rpi0
+            build-dir: build-rpi0
+            binary: zeal-native.armv6
+            artifact: zeal-native-rpi-armv6
+          - service: build-rpi3
+            build-dir: build-rpi3
+            binary: zeal-native.armv7
+            artifact: zeal-native-rpi-armv7
+          - service: build-rpi64
+            build-dir: build-rpi64
+            binary: zeal-native.arm64
+            artifact: zeal-native-rpi-arm64
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm,arm64
+
+      - name: Build Raspberry Pi target
+        env:
+          COMPOSE_BAKE: "false"
+        run: |
+          docker compose -f docker/rpi/docker-compose.yml build ${{ matrix.service }}
+          docker compose -f docker/rpi/docker-compose.yml run --rm ${{ matrix.service }}
+
+      - name: Prepare Artifact
+        run: |
+          mkdir -p dist/${{ matrix.artifact }}/lib
+          cp ${{ matrix.build-dir }}/${{ matrix.binary }} dist/${{ matrix.artifact }}/
+          cp ${{ matrix.build-dir }}/lib/libraylib.so.550 dist/${{ matrix.artifact }}/lib/
+          chmod +x dist/${{ matrix.artifact }}/${{ matrix.binary }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          retention-days: 30
+

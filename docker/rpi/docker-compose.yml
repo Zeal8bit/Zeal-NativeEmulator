@@ -1,0 +1,81 @@
+x-rpi-build-common: &rpi-build-common
+  working_dir: /src
+  volumes:
+    - ../..:/src
+
+services:
+  build-rpi0:
+    <<: *rpi-build-common
+    image: zeal-native-rpi0-builder
+    platform: linux/arm64
+    build:
+      context: ../..
+      dockerfile: docker/rpi/Dockerfile.armhf
+      args:
+        TARGET_CFLAGS: -mcpu=arm1176jzf-s -marm -mfpu=vfp -mfloat-abi=hard
+    command:
+      - sh
+      - -lc
+      - |
+        rm -rf build-rpi0 &&
+        meson setup build-rpi0 --cross-file raspberrypi0-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson compile -C build-rpi0 &&
+        rm -rf build-rpi0/lib &&
+        mkdir -p build-rpi0/lib &&
+        cp -L /opt/raylib-target/lib/libraylib.so.550 build-rpi0/lib/libraylib.so.550 &&
+        ln -sf libraylib.so.550 build-rpi0/lib/libraylib.so &&
+        patchelf --set-rpath '$$ORIGIN/lib' build-rpi0/zeal-native &&
+        mv build-rpi0/zeal-native build-rpi0/zeal-native.armv6 &&
+        file build-rpi0/zeal-native.armv6 &&
+        file build-rpi0/lib/libraylib.so.550 &&
+        readelf -d build-rpi0/zeal-native.armv6 | grep NEEDED
+
+  build-rpi3:
+    <<: *rpi-build-common
+    image: zeal-native-rpi3-builder
+    platform: linux/arm64
+    build:
+      context: ../..
+      dockerfile: docker/rpi/Dockerfile.armhf
+      args:
+        TARGET_CFLAGS: -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard
+    command:
+      - sh
+      - -lc
+      - |
+        rm -rf build-rpi3 &&
+        meson setup build-rpi3 --cross-file raspberrypi3-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson compile -C build-rpi3 &&
+        rm -rf build-rpi3/lib &&
+        mkdir -p build-rpi3/lib &&
+        cp -L /opt/raylib-target/lib/libraylib.so.550 build-rpi3/lib/libraylib.so.550 &&
+        ln -sf libraylib.so.550 build-rpi3/lib/libraylib.so &&
+        patchelf --set-rpath '$$ORIGIN/lib' build-rpi3/zeal-native &&
+        mv build-rpi3/zeal-native build-rpi3/zeal-native.armv7 &&
+        file build-rpi3/zeal-native.armv7 &&
+        file build-rpi3/lib/libraylib.so.550 &&
+        readelf -d build-rpi3/zeal-native.armv7 | grep NEEDED
+
+  build-rpi64:
+    <<: *rpi-build-common
+    image: zeal-native-rpi64-builder
+    platform: linux/arm64
+    build:
+      context: ../..
+      dockerfile: docker/rpi/Dockerfile.arm64
+    command:
+      - sh
+      - -lc
+      - |
+        rm -rf build-rpi64 &&
+        meson setup build-rpi64 --native-file raspberrypi64-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson compile -C build-rpi64 &&
+        rm -rf build-rpi64/lib &&
+        mkdir -p build-rpi64/lib &&
+        cp -L /opt/raylib-target/lib/libraylib.so.550 build-rpi64/lib/libraylib.so.550 &&
+        ln -sf libraylib.so.550 build-rpi64/lib/libraylib.so &&
+        patchelf --set-rpath '$$ORIGIN/lib' build-rpi64/zeal-native &&
+        mv build-rpi64/zeal-native build-rpi64/zeal-native.arm64 &&
+        file build-rpi64/zeal-native.arm64 &&
+        file build-rpi64/lib/libraylib.so.550 &&
+        readelf -d build-rpi64/zeal-native.arm64 | grep NEEDED

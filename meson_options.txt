@@ -9,6 +9,7 @@ option('enable_debugger', type: 'boolean', value: true, description: 'Enable int
 ## Rendering
 option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
 option('blitter_software_scanline_rendering', type: 'boolean', value: false, description: 'Per scanline renderinginstead of per frame (software blitter only)')
+option('linux_display_backend', type: 'combo', choices: ['x11', 'drm'], value: 'x11', description: 'Linux display backend used by Raylib')
 
 ## Profiling
 option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
