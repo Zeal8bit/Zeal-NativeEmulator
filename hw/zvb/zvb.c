@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <limits.h>
 #include "raylib.h"
+#include "rlgl.h"
 #include "utils/log.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
@@ -24,6 +25,7 @@
 #include "assets/shaders/text_debug.h"
 #include "assets/shaders/bitmap_shader.h"
 #include "assets/shaders/gfx_debug.h"
+#include "assets/shaders/sprite_shader.h"
 
 #define BENCHMARK           0
 
@@ -75,6 +77,11 @@
 #define SHADER_CURCHAR_NAME         "curchar"
 #define SHADER_TSCROLL_NAME         "scroll"
 #define SHADER_SPRITES_NAME         "sprites"
+#define SHADER_TILE_NUMBER_NAME     "tile_number"
+#define SHADER_PALETTE_MASK_NAME    "palette_mask"
+#define SHADER_FLAGS_NAME           "flags"
+#define SHADER_SPRITE_POS_NAME      "sprite_pos"
+#define SHADER_SPRITE_SIZE_NAME     "sprite_size"
 /* Scrolling vlaues for GFX mode */
 #define SHADER_SCROLL0_NAME         "scroll_l0"
 #define SHADER_SCROLL1_NAME         "scroll_l1"
@@ -306,6 +313,21 @@ static void zvb_shader_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_SCROLL1_IDX]  = GetShaderLocation(shader, SHADER_SCROLL1_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
+    st_shader = &dev->shaders[SHADER_SPRITE];
+    log_printf("Compiling shader sprite_shader\n");
+    shader = LoadShaderFromMemory(NULL, s_sprite_shader);
+    st_shader->shader = shader;
+    st_shader->objects[SPRITE_SHADER_TILEMAPS_IDX]     = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
+    st_shader->objects[SPRITE_SHADER_TILESET_IDX]      = GetShaderLocation(shader, SHADER_TILESET_NAME);
+    st_shader->objects[SPRITE_SHADER_PALETTE_IDX]      = GetShaderLocation(shader, SHADER_PALETTE_NAME);
+    st_shader->objects[SPRITE_SHADER_VIDMODE_IDX]      = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
+    st_shader->objects[SPRITE_SHADER_TILE_NUMBER_IDX]  = GetShaderLocation(shader, SHADER_TILE_NUMBER_NAME);
+    st_shader->objects[SPRITE_SHADER_PALETTE_MASK_IDX] = GetShaderLocation(shader, SHADER_PALETTE_MASK_NAME);
+    st_shader->objects[SPRITE_SHADER_FLAGS_IDX]        = GetShaderLocation(shader, SHADER_FLAGS_NAME);
+    st_shader->objects[SPRITE_SHADER_POS_IDX]          = GetShaderLocation(shader, SHADER_SPRITE_POS_NAME);
+    st_shader->objects[SPRITE_SHADER_SIZE_IDX]         = GetShaderLocation(shader, SHADER_SPRITE_SIZE_NAME);
+    st_shader->objects[SPRITE_SHADER_SCROLL1_IDX]      = GetShaderLocation(shader, SHADER_SCROLL1_NAME);
+
     st_shader = &dev->shaders[SHADER_BITMAP];
     log_printf("Compiling shader bitmap_shader\n");
     shader = LoadShaderFromMemory(NULL, s_bitmap_shader);
@@ -355,6 +377,9 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 
     if (rendering_enabled) {
         dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+        Image sprite_quad_img = GenImageColor(1, 1, WHITE);
+        dev->sprite_quad_tex = LoadTextureFromImage(sprite_quad_img);
+        UnloadImage(sprite_quad_img);
         dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
@@ -521,7 +546,6 @@ static void zvb_prepare_render_gfx_mode(zvb_t* zvb)
     zvb_palette_update(&zvb->palette);
     zvb_tileset_update(&zvb->tileset);
     zvb_tilemap_update(&zvb->layers);
-    zvb_sprites_update(&zvb->sprites);
 }
 
 static void zvb_prepare_render_bitmap_mode(zvb_t* zvb)
@@ -558,6 +582,80 @@ static void zvb_render_bitmap_mode(zvb_t* zvb)
     EndShaderMode();
 }
 
+#define SPRITE_SHADER_FLAG_BEHIND_FG 1
+#define SPRITE_SHADER_FLAG_FLIP_Y    2
+#define SPRITE_SHADER_FLAG_FLIP_X    4
+#define SPRITE_SHADER_FLAG_HEIGHT_32 8
+#define SPRITE_RENDER_WIDTH          16
+#define SPRITE_RENDER_HEIGHT         16
+
+static void zvb_render_sprites(zvb_t* zvb)
+{
+    zvb_shader_t* st_shader = &zvb->shaders[SHADER_SPRITE];
+    const Shader shader = st_shader->shader;
+    const bool mode_320 = zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT;
+    const float scale = mode_320 ? 2.0f : 1.0f;
+    const int screen_width = mode_320 ? ZVB_MAX_RES_WIDTH / 2 : ZVB_MAX_RES_WIDTH;
+    const int screen_height = mode_320 ? ZVB_MAX_RES_HEIGHT / 2 : ZVB_MAX_RES_HEIGHT;
+
+    BeginBlendMode(BLEND_ALPHA);
+    BeginShaderMode(shader);
+        SetShaderValueTexture(shader, st_shader->objects[SPRITE_SHADER_TILEMAPS_IDX], *zvb_tilemap_texture(&zvb->layers));
+        SetShaderValueTexture(shader, st_shader->objects[SPRITE_SHADER_TILESET_IDX], *zvb_tileset_texture(&zvb->tileset));
+        SetShaderValueTexture(shader, st_shader->objects[SPRITE_SHADER_PALETTE_IDX], zvb_pal_texture(&zvb->palette));
+        SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_VIDMODE_IDX], &zvb->mode, SHADER_UNIFORM_INT);
+        SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_SCROLL1_IDX], &zvb->ctrl.l1_scroll_x, SHADER_UNIFORM_IVEC2);
+
+        for (int i = 0; i < ZVB_SPRITES_COUNT; i++) {
+            const zvb_sprite_t* sprite = &zvb->sprites.data[i];
+            const zvb_fsprite_t* fsprite = &zvb->sprites.fdata[i];
+            const int sprite_height = sprite->extra_flags.bitmap.height_32 ?
+                SPRITE_RENDER_HEIGHT * 2 : SPRITE_RENDER_HEIGHT;
+            const int pos[2] = {
+                (int) fsprite->x - 16,
+                (int) fsprite->y - 16,
+            };
+            const int size[2] = {
+                SPRITE_RENDER_WIDTH,
+                sprite_height,
+            };
+
+            if (pos[0] + SPRITE_RENDER_WIDTH <= 0 || pos[0] >= screen_width ||
+                pos[1] + sprite_height <= 0 || pos[1] >= screen_height) {
+                continue;
+            }
+
+            int tile_number = (int) fsprite->tile_number;
+            int palette_mask = (int) fsprite->palette;
+            int flags = 0;
+            flags |= fsprite->f_behind_fg > 0.5f ? SPRITE_SHADER_FLAG_BEHIND_FG : 0;
+            flags |= fsprite->f_flip_y > 0.5f ? SPRITE_SHADER_FLAG_FLIP_Y : 0;
+            flags |= fsprite->f_flip_x > 0.5f ? SPRITE_SHADER_FLAG_FLIP_X : 0;
+            flags |= fsprite->f_height_32 > 0.5f ? SPRITE_SHADER_FLAG_HEIGHT_32 : 0;
+
+            SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_TILE_NUMBER_IDX], &tile_number, SHADER_UNIFORM_INT);
+            SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_PALETTE_MASK_IDX], &palette_mask, SHADER_UNIFORM_INT);
+            SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_FLAGS_IDX], &flags, SHADER_UNIFORM_INT);
+            SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_POS_IDX], pos, SHADER_UNIFORM_IVEC2);
+            SetShaderValue(shader, st_shader->objects[SPRITE_SHADER_SIZE_IDX], size, SHADER_UNIFORM_IVEC2);
+
+            DrawTexturePro(zvb->sprite_quad_tex,
+                (Rectangle) { 0, 0, 1, 1 },
+                (Rectangle) {
+                    .x = pos[0] * scale,
+                    .y = (screen_height - pos[1] - sprite_height) * scale,
+                    .width = SPRITE_RENDER_WIDTH * scale,
+                    .height = sprite_height * scale,
+                },
+                (Vector2) { 0, 0 },
+                0.0f,
+                WHITE);
+            rlDrawRenderBatchActive();
+        }
+    EndShaderMode();
+    EndBlendMode();
+}
+
 
 /**
  * @brief Render the screen in graphics mode
@@ -570,7 +668,6 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
     const int mode_idx     = st_shader->objects[GFX_SHADER_VIDMODE_IDX];
     const int tilemaps_idx = st_shader->objects[GFX_SHADER_TILEMAPS_IDX];
     const int tileset_idx  = st_shader->objects[GFX_SHADER_TILESET_IDX];
-    const int sprites_idx  = st_shader->objects[GFX_SHADER_SPRITES_IDX];
     const int scroll0_idx  = st_shader->objects[GFX_SHADER_SCROLL0_IDX];
     const int scroll1_idx  = st_shader->objects[GFX_SHADER_SCROLL1_IDX];
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
@@ -581,7 +678,6 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
         SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
-        SetShaderValueTexture(shader, sprites_idx, *zvb_sprites_texture(&zvb->sprites));
         /* Transfer the text-related variables */
         SetShaderValue(shader, scroll0_idx,  &zvb->ctrl.l0_scroll_x, SHADER_UNIFORM_IVEC2);
         SetShaderValue(shader, scroll1_idx,  &zvb->ctrl.l1_scroll_x, SHADER_UNIFORM_IVEC2);
@@ -594,6 +690,8 @@ static void zvb_render_gfx_mode(zvb_t* zvb)
                         (Vector2){ 0, 0 },
                         WHITE);
     EndShaderMode();
+
+    zvb_render_sprites(zvb);
 }
 
 
@@ -814,6 +912,7 @@ void zvb_deinit(zvb_t* zvb)
     }
 
     UnloadRenderTexture(zvb->tex_dummy);
+    UnloadTexture(zvb->sprite_quad_tex);
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         UnloadRenderTexture(zvb->debug_tex[i]);
     }

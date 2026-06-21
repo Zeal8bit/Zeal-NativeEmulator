@@ -46,7 +46,6 @@ in vec4 fragColor;
 
 uniform sampler2D   texture0;
 uniform sampler2D   tilemaps;
-uniform sampler2D   sprites;
 uniform sampler2D   tileset;
 uniform sampler2D   palette;
 uniform int         video_mode;
@@ -162,9 +161,7 @@ vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
 
         /* If layer1 color index is 0, count it as transparent */
         if (l1_icolor == 0) {
-            vec4 color = texture(palette, vec2((float(l0_icolor) + 0.5) / PALETTE_SIZE, 0.5));
-            color.a = 0.0;
-            return color;
+            return texture(palette, vec2((float(l0_icolor) + 0.5) / PALETTE_SIZE, 0.5));
         } else {
             vec4 color = texture(palette, vec2((float(l1_icolor) + 0.5) / PALETTE_SIZE, 0.5));
             /* Alpha channel is already 1.0f */
@@ -184,61 +181,6 @@ void main() {
         flipped.x = flipped.x / 2;
         flipped.y = flipped.y / 2;
     }
-    vec2 fcoord = vec2(flipped);
-
     vec4 layers_color = gfx_mode(flipped, mode_320, color_4bit);
-
-    vec4 sprite_color = vec4(0.0, 0.0, 0.0, 0.0);
-
-    for (int i = 0; i < 256; i += 2) {
-
-        vec4 fst_attr = texture(sprites, vec2(float(i) / 255.5, 0.5));
-        vec4 snd_attr = texture(sprites, vec2(float(i + 1) / 255.5, 0.5));
-
-        vec2 sprite_pos   = fst_attr.xy - vec2(TILE_WIDTH, TILE_HEIGHT);
-        int tile_number   = int(fst_attr.z);
-        int palette_msk   = int(fst_attr.w);
-        float f_behind_fg = snd_attr.x;
-        float f_flip_y    = snd_attr.y;
-        float f_flip_x    = snd_attr.z;
-        float f_height_32 = snd_attr.w;
-
-        float sprite_height = (f_height_32 > 0.5) ? 32.0 : 16.0;
-        /* Ignore the palette in 8-bit mode */
-        if (!color_4bit) {
-            palette_msk = 0;
-        }
-
-        /* Check if the sprite is in bounds! */
-        if (fcoord.x >= sprite_pos.x &&
-            fcoord.x <  sprite_pos.x + float(TILE_WIDTH) &&
-            fcoord.y >= sprite_pos.y &&
-            fcoord.y <  sprite_pos.y + sprite_height &&
-            /* Check if we have to show the layer1 instead:
-             * If the layers_color variable comes from layer1, the `a` field is not 0 */
-            (f_behind_fg < 0.1 || layers_color.a < 0.5)
-            )
-        {
-            vec2 pix_pos = fcoord - sprite_pos;
-            if (f_flip_y > 0.5) {
-                pix_pos.y = sprite_height - 1.0 - pix_pos.y;
-            }
-            if (f_flip_x > 0.5) {
-                pix_pos.x = float(TILE_WIDTH) - 1.0 - pix_pos.x;
-            }
-            /* Get the address of the pixel to show within the 16x16 tile. Get it in one dimension */
-            int in_tile = int(pix_pos.x) + int(pix_pos.y) * TILE_WIDTH;
-            int icolor = color_from_idx(tile_number, in_tile, color_4bit);
-            if (icolor != 0) {
-                float color_idx = float(palette_msk + icolor) + 0.5;
-                sprite_color = texture(palette, vec2(color_idx / PALETTE_SIZE, 0.5));
-            }
-        }
-    }
-
-    if (sprite_color.a > 0.0) {
-        finalColor = sprite_color;
-    } else {
-        finalColor = vec4(layers_color.xyz, 1.0);
-    }
+    finalColor = vec4(layers_color.xyz, 1.0);
 }

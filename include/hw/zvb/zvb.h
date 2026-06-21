@@ -114,7 +114,20 @@
 
 #define GFX_SHADER_OBJ_COUNT        7
 
-#define ZVB_SHADER_MAX_OBJ_COUNT    8
+#define SPRITE_SHADER_TILEMAPS_IDX      0
+#define SPRITE_SHADER_TILESET_IDX       1
+#define SPRITE_SHADER_PALETTE_IDX       2
+#define SPRITE_SHADER_VIDMODE_IDX       3
+#define SPRITE_SHADER_TILE_NUMBER_IDX   4
+#define SPRITE_SHADER_PALETTE_MASK_IDX  5
+#define SPRITE_SHADER_FLAGS_IDX         6
+#define SPRITE_SHADER_POS_IDX           7
+#define SPRITE_SHADER_SIZE_IDX          8
+#define SPRITE_SHADER_SCROLL1_IDX       9
+
+#define SPRITE_SHADER_OBJ_COUNT         10
+
+#define ZVB_SHADER_MAX_OBJ_COUNT    10
 
 /* Special mode to tell the shader to debug the texture */
 #define TEXT_DEBUG_MODE             0xffffffff
@@ -170,6 +183,7 @@ typedef struct {
 typedef enum {
     SHADER_TEXT = 0,
     SHADER_GFX,
+    SHADER_SPRITE,
     SHADER_BITMAP,
     SHADER_GFX_DEBUG,
     SHADER_TEXT_DEBUG,
@@ -207,6 +221,7 @@ typedef struct {
     /* Internally used to make the shader work on the whole screen */
     zvb_shader_t     shaders[SHADERS_COUNT];
     RenderTexture    tex_dummy;
+    Texture          sprite_quad_tex;
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
 
     /* Internal values */
