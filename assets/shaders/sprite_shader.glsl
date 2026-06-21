@@ -54,6 +54,7 @@ out vec4 finalColor;
 int color_from_idx(int idx, int offset, bool color_4bit)
 {
     bool lsb = true;
+    idx = color_4bit ? (idx & 0x1FF) : (idx & 0xFF);
     int final_idx = idx * TILESET_SIZE + offset;
 
     if (color_4bit) {
@@ -63,19 +64,18 @@ int color_from_idx(int idx, int offset, bool color_4bit)
 
     int pixel_index = final_idx / SIZEOF_COLOR;
     ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
-    vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(float(TILESET_TEX_WIDTH), float(TILESET_TEX_HEIGHT));
-    vec4 set = texture(tileset, addr);
+    vec4 set = texelFetch(tileset, coordinates, 0);
     int channel = final_idx % SIZEOF_COLOR;
     float byte_value = (channel == 0) ? set.r :
                        (channel == 1) ? set.g :
                        (channel == 2) ? set.b : set.a;
 
     if (color_4bit) {
-        int byte_int = int(byte_value * 255.0);
+        int byte_int = int(byte_value * 255.0 + 0.5);
         return lsb ? (byte_int & 0x0F) : (byte_int >> 4);
     }
 
-    return int(byte_value * 255.0);
+    return int(byte_value * 255.0 + 0.5);
 }
 
 int foreground_color(ivec2 screen_pos)
@@ -87,9 +87,8 @@ int foreground_color(ivec2 screen_pos)
     ivec2 tile_pos = ivec2(pix_pos.x / TILE_WIDTH, pix_pos.y / TILE_HEIGHT);
     int tile_idx = tile_pos.x + tile_pos.y * MAX_X;
     int in_tile = (pix_pos.x % TILE_WIDTH) + (pix_pos.y % TILE_HEIGHT) * TILE_WIDTH;
-    float float_idx = (float(tile_idx) + 0.5) / TILEMAP_ENTRIES;
-    vec4 attr = texture(tilemaps, vec2(float_idx, 1.0));
-    int l1_idx = int(attr.g * float(TILE_COUNT - 1));
+    vec4 attr = texelFetch(tilemaps, ivec2(tile_idx, 0), 0);
+    int l1_idx = int(attr.g * 255.0 + 0.5);
 
     return color_from_idx(l1_idx, in_tile, false);
 }
@@ -126,6 +125,6 @@ void main()
     }
 
     int sprite_palette = color_4bit ? palette_mask : 0;
-    finalColor = texture(palette, vec2((float(sprite_palette + color) + 0.5) / PALETTE_SIZE, 0.5));
+    finalColor = texelFetch(palette, ivec2(sprite_palette + color, 0), 0);
     finalColor.a = 1.0;
 }

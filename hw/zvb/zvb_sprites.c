@@ -38,6 +38,8 @@ void zvb_sprites_init(zvb_sprites_t* sprites, bool rendering_enabled)
     };
 
     sprites->tex_sprites = LoadTextureFromImage(sprites->img_sprites);
+    SetTextureFilter(sprites->tex_sprites, TEXTURE_FILTER_POINT);
+    SetTextureWrap(sprites->tex_sprites, TEXTURE_WRAP_CLAMP);
     sprites->dirty = 0;
 }
 

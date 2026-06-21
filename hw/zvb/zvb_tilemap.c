@@ -40,6 +40,8 @@ void zvb_tilemap_init(zvb_tilemap_t* tilemap, bool rendering_enabled)
     memset(tilemap->img_tilemap.data, 0, sizeof(Color) * ZVB_TILEMAP_SIZE);
 
     tilemap->tex_tilemap = LoadTextureFromImage(tilemap->img_tilemap);
+    SetTextureFilter(tilemap->tex_tilemap, TEXTURE_FILTER_POINT);
+    SetTextureWrap(tilemap->tex_tilemap, TEXTURE_WRAP_CLAMP);
     tilemap->dirty = 0;
 }
 

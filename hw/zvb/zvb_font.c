@@ -36,6 +36,8 @@ void zvb_font_init(zvb_font_t* font, bool rendering_enabled)
     }
 
     font->tex_font = LoadTextureFromImage(font->img_font);
+    SetTextureFilter(font->tex_font, TEXTURE_FILTER_POINT);
+    SetTextureWrap(font->tex_font, TEXTURE_WRAP_CLAMP);
     font->dirty = 0;
 }
 

@@ -64,6 +64,7 @@ out vec4 finalColor;
 int color_from_idx(int idx, int offset, bool color_4bit)
 {
     bool lsb = true;
+    idx = color_4bit ? (idx & 0x1FF) : (idx & 0xFF);
     int final_idx = (idx * TILESET_SIZE + offset);
 
     if (color_4bit) {
@@ -74,23 +75,20 @@ int color_from_idx(int idx, int offset, bool color_4bit)
     /* Each pixel in the texture has 4 colors */
     int pixel_index = final_idx / SIZEOF_COLOR;
     ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
-    vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(64.0, 256.0);
-
-    /* Get one set of color per layer, each containing 4 pixels */
-    vec4 set = texture(tileset, addr);
+    vec4 set = texelFetch(tileset, coordinates, 0);
     int channel = final_idx % SIZEOF_COLOR;
     float byte_value = (channel == 0) ? set.r :
                         (channel == 1) ? set.g :
                         (channel == 2) ? set.b : set.a;
     if (color_4bit) {
         /* Convert to 8-bit (0-255 range) */
-        int byte_int = int(byte_value * 255.0);
+        int byte_int = int(byte_value * 255.0 + 0.5);
         /* Extract 4-bit value */
         int color_4bit = lsb ? (byte_int & 0x0F) : (byte_int >> 4);
         /* Normalize 4-bit color to 0-1 range */
         return color_4bit;
     } else {
-        return int(byte_value * 255.0);
+        return int(byte_value * 255.0 + 0.5);
     }
 }
 
@@ -110,9 +108,7 @@ vec4 get_attr(ivec2 orig, ivec2 scroll, out ivec2 offset_in_tile) {
     offset_in_tile.y = int(pix_pos.y) % TILE_HEIGHT;
     int in_tile = offset_in_tile.x + (offset_in_tile.y * TILE_WIDTH);
 
-    /* Added 0.1 to the divider to make sure we don't go beyond 1.0 */
-    float float_idx = (float(tile_idx) + 0.5) / TILEMAP_ENTRIES;
-    vec4 ret = texture(tilemaps, vec2(float_idx, 1.0));
+    vec4 ret = texelFetch(tilemaps, ivec2(tile_idx, 0), 0);
 
     /* Replace unused B attribute with in_tile value */
     ret.b = float(in_tile);
@@ -129,9 +125,9 @@ vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
     if (color_4bit) {
         /* In 4-bit mode, the original index needs to be divided by 2 (so that 255 is the last tile)
          * of the first half */
-        int l0_idx = int(attr_l0.r * float(TILE_COUNT - 1));
+        int l0_idx = int(attr_l0.r * 255.0 + 0.5);
         /* Get the lowest nibble of layer1 (attributes), if 1, offset the tile to the next tileset */
-        int attr = int(attr_l0.g * 255.0);
+        int attr = int(attr_l0.g * 255.0 + 0.5);
         l0_idx += (attr & 1) != 0 ? 256 : 0;
         /* Check for Flip Y attribute */
         if ((attr & 4) != 0) {
@@ -149,21 +145,21 @@ vec4 gfx_mode(ivec2 flipped, bool mode_320, bool color_4bit) {
         int palette_idx = attr & 0xf0;
         /* No transparency in 4-bit mode */
         float color_idx = float(color + palette_idx) + 0.5;
-        return texture(palette, vec2(color_idx / PALETTE_SIZE, 0.5));
+        return texelFetch(palette, ivec2(color + palette_idx, 0), 0);
     } else {
         /* 8-bit color mode */
         /* Get the two indexes */
-        int l0_idx = int(attr_l0.r * float(TILE_COUNT - 1));
-        int l1_idx = int(attr_l1.g * float(TILE_COUNT - 1));
+        int l0_idx = int(attr_l0.r * 255.0 + 0.5);
+        int l1_idx = int(attr_l1.g * 255.0 + 0.5);
 
         int l0_icolor = color_from_idx(l0_idx, int(attr_l0.b), color_4bit);
         int l1_icolor = color_from_idx(l1_idx, int(attr_l1.b), color_4bit);
 
         /* If layer1 color index is 0, count it as transparent */
         if (l1_icolor == 0) {
-            return texture(palette, vec2((float(l0_icolor) + 0.5) / PALETTE_SIZE, 0.5));
+            return texelFetch(palette, ivec2(l0_icolor, 0), 0);
         } else {
-            vec4 color = texture(palette, vec2((float(l1_icolor) + 0.5) / PALETTE_SIZE, 0.5));
+            vec4 color = texelFetch(palette, ivec2(l1_icolor, 0), 0);
             /* Alpha channel is already 1.0f */
             return color;
         }

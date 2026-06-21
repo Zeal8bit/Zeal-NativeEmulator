@@ -35,21 +35,19 @@ uniform int         video_mode;
 
 out vec4 finalColor;
 
-/* Returns a color index that can be retrieved from the palette [0:1[ */
-float color_from_idx(int idx)
+/* Returns a color index that can be retrieved from the palette */
+int color_from_idx(int idx)
 {
     /* Each entry in the tileset contains SIZEOF_COLOR (4) pixels */
     int pixel_index = idx / SIZEOF_COLOR;
     ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
-    vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(64.0, 256.0);
-    /* Get one set of color per layer, each containing 4 pixels */
-    vec4 set = texture(tileset, addr);
+    vec4 set = texelFetch(tileset, coordinates, 0);
     int channel = idx % SIZEOF_COLOR;
     float byte_value = (channel == 0) ? set.r :
                        (channel == 1) ? set.g :
                        (channel == 2) ? set.b :
                                         set.a;
-    return byte_value;
+    return int(byte_value * 255.0 + 0.5);
 }
 
 
@@ -76,5 +74,5 @@ void main() {
     }
 
     /* Convert the color index into an RGB color */
-    finalColor = texture(palette, vec2(color_from_idx(index), 0.5));
+    finalColor = texelFetch(palette, ivec2(color_from_idx(index), 0), 0);
 }

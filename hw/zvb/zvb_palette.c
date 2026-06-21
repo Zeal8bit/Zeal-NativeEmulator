@@ -71,6 +71,8 @@ void zvb_palette_init(zvb_palette_t* pal, bool rendering_enabled)
         palette_rgb565_to_color(rgb, &colors[i / 2]);
     }
     pal->tex_pal = LoadTextureFromImage(pal->img_pal);
+    SetTextureFilter(pal->tex_pal, TEXTURE_FILTER_POINT);
+    SetTextureWrap(pal->tex_pal, TEXTURE_WRAP_CLAMP);
     pal->dirty = false;
 }
 

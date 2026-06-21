@@ -379,6 +379,8 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
         dev->tex_dummy = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
         Image sprite_quad_img = GenImageColor(1, 1, WHITE);
         dev->sprite_quad_tex = LoadTextureFromImage(sprite_quad_img);
+        SetTextureFilter(dev->sprite_quad_tex, TEXTURE_FILTER_POINT);
+        SetTextureWrap(dev->sprite_quad_tex, TEXTURE_WRAP_CLAMP);
         UnloadImage(sprite_quad_img);
         dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
