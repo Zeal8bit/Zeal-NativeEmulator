@@ -26,16 +26,12 @@ void zvb_tileset_init(zvb_tileset_t* tileset, bool rendering_enabled)
         return;
     }
 
-    /* Create an empty bitmap image, to transmit the data faster to the GPU
-     * Each tile is represented by 256 8-bit values on ZVB,
-     * Since here the colors are 32-bit, we can store 4 pixels inside.
-     * So each tile is 64-color big, we have 256 tiles. */
-    const int width = 64;
+    /* One texture pixel maps to one tileset byte. Store data in the red channel
+     * to avoid RGBA channel packing and platform-specific grayscale formats. */
+    const int width = 256;
     const int height = 256;
-    _Static_assert(width*height*sizeof(Color) == 65536, "Image texture size is invalid");
+    _Static_assert(width * height == sizeof(tileset->raw), "Image texture size is invalid");
     tileset->img_tileset = GenImageColor(width, height, BLACK);
-    /* Set all the bytes to 0 */
-    memset(tileset->img_tileset.data, 0, width * height);
 
     tileset->tex_tileset = LoadTextureFromImage(tileset->img_tileset);
     SetTextureFilter(tileset->tex_tileset, TEXTURE_FILTER_POINT);
@@ -73,10 +69,10 @@ void zvb_tileset_update(zvb_tileset_t* tileset)
  */
 static void tileset_update_img(zvb_tileset_t* tileset, uint32_t addr, uint_fast8_t data)
 {
-    _Static_assert(sizeof(Color) == 4, "Color should be 32-bit big");
-    /* Pixels of the image can be access as an array directly. The lines of each tile
-     * are organized linearly. */
-    uint8_t *pixels = tileset->img_tileset.data;
-    pixels[addr] = data;
+    Color *pixels = tileset->img_tileset.data;
+    pixels[addr].r = data;
+    pixels[addr].g = 0;
+    pixels[addr].b = 0;
+    pixels[addr].a = 255;
     tileset->dirty = 1;
 }

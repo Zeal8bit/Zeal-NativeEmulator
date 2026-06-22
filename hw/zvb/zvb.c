@@ -467,13 +467,14 @@ static void zvb_render_text_mode(zvb_t* zvb)
         SetShaderValue(shader, cursor_char_idx,  &info.charidx, SHADER_UNIFORM_INT);
         SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
 
-        /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
-        DrawTextureRec(zvb->tex_dummy.texture,
-                        (Rectangle){ 0, 0,
-                                     ZVB_MAX_RES_WIDTH,
-                                     zvb->flipped_y ? -ZVB_MAX_RES_HEIGHT : ZVB_MAX_RES_HEIGHT },
-                        (Vector2){ 0, 0 },
-                        WHITE);
+        rlSetTexture(0);
+        rlBegin(RL_QUADS);
+            rlColor4ub(255, 255, 255, 255);
+            rlTexCoord2f(0.0f, 0.0f); rlVertex2f(0.0f, 0.0f);
+            rlTexCoord2f(1.0f, 0.0f); rlVertex2f(ZVB_MAX_RES_WIDTH, 0.0f);
+            rlTexCoord2f(1.0f, 1.0f); rlVertex2f(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+            rlTexCoord2f(0.0f, 1.0f); rlVertex2f(0.0f, ZVB_MAX_RES_HEIGHT);
+        rlEnd();
     EndShaderMode();
 }
 

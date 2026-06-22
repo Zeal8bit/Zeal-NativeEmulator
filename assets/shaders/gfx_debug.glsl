@@ -35,13 +35,10 @@
 #define TILESET_MAX_X   (16)
 
 #define TILEMAP_ENTRIES     3200.0
-/* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
-#define TILESET_TEX_WIDTH   64
+#define TILESET_TEX_WIDTH   256
 #define TILESET_TEX_HEIGHT  256
 /* Size of a single tile in bytes: 256 */
 #define TILESET_SIZE        (256)
-
-#define SIZEOF_COLOR        (4)
 
 #ifdef OPENGL_ES
 precision highp float;
@@ -78,25 +75,17 @@ int color_from_idx(int idx, int offset, bool color_4bit)
         /* In 4-bit mode, we can simply divide the index by two to get the correct pixel(s) */
         final_idx = final_idx / 2;
     }
-    /* Each pixel in the texture has 4 colors */
-    int pixel_index = final_idx / SIZEOF_COLOR;
-    ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
-    vec2 addr = (vec2(coordinates) + vec2(0.5, 0.5)) / vec2(64.0, 256.0);
-    /* Get one set of color per layer, each containing 4 pixels */
-    vec4 set = texture(tileset, addr);
-    int channel = final_idx % SIZEOF_COLOR;
-    float byte_value = (channel == 0) ? set.r :
-                        (channel == 1) ? set.g :
-                        (channel == 2) ? set.b : set.a;
+    ivec2 coordinates = ivec2(final_idx % TILESET_TEX_WIDTH, final_idx / TILESET_TEX_WIDTH);
+    float byte_value = texelFetch(tileset, coordinates, 0).r;
     if (color_4bit) {
         /* Convert to 8-bit (0-255 range) */
-        int byte_int = int(byte_value * 255.0);
+        int byte_int = int(byte_value * 255.0 + 0.5);
         /* Extract 4-bit value */
         int color_4bit = lsb ? (byte_int & 0x0F) : (byte_int >> 4);
         /* Normalize 4-bit color to 0-1 range */
         return color_4bit;
     } else {
-        return int(byte_value * 255.0);
+        return int(byte_value * 255.0 + 0.5);
     }
 }
 

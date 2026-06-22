@@ -13,9 +13,7 @@
 #define BITMAP_256_BORDER   32
 #define BITMAP_320_BORDER   20
 
-#define SIZEOF_COLOR        4
-/* The tileset texture is stored with 4 pixels per color: 64KB / sizeof(Color) = 16KB */
-#define TILESET_TEX_WIDTH   64
+#define TILESET_TEX_WIDTH   256
 #define TILESET_TEX_HEIGHT  256
 
 #ifdef OPENGL_ES
@@ -38,15 +36,8 @@ out vec4 finalColor;
 /* Returns a color index that can be retrieved from the palette */
 int color_from_idx(int idx)
 {
-    /* Each entry in the tileset contains SIZEOF_COLOR (4) pixels */
-    int pixel_index = idx / SIZEOF_COLOR;
-    ivec2 coordinates = ivec2(pixel_index % TILESET_TEX_WIDTH, pixel_index / TILESET_TEX_WIDTH);
-    vec4 set = texelFetch(tileset, coordinates, 0);
-    int channel = idx % SIZEOF_COLOR;
-    float byte_value = (channel == 0) ? set.r :
-                       (channel == 1) ? set.g :
-                       (channel == 2) ? set.b :
-                                        set.a;
+    ivec2 coordinates = ivec2(idx % TILESET_TEX_WIDTH, idx / TILESET_TEX_WIDTH);
+    float byte_value = texelFetch(tileset, coordinates, 0).r;
     return int(byte_value * 255.0 + 0.5);
 }
 
@@ -74,5 +65,6 @@ void main() {
     }
 
     /* Convert the color index into an RGB color */
-    finalColor = texelFetch(palette, ivec2(color_from_idx(index), 0), 0);
+    int color_idx = color_from_idx(index);
+    finalColor = texelFetch(palette, ivec2(color_idx, 0), 0);
 }
