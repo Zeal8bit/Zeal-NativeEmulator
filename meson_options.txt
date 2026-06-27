@@ -21,3 +21,6 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
 option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the `roms/` dir in WASM builds')
+
+## Target / Device Specific
+option('target_retroflag_gpi2', type: 'boolean', value: false, description: 'Enable RetroFlag GPi Case 2 controller input mapping')
