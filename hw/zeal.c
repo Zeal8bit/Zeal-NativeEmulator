@@ -603,6 +603,10 @@ void zeal_debug_toggle(dbg_t *dbg)
  */
 static int zeal_dbg_mode_display(zeal_t* machine)
 {
+#if CONFIG_PROFILE_RENDER
+    const double profile_start = GetTime();
+#endif
+
     /**
      * Prepare the rendering, if the returned value is true, we can
      * proceed to rendering, else, we don't need to update the view.
@@ -639,6 +643,10 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         }
 
     EndDrawing();
+
+#if CONFIG_PROFILE_RENDER
+    zvb_profile_frame(GetTime() - profile_start);
+#endif
 
     return 1;
 }
@@ -726,6 +734,9 @@ static int zeal_normal_mode_run(zeal_t* machine)
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;
+#if CONFIG_PROFILE_RENDER
+        const double profile_start = GetTime();
+#endif
         const int screen_w = GetScreenWidth();
         const int screen_h = GetScreenHeight();
         const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
@@ -767,6 +778,10 @@ static int zeal_normal_mode_run(zeal_t* machine)
                 DrawFPS(10, 10);
             }
         EndDrawing();
+
+#if CONFIG_PROFILE_RENDER
+        zvb_profile_frame(GetTime() - profile_start);
+#endif
     }
     return rendered;
 }

@@ -29,6 +29,25 @@
 
 #define BENCHMARK           0
 
+#if CONFIG_PROFILE_RENDER
+typedef struct {
+    double window_start;
+    double frame_total;
+    double frame_max;
+    double zvb_total;
+    double zvb_max;
+    double sprite_total;
+    double sprite_max;
+    uint64_t frames;
+    uint64_t zvb_calls;
+    uint64_t sprite_calls;
+    uint64_t visible_sprites;
+    uint32_t visible_sprites_max;
+} render_profile_t;
+
+static render_profile_t s_render_profile;
+#endif
+
 
 #define ZVB_IO_SIZE         (3 * 16)
 /* The video board occupies 128KB of memory, but the VRAM is not that big  */
@@ -594,6 +613,11 @@ static void zvb_render_bitmap_mode(zvb_t* zvb)
 
 static void zvb_render_sprites(zvb_t* zvb)
 {
+#if CONFIG_PROFILE_RENDER
+    const double profile_start = GetTime();
+    uint32_t visible_sprites = 0;
+#endif
+
     zvb_shader_t* st_shader = &zvb->shaders[SHADER_SPRITE];
     const Shader shader = st_shader->shader;
     const bool mode_320 = zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT;
@@ -628,6 +652,10 @@ static void zvb_render_sprites(zvb_t* zvb)
                 continue;
             }
 
+#if CONFIG_PROFILE_RENDER
+            visible_sprites++;
+#endif
+
             int tile_number = (int) fsprite->tile_number;
             int palette_mask = (int) fsprite->palette;
             int flags = 0;
@@ -657,6 +685,19 @@ static void zvb_render_sprites(zvb_t* zvb)
         }
     EndShaderMode();
     EndBlendMode();
+
+#if CONFIG_PROFILE_RENDER
+    const double elapsed = GetTime() - profile_start;
+    s_render_profile.sprite_total += elapsed;
+    if (elapsed > s_render_profile.sprite_max) {
+        s_render_profile.sprite_max = elapsed;
+    }
+    s_render_profile.sprite_calls++;
+    s_render_profile.visible_sprites += visible_sprites;
+    if (visible_sprites > s_render_profile.visible_sprites_max) {
+        s_render_profile.visible_sprites_max = visible_sprites;
+    }
+#endif
 }
 
 
@@ -839,6 +880,10 @@ void zvb_render(zvb_t* zvb)
 
     zvb->need_render = false;
 
+#if CONFIG_PROFILE_RENDER
+    const double profile_start = GetTime();
+#endif
+
 #if BENCHMARK
     double startTime = GetTime();
     static double average = 0;
@@ -865,6 +910,15 @@ void zvb_render(zvb_t* zvb)
         zvb_render_disabled_mode(zvb);
     }
 
+#if CONFIG_PROFILE_RENDER
+    const double elapsed = GetTime() - profile_start;
+    s_render_profile.zvb_total += elapsed;
+    if (elapsed > s_render_profile.zvb_max) {
+        s_render_profile.zvb_max = elapsed;
+    }
+    s_render_profile.zvb_calls++;
+#endif
+
 #if BENCHMARK
     double endTime = GetTime();
     double elapsedTime = endTime - startTime;
@@ -876,6 +930,51 @@ void zvb_render(zvb_t* zvb)
     }
 #endif
 }
+
+#if CONFIG_PROFILE_RENDER
+void zvb_profile_frame(double elapsed_seconds)
+{
+    const double now = GetTime();
+    if (s_render_profile.window_start == 0.0) {
+        s_render_profile.window_start = now;
+    }
+
+    s_render_profile.frame_total += elapsed_seconds;
+    if (elapsed_seconds > s_render_profile.frame_max) {
+        s_render_profile.frame_max = elapsed_seconds;
+    }
+    s_render_profile.frames++;
+
+    if (now - s_render_profile.window_start < 1.0) {
+        return;
+    }
+
+    const double frame_avg = s_render_profile.frames > 0
+        ? s_render_profile.frame_total / s_render_profile.frames : 0.0;
+    const double zvb_avg = s_render_profile.zvb_calls > 0
+        ? s_render_profile.zvb_total / s_render_profile.zvb_calls : 0.0;
+    const double sprite_avg = s_render_profile.sprite_calls > 0
+        ? s_render_profile.sprite_total / s_render_profile.sprite_calls : 0.0;
+    const double visible_avg = s_render_profile.sprite_calls > 0
+        ? (double)s_render_profile.visible_sprites / s_render_profile.sprite_calls : 0.0;
+
+    log_printf(
+        "[RENDER] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms "
+        "sprites=%.2f/%.2fms visible=%.1f/%u\n",
+        (unsigned long long)s_render_profile.frames,
+        frame_avg * 1000.0,
+        s_render_profile.frame_max * 1000.0,
+        zvb_avg * 1000.0,
+        s_render_profile.zvb_max * 1000.0,
+        sprite_avg * 1000.0,
+        s_render_profile.sprite_max * 1000.0,
+        visible_avg,
+        s_render_profile.visible_sprites_max);
+
+    memset(&s_render_profile, 0, sizeof(s_render_profile));
+    s_render_profile.window_start = now;
+}
+#endif
 
 
 void zvb_force_render(zvb_t* zvb)

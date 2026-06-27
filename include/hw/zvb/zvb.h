@@ -287,6 +287,9 @@ bool zvb_prepare_render(zvb_t* zvb);
  * @brief Perform any rendering operation if necessary
  */
 void zvb_render(zvb_t* zvb);
+#if CONFIG_PROFILE_RENDER
+void zvb_profile_frame(double elapsed_seconds);
+#endif
 
 
 /**
