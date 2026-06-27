@@ -2,6 +2,8 @@ x-rpi-build-common: &rpi-build-common
   working_dir: /src
   volumes:
     - ../..:/src
+  environment:
+    MESON_ARGS: ${MESON_ARGS:-}
 
 services:
   build-rpi0:
@@ -18,7 +20,7 @@ services:
       - -lc
       - |
         rm -rf build-rpi0 &&
-        meson setup build-rpi0 --cross-file raspberrypi0-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson setup build-rpi0 --cross-file raspberrypi0-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm $${MESON_ARGS} &&
         meson compile -C build-rpi0 &&
         rm -rf build-rpi0/lib &&
         mkdir -p build-rpi0/lib &&
@@ -44,7 +46,7 @@ services:
       - -lc
       - |
         rm -rf build-rpi3 &&
-        meson setup build-rpi3 --cross-file raspberrypi3-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson setup build-rpi3 --cross-file raspberrypi3-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm $${MESON_ARGS} &&
         meson compile -C build-rpi3 &&
         rm -rf build-rpi3/lib &&
         mkdir -p build-rpi3/lib &&
@@ -68,7 +70,7 @@ services:
       - -lc
       - |
         rm -rf build-rpi64 &&
-        meson setup build-rpi64 --native-file raspberrypi64-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+        meson setup build-rpi64 --native-file raspberrypi64-cross.build -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm $${MESON_ARGS} &&
         meson compile -C build-rpi64 &&
         rm -rf build-rpi64/lib &&
         mkdir -p build-rpi64/lib &&

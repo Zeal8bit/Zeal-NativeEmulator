@@ -83,10 +83,11 @@ run_with_podman_direct() {
         --platform "$platform" \
         -v "$repo_root:/src" \
         -w /src \
+        -e "MESON_ARGS=$MESON_ARGS" \
         "$image" \
         sh -lc "
             rm -rf $build_dir &&
-            meson setup $build_dir $setup_arg $profile -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm &&
+            meson setup $build_dir $setup_arg $profile -Draylib_path=/opt/raylib-target -Dlinux_display_backend=drm \$MESON_ARGS &&
             meson compile -C $build_dir &&
             rm -rf $build_dir/lib &&
             mkdir -p $build_dir/lib &&
@@ -100,11 +101,23 @@ run_with_podman_direct() {
         "
 }
 
-if [ "$#" -gt 0 ]; then
-    services="$*"
-else
+services=""
+MESON_ARGS=""
+parse_meson_args=false
+for arg in "$@"; do
+    if [ "$parse_meson_args" = true ]; then
+        MESON_ARGS="$MESON_ARGS $arg"
+    elif [ "$arg" = "--" ]; then
+        parse_meson_args=true
+    else
+        services="$services $arg"
+    fi
+done
+
+if [ -z "$services" ]; then
     services="build-rpi3 build-rpi64 build-rpi0"
 fi
+export MESON_ARGS
 
 failed_services=""
 for service in $services; do
