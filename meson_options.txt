@@ -6,6 +6,9 @@ option('raylib_path', type : 'string', value : '', description : 'Path to Raylib
 ## Debugger
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 
+## Input
+option('auto_attach_snes_mouse', type: 'boolean', value: true, description: 'Automatically attach the SNES mouse at startup')
+
 ## Rendering
 option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
 option('blitter_software_scanline_rendering', type: 'boolean', value: false, description: 'Per scanline renderinginstead of per frame (software blitter only)')

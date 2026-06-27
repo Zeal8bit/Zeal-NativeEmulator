@@ -13,6 +13,9 @@ c_args = ['-D_DEFAULT_SOURCE',
           '-mfpu=vfp',
           '-mfloat-abi=hard']
 
+[project options]
+auto_attach_snes_mouse = false
+
 [host_machine]
 system = 'linux'
 cpu_family = 'arm'
