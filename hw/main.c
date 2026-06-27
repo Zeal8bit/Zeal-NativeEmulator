@@ -15,6 +15,12 @@
 
 static zeal_t machine;
 
+static void handle_interrupt(int signal_number)
+{
+    (void)signal_number;
+    machine.should_exit = 1;
+}
+
 int main(int argc, char* argv[])
 {
     int code = 0;
@@ -49,6 +55,11 @@ int main(int argc, char* argv[])
 
     if (config.arguments.tf_filename != NULL &&
         zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
+        goto deinit;
+    }
+
+    if (signal(SIGINT, handle_interrupt) == SIG_ERR) {
+        log_err_printf("Failed to install SIGINT handler\n");
         goto deinit;
     }
 

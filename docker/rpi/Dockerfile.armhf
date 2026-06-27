@@ -35,7 +35,9 @@ RUN dpkg --add-architecture armhf \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
+COPY docker/rpi/raylib-drm-ssh-signals.patch /tmp/raylib-drm-ssh-signals.patch
 RUN git clone --depth 1 --branch ${RAYLIB_VERSION} https://github.com/raysan5/raylib.git \
+ && git -C raylib apply /tmp/raylib-drm-ssh-signals.patch \
  && sed -i 's/glDrawBuffersEXT/glDrawBuffers/g' raylib/src/rlgl.h \
  && make -C raylib/src \
     PLATFORM=PLATFORM_DRM \

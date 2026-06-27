@@ -153,7 +153,9 @@ int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio)
 
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         if (snes_controller_available(i)) {
-            printf("[SNES] Found \"%s\"\n", snes_controller_name(i));
+            printf("[SNES] Found \"%s\" (%d axes)\n",
+                snes_controller_name(i),
+                snes_controller_axis_count(i));
             for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
                 if (snes_adapter->ports[port].device == SNES_PORT_DEVICE_DETACHED) {
                     snes_adapter_set_controller_port(snes_adapter, i, port);
