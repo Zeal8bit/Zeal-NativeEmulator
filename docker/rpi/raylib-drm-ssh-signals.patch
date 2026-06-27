@@ -1,0 +1,12 @@
+diff --git a/src/platforms/rcore_drm.c b/src/platforms/rcore_drm.c
+--- a/src/platforms/rcore_drm.c
++++ b/src/platforms/rcore_drm.c
+@@ -1180,7 +1180,7 @@ static void InitKeyboard(void)
+ 
+     // New terminal settings for keyboard: turn off buffering (non-canonical mode), echo and key processing
+     // NOTE: ISIG controls if ^C and ^Z generate break signals or not
+-    keyboardNewSettings.c_lflag &= ~(ICANON | ECHO | ISIG);
++    keyboardNewSettings.c_lflag &= ~(ICANON | ECHO);
+     //keyboardNewSettings.c_iflag &= ~(ISTRIP | INLCR | ICRNL | IGNCR | IXON | IXOFF);
+     keyboardNewSettings.c_cc[VMIN] = 1;
+     keyboardNewSettings.c_cc[VTIME] = 0;

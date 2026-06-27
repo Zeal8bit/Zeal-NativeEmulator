@@ -63,6 +63,11 @@ const char* snes_controller_name(uint8_t index)
     return GetGamepadName(index);
 }
 
+int snes_controller_axis_count(uint8_t index)
+{
+    return GetGamepadAxisCount(index);
+}
+
 uint16_t snes_controller_latch(snes_controller_t* ctrl)
 {
     int index = ctrl->index;

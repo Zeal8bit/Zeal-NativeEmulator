@@ -299,7 +299,9 @@ static void snes_adapter_attach_available_controllers(snes_adapter_t* snes_adapt
 
         if (port != SNES_PORT_DETACHED) {
             if (available) {
-                printf("[SNES] Found \"%s\"\n", snes_adapter_controller_name(snes_adapter, i));
+                printf("[SNES] Found \"%s\" (%d axes)\n",
+                    snes_adapter_controller_name(snes_adapter, i),
+                    snes_controller_axis_count(i));
             }
             snes_adapter_set_controller_port(snes_adapter, i, port);
         }
