@@ -2,6 +2,14 @@
 #include <stdio.h>
 
 #include "raylib.h"
+
+#ifdef CONFIG_TARGET_RETROFLAG_GPI2
+#include <fcntl.h>
+#include <linux/input.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
+
 #include "utils/paths.h"
 #include "utils/helpers.h"
 #include "hw/userport/snes_adapter.h"
@@ -14,11 +22,92 @@
 #define GAMECONTROLLERDB_DEV_PATH     "assets/resources/gamecontrollerdb.txt"
 #define GAMECONTROLLERDB_INSTALL_PATH ZEAL_ASSETS_DIR "/resources/gamecontrollerdb.txt"
 
+#ifdef CONFIG_TARGET_RETROFLAG_GPI2
+#define RETROFLAG_GPI2_VENDOR_ID     0x045e
+#define RETROFLAG_GPI2_PRODUCT_ID    0x028e
+#define RETROFLAG_GPI2_EVENT_COUNT   32
+
+static int s_retroflag_gpi2_fd = -1;
+static int s_retroflag_gpi2_dpad_x = 0;
+static int s_retroflag_gpi2_dpad_y = 0;
+
+static void retroflag_gpi2_init(void)
+{
+    char path[32];
+
+    for (int event = 0; event < RETROFLAG_GPI2_EVENT_COUNT; event++) {
+        snprintf(path, sizeof(path), "/dev/input/event%d", event);
+
+        int fd = open(path, O_RDONLY | O_NONBLOCK);
+        if (fd < 0) {
+            continue;
+        }
+
+        struct input_id id;
+        if (ioctl(fd, EVIOCGID, &id) == 0 &&
+            id.vendor == RETROFLAG_GPI2_VENDOR_ID &&
+            id.product == RETROFLAG_GPI2_PRODUCT_ID) {
+            struct input_absinfo abs_info;
+            if (ioctl(fd, EVIOCGABS(ABS_HAT0X), &abs_info) == 0) {
+                s_retroflag_gpi2_dpad_x = abs_info.value;
+            }
+            if (ioctl(fd, EVIOCGABS(ABS_HAT0Y), &abs_info) == 0) {
+                s_retroflag_gpi2_dpad_y = abs_info.value;
+            }
+
+            s_retroflag_gpi2_fd = fd;
+            printf("[SNES] RetroFlag GPi Case 2 D-Pad found at %s\n", path);
+            return;
+        }
+
+        close(fd);
+    }
+
+    printf("[SNES] RetroFlag GPi Case 2 D-Pad not found\n");
+}
+
+static void retroflag_gpi2_update_dpad(void)
+{
+    if (s_retroflag_gpi2_fd < 0) {
+        return;
+    }
+
+    struct input_event event;
+    while (read(s_retroflag_gpi2_fd, &event, sizeof(event)) == (ssize_t)sizeof(event)) {
+        if (event.type != EV_ABS) {
+            continue;
+        }
+
+        if (event.code == ABS_HAT0X) {
+            s_retroflag_gpi2_dpad_x = event.value;
+        } else if (event.code == ABS_HAT0Y) {
+            s_retroflag_gpi2_dpad_y = event.value;
+        }
+    }
+}
+#endif
+
 void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
 {
     ctrl->index = index;
     ctrl->port = SNES_PORT_DETACHED;
     ctrl->attached = false;
+
+#ifdef CONFIG_TARGET_RETROFLAG_GPI2
+    if (index == 0 && s_retroflag_gpi2_fd < 0) {
+        retroflag_gpi2_init();
+    }
+#endif
+}
+
+void snes_controller_deinit(void)
+{
+#ifdef CONFIG_TARGET_RETROFLAG_GPI2
+    if (s_retroflag_gpi2_fd >= 0) {
+        close(s_retroflag_gpi2_fd);
+        s_retroflag_gpi2_fd = -1;
+    }
+#endif
 }
 
 void snes_controller_load_mappings(void)
@@ -82,6 +171,14 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
         if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_A);  // A
         if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_UP))    bits &= ~(1 << SNES_BTN_X);  // X
 
+#ifdef CONFIG_TARGET_RETROFLAG_GPI2
+        // GPi Case 2 exposes its D-Pad directly through Linux ABS_HAT0X/Y events.
+        retroflag_gpi2_update_dpad();
+        if (s_retroflag_gpi2_dpad_y < 0) bits &= ~(1 << SNES_BTN_UP);
+        if (s_retroflag_gpi2_dpad_y > 0) bits &= ~(1 << SNES_BTN_DOWN);
+        if (s_retroflag_gpi2_dpad_x < 0) bits &= ~(1 << SNES_BTN_LEFT);
+        if (s_retroflag_gpi2_dpad_x > 0) bits &= ~(1 << SNES_BTN_RIGHT);
+#else
         // D-Pad (buttons)
         if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_UP))    bits &= ~(1 << SNES_BTN_UP);    // Up
         if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);  // Down
@@ -95,6 +192,7 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
         if (stick_y >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_DOWN);  // Down
         if (stick_x < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_LEFT);  // Left
         if (stick_x >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_RIGHT); // Right
+#endif
 
         // Select/Start
         if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_MIDDLE_LEFT))  bits &= ~(1 << SNES_BTN_SELECT);  // Select

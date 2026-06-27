@@ -260,6 +260,7 @@ void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter)
 void snes_adapter_detach(snes_adapter_t* snes_adapter)
 {
     snes_mouse_detach(&snes_adapter->mouse);
+    snes_controller_deinit();
     pio_unlisten_a_pin_change(snes_adapter->pio, SNES_IO_LATCH);
     pio_unlisten_a_pin_change(snes_adapter->pio, SNES_IO_CLOCK);
 }
