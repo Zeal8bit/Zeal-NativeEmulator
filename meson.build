@@ -66,6 +66,10 @@ if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif
 
+if get_option('auto_attach_snes_mouse')
+    add_project_arguments('-DCONFIG_AUTO_ATTACH_SNES_MOUSE', language: 'c')
+endif
+
 if (host_machine.system() == 'darwin')
     add_project_arguments('-D_DARWIN_C_SOURCE', language: 'c')
 endif

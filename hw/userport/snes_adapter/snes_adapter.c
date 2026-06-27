@@ -147,7 +147,9 @@ int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio)
     snes_mouse_init(&snes_adapter->mouse);
     snes_adapter->mouse.machine = pio->machine;
     snes_adapter_listen(snes_adapter);
+#ifdef CONFIG_AUTO_ATTACH_SNES_MOUSE
     snes_adapter_set_mouse_port(snes_adapter, SNES_MOUSE_DEFAULT_PORT);
+#endif
 
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         if (snes_controller_available(i)) {
