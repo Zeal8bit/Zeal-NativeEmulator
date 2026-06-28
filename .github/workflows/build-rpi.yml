@@ -23,6 +23,10 @@ jobs:
             build-dir: build-rpi64
             binary: zeal-native.arm64
             artifact: zeal-native-rpi-arm64
+          - service: build-rpi-gpi2
+            build-dir: build-rpi-gpi2
+            binary: zeal-native.gpi2-arm64
+            artifact: zeal-native-rpi-gpi2-arm64
 
     steps:
       - name: Checkout Code
@@ -43,8 +47,13 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir -p dist/${{ matrix.artifact }}/lib
+          mkdir -p dist/${{ matrix.artifact }}/assets/fonts
+          mkdir -p dist/${{ matrix.artifact }}/assets/resources
           cp ${{ matrix.build-dir }}/${{ matrix.binary }} dist/${{ matrix.artifact }}/
           cp ${{ matrix.build-dir }}/lib/libraylib.so.550 dist/${{ matrix.artifact }}/lib/
+          cp assets/fonts/BigBlue_Terminal_437TT.TTF dist/${{ matrix.artifact }}/assets/fonts/
+          cp assets/fonts/BigBlue_TerminalPlus.TTF dist/${{ matrix.artifact }}/assets/fonts/
+          cp assets/resources/gamecontrollerdb.txt dist/${{ matrix.artifact }}/assets/resources/
           chmod +x dist/${{ matrix.artifact }}/${{ matrix.binary }}
 
       - name: Upload Artifact
@@ -53,4 +62,3 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.artifact }}
           retention-days: 30
-
