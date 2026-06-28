@@ -3,14 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
-
 #pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
 #include "hw/device.h"
-#include "debugger/debugger_types.h"
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
 #include "hw/zvb/zvb_tilemap.h"
@@ -21,6 +18,12 @@
 #include "hw/zvb/zvb_crc32.h"
 #include "hw/zvb/zvb_sound.h"
 #include "hw/zvb/zvb_dma.h"
+#include "debugger/debugger_types.h"
+
+#if ZVB_BLITTER_SHADER
+#include "hw/zvb/blitter/shader.h"
+#endif
+
 
 /**
  * @file Emulation for the Zeal 8-bit VideoBoard
@@ -87,48 +90,6 @@
 #define STATE_COUNT         2
 
 
-/**
- * @brief Macros listing of all the objects in the shaders
- */
-#define TEXT_SHADER_VIDMODE_IDX     0
-#define TEXT_SHADER_TILEMAPS_IDX    1
-#define TEXT_SHADER_FONT_IDX        2
-#define TEXT_SHADER_PALETTE_IDX     3
-#define TEXT_SHADER_CURPOS_IDX      4
-#define TEXT_SHADER_CURCOLOR_IDX    5
-#define TEXT_SHADER_CURCHAR_IDX     6
-#define TEXT_SHADER_TSCROLL_IDX     7
-#define TEXT_SHADER_DBGMODE_IDX     4
-
-#define TEXT_SHADER_OBJ_COUNT       8
-
-
-#define GFX_SHADER_VIDMODE_IDX      0
-#define GFX_SHADER_TILEMAPS_IDX     1
-#define GFX_SHADER_TILESET_IDX      2
-#define GFX_SHADER_SPRITES_IDX      3
-#define GFX_SHADER_SCROLL0_IDX      4
-#define GFX_SHADER_SCROLL1_IDX      5
-#define GFX_SHADER_PALETTE_IDX      6
-#define GFX_SHADER_DBGMODE_IDX      3
-
-#define GFX_SHADER_OBJ_COUNT        7
-
-#define ZVB_SHADER_MAX_OBJ_COUNT    8
-
-/* Special mode to tell the shader to debug the texture */
-#define TEXT_DEBUG_MODE             0xffffffff
-#define GFX_DEBUG_TILESET_MODE      0
-#define GFX_DEBUG_LAYER0_MODE       1
-#define GFX_DEBUG_LAYER1_MODE       2
-#define GFX_DEBUG_PALETTE_MODE      3
-
-#define TEXT_DEBUG_FONT_MODE        0
-#define TEXT_DEBUG_LAYER0_MODE      1
-#define TEXT_DEBUG_LAYER1_MODE      2
-#define TEXT_DEBUG_PALETTE_MODE     3
-
-
 typedef enum {
     MODE_TEXT_640     = 0,
     MODE_TEXT_320     = 1,
@@ -167,20 +128,6 @@ typedef struct {
 } zvb_ctrl_t;
 
 
-typedef enum {
-    SHADER_TEXT = 0,
-    SHADER_GFX,
-    SHADER_BITMAP,
-    SHADER_GFX_DEBUG,
-    SHADER_TEXT_DEBUG,
-    SHADERS_COUNT,
-} zvb_shaders_type_t;
-
-
-typedef struct {
-    Shader shader;
-    int    objects[ZVB_SHADER_MAX_OBJ_COUNT];
-} zvb_shader_t;
 
 typedef struct {
     bool flipped_y;
@@ -204,9 +151,9 @@ typedef struct {
     zvb_sound_t      sound;
     zvb_dma_t        dma;
 
-    /* Internally used to make the shader work on the whole screen */
-    zvb_shader_t     shaders[SHADERS_COUNT];
-    RenderTexture    tex_dummy;
+    /* Blitter/renderer related */
+    zvb_blitter_t blitter;
+    RenderTexture    main_texture;
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
 
     /* Internal values */

@@ -74,6 +74,12 @@ add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
 
+if (get_option('blitter_software'))
+    add_project_arguments('-DZVB_BLITTER_SOFTWARE=1', language: 'c')
+else
+    add_project_arguments('-DZVB_BLITTER_SHADER=1', language: 'c')
+endif
+
 zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')
 add_project_arguments('-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"', language: 'c')
 

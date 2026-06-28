@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include <stdint.h>
 
 #define SPI_RAM_LEN     8

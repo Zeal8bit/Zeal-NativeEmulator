@@ -12,3 +12,13 @@ sources += files([
     'zvb_dma.c',
     'zvb_sound.c'
 ])
+
+if (get_option('blitter_software'))
+    sources += files([
+        'blitter/software.c'
+    ])
+else
+    sources += files([
+        'blitter/shader.c'
+    ])
+endif
