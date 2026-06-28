@@ -7,6 +7,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "hw/zeal.h"
@@ -14,6 +17,100 @@
 #include "utils/config.h"
 
 static zeal_t machine;
+static char run_hostfs_root[PATH_MAX];
+static char run_guest_path[PATH_MAX];
+
+static int validate_run_path(void)
+{
+    char file[PATH_MAX];
+    char joined[PATH_MAX];
+    struct stat st;
+    const char* run = config.arguments.run_filename;
+
+    if (run == NULL) {
+        return 0;
+    }
+
+    if (!config.arguments.hostfs_explicit) {
+        if (realpath(run, file) == NULL) {
+            log_perror("[CONFIG] Could not resolve --run path");
+            return 1;
+        }
+
+        if (stat(file, &st) != 0 || !S_ISREG(st.st_mode) || access(file, R_OK) != 0) {
+            log_err_printf("[CONFIG] --run path must name a readable regular file\n");
+            return 1;
+        }
+
+        char* separator = strrchr(file, '/');
+#ifdef _WIN32
+        char* backslash = strrchr(file, '\\');
+        if (backslash != NULL && (separator == NULL || backslash > separator)) {
+            separator = backslash;
+        }
+#endif
+        if (separator == NULL || separator[1] == '\0') {
+            log_err_printf("[CONFIG] Could not split --run path\n");
+            return 1;
+        }
+
+        const size_t root_length = (size_t) (separator - file);
+        if (root_length == 0) {
+            snprintf(run_hostfs_root, sizeof(run_hostfs_root), "%c", file[0]);
+        } else {
+            memcpy(run_hostfs_root, file, root_length);
+            run_hostfs_root[root_length] = '\0';
+        }
+        snprintf(run_guest_path, sizeof(run_guest_path), "%s", separator + 1);
+
+        config.arguments.hostfs_path = run_hostfs_root;
+        config.arguments.run_filename = run_guest_path;
+    } else {
+        if (run[0] == '\0' || run[0] == '/' ||
+            (run[0] != '\0' && run[1] == ':')) {
+            log_err_printf("[CONFIG] --run path must be relative to explicit HostFS root\n");
+            return 1;
+        }
+
+        if (snprintf(joined, sizeof(joined), "%s/%s",
+                     config.arguments.hostfs_path, run) >= (int) sizeof(joined)) {
+            log_err_printf("[CONFIG] --run path is too long\n");
+            return 1;
+        }
+
+        if (realpath(config.arguments.hostfs_path, run_hostfs_root) == NULL ||
+            realpath(joined, file) == NULL) {
+            log_perror("[CONFIG] Could not resolve --run path");
+            return 1;
+        }
+
+        const size_t root_len = strlen(run_hostfs_root);
+        const bool root_has_separator =
+            root_len > 0 && (run_hostfs_root[root_len - 1] == '/' ||
+                             run_hostfs_root[root_len - 1] == '\\');
+        if (strncmp(run_hostfs_root, file, root_len) != 0 ||
+            (!root_has_separator && file[root_len] != '\0' &&
+             file[root_len] != '/' && file[root_len] != '\\')) {
+            log_err_printf("[CONFIG] --run path escapes HostFS root\n");
+            return 1;
+        }
+
+        if (stat(file, &st) != 0 || !S_ISREG(st.st_mode) || access(file, R_OK) != 0) {
+            log_err_printf("[CONFIG] --run path must name a readable regular file\n");
+            return 1;
+        }
+
+        snprintf(run_guest_path, sizeof(run_guest_path), "%s", run);
+        for (char* p = run_guest_path; *p != '\0'; p++) {
+            if (*p == '\\') {
+                *p = '/';
+            }
+        }
+        config.arguments.run_filename = run_guest_path;
+    }
+
+    return 0;
+}
 
 static void handle_interrupt(int signal_number)
 {
@@ -28,6 +125,9 @@ int main(int argc, char* argv[])
     if(code != 0) return code;
 
     config_parse_file(config.arguments.config_path);
+    if (validate_run_path()) {
+        return 1;
+    }
     if(config.arguments.verbose) config_debug();
 
     if (config.arguments.hostfs_path == NULL) {
@@ -44,8 +144,10 @@ int main(int argc, char* argv[])
         goto deinit;
     }
 
-    if (flash_load_from_file(&machine.rom, config.arguments.rom_filename,
-                             config.arguments.uprog_filename)) {
+    code = flash_load_from_file(&machine.rom, config.arguments.rom_filename,
+                                config.arguments.uprog_filename,
+                                config.arguments.run_filename);
+    if (code != 0) {
         goto deinit;
     }
 

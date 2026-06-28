@@ -55,6 +55,7 @@ typedef struct {
     const char* eeprom_filename;
     const char* tf_filename;
     const char* uprog_filename;
+    const char* run_filename;
     const char* cf_filename;
     const char* hostfs_path;
     const char* map_file;
@@ -62,6 +63,7 @@ typedef struct {
     unsigned long headless_run_ticks;
     bool headless;
     bool config_save;
+    bool hostfs_explicit;
     uint8_t verbose;
     bool no_reset;
 } config_arguments_t;

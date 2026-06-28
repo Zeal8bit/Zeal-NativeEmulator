@@ -133,6 +133,7 @@ Options:
   -s, --save <file>             Save * arguments to Zeal Config
   -r, --rom <file>              * Load ROM file
   -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address
+      --run <path>              Run a program from HostFS
   -e, --eeprom <file>           Load EEPROM file
   -t, --tf <file>               Load TF/SDcard file
   -H, --hostfs <path>           Set host filesystem path
@@ -144,6 +145,18 @@ Options:
 Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
 ```
+
+`--run` launches a program directly from HostFS and sets the Zeal OS current
+working directory to `H:/`. Without `-H`, the program's directory becomes the
+HostFS root. With `-H`, the run path is relative to the explicit HostFS root:
+
+```sh
+zeal-native --run user.bin
+zeal-native --run path/user.bin
+zeal-native --run user.bin -H bin/
+```
+
+`--run` and `-u` select different startup mechanisms and cannot be combined.
 
 ## Supported Features
 

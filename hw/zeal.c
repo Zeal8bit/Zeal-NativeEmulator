@@ -346,10 +346,13 @@ int zeal_reset(zeal_t* machine)
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
 
-    /* If a user program was specified, re-read the ROM and re-inject it so that
-     * recompiled programs are picked up automatically on reset */
-    if (config.arguments.uprog_filename != NULL) {
-        flash_load_from_file(&machine->rom, config.arguments.rom_filename, config.arguments.uprog_filename);
+    /* Re-read and patch the ROM so startup-program changes are applied on reset. */
+    if (config.arguments.uprog_filename != NULL || config.arguments.run_filename != NULL) {
+        if (flash_load_from_file(&machine->rom, config.arguments.rom_filename,
+                                 config.arguments.uprog_filename,
+                                 config.arguments.run_filename)) {
+            return 1;
+        }
     }
 
 #if CONFIG_ENABLE_DEBUGGER
