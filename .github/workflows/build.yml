@@ -113,6 +113,12 @@ jobs:
           name: zeal-native-rpi-arm64
           path: ./artifacts/rpi-arm64
 
+      - name: Download Raspberry Pi GPi2 ARM64 Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zeal-native-rpi-gpi2-arm64
+          path: ./artifacts/rpi-gpi2-arm64
+
       - name: Create Release Archives
         run: |
           cd artifacts/linux
@@ -126,11 +132,13 @@ jobs:
           cd ../wasm
           zip -r ../../zeal-native-wasm.zip .
           cd ../rpi-armv6
-          tar -czf ../../zeal-native-rpi-armv6.tar.gz zeal-native.armv6 lib
+          tar -czf ../../zeal-native-rpi-armv6.tar.gz zeal-native.armv6 lib assets
           cd ../rpi-armv7
-          tar -czf ../../zeal-native-rpi-armv7.tar.gz zeal-native.armv7 lib
+          tar -czf ../../zeal-native-rpi-armv7.tar.gz zeal-native.armv7 lib assets
           cd ../rpi-arm64
-          tar -czf ../../zeal-native-rpi-arm64.tar.gz zeal-native.arm64 lib
+          tar -czf ../../zeal-native-rpi-arm64.tar.gz zeal-native.arm64 lib assets
+          cd ../rpi-gpi2-arm64
+          tar -czf ../../zeal-native-rpi-gpi2-arm64.tar.gz zeal-native.gpi2-arm64 lib assets
           cd ../..
 
       - name: Generate Release Info
@@ -166,3 +174,4 @@ jobs:
             zeal-native-rpi-armv6.tar.gz
             zeal-native-rpi-armv7.tar.gz
             zeal-native-rpi-arm64.tar.gz
+            zeal-native-rpi-gpi2-arm64.tar.gz

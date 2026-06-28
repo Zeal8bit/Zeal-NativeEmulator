@@ -63,6 +63,16 @@ set_service_config() {
             setup_arg="--native-file"
             binary="zeal-native.arm64"
             ;;
+        build-rpi-gpi2)
+            platform="linux/arm64"
+            image="zeal-native-rpi-gpi2-builder"
+            dockerfile="docker/rpi/Dockerfile.arm64"
+            target_cflags=""
+            build_dir="build-rpi-gpi2"
+            profile="raspberrypi-gpi2.build"
+            setup_arg="--native-file"
+            binary="zeal-native.gpi2-arm64"
+            ;;
         *)
             echo "error: unknown service '$1'" >&2
             exit 1
@@ -115,7 +125,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$services" ]; then
-    services="build-rpi3 build-rpi64 build-rpi0"
+    services="build-rpi3 build-rpi64 build-rpi-gpi2 build-rpi0"
 fi
 export MESON_ARGS
 
@@ -138,6 +148,7 @@ echo "==> Done"
 echo "build-rpi0/zeal-native.armv6"
 echo "build-rpi3/zeal-native.armv7"
 echo "build-rpi64/zeal-native.arm64"
+echo "build-rpi-gpi2/zeal-native.gpi2-arm64"
 
 if [ -n "$failed_services" ]; then
     echo "error: failed services:$failed_services" >&2

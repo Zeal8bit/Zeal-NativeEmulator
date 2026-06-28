@@ -5,3 +5,4 @@ c_args = ['-D_DEFAULT_SOURCE',
 
 [project options]
 auto_attach_snes_mouse = false
+target_retroflag_gpi2 = true
