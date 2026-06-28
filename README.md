@@ -157,6 +157,9 @@ zeal-native --run user.bin -H bin/
 ```
 
 `--run` and `-u` select different startup mechanisms and cannot be combined.
+Normally, Zeal OS relaunches the startup program when it exits. Passing
+`--no-reset` (`-q`) treats that return to the kernel like a reset and exits the
+emulator instead.
 
 ## Supported Features
 

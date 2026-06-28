@@ -335,6 +335,18 @@ static memory_op_t s_ops = {
     .phys_write_byte = zeal_phys_mem_write,
 };
 
+static bool zeal_user_program_exited(zeal_t* machine)
+{
+    if (config.arguments.no_reset &&
+        machine->rom.user_program_exit_pc != 0 &&
+        machine->cpu.pc == machine->rom.user_program_exit_pc) {
+        log_printf("[ZEAL] Startup program exited, terminating emulator (--no-reset)\n");
+        zeal_exit(machine);
+        return true;
+    }
+    return false;
+}
+
 int zeal_reset(zeal_t* machine)
 {
     zeal_init_cpu(machine);
@@ -540,6 +552,9 @@ int zeal_init(zeal_t* machine)
 static int zeal_headless_mode_run(zeal_t* machine)
 {
     const int elapsed_tstates = z80_step(&machine->cpu);
+    if (zeal_user_program_exited(machine)) {
+        return 0;
+    }
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset! */
         log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
@@ -669,6 +684,9 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         }
 
         const int elapsed_tstates = z80_step(&machine->cpu);
+        if (zeal_user_program_exited(machine)) {
+            return 0;
+        }
 
         /* Check if we need to poll the keyboard and transmit the data to the VM */
         if (keyboard_check(&machine->keyboard, elapsed_tstates) &&
@@ -711,6 +729,9 @@ static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
     const int elapsed_tstates = z80_step(&machine->cpu);
+    if (zeal_user_program_exited(machine)) {
+        return 2;
+    }
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset!
          * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
