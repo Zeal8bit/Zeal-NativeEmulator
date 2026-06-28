@@ -66,6 +66,10 @@ if get_option('profile_render')
     add_project_arguments('-DCONFIG_PROFILE_RENDER', language: 'c')
 endif
 
+if get_option('debug_sprite_instances')
+    add_project_arguments('-DCONFIG_DEBUG_SPRITE_INSTANCES', language: 'c')
+endif
+
 if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif

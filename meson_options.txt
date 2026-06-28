@@ -1,6 +1,7 @@
 # meson_options.txt
 option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
 option('profile_render', type: 'boolean', value: false, description: 'Log aggregated frame and sprite rendering timings')
+option('debug_sprite_instances', type: 'boolean', value: false, description: 'Render a diagnostic sprite instance')
 option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 option('auto_attach_snes_mouse', type: 'boolean', value: true, description: 'Automatically attach the SNES mouse at startup')

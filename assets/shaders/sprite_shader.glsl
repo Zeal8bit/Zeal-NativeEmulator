@@ -28,20 +28,20 @@ precision highp float;
 precision highp int;
 #endif
 
-in vec3 vertexPos;
 in vec2 fragTexCoord;
-in vec4 fragColor;
 
 uniform sampler2D tilemaps;
 uniform sampler2D tileset;
 uniform sampler2D palette;
 uniform int video_mode;
-uniform int tile_number;
-uniform int palette_mask;
-uniform int flags;
-uniform ivec2 sprite_pos;
-uniform ivec2 sprite_size;
 uniform ivec2 scroll_l1;
+uniform int debug_sprite_instances;
+
+flat in int sprite_tile_number;
+flat in int sprite_palette_mask;
+flat in int sprite_flags;
+flat in ivec2 sprite_pos;
+flat in ivec2 sprite_size;
 
 out vec4 finalColor;
 
@@ -89,6 +89,11 @@ int foreground_color(ivec2 screen_pos)
 
 void main()
 {
+    if (debug_sprite_instances != 0) {
+        finalColor = vec4(1.0, 0.0, 1.0, 1.0);
+        return;
+    }
+
     bool mode_320 = video_mode == MODE_GFX_320_8BIT || video_mode == MODE_GFX_320_4BIT;
     bool color_4bit = video_mode == MODE_GFX_640_4BIT || video_mode == MODE_GFX_320_4BIT;
 
@@ -100,25 +105,25 @@ void main()
         screen_pos.y = screen_pos.y / 2;
     }
 
-    if (!color_4bit && (flags & FLAG_BEHIND_FG) != 0 && foreground_color(screen_pos) != 0) {
+    if (!color_4bit && (sprite_flags & FLAG_BEHIND_FG) != 0 && foreground_color(screen_pos) != 0) {
         discard;
     }
 
-    if ((flags & FLAG_FLIP_Y) != 0) {
+    if ((sprite_flags & FLAG_FLIP_Y) != 0) {
         local.y = sprite_size.y - 1 - local.y;
     }
-    if ((flags & FLAG_FLIP_X) != 0) {
+    if ((sprite_flags & FLAG_FLIP_X) != 0) {
         local.x = TILE_WIDTH - 1 - local.x;
     }
 
     int in_tile = local.x + local.y * TILE_WIDTH;
-    int color = color_from_idx(tile_number, in_tile, color_4bit);
+    int color = color_from_idx(sprite_tile_number, in_tile, color_4bit);
 
     if (color == 0) {
         discard;
     }
 
-    int sprite_palette = color_4bit ? palette_mask : 0;
+    int sprite_palette = color_4bit ? sprite_palette_mask : 0;
     finalColor = texelFetch(palette, ivec2(sprite_palette + color, 0), 0);
     finalColor.a = 1.0;
 }

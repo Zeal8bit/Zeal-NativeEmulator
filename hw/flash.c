@@ -371,7 +371,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     } else {
         strcpy(entry.name, "init.bin");
     }
-    log_printf("Loading user program as %s\n", entry.name);
+    log_printf("[FLASH] Loading user program as %s\n", entry.name);
 
     memcpy(romdisk, &entry, sizeof(entry));
 

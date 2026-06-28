@@ -7,6 +7,7 @@ shader_files = [
   'text_debug.glsl',
   'bitmap_shader.glsl',
   'gfx_debug.glsl',
+  'sprite_vertex_shader.glsl',
   'sprite_shader.glsl'
 ]
 
