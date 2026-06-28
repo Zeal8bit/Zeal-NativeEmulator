@@ -36,6 +36,8 @@ typedef struct {
     int ticks_remaining;
     /* Flag set if any byte was changed (and needs write-back) */
     int dirty;
+    /* Kernel PC reached when the startup program exits back to the loader */
+    uint16_t user_program_exit_pc;
 } flash_t;
 
 

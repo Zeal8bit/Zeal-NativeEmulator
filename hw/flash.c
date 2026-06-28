@@ -313,6 +313,32 @@ static int flash_find_init_path(flash_t* flash, size_t os_offset,
     return 1;
 }
 
+static int flash_set_user_exit_pc(flash_t* flash, size_t os_offset,
+                                  uint16_t init_address)
+{
+    const size_t os_page_size = 0x4000;
+    int references = 0;
+    uint16_t last_reference = 0;
+
+    for (size_t i = 0; i + 2 < os_page_size; i++) {
+        const uint8_t* instruction = &flash->data[os_offset + i];
+        if (instruction[0] == 0x21 &&
+            instruction[1] == (init_address & 0xff) &&
+            instruction[2] == (init_address >> 8)) {
+            last_reference = (uint16_t) i;
+            references++;
+        }
+    }
+
+    if (references < 2) {
+        log_err_printf("[FLASH] Zeal OS startup-program exit path is incompatible\n");
+        return 1;
+    }
+
+    flash->user_program_exit_pc = last_reference;
+    return 0;
+}
+
 static int flash_override_default_disk(flash_t* flash, size_t os_offset)
 {
     const size_t os_page_size = 0x4000;
@@ -372,6 +398,10 @@ static int flash_override_init_hostfs(flash_t* flash, const char* run_filename)
     if (flash_find_init_path(flash, (size_t) os_offset, max_path,
                              &old_init_addr)) {
         log_err_printf("[FLASH] Could not locate compatible Zeal OS init path; cannot use --run\n");
+        return 1;
+    }
+
+    if (flash_set_user_exit_pc(flash, (size_t) os_offset, old_init_addr)) {
         return 1;
     }
 
@@ -464,6 +494,16 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
         return 1;
     }
 
+    const uint8_t* config_data = &flash->data[zealos_offset + config_addr];
+    const size_t max_path = config_data[6] | (config_data[7] << 8);
+    uint16_t init_addr = 0;
+    if (flash_find_init_path(flash, (size_t) zealos_offset, max_path, &init_addr) ||
+        flash_set_user_exit_pc(flash, (size_t) zealos_offset, init_addr)) {
+        log_err_printf("[FLASH] Cannot detect user-program exit path for --uprog\n");
+        err = 1;
+        goto ret;
+    }
+
     /* Check if the parameter provides a romdisk address */
     char* comma = strchr(path, ',');
     if (comma) {
@@ -554,6 +594,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename,
     if (flash == NULL) {
         return -1;
     }
+    flash->user_program_exit_pc = 0;
 
     if (rom_filename != NULL) {
         snprintf(rom_path, sizeof(rom_path), "%s", rom_filename);
