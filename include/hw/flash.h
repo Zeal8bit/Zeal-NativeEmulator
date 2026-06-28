@@ -43,6 +43,7 @@ int flash_init(flash_t* flash);
 
 void flash_tick(flash_t* flash, int elapsed_tstates);
 
-int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
+int flash_load_from_file(flash_t* flash, const char* rom_filename,
+                         const char* userprog_filename, const char* run_filename);
 
 int flash_save_to_file(flash_t* flash, const char* name);

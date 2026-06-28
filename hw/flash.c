@@ -250,7 +250,8 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
 
     for (size_t i = 0; i < flash->size; i += 16384) {
         /* The address 0x4 of the page shall contain the configuration structure of the OS */
-        int config_addr = flash->data[i + config_offset] | flash->data[i + config_offset];
+        int config_addr = flash->data[i + config_offset] |
+                          (flash->data[i + config_offset + 1] << 8);
         /* The config is always with the first 4KB but after the reset vectors, make sure the
          * first byte is referring to Zeal 8-bit computer (1) */
         if (config_addr >= 0x40 && config_addr < 0x1000 && flash->data[i + config_addr] == zeal_computer_target) {
@@ -263,6 +264,156 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
     }
 
     return -1;
+}
+
+static int flash_count_init_references(flash_t* flash, size_t os_offset, uint16_t address)
+{
+    const size_t os_page_size = 0x4000;
+    int references = 0;
+
+    for (size_t i = 0; i + 2 < os_page_size; i++) {
+        const uint8_t* instruction = &flash->data[os_offset + i];
+        if (instruction[0] == 0x21 &&
+            instruction[1] == (address & 0xff) &&
+            instruction[2] == (address >> 8)) {
+            references++;
+        }
+    }
+
+    return references;
+}
+
+static int flash_find_init_path(flash_t* flash, size_t os_offset,
+                                size_t max_path, uint16_t* out_address)
+{
+    const size_t os_page_size = 0x4000;
+
+    for (size_t i = 0x40; i + 4 < os_page_size; i++) {
+        const uint8_t* path = &flash->data[os_offset + i];
+        if ((path[0] != 'A' && path[0] != 'a') ||
+            path[1] != ':' || path[2] != '/') {
+            continue;
+        }
+
+        size_t length = 3;
+        while (i + length < os_page_size &&
+               length < max_path && isprint(path[length])) {
+            length++;
+        }
+        if (i + length >= os_page_size || path[length] != '\0') {
+            continue;
+        }
+
+        if (flash_count_init_references(flash, os_offset, (uint16_t) i) >= 2) {
+            *out_address = (uint16_t) i;
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int flash_override_default_disk(flash_t* flash, size_t os_offset)
+{
+    const size_t os_page_size = 0x4000;
+    int disks_init_refs = 0;
+    int vfs_init_refs = 0;
+
+    for (size_t i = 0; i + 3 < os_page_size; i++) {
+        uint8_t* instruction = &flash->data[os_offset + i];
+
+        /* ld a, 'A'; ld (disks_default), a */
+        if (instruction[0] == 0x3e && instruction[1] == 'A' &&
+            instruction[2] == 0x32) {
+            instruction[1] = 'H';
+            disks_init_refs++;
+        }
+
+        /* ld hl, ':' << 8 | 'A'; ld (vfs_current_dir), hl */
+        if (instruction[0] == 0x21 && instruction[1] == 'A' &&
+            instruction[2] == ':' && instruction[3] == 0x22) {
+            instruction[1] = 'H';
+            vfs_init_refs++;
+        }
+    }
+
+    if (disks_init_refs != 1 || vfs_init_refs != 1) {
+        log_err_printf("[FLASH] Zeal OS default-disk initialization is incompatible with --run\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static int flash_override_init_hostfs(flash_t* flash, const char* run_filename)
+{
+    const size_t os_page_size = 0x4000;
+    uint32_t config_addr = 0;
+    uint16_t old_init_addr = 0;
+    char guest_path[PATH_MAX];
+
+    const int os_offset = flash_find_os_page(flash, &config_addr);
+    if (os_offset < 0) {
+        log_err_printf("[FLASH] Could not find Zeal 8-bit OS; cannot use --run\n");
+        return 1;
+    }
+
+    const uint8_t* config_data = &flash->data[os_offset + config_addr];
+    const size_t max_path = config_data[6] | (config_data[7] << 8);
+    const int path_length = snprintf(guest_path, sizeof(guest_path),
+                                     "H:/%s", run_filename);
+    if (path_length < 0 || (size_t) path_length + 1 > max_path ||
+        (size_t) path_length + 1 > sizeof(guest_path)) {
+        log_err_printf("[FLASH] --run path exceeds Zeal OS path limit (%u)\n",
+                       (unsigned int) max_path);
+        return 1;
+    }
+
+    if (flash_find_init_path(flash, (size_t) os_offset, max_path,
+                             &old_init_addr)) {
+        log_err_printf("[FLASH] Could not locate compatible Zeal OS init path; cannot use --run\n");
+        return 1;
+    }
+
+    if (flash_override_default_disk(flash, (size_t) os_offset)) {
+        return 1;
+    }
+
+    const size_t storage_size = (size_t) path_length + 1;
+    const size_t storage_addr = os_page_size - storage_size;
+    const uint8_t padding = flash->data[os_offset + os_page_size - 1];
+    if (padding != 0x00 && padding != 0xff) {
+        log_err_printf("[FLASH] Zeal OS page has no padding for --run path\n");
+        return 1;
+    }
+    for (size_t i = storage_addr; i < os_page_size; i++) {
+        if (flash->data[os_offset + i] != padding) {
+            log_err_printf("[FLASH] Zeal OS page has insufficient padding for --run path\n");
+            return 1;
+        }
+    }
+
+    int references = 0;
+    for (size_t i = 0; i + 2 < os_page_size; i++) {
+        uint8_t* instruction = &flash->data[os_offset + i];
+        if (instruction[0] == 0x21 &&
+            instruction[1] == (old_init_addr & 0xff) &&
+            instruction[2] == (old_init_addr >> 8)) {
+            instruction[1] = storage_addr & 0xff;
+            instruction[2] = storage_addr >> 8;
+            references++;
+        }
+    }
+
+    if (references < 2) {
+        log_err_printf("[FLASH] Zeal OS init path references are incompatible with --run\n");
+        return 1;
+    }
+
+    memcpy(&flash->data[os_offset + storage_addr], guest_path, storage_size);
+    flash->data[os_offset + config_addr + 2] = 'H';
+    log_printf("[FLASH] Launching %s from HostFS with CWD H:/\n", guest_path);
+    return 0;
 }
 
 /**
@@ -395,7 +546,8 @@ ret:
 }
 
 
-int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename)
+int flash_load_from_file(flash_t* flash, const char* rom_filename,
+                         const char* userprog_filename, const char* run_filename)
 {
     char rom_path[PATH_MAX];
 
@@ -457,6 +609,11 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
     /* Try to load the user program, if any */
     if (userprog_filename != NULL ) {
         int err = flash_override_romdisk(flash, userprog_filename);
+        if (err != 0) return err;
+    }
+
+    if (run_filename != NULL) {
+        int err = flash_override_init_hostfs(flash, run_filename);
         if (err != 0) return err;
     }
 
