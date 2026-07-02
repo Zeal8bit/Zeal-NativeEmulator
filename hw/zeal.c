@@ -407,9 +407,6 @@ int zeal_init(zeal_t* machine)
             ClearBackground(BLACK);
         EndDrawing();
 
-        /* Since we want to enable scaling, make the ZVB output always go to a texture first */
-        machine->zvb_out = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
-
 #if CONFIG_ENABLE_DEBUGGER
         config_window_set(machine->dbg_enabled);
         /* Initialize the debugger */
@@ -495,7 +492,6 @@ int zeal_init(zeal_t* machine)
 
     zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
     const zvb_config_t zvb_config = {
-        .flipped_y = false,
         .rendering_enabled = !machine->headless,
     };
     err = zvb_init(&machine->zvb, &zvb_config, &s_ops);
@@ -564,7 +560,7 @@ int zeal_debug_enable(zeal_t* machine)
     config_window_set(true);
     if(machine->dbg_ui == NULL) {
         dbg_ui_init_args_t args = {
-            .main_view = &machine->zvb_out,
+            .main_view = &machine->zvb.blitter.main_texture,
             .zvb = &machine->zvb,
         };
         args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
@@ -610,14 +606,9 @@ static int zeal_dbg_mode_display(zeal_t* machine)
      */
     if (zvb_prepare_render(&machine->zvb)) {
         /* Display all the devices that have a render function */
-        BeginTextureMode(machine->zvb_out);
-            zvb_render(&machine->zvb);
-        EndTextureMode();
+        zvb_render(&machine->zvb);
     } else if (machine->dbg_state == ST_PAUSED) {
-        /* No need for `prepare` in this case */
-        BeginTextureMode(machine->zvb_out);
-            zvb_force_render(&machine->zvb);
-        EndTextureMode();
+        zvb_force_render(&machine->zvb);
     } else {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
         return 0;
@@ -749,13 +740,11 @@ static int zeal_normal_mode_run(zeal_t* machine)
             pos_x = (screen_w - draw_w) / 2;
         }
 
-        BeginTextureMode(machine->zvb_out);
-            zvb_render(&machine->zvb);
-        EndTextureMode();
+        zvb_render(&machine->zvb);
 
         BeginDrawing();
             ClearBackground(DARKGRAY);
-            DrawTexturePro(machine->zvb_out.texture,
+            DrawTexturePro(zvb_output_texture(&machine->zvb),
                             (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
                             (Rectangle){ pos_x, pos_y, draw_w, draw_h },
                             (Vector2){ 0, 0 },

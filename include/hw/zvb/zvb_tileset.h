@@ -20,10 +20,12 @@
 typedef struct {
     /* Raw arrays representing the tileset in VRAM */
     uint8_t raw[ZVB_TILESET_SIZE];
+#if ZVB_BLITTER_SHADER
     /* Make rendering faster by using an Image and a Texture for the tileset */
     Image   img_tileset;
     Texture tex_tileset;
     int     dirty;
+#endif
 } zvb_tileset_t;
 
 
@@ -31,10 +33,12 @@ typedef struct {
 /**
  * @brief Get the shader out of the palette
  */
+#if ZVB_BLITTER_SHADER
 static inline Texture* zvb_tileset_texture(zvb_tileset_t* tileset)
 {
     return &tileset->tex_tileset;
 }
+#endif
 
 
 /**

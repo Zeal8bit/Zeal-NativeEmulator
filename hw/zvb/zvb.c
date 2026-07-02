@@ -273,7 +273,6 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     zvb_dma_init(&dev->dma, ops);
 
     if (rendering_enabled) {
-        dev->main_texture = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
@@ -290,9 +289,6 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     /* Enable the screen by default */
     dev->status.vid_ena = 1;
     dev->need_render = false;
-
-    /* For the debugger */
-    dev->flipped_y = config->flipped_y;
     return 0;
 }
 
@@ -312,8 +308,9 @@ static void zvb_reset(device_t* dev)
  */
 static void zvb_render_disabled_mode(zvb_t* zvb)
 {
-    (void) zvb;
-    ClearBackground(BLACK);
+    BeginTextureMode(zvb->blitter.main_texture);
+        ClearBackground(BLACK);
+    EndTextureMode();
 }
 
 

@@ -22,6 +22,8 @@
 
 #if ZVB_BLITTER_SHADER
 #include "hw/zvb/blitter/shader.h"
+#elif ZVB_BLITTER_SOFTWARE
+#include "hw/zvb/blitter/software.h"
 #endif
 
 
@@ -130,7 +132,6 @@ typedef struct {
 
 
 typedef struct {
-    bool flipped_y;
     bool rendering_enabled;
 } zvb_config_t;
 
@@ -153,7 +154,6 @@ typedef struct {
 
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
-    RenderTexture    main_texture;
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
 
     /* Internal values */
@@ -166,9 +166,6 @@ typedef struct {
     long             tstates_counter;
     bool             need_render;
     bool             rendering_enabled;
-    /* When rendering to the screen directly, Y must be flipped,
-     * But when rendering to a texture (debugger UI), it must not be*/
-    bool             flipped_y;
 } zvb_t;
 
 
@@ -248,4 +245,13 @@ static inline const RenderTexture* zvb_get_debug_textures(zvb_t* zvb, int* count
         *count = DBG_VIEW_TOTAL;
     }
     return zvb->debug_tex;
+}
+
+
+/**
+ * @brief Get the texture containing the rendered frame, ready to draw to screen.
+ */
+static inline Texture zvb_output_texture(zvb_t* zvb)
+{
+    return zvb->blitter.main_texture.texture;
 }

@@ -33,6 +33,8 @@
 
 void zvb_blitter_init(zvb_t* dev)
 {
+    dev->blitter.main_texture = LoadRenderTexture(ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
+
     /* Get the indexes of the objects in the shaders */
     zvb_shader_t* st_shader = &dev->blitter.shaders[SHADER_TEXT];
     log_printf("Compiling shader text_shader\n");
@@ -119,6 +121,7 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
     zvb_text_info_t info;
     zvb_text_update(&zvb->text, &info);
 
+    BeginTextureMode(zvb->blitter.main_texture);
     BeginShaderMode(shader);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
@@ -132,13 +135,14 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
         SetShaderValue(shader, scroll_idx,  &info.scroll, SHADER_UNIFORM_IVEC2);
 
         /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
-        DrawTextureRec(zvb->main_texture.texture,
+        DrawTextureRec(zvb->blitter.main_texture.texture,
                         (Rectangle){ 0, 0,
                                      ZVB_MAX_RES_WIDTH,
-                                     zvb->flipped_y ? -ZVB_MAX_RES_HEIGHT : ZVB_MAX_RES_HEIGHT },
+                                     ZVB_MAX_RES_HEIGHT },
                         (Vector2){ 0, 0 },
                         WHITE);
     EndShaderMode();
+    EndTextureMode();
 }
 
 
@@ -172,7 +176,7 @@ void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
             SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, width, height },
                             /* Since the texture is bigger than the content, render the content at the top left */
                             (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
@@ -186,7 +190,7 @@ void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
         ClearBackground(BLANK);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, width, height },
                             /* Since the texture is bigger than the content, render the content at the top left */
                             (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
@@ -200,7 +204,7 @@ void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
         ClearBackground(BLANK);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
@@ -234,6 +238,7 @@ void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
     const int tileset_idx  = st_shader->objects[GFX_SHADER_TILESET_IDX];
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
+    BeginTextureMode(zvb->blitter.main_texture);
     BeginShaderMode(shader);
         SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
         /* Transfer all the texture to the GPU */
@@ -241,13 +246,14 @@ void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
         SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
 
         /* Flip the screen in Y since OpenGL treats (0,0) as the bottom left pixel of the screen */
-        DrawTextureRec(zvb->main_texture.texture,
+        DrawTextureRec(zvb->blitter.main_texture.texture,
                         (Rectangle){ 0, 0,
                                      ZVB_MAX_RES_WIDTH,
-                                     zvb->flipped_y ? -ZVB_MAX_RES_HEIGHT : ZVB_MAX_RES_HEIGHT },
+                                     ZVB_MAX_RES_HEIGHT },
                         (Vector2){ 0, 0 },
                         WHITE);
     EndShaderMode();
+    EndTextureMode();
 }
 
 
@@ -267,6 +273,7 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
     const int scroll1_idx  = st_shader->objects[GFX_SHADER_SCROLL1_IDX];
     const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
 
+    BeginTextureMode(zvb->blitter.main_texture);
     BeginShaderMode(shader);
         /* Transfer all the texture to the GPU */
         SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
@@ -278,13 +285,14 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
         SetShaderValue(shader, scroll0_idx,  &zvb->ctrl.l0_scroll_x, SHADER_UNIFORM_IVEC2);
         SetShaderValue(shader, scroll1_idx,  &zvb->ctrl.l1_scroll_x, SHADER_UNIFORM_IVEC2);
 
-        DrawTextureRec(zvb->main_texture.texture,
+        DrawTextureRec(zvb->blitter.main_texture.texture,
                         (Rectangle){ 0, 0,
                                      ZVB_MAX_RES_WIDTH,
-                                     zvb->flipped_y ? -ZVB_MAX_RES_HEIGHT : ZVB_MAX_RES_HEIGHT },
+                                     ZVB_MAX_RES_HEIGHT },
                         (Vector2){ 0, 0 },
                         WHITE);
     EndShaderMode();
+    EndTextureMode();
 }
 
 
@@ -311,7 +319,7 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
             SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
             SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
 
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
@@ -324,7 +332,7 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
     BeginTextureMode(*texture);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
@@ -338,7 +346,7 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
         ClearBackground(BLANK);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
@@ -352,7 +360,7 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
         ClearBackground(BLANK);
         BeginShaderMode(shader);
             SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->main_texture.texture,
+            DrawTextureRec(zvb->blitter.main_texture.texture,
                             (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
                             (Vector2){ 0, 0 },
                             WHITE);
@@ -362,7 +370,7 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
 
 void zvb_blitter_deinit(zvb_t* zvb)
 {
-    UnloadRenderTexture(zvb->main_texture);
+    UnloadRenderTexture(zvb->blitter.main_texture);
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         UnloadRenderTexture(zvb->debug_tex[i]);
     }

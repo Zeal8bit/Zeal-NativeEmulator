@@ -27,20 +27,24 @@
 typedef struct {
     /* Raw data, as organized in the real hardware. Each character is a bitmap. */
     uint8_t raw_font[ZVB_FONT_SIZE];
+#if ZVB_BLITTER_SHADER
     /* Make rendering faster by using an Image and a Texture underneath */
     Image   img_font;
     Texture tex_font;
     int     dirty;
+#endif
 } zvb_font_t;
 
 
 /**
  * @brief Get the texture out of the font
  */
+#if ZVB_BLITTER_SHADER
 static inline Texture zvb_font_texture(zvb_font_t* font)
 {
     return font->tex_font;
 }
+#endif
 
 
 /**

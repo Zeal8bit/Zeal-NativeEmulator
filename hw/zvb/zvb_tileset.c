@@ -10,8 +10,30 @@
 #include <string.h>
 #include "hw/zvb/zvb_tileset.h"
 
+#if ZVB_BLITTER_SHADER
 
-static void tileset_update_img(zvb_tileset_t* tileset, uint32_t addr, uint_fast8_t data);
+/**
+ * @brief Update the image with incoming byte
+ */
+static void tileset_update_img(zvb_tileset_t* tileset, uint32_t addr, uint_fast8_t data)
+{
+    _Static_assert(sizeof(Color) == 4, "Color should be 32-bit big");
+    /* Pixels of the image can be access as an array directly. The lines of each tile
+     * are organized linearly. */
+    uint8_t *pixels = tileset->img_tileset.data;
+    pixels[addr] = data;
+    tileset->dirty = 1;
+}
+
+void zvb_tileset_update(zvb_tileset_t* tileset)
+{
+    if (tileset->dirty != 0 && tileset->tex_tileset.id != 0) {
+        UpdateTexture(tileset->tex_tileset, tileset->img_tileset.data);
+        tileset->dirty = 0;
+    }
+}
+
+#endif // ZVB_BLITTER_SHADER
 
 
 void zvb_tileset_init(zvb_tileset_t* tileset, bool rendering_enabled)
@@ -21,6 +43,8 @@ void zvb_tileset_init(zvb_tileset_t* tileset, bool rendering_enabled)
     /* Initialize both tilesets to 0 on boot (not reset) */
     memset(tileset->raw, 0, sizeof(tileset->raw));
 
+    (void) rendering_enabled;
+#if ZVB_BLITTER_SHADER
     if (!rendering_enabled) {
         tileset->dirty = 0;
         return;
@@ -39,42 +63,23 @@ void zvb_tileset_init(zvb_tileset_t* tileset, bool rendering_enabled)
 
     tileset->tex_tileset = LoadTextureFromImage(tileset->img_tileset);
     tileset->dirty = 0;
+#endif // ZVB_BLITTER_SHADER
 }
 
 
 void zvb_tileset_write(zvb_tileset_t* tileset, uint32_t addr, uint8_t data)
 {
     tileset->raw[addr] = data;
+
+#if ZVB_BLITTER_SHADER
     if (tileset->img_tileset.data != NULL) {
         tileset_update_img(tileset, addr, data);
     }
+#endif
 }
 
 
 uint8_t zvb_tileset_read(zvb_tileset_t* tileset, uint32_t addr)
 {
     return tileset->raw[addr];
-}
-
-
-void zvb_tileset_update(zvb_tileset_t* tileset)
-{
-    if (tileset->dirty != 0 && tileset->tex_tileset.id != 0) {
-        UpdateTexture(tileset->tex_tileset, tileset->img_tileset.data);
-        tileset->dirty = 0;
-    }
-}
-
-
-/**
- * @brief Update the image with incoming byte
- */
-static void tileset_update_img(zvb_tileset_t* tileset, uint32_t addr, uint_fast8_t data)
-{
-    _Static_assert(sizeof(Color) == 4, "Color should be 32-bit big");
-    /* Pixels of the image can be access as an array directly. The lines of each tile
-     * are organized linearly. */
-    uint8_t *pixels = tileset->img_tileset.data;
-    pixels[addr] = data;
-    tileset->dirty = 1;
 }

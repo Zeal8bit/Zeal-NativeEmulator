@@ -21,10 +21,12 @@ typedef struct {
     /* Raw arrays representing the tilemaps in VRAM */
     uint8_t raw_layer0[ZVB_TILEMAP_SIZE];
     uint8_t raw_layer1[ZVB_TILEMAP_SIZE];
+#if ZVB_BLITTER_SHADER
     /* Make rendering faster by using an Image and a Texture for both layers */
     Image   img_tilemap;
     Texture tex_tilemap;
     int     dirty;
+#endif
 } zvb_tilemap_t;
 
 
@@ -32,10 +34,12 @@ typedef struct {
 /**
  * @brief Get the shader out of the palette
  */
+#if ZVB_BLITTER_SHADER
 static inline Texture* zvb_tilemap_texture(zvb_tilemap_t* tilemap)
 {
     return &tilemap->tex_tilemap;
 }
+#endif
 
 
 /**

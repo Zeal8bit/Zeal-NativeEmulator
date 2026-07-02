@@ -10,17 +10,50 @@
 #include <string.h>
 #include "hw/zvb/zvb_tilemap.h"
 
-static void tilemap_update_img(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint_fast8_t data);
+
+#if ZVB_BLITTER_SHADER
+
+/**
+ * @brief Update the image with incoming byte from a given layer
+ */
+static void tilemap_update_img(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint_fast8_t data)
+{
+    /* Pixels of the image can be access as an array directly */
+    Color *pixels = (Color*) tilemap->img_tilemap.data;
+    Color *pixel  = pixels + addr;
+
+    if (layer == 0) {
+        pixel->r = data;
+    } else {
+        pixel->g = data;
+        pixel->b = (data >> 4) & 0xf;
+        pixel->a = (data >> 0) & 0xf;
+    }
+
+    tilemap->dirty = 1;
+}
+
+void zvb_tilemap_update(zvb_tilemap_t* tilemap)
+{
+    if (tilemap->dirty != 0 && tilemap->tex_tilemap.id != 0) {
+        UpdateTexture(tilemap->tex_tilemap, tilemap->img_tilemap.data);
+        tilemap->dirty = 0;
+    }
+}
+
+#endif // ZVB_BLITTER_SHADER
 
 
 void zvb_tilemap_init(zvb_tilemap_t* tilemap, bool rendering_enabled)
 {
+    (void) rendering_enabled;
     assert(tilemap != NULL);
 
     /* Initialize both tilemaps to 0 on boot (not reset) */
     memset(tilemap->raw_layer0, 0, sizeof(tilemap->raw_layer0));
     memset(tilemap->raw_layer1, 0, sizeof(tilemap->raw_layer1));
 
+#if ZVB_BLITTER_SHADER
     if (!rendering_enabled) {
         tilemap->dirty = 0;
         return;
@@ -41,6 +74,7 @@ void zvb_tilemap_init(zvb_tilemap_t* tilemap, bool rendering_enabled)
 
     tilemap->tex_tilemap = LoadTextureFromImage(tilemap->img_tilemap);
     tilemap->dirty = 0;
+#endif
 }
 
 
@@ -51,9 +85,11 @@ void zvb_tilemap_write(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint8_t
     } else {
         tilemap->raw_layer1[addr] = data;
     }
+#if ZVB_BLITTER_SHADER
     if (tilemap->img_tilemap.data != NULL) {
         tilemap_update_img(tilemap, layer, addr, data);
     }
+#endif
 }
 
 
@@ -64,34 +100,4 @@ uint8_t zvb_tilemap_read(zvb_tilemap_t* tilemap, int layer, uint32_t addr)
     } else {
         return tilemap->raw_layer1[addr];
     }
-}
-
-
-void zvb_tilemap_update(zvb_tilemap_t* tilemap)
-{
-    if (tilemap->dirty != 0 && tilemap->tex_tilemap.id != 0) {
-        UpdateTexture(tilemap->tex_tilemap, tilemap->img_tilemap.data);
-        tilemap->dirty = 0;
-    }
-}
-
-
-/**
- * @brief Update the image with incoming byte from a given layer
- */
-static void tilemap_update_img(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint_fast8_t data)
-{
-    /* Pixels of the image can be access as an array directly */
-    Color *pixels = (Color*) tilemap->img_tilemap.data;
-    Color *pixel  = pixels + addr;
-
-    if (layer == 0) {
-        pixel->r = data;
-    } else {
-        pixel->g = data;
-        pixel->b = (data >> 4) & 0xf;
-        pixel->a = (data >> 0) & 0xf;
-    }
-
-    tilemap->dirty = 1;
 }

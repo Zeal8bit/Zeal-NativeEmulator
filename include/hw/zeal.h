@@ -93,7 +93,6 @@ struct zeal_t {
     snes_adapter_t snes_adapter;
 
     /* Renderer */
-    RenderTexture2D  zvb_out;
     bool headless;
     bool should_exit;
 

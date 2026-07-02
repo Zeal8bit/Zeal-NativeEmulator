@@ -67,4 +67,6 @@ typedef struct {
 typedef struct {
     /* Internally used to make the shader work on the whole screen */
     zvb_shader_t     shaders[SHADERS_COUNT];
+    /* Output render target */
+    RenderTexture    main_texture;
 } zvb_blitter_t;

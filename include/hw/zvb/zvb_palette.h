@@ -25,19 +25,23 @@ typedef struct {
     uint8_t raw_palette[ZVB_COLOR_PALETTE_COUNT * 2];
     /* Writes are now latched */
     int     wr_latch;
+#if ZVB_BLITTER_SHADER
     Image   img_pal;
     Texture tex_pal;
     bool    dirty;
+#endif
 } zvb_palette_t;
 
 
 /**
  * @brief Get the texture out of the palette
  */
+#if ZVB_BLITTER_SHADER
 static inline Texture zvb_pal_texture(zvb_palette_t* pal)
 {
     return pal->tex_pal;
 }
+#endif
 
 
 /**

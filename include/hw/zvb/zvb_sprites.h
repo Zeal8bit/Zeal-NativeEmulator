@@ -70,22 +70,28 @@ typedef struct {
  */
 typedef struct {
     zvb_sprite_t    data[ZVB_SPRITES_COUNT];
-    zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
     int             wr_latch;
+    /* Sorted list of sprite indices by Y (ascending). Used by software blitter. */
+    uint8_t         y_sorted[ZVB_SPRITES_COUNT];
+#if ZVB_BLITTER_SHADER
+    zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
     /* Make rendering faster by using an Image and a Texture for both layers */
     Image           img_sprites;
     Texture         tex_sprites;
     int             dirty;
+#endif
 } zvb_sprites_t;
 
 
 /**
  * @brief Get the shader out of the sprites
  */
+#if ZVB_BLITTER_SHADER
 static inline Texture* zvb_sprites_texture(zvb_sprites_t* sprites)
 {
     return &sprites->tex_sprites;
 }
+#endif
 
 
 /**
