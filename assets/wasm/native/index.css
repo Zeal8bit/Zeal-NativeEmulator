@@ -2,40 +2,40 @@
     box-sizing: border-box;
 }
 
-body {
+:root {
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
     --error: rgba(220, 128, 128, 1);
-    /*
-    640px min
-    98vw - canvas-border - canvas-padding - body-margin
-    1280px max
-    */
-    --max-width: clamp(640px, calc(98vw - 20px - 2ch - 2ch), 1280px);
-
+    --max-width: 1280px;
     background: var(--bg);
     color: var(--normal);
+}
+
+body {
     font-family: 'Courier New', Courier, monospace;
     font-size: 16px;
     line-height: 1.4;
-    margin: 1ch;
+    margin: 0;
+    container-type: inline-size;
 }
 
 .canvas_container {
-    width: fit-content;
-    height: auto !important;
-    aspect-ratio: 4 / 3;
-    padding: 1ch;
-    margin: 2rem auto;
-    border: 10px groove var(--normal);
+    max-width: var(--max-width);
+    margin-inline: auto;
     background-color: #000;
+    border-block: 4px groove var(--normal);
+
+    @container (width > 1284px) {
+        border-inline: 4px groove var(--normal);
+    }
 }
 
 #canvas {
     display: block;
-    width: 1280px;
+    /* width: 1280px; */
+    width: 100%;
     height: auto !important;
-    max-width: var(--max-width);
+    max-width: 100%;
     aspect-ratio: 4 / 3;
     outline: none;
 
@@ -70,11 +70,15 @@ body {
 .console {
     width: 100%;
     max-width: var(--max-width);
-    max-height: 200px;
     margin: 16px auto;
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(1, 1fr);
     gap: 16px;
+
+    @container (width > 800px) {
+        max-height: 200px;
+        grid-template-columns: repeat(2, 1fr);
+    }
 
     .label {
         display: inline-block;

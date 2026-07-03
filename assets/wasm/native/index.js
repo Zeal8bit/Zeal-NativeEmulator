@@ -7,6 +7,7 @@
     const reloadButton = document.getElementById('reload');
 
     let moduleInstance = null;
+    let moduleExitPromise = null;
     let loading = false;
     let romdiskPromise = null;
 
@@ -28,6 +29,11 @@
 
     async function loadModule() {
         const romdisk = await getRomdisk();
+        let resolveExit;
+        const exitPromise = new Promise(resolve => {
+            resolveExit = resolve;
+        });
+        let instance = null;
         const defaultModule = {
             print(text) {
                 console.log(`Log: ${text}`);
@@ -45,9 +51,18 @@
                 this.FS.writeFile('/roms/default.img', romdisk);
                 canvas.focus();
             },
+            onExit(exitCode) {
+                resolveExit(exitCode);
+                if (moduleInstance === instance) {
+                    moduleInstance = null;
+                    moduleExitPromise = null;
+                }
+            },
         };
 
-        moduleInstance = await NativeModule(defaultModule);
+        instance = await NativeModule(defaultModule);
+        moduleInstance = instance;
+        moduleExitPromise = exitPromise;
     }
 
     async function startModule() {
@@ -72,9 +87,12 @@
         loading = true;
         reloadButton.disabled = true;
         try {
-            moduleInstance?._zeal_exit();
-            moduleInstance = null;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            const instance = moduleInstance;
+            const exitPromise = moduleExitPromise;
+            if (instance) {
+                instance._zeal_exit_web();
+                await exitPromise;
+            }
             await loadModule();
         } catch (error) {
             console.error(error);

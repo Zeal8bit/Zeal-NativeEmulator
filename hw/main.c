@@ -21,6 +21,13 @@ static zeal_t machine;
 
 #ifdef PLATFORM_WEB
 EMSCRIPTEN_KEEPALIVE
+void zeal_exit_web(void)
+{
+    zvb_sound_deinit(&machine.zvb.sound);
+    zeal_exit(&machine);
+}
+
+EMSCRIPTEN_KEEPALIVE
 void zeal_debug_toggle_web(void)
 {
 #if CONFIG_ENABLE_DEBUGGER
