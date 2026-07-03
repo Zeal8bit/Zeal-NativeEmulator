@@ -151,6 +151,29 @@ if (host_machine.system() == 'emscripten')
         copy: true
     )
 
+    wasm_lib_sources = files(
+        'assets/wasm/libnative/hostfs.js',
+        'assets/wasm/libnative/zeal-native.js',
+    )
+    wasm_lib_copy_script = join_paths(
+        meson.project_source_root(),
+        'tools',
+        'copy_wasm_lib.py',
+    )
+    custom_target(
+        'copy_wasm_libnative',
+        input: wasm_lib_sources,
+        output: 'libnative.stamp',
+        command: [
+            'python3',
+            wasm_lib_copy_script,
+            join_paths(meson.project_build_root(), 'libnative'),
+            '@OUTPUT@',
+            '@INPUT@',
+        ],
+        build_by_default: true,
+    )
+
     patch_script = join_paths(meson.project_source_root(), 'tools', 'wasm_patch.py')
 
     patch_wasm = custom_target('patch_wasm',
