@@ -140,7 +140,7 @@ if (host_machine.system() == 'emscripten')
         output: 'index.html',
         copy: true
     )
-    if(wasm_template == 'minimal')
+    if(wasm_template != 'native')
         configure_file(
             input: join_paths(wasm_dir, 'index.js'),
             output: 'index.js',
