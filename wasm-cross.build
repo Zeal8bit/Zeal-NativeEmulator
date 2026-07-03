@@ -29,6 +29,11 @@ link_args = ['--emit-symbol-map',
 
 raylib_path = '../raylib/web'
 
+[project options]
+wasm_embed_roms = false
+show_fps = false
+enable_debugger = false
+
 [host_machine]
 system = 'emscripten'
 cpu_family = 'wasm32'

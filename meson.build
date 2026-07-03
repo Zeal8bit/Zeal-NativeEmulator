@@ -110,7 +110,7 @@ endif
 linker_args = meson.get_external_property('link_args', [])
 
 if host_machine.system() == 'emscripten'
-    if get_option('embed_roms')
+    if get_option('wasm_embed_roms')
         linker_args += ['--embed-file', 'roms']
     endif
 endif

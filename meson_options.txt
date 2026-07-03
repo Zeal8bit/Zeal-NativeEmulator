@@ -7,6 +7,7 @@ option('raylib_path', type : 'string', value : '', description : 'Path to Raylib
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 
 ## Rendering
+figure how wasm builds are setup, disable debugger by default and remove unnecessary flags from build-wasm workflow)
 option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
 option('blitter_software_scanline_rendering', type: 'boolean', value: false, description: 'Per scanline renderinginstead of per frame (software blitter only)')
 
@@ -16,4 +17,4 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
-option('embed_roms', type: 'boolean', value: true, description: 'Embed the `roms/` dir in WASM builds')
+option('wasm_embed_roms', type: 'boolean', value: true, description: 'Embed the `roms/` dir in WASM builds')
