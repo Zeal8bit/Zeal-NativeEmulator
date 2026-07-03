@@ -22,8 +22,8 @@ link_args = ['--emit-symbol-map',
              '-sUSE_WEBGL2=1',
              '-sEXIT_RUNTIME=1',
              '-sMODULARIZE=1',
-             '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32", "getValue", "setValue"]',
-             '-sEXPORTED_FUNCTIONS=["_main", "_zeal_exit", "_zeal_exit_web", "_zeal_debug_toggle_web"]',
+             '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32","HEAPU8","getValue","setValue"]',
+             '-sEXPORTED_FUNCTIONS=["_main","_malloc","_free","_zeal_exit","_zeal_exit_web","_zeal_debug_toggle_web","_hostfs_web_complete","_hostfs_web_write_guest"]',
              '-SEXPORTED_GLOBALS=["_show_fps"]',
               '--embed-file', 'assets/shaders']
 

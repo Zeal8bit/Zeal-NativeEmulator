@@ -64,6 +64,11 @@ body {
         user-select: none;
         cursor: pointer;
     }
+
+    #hostfs-status {
+        display: inline-block;
+        margin-inline: 1ch;
+    }
 }
 
 

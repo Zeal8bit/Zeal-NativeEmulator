@@ -64,9 +64,11 @@ int main(int argc, char* argv[])
         goto deinit;
     }
 
+#ifndef PLATFORM_WEB
     if (hostfs_load_path(&machine.hostfs, config.arguments.hostfs_path)) {
         goto deinit;
     }
+#endif
 
     if (config.arguments.tf_filename != NULL &&
         zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
