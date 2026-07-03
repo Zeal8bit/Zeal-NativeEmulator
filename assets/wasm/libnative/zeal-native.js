@@ -1,4 +1,19 @@
 (() => {
+    const SNES_BUTTONS = Object.freeze({
+        b: 0,
+        y: 1,
+        select: 2,
+        start: 3,
+        up: 4,
+        down: 5,
+        left: 6,
+        right: 7,
+        a: 8,
+        x: 9,
+        l: 10,
+        r: 11,
+    });
+
     class ZealNative {
         constructor({
             canvas,
@@ -189,6 +204,21 @@
             return Promise.all([...contexts]
                 .filter(context => context.state === 'suspended')
                 .map(context => context.resume()));
+        }
+
+        setSnesButton(button, pressed) {
+            if (!Object.prototype.hasOwnProperty.call(SNES_BUTTONS, button)) {
+                throw new RangeError(`Unknown SNES button: ${button}`);
+            }
+            if (!this.module?._zeal_snes_button_web) return false;
+            this.module._zeal_snes_button_web(SNES_BUTTONS[button], pressed ? 1 : 0);
+            return true;
+        }
+
+        clearSnesButtons() {
+            if (!this.module?._zeal_snes_clear_web) return false;
+            this.module._zeal_snes_clear_web();
+            return true;
         }
 
         toggleDebugger() {

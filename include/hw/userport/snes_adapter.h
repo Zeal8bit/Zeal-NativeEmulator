@@ -122,6 +122,8 @@ typedef struct {
     pio_t *pio;
 
     uint32_t port_bits[SNES_CONTROLLER_COUNT];
+    uint16_t virtual_controller_bits;
+    bool virtual_controller_enabled;
     snes_port_assignment_t ports[SNES_CONTROLLER_COUNT];
     snes_controller_t controllers[SNES_GAMEPAD_COUNT];
     snes_mouse_t mouse;
@@ -136,3 +138,5 @@ void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port);
 void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter);
 int snes_adapter_get_controller_port(const snes_adapter_t *snes_adapter, uint8_t index);
 int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter);
+void snes_adapter_set_virtual_button(snes_adapter_t *snes_adapter, uint8_t button, bool pressed);
+void snes_adapter_clear_virtual_buttons(snes_adapter_t *snes_adapter);

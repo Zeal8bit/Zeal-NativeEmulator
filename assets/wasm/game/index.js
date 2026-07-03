@@ -7,20 +7,14 @@
     });
 
     window.addEventListener('load', () => {
-        emulator.start().catch(error => console.error(error));
+        emulator.start()
+            .then(() => emulator.clearSnesButtons())
+            .catch(error => console.error(error));
     });
 
-    function sendKey(type, key, code, keyCode) {
-        canvas.dispatchEvent(new KeyboardEvent(type, {
-            key,
-            code,
-            keyCode,
-            which: keyCode,
-            bubbles: true,
-        }));
-    }
+    const releaseButtons = [];
 
-    function attachKeypressListener(element, key, code, keyCode) {
+    function attachButtonListener(element, button) {
         let pressed = false;
         const onPress = event => {
             event.preventDefault();
@@ -28,36 +22,49 @@
             pressed = true;
             element.setPointerCapture?.(event.pointerId);
             emulator.resumeAudio().catch(error => console.error(error));
-            sendKey('keydown', key, code, keyCode);
+            emulator.setSnesButton(button, true);
         };
         const onRelease = event => {
             event.preventDefault();
             if (!pressed) return;
             pressed = false;
-            sendKey('keyup', key, code, keyCode);
+            emulator.setSnesButton(button, false);
         };
 
         element.addEventListener('pointerdown', onPress);
         element.addEventListener('pointerup', onRelease);
         element.addEventListener('pointercancel', onRelease);
         element.addEventListener('lostpointercapture', onRelease);
+        releaseButtons.push(() => {
+            pressed = false;
+        });
+    }
+
+    function clearButtons() {
+        for (const releaseButton of releaseButtons) releaseButton();
+        emulator.clearSnesButtons();
     }
 
     const controls = [
-        ['.buttons-start', 'Enter', 'Enter', 13],
-        ['.buttons-select', "'", 'Quote', 222],
-        ['.d-pad-up', 'ArrowUp', 'ArrowUp', 38],
-        ['.d-pad-right', 'ArrowRight', 'ArrowRight', 39],
-        ['.d-pad-down', 'ArrowDown', 'ArrowDown', 40],
-        ['.d-pad-left', 'ArrowLeft', 'ArrowLeft', 37],
-        ['.buttons-a', 'x', 'KeyX', 88],
-        ['.buttons-b', 'z', 'KeyZ', 90],
-        ['.buttons-x', 's', 'KeyS', 83],
-        ['.buttons-y', 'a', 'KeyA', 65],
-        ['.buttons-l', 'q', 'KeyQ', 81],
-        ['.buttons-r', 'w', 'KeyW', 87],
+        ['.buttons-start', 'start'],
+        ['.buttons-select', 'select'],
+        ['.d-pad-up', 'up'],
+        ['.d-pad-right', 'right'],
+        ['.d-pad-down', 'down'],
+        ['.d-pad-left', 'left'],
+        ['.buttons-a', 'a'],
+        ['.buttons-b', 'b'],
+        ['.buttons-x', 'x'],
+        ['.buttons-y', 'y'],
+        ['.buttons-l', 'l'],
+        ['.buttons-r', 'r'],
     ];
-    for (const [selector, key, code, keyCode] of controls) {
-        attachKeypressListener(document.querySelector(`#controls ${selector}`), key, code, keyCode);
+    for (const [selector, button] of controls) {
+        attachButtonListener(document.querySelector(`#controls ${selector}`), button);
     }
+
+    window.addEventListener('blur', clearButtons);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearButtons();
+    });
 })();

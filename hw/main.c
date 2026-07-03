@@ -34,6 +34,18 @@ void zeal_debug_toggle_web(void)
     zeal_debug_toggle(&machine.dbg);
 #endif
 }
+
+EMSCRIPTEN_KEEPALIVE
+void zeal_snes_button_web(uint8_t button, int pressed)
+{
+    snes_adapter_set_virtual_button(&machine.snes_adapter, button, pressed != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void zeal_snes_clear_web(void)
+{
+    snes_adapter_clear_virtual_buttons(&machine.snes_adapter);
+}
 #endif
 
 int main(int argc, char* argv[])
