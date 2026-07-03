@@ -1,10 +1,19 @@
 (() => {
     const canvas = document.getElementById('canvas');
+    const viewport = document.querySelector('.viewport');
     const emulator = new ZealNative({
         canvas,
         romdisk: 'default.img',
         userProgram: 'microbe.bin',
     });
+
+    let lastTouchEnd = 0;
+    viewport.addEventListener('touchend', event => {
+        const now = performance.now();
+        if (now - lastTouchEnd < 350) event.preventDefault();
+        lastTouchEnd = now;
+    }, { passive: false });
+    viewport.addEventListener('dblclick', event => event.preventDefault());
 
     window.addEventListener('load', () => {
         emulator.start()

@@ -2,6 +2,13 @@
     box-sizing: border-box;
 }
 
+html,
+body,
+.viewport {
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
 body {
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
@@ -69,8 +76,11 @@ body {
     -webkit-touch-callout: none;  /* prevents long-press callout menu on iOS */
 }
 
-#controls .button {
+.button {
     cursor: pointer;
+    background-color: lightgrey;
+    color: black;
+    font-weight: 700;
 }
 
 .buttons-lr {
@@ -205,4 +215,3 @@ body {
     grid-column: 1;
     grid-row: 2;
 }
-
