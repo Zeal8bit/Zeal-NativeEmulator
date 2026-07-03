@@ -96,6 +96,12 @@
         }
     }
 
+    function toggleDebugger() {
+        if (!moduleInstance?._zeal_debug_toggle_web) return;
+        moduleInstance._zeal_debug_toggle_web();
+        canvas.focus();
+    }
+
     canvas.addEventListener('keydown', event => {
         event.preventDefault();
         event.stopPropagation();
@@ -109,12 +115,12 @@
     window.addEventListener('keydown', event => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'Escape'].includes(event.key)) {
             event.preventDefault();
-            event.stopPropagation();
         }
     }, true);
 
     document.getElementById('unmute').addEventListener('click', resumeAudioIfNeeded);
     reloadButton.addEventListener('click', reloadModule);
+    document.getElementById('toggle-debugger').addEventListener('click', toggleDebugger);
 
     document.getElementById('toggle-fps').addEventListener('click', () => {
         if (!moduleInstance) return;

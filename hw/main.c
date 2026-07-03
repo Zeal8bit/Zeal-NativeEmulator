@@ -9,11 +9,25 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef PLATFORM_WEB
+#include <emscripten.h>
+#endif
+
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "utils/config.h"
 
 static zeal_t machine;
+
+#ifdef PLATFORM_WEB
+EMSCRIPTEN_KEEPALIVE
+void zeal_debug_toggle_web(void)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    zeal_debug_toggle(&machine.dbg);
+#endif
+}
+#endif
 
 int main(int argc, char* argv[])
 {
