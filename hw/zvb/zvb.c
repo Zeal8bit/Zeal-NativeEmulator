@@ -24,7 +24,7 @@
 #define SIZE_WITH_GRID(TILESIZE, TILECOUNT)    ((((TILESIZE)+1)*TILECOUNT)+1)
 
 
-#define BENCHMARK           1
+#define BENCHMARK           0
 
 
 #define ZVB_IO_SIZE         (3 * 16)
@@ -59,10 +59,10 @@
 static void zvb_reset(device_t* dev);
 
 static const long s_tstates_remaining[STATE_COUNT] = {
-    /* The raster spends 15.253 ms in the visible area */
-    [STATE_IDLE]         = US_TO_TSTATES(15253),
-    /* The raster stays in V-Blank during 1.430ms  */
-    [STATE_VBLANK]       = US_TO_TSTATES(1430),
+    /* The raster spends 25.6us rendering a single scanline */
+    [STATE_RENDERING] = 256,
+    /* H-Blank lasts 6.4us */
+    [STATE_HBLANK]    = 64,
 };
 
 
@@ -110,6 +110,11 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 {
     switch(addr) {
+        case ZVB_IO_CONFIG_VPOS_LOW: 
+            zvb->ctrl.vpos_latch = (zvb->current_scanline >> 8);
+            return (zvb->current_scanline >> 0) & 0xff;
+        case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
+
         case ZVB_IO_CONFIG_L0_SCR_Y_LOW:    return (zvb->ctrl.l0_scroll_y >> 0) & 0xff;
         case ZVB_IO_CONFIG_L0_SCR_Y_HIGH:   return (zvb->ctrl.l0_scroll_y >> 8) & 0xff;
         case ZVB_IO_CONFIG_L0_SCR_X_LOW:    return (zvb->ctrl.l0_scroll_x >> 0) & 0xff;
@@ -201,7 +206,7 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             zvb->status.vid_ena = status.vid_ena;
             break;
         default:
-            log_err_printf("[ZVB][CTRL] Unknown register %x\n", addr);
+            log_err_printf("[ZVB][CTRL] Unsupported write register %x\n", addr);
             break;
     }
 }
@@ -283,7 +288,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     }
 
     /* Set the state to STATE_IDLE, waiting for the next event */
-    dev->state = STATE_IDLE;
+    dev->state = STATE_RENDERING;
     dev->tstates_counter = s_tstates_remaining[dev->state];
 
     /* Enable the screen by default */
@@ -413,7 +418,7 @@ void zvb_render(zvb_t* zvb)
     double elapsedTime = endTime - startTime;
     average += elapsedTime;
     if (++counter == 60) {
-        log_printf("Time taken : %f ms\n", (average / 60) * 1000);
+        log_printf("Time taken to render a frame : %f ms\n", (average / 60) * 1000);
         counter = 0;
         average = 0;
     }
@@ -435,18 +440,48 @@ void zvb_force_render(zvb_t* zvb)
 void zvb_tick(zvb_t* zvb, const int tstates)
 {
     zvb->tstates_counter -= tstates;
+#if BENCHMARK
+    static uint64_t last_render_tstates = 0;
+    static uint64_t counter = 0;
+    static double last_render_time = 0;
+    counter += tstates;
+#endif
 
     if (zvb->tstates_counter <= 0) {
-        /* Go to the next state */
-        zvb->state = (zvb->state + 1) % STATE_COUNT;
-        zvb->tstates_counter = s_tstates_remaining[zvb->state];
-        /* If the new state is V-blank (i.e. we reached blank), render the screen */
-        if (zvb->state == STATE_VBLANK) {
-            zvb->status.v_blank = 1;
-            zvb->need_render = true;
-        } else {
-            zvb->status.v_blank = 0;
+        if (zvb->state == STATE_RENDERING) {
+            zvb->state = STATE_HBLANK;
+            zvb->status.h_blank = 1;
+            /* Ignore v-blank scanlines */
+            if (zvb->current_scanline < 480) {
+                zvb_blitter_render_scanline(zvb, zvb->current_scanline);
+            }
+        } else if (zvb->state == STATE_HBLANK) {
+            zvb->state = STATE_RENDERING;
+            zvb->status.h_blank = 0;
+            zvb->current_scanline++;
+            /* If we have reached line 480, we enter V-Blank state */
+            if (zvb->current_scanline == 480) {
+                zvb->need_render = true;
+                zvb->status.v_blank = 1;
+            } else if (zvb->current_scanline >= 524) {
+                /* End of v-blank, we start from the top again */
+                zvb->current_scanline = 0;
+                zvb->status.v_blank = 0;
+#if BENCHMARK
+                /* Log the t-states AND real time spent to render a single frame */
+                double current_time = GetTime();
+                double elapsed_time = (current_time - last_render_time);
+                log_printf("[ZVB] Frame rendered in %lu t-states, real time: %f ms\n",
+                        counter - last_render_tstates,
+                        elapsed_time * 1000);
+                last_render_tstates = counter;
+                last_render_time = GetTime();
+#endif
+            }
         }
+        /* Setup the next t-states counter, if `zvb->tstates_counter` is negative, it means we 
+         * have spent more time than necessary to reach the current state, subtarct it from the next state */
+        zvb->tstates_counter = s_tstates_remaining[zvb->state] + zvb->tstates_counter;
     }
 }
 

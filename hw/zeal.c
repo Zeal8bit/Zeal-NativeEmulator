@@ -397,9 +397,7 @@ int zeal_init(zeal_t* machine)
         SetWindowFocused(); // force focus on the window to capture keypresses
 #endif
 
-#if !BENCHMARK
         SetTargetFPS(60);
-#endif
         notif_reset();
 
         /* Force rendering the window, to allow Raylib periphs to attach (ie; gamepads) */

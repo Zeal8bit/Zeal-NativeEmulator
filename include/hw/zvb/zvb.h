@@ -87,8 +87,8 @@
 /**
  * @brief Macros for the raster state
  */
-#define STATE_IDLE          0     // Raster in non-vblank area
-#define STATE_VBLANK        1
+#define STATE_RENDERING     0     // Raster in non-vblank area
+#define STATE_HBLANK        1     // Raster in horizontal blanking area
 #define STATE_COUNT         2
 
 
@@ -121,8 +121,9 @@ typedef union {
 
 
 typedef struct {
-    uint32_t l0_latch;
-    uint32_t l1_latch;
+    uint8_t  vpos_latch;
+    uint8_t  l0_latch;
+    uint8_t  l1_latch;
     uint32_t l0_scroll_x;
     uint32_t l0_scroll_y;
     uint32_t l1_scroll_x;
@@ -162,8 +163,11 @@ typedef struct {
     bool             screen_enabled;
     uint8_t          io_bank;
     uint8_t          scratch[4];
+
+    /* Raster FSM */
     int              state; // Any of the STATE_* macros
     long             tstates_counter;
+    int              current_scanline;
     bool             need_render;
     bool             rendering_enabled;
 } zvb_t;

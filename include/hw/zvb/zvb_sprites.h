@@ -71,7 +71,7 @@ typedef struct {
 typedef struct {
     zvb_sprite_t    data[ZVB_SPRITES_COUNT];
     int             wr_latch;
-    /* Sorted list of sprite indices by Y (ascending). Used by software blitter. */
+    /* Sorted list of sprite indices by Y (ascending), used by software blitter */
     uint8_t         y_sorted[ZVB_SPRITES_COUNT];
 #if ZVB_BLITTER_SHADER
     zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
@@ -121,3 +121,11 @@ uint8_t zvb_sprites_read(zvb_sprites_t* sprites, uint32_t addr);
  * @brief Update the sprites renderer, needs to be called before starting drawing anything on screen.
  */
 void zvb_sprites_update(zvb_sprites_t* sprites);
+
+
+/**
+ * @brief Get the list of visible sprites for a given scanline, sorted by priority.
+ * 
+ * @returns Number of sprites visible on the scanline, and fills the `out_sprites` array with the visible sprites.
+ */
+int zvb_sprites_get_visible_sprites(zvb_sprites_t* sprites, int scanline, uint8_t sprites_idx[ZVB_SPRITES_COUNT]);

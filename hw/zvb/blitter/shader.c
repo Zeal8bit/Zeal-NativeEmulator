@@ -296,6 +296,14 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 }
 
 
+void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
+{
+    /* Not supported for shader rendering */
+    (void) zvb;
+    (void) scanline;
+}
+
+
 void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
 {
     /* Since we want to generate a debug texture, we only need to set it to debug mode */
