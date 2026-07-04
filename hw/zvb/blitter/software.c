@@ -221,63 +221,113 @@ void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
 /*  BITMAP MODE                                                        */
 /* ================================================================== */
 
+static void zvb_blitter_scale_render(zvb_t* zvb)
+{
+    bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
+
+#if ZVB_BLITTER_SOFTWARE_SCALING
+        if (scale2x) {
+            uint16_t* fb = zvb->blitter.framebuffer;
+            for (int y = 239; y >= 0; y--) {
+                for (int x = 319; x >= 0; x--) {
+                    uint16_t c = fb[y * FB_WIDTH + x];
+                    int dy = y * 2;
+                    int dx = x * 2;
+                    fb[(dy+1) * FB_WIDTH + (dx+1)] = c;
+                    fb[(dy+1) * FB_WIDTH + dx]     = c;
+                    fb[dy * FB_WIDTH     + (dx+1)] = c;
+                    fb[dy * FB_WIDTH     + dx]     = c;
+                }
+            }
+        }
+
+        zvb_blitter_t* bl = &zvb->blitter;
+        UpdateTexture(bl->output_texture, bl->framebuffer);
+        BeginTextureMode(bl->main_texture);
+            DrawTextureRec(bl->output_texture,
+                (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT },
+                (Vector2){ 0, 0 }, WHITE);
+        EndTextureMode();
+#else
+        int src_w = scale2x ? 320 : 640;
+        int src_h = scale2x ? 240 : 480;
+
+        zvb_blitter_t* bl = &zvb->blitter;
+        UpdateTexture(bl->output_texture, bl->framebuffer);
+        BeginTextureMode(bl->main_texture);
+            DrawTexturePro(bl->output_texture,
+                (Rectangle){ 0, 0, src_w, -src_h },
+                (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
+                (Vector2){ 0, 0 }, 0.0f, WHITE);
+        EndTextureMode();
+#endif
+}
+
+
 void zvb_blitter_prepare_render_bitmap_mode(zvb_t* zvb)
 {
     (void)zvb;
 }
 
-void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
+static inline void bitmap_put_pixel(uint16_t* fb, int x, int y, uint16_t color)
 {
-    zvb_blitter_t* bl = &zvb->blitter;
-    uint16_t* fb = bl->framebuffer;
+    put_pixel(fb, 2 * x, y, color);
+    put_pixel(fb, 2 * x + 1, y, color);
+}
+
+static void zvb_blitter_render_bitmap_scanline(zvb_t* zvb, int scanline)
+{
+    uint16_t* fb = zvb->blitter.framebuffer;
     const uint8_t* vram = zvb->tileset.raw;
     const uint16_t* pal_rgb = zvb_get_palette(zvb);
+    const uint8_t border_idx = vram[0xFFFF];
+    const uint16_t border_rgb = pal_rgb[border_idx];
+    /* Bitmap modes on real hardware run in 320x240 resolution */
+    int virt_scanline = scanline / 2;
 
-    /* Border colour = last byte of VRAM (0xFFFF), matching hardware behaviour */
-    uint8_t border_idx = vram[0xFFFF];
-    uint16_t border_rgb = pal_rgb[border_idx];
-
-    bool mode_256 = (zvb->mode == MODE_BITMAP_256);
-
-    for (int y = 0; y < FB_HEIGHT; y++) {
-        for (int x = 0; x < FB_WIDTH; x++) {
-
-            uint16_t index;
-            bool in_border = false;
-
-            if (mode_256) {
-                /* 256×240 centred, 32px left/right borders */
-                int bx = x - 192;  /* (640-256)/2 = 192 */
-                int by = y - 120;  /* (480-240)/2 = 120 */
-                if (bx < 0 || bx >= 256 || by < 0 || by >= 240) {
-                    in_border = true;
-                } else {
-                    index = (uint16_t)(by * 256 + bx);
-                }
-            } else {
-                /* BITMAP_320: 320×200 centred, 20px top/bottom borders */
-                int bx = x - 160;  /* (640-320)/2 = 160 */
-                int by = y - 140;  /* (480-200)/2 = 140 */
-                if (bx < 0 || bx >= 320 || by < 0 || by >= 200) {
-                    in_border = true;
-                } else {
-                    index = (uint16_t)(by * 320 + bx);
-                }
+    if (zvb->mode == MODE_BITMAP_256) {
+        /* In 256x240 mode, we have a left and right border of 32 pixels (256 + 2*32 = 320px) */
+        const int border = 32;
+        for (int i = 0; i < border; i++) {
+            /* Left border */
+            bitmap_put_pixel(fb, i, scanline, border_rgb);
+        }
+        for (int x = 0; x < 256; x++) {
+            const int by = virt_scanline;
+            uint16_t index = (uint16_t)(by * 256 + x);
+            uint16_t color = pal_rgb[vram[index]];
+            bitmap_put_pixel(fb, border + x, scanline, color);
+        }
+        for (int i = 0; i < border; i++) {
+            /* Right border */
+            bitmap_put_pixel(fb, border + 256 + i, scanline, border_rgb);
+        }
+    } else {
+        /* In 320x200, we have a top and bottom border of 20 pixels (200 + 2*20 = 240px) */
+        const int border = 20;
+        if (virt_scanline < border || virt_scanline >= border + 200) {
+            for (int x = 0; x < FB_WIDTH / 2; x++) {
+                bitmap_put_pixel(fb, x, scanline, border_rgb);
             }
-
-            if (in_border) {
-                put_pixel(fb, x, y, border_rgb);
-            } else {
-                uint8_t color_idx = vram[index];
-                put_pixel(fb, x, y, pal_rgb[color_idx]);
+        } else {
+            for (int x = 0; x < FB_WIDTH / 2; x++) {
+                const int by = virt_scanline - border;
+                uint16_t index = (uint16_t)(by * 320 + x);
+                uint16_t color = pal_rgb[vram[index]];
+                bitmap_put_pixel(fb, x, scanline, color);
             }
         }
     }
+}
 
-    UpdateTexture(bl->output_texture, bl->framebuffer);
-    BeginTextureMode(bl->main_texture);
-        DrawTextureRec(bl->output_texture, (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT }, (Vector2){ 0, 0 }, WHITE);
-    EndTextureMode();
+void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
+{
+#if !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    for (int y = 0; y < FB_HEIGHT; y++) {
+        zvb_blitter_render_bitmap_scanline(zvb, y);
+    }
+#endif
+    zvb_blitter_scale_render(zvb);
 }
 
 /* ================================================================== */
@@ -289,7 +339,9 @@ void zvb_blitter_prepare_render_gfx_mode(zvb_t* zvb)
     (void)zvb;
 }
 
-static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline, uint16_t* sprites_scanline, uint8_t* sprites_behind_fg, const uint16_t* pal_rgb)
+static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
+                                         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
+                                         const uint16_t* pal_rgb)
 {
     const zvb_sprite_t* sprites = zvb->sprites.data;
     const uint8_t* tileset = zvb->tileset.raw;
@@ -431,7 +483,9 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
         int l0_tx  = l0_px / TILE_W;
         int l0_ox  = l0_px % TILE_W;
         int burst  = TILE_W - l0_ox;
-        if (px + burst > scr_w) burst = scr_w - px;
+        if (px + burst > scr_w) {
+            burst = scr_w - px;
+        }
 
         int l1_px  = (px + scroll_l1_x) % 1280;
         int l1_tx  = l1_px / TILE_W;
@@ -469,59 +523,21 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
     }
 }
 
-static void zvb_blitter_scale_render(zvb_t* zvb)
-{
-    bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
-
-#if ZVB_BLITTER_SOFTWARE_SCALING
-        if (scale2x) {
-            uint16_t* fb = zvb->blitter.framebuffer;
-            for (int y = 239; y >= 0; y--) {
-                for (int x = 319; x >= 0; x--) {
-                    uint16_t c = fb[y * FB_WIDTH + x];
-                    int dy = y * 2;
-                    int dx = x * 2;
-                    fb[(dy+1) * FB_WIDTH + (dx+1)] = c;
-                    fb[(dy+1) * FB_WIDTH + dx]     = c;
-                    fb[dy * FB_WIDTH     + (dx+1)] = c;
-                    fb[dy * FB_WIDTH     + dx]     = c;
-                }
-            }
-        }
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTextureRec(bl->output_texture,
-                (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT },
-                (Vector2){ 0, 0 }, WHITE);
-        EndTextureMode();
-#else
-        int src_w = scale2x ? 320 : 640;
-        int src_h = scale2x ? 240 : 480;
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTexturePro(bl->output_texture,
-                (Rectangle){ 0, 0, src_w, -src_h },
-                (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
-                (Vector2){ 0, 0 }, 0.0f, WHITE);
-        EndTextureMode();
-#endif
-}
-
 #if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
 
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
+    uint16_t* pal_rgb = zvb_get_palette(zvb);
+
     if (zvb->mode < MODE_GFX_640_8BIT) {
+        /* Text / Bitmap modes */
+        if (zvb_is_text_mode(zvb)) return; /* TODO: text scanline */
+        zvb_blitter_render_bitmap_scanline(zvb, scanline);
         return;
     }
 
     uint16_t  sprites_scanline[FB_WIDTH];
     uint8_t   sprites_behind_fg[FB_WIDTH];
-    uint16_t* pal_rgb = zvb_get_palette(zvb);
 
     /* In case we are in 320x240 mode, we need to divide the scanline by 2 */
     if (zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT) {
@@ -565,13 +581,6 @@ static void render_gfx_8bit(zvb_t* zvb, uint16_t* sprites_scanline,
         render_gfx_8bit_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
     }
 }
-
-void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
-{
-    (void) zvb;
-    (void) scanline;
-}
-
 
 void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 {
