@@ -12,6 +12,7 @@
 #include "hw/device.h"
 #include "hw/pio.h"
 #include "utils/fifo.h"
+#include "utils/vtimer.h"
 
 #define IO_KEYBOARD_PIN 7
 #define MAX_KEYCODES    10
@@ -43,11 +44,8 @@ typedef struct {
     size_t      size; // in bytes
     pio_t*      pio;
 
-    // Host keyboard check timer
-    uint32_t    check_timer;
-
     // Keyboard specific
-    uint32_t    elapsed_tstates;    // 32-bit lets us count up to 7 minutes, more than enough
+    vtimer_node_t timer;            // schedules PS2 state transitions
     uint8_t     shift_register;
     fifo_t      queue;
     uint8_t     pin_state;
@@ -57,14 +55,3 @@ typedef struct {
 int keyboard_init(keyboard_t* keyboard, pio_t* pio);
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode);
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode);
-
-/**
- * @brief Tick the internal clock and checks whether the host keyboard
- * must be read or not.
- */
-bool keyboard_check(keyboard_t* keyboard, int elapsed);
-
-/**
- * @brief Process the next keypresses if the keyboard is ready.
- */
-void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed);

@@ -139,10 +139,59 @@ static void keyboard_reset(device_t* dev)
     keyboard_t* keyboard = (keyboard_t*) dev;
     keyboard->pin_state = 1;
     keyboard->state = PS2_IDLE;
-    keyboard->elapsed_tstates = 0;
     keyboard->shift_register = 0;
+    vtimer_cancel(&keyboard->timer);
     pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
     fifo_reset(&keyboard->queue);
+}
+
+
+/**
+ * @brief Function called after a key was pushed to the FIFO, it will go to the next FSM state if currenlty in
+ * IDLE and schedule the timer.
+ */
+static void keyboard_key_available(keyboard_t* keyboard)
+{
+    if (keyboard->state == PS2_IDLE) {
+        fifo_pop(&keyboard->queue, &keyboard->shift_register);
+        keyboard->pin_state = 0;
+        pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+        keyboard->state = PS2_ACTIVE;
+        vtimer_schedule_tstates(&keyboard->timer, PS2_SCANCODE_DURATION);
+    }
+}
+
+
+/**
+ * @brief Callback fired by vtimer when a PS2 state transition is due.
+ */
+static void keyboard_tick_cb(void* userdata)
+{
+    keyboard_t* kb = (keyboard_t*) userdata;
+
+    switch (kb->state) {
+        case PS2_ACTIVE:
+            /* End of start bit: pin goes high, enter inactive gap */
+            kb->pin_state = 1;
+            pio_set_b_pin(kb->pio, IO_KEYBOARD_PIN, kb->pin_state);
+            kb->state = PS2_INACTIVE;
+            vtimer_schedule_tstates(&kb->timer, PS2_KEY_TIMING);
+            break;
+
+        case PS2_INACTIVE:
+            /* Gap between bytes complete, back to idle. Try to send next key. */
+            if (fifo_pop(&kb->queue, &kb->shift_register)) {
+                kb->pin_state = 0;
+                pio_set_b_pin(kb->pio, IO_KEYBOARD_PIN, kb->pin_state);
+                kb->state = PS2_ACTIVE;
+                vtimer_schedule_tstates(&kb->timer, PS2_SCANCODE_DURATION);
+            } else {
+                kb->state = PS2_IDLE;
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 
@@ -156,6 +205,7 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 
     keyboard->pio = pio;
     keyboard->size = 0x10;
+    vtimer_init_node(&keyboard->timer, keyboard_tick_cb, keyboard);
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
     device_register_reset(DEVICE(keyboard), keyboard_reset);
 
@@ -164,57 +214,6 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 
     return 0;
 }
-
-
-bool keyboard_check(keyboard_t* keyboard, int elapsed)
-{
-    keyboard->check_timer += elapsed;
-    if (keyboard->check_timer >= KEYBOARD_CHECK_PERIOD) {
-        keyboard->check_timer = 0;
-        return true;
-    }
-    return false;
-}
-
-
-void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed)
-{
-    keyboard->elapsed_tstates += elapsed;
-
-    switch (keyboard->state) {
-        case PS2_IDLE:
-            assert(keyboard->pin_state == 1);
-            /* Shift in the next code */
-            if (fifo_pop(&keyboard->queue, &keyboard->shift_register)) {
-                keyboard->pin_state = 0;
-                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-                keyboard->elapsed_tstates = 0;
-                keyboard->state = PS2_ACTIVE;
-            }
-            break;
-
-        case PS2_ACTIVE:
-            /* Keyboard signal is asserted, this signal lasts PS2_SCANCODE_DURATION t-states */
-            if(keyboard->elapsed_tstates >= PS2_SCANCODE_DURATION) {
-                keyboard->pin_state = 1;
-                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-                keyboard->elapsed_tstates = 0;
-                keyboard->state = PS2_INACTIVE;
-            }
-            break;
-
-        case PS2_INACTIVE:
-            /* Keyboard signal is deasserted, it needs some time before accepting new keys again */
-            if(keyboard->elapsed_tstates >= PS2_KEY_TIMING) {
-                keyboard->pin_state = 1;
-                pio_set_b_pin(pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-                keyboard->elapsed_tstates = 0;
-                keyboard->state = PS2_IDLE;
-            }
-            break;
-    }
-}
-
 
 static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 {
@@ -258,6 +257,7 @@ uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
     for (int i = 0; i < n_codes; i++) {
         fifo_push(&keyboard->queue, codes[i]);
     }
+    keyboard_key_available(keyboard);
 
     return 0;
 }
@@ -286,6 +286,7 @@ uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
     for (int i = 0; i < n_codes; i++) {
         fifo_push(&keyboard->queue, from[i]);
     }
+    keyboard_key_available(keyboard);
 
     return 0;
 }

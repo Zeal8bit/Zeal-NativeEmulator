@@ -13,11 +13,17 @@
 #include "utils/log.h"
 #include "utils/config.h"
 #include "utils/notif.h"
+#include "utils/vtimer.h"
 #ifdef PLATFORM_WEB
 #include <emscripten.h>
 #endif
 
 #define RAYLIB_KEY_COUNT    384
+
+/**
+ * @brief Period, in T-states, between host keyboard polls (15ms).
+ */
+#define HOST_KEYB_CHECK_PERIOD   US_TO_TSTATES(15000)
 
 #define CHECK_ERR(err)  \
     do {                \
@@ -41,6 +47,8 @@ typedef struct {
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
 bool zeal_ui_input(zeal_t* machine);
+
+static void host_keyboard_check_cb(void* userdata);
 
 /**
  * @brief Array used to key tracked of the key states on the host. This array will help simulate
@@ -375,6 +383,7 @@ int zeal_init(zeal_t* machine)
     s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
+    vtimer_init();
     machine->headless = config.arguments.headless;
 #if CONFIG_ENABLE_DEBUGGER
     machine->dbg_read_memory = debug_read_memory;
@@ -449,6 +458,8 @@ int zeal_init(zeal_t* machine)
     // const keyboard = new Keyboard(this, pio);
     err = keyboard_init(&machine->keyboard, &machine->pio);
     CHECK_ERR(err);
+    vtimer_init_node(&machine->host_keyb_timer, host_keyboard_check_cb, machine);
+    vtimer_schedule_tstates(&machine->host_keyb_timer, HOST_KEYB_CHECK_PERIOD);
 
     err = snes_adapter_init(&machine->snes_adapter, &machine->pio);
     CHECK_ERR(err);
@@ -525,6 +536,35 @@ int zeal_init(zeal_t* machine)
     return 0;
 }
 
+
+/**
+ * @brief Periodic vtimer callback to poll the host keyboard for new key events.
+ */
+static void host_keyboard_check_cb(void* userdata)
+{
+    zeal_t* machine = (zeal_t*) userdata;
+
+    /* Reschedule for the next periodic check */
+    vtimer_schedule_tstates(&machine->host_keyb_timer, HOST_KEYB_CHECK_PERIOD);
+
+#if CONFIG_ENABLE_DEBUGGER
+    /* Skip polling if CPU is paused in debug mode */
+    if (machine->dbg_enabled && machine->dbg_state != ST_RUNNING) {
+        return;
+    }
+    /* Skip if a UI shortcut consumed the input */
+    if (zeal_ui_input(machine)) {
+        return;
+    }
+    /* Skip if the debugger main view doesn't have focus */
+    if (machine->dbg_ui != NULL && !debugger_ui_main_view_focused(machine->dbg_ui)) {
+        return;
+    }
+#endif
+    zeal_read_keyboard(machine, HOST_KEYB_CHECK_PERIOD);
+}
+
+
 /**
  * @brief Run Zeal 8-bit Computer VM in headless mode (no window/input/presentation)
  */
@@ -538,9 +578,7 @@ static int zeal_headless_mode_run(zeal_t* machine)
         return 0;
     }
 
-    zvb_tick(&machine->zvb, elapsed_tstates);
-    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
-    flash_tick(&machine->rom, elapsed_tstates);
+    vtimer_tick(elapsed_tstates);
     return 0;
 }
 
@@ -657,18 +695,7 @@ static int zeal_dbg_mode_run(zeal_t* machine)
 
         const int elapsed_tstates = z80_step(&machine->cpu);
 
-        /* Check if we need to poll the keyboard and transmit the data to the VM */
-        if (keyboard_check(&machine->keyboard, elapsed_tstates) &&
-            /* make sure the current keys are not a UI shortcut and the main view is focused */
-            !zeal_ui_input(machine) && debugger_ui_main_view_focused(machine->dbg_ui))
-        {
-            zeal_read_keyboard(machine, elapsed_tstates);
-        }
-
-        /* Go through all the devices that have a tick function */
-        zvb_tick(&machine->zvb, elapsed_tstates);
-        keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
-        flash_tick(&machine->rom, elapsed_tstates);
+        vtimer_tick(elapsed_tstates);
 
         /* Check if we reached a breakpoint or if we have to do a single step */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -707,20 +734,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
         return 2;
     }
 
-    /* Send keyboard keys to Zeal VM only if the UI didn't handle it */
-    if (keyboard_check(&machine->keyboard, elapsed_tstates)
-#if CONFIG_ENABLE_DEBUGGER
-        && !zeal_ui_input(machine)
-#endif
-       )
-    {
-        zeal_read_keyboard(machine, KEYBOARD_CHECK_PERIOD);
-    }
-
-    /* Go through all the devices that have a tick function */
-    zvb_tick(&machine->zvb, elapsed_tstates);
-    keyboard_tick(&machine->keyboard, &machine->pio, elapsed_tstates);
-    flash_tick(&machine->rom, elapsed_tstates);
+    vtimer_tick(elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;

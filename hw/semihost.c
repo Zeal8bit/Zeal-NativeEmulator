@@ -338,6 +338,8 @@ static void semihost_io_write(device_t* dev, uint32_t addr, uint8_t data)
         return;
     }
 
+    return;
+
     uint8_t operation = semihost->cpu->a;
     uint8_t reg_l = semihost->cpu->l;
     uint8_t reg_h = semihost->cpu->h;

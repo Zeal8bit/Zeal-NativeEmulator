@@ -146,17 +146,17 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
             f->dirty = 1;
             /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
             f->writing_byte = data ^ 0x80;
-            /* Writing a byte takes 20us on real hardware, register a callback to actually reflect this */
-            f->ticks_remaining = us_to_tstates(20);
+            /* Writing a byte takes 20us on real hardware */
+            vtimer_schedule_us(&f->timer, 20);
             f->state = STATE_PERFORM_WRITE_DELAY;
             break;
 
         case STATE_PERFORM_ERASE:
             if (data == 0x30) {
                 /* Erase sector transaction! */
-                f->state = STATE_PERFORM_ERASE_DELAY;
                 /* Erasing a sector takes 25ms on real hardware */
-                f->ticks_remaining = us_to_tstates(25000);
+                vtimer_schedule_us(&f->timer, 25000);
+                f->state = STATE_PERFORM_ERASE_DELAY;
                 /* Get the corresponding 4KB-sector to erase out of the 22-bit address */
                 const uint32_t sector = addr & 0x3ff000;
                 log_printf("[FLASH] Erasing sector %d @ address 0x%x\n", sector / 4096, sector);
@@ -165,9 +165,9 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
             } else if (data == 0x10 && addr == 0x5555) {
                 /* Chip erase! */
                 log_printf("[FLASH] Erasing chip\n");
-                f->state = STATE_PERFORM_ERASE_DELAY;
                 /* Erasing the chip takes 100ms on real hardware */
-                f->ticks_remaining = us_to_tstates(100000);
+                vtimer_schedule_us(&f->timer, 100000);
+                f->state = STATE_PERFORM_ERASE_DELAY;
                 f->dirty = 1;
                 memset(f->data, 0xff, f->size);
             } else {
@@ -198,6 +198,13 @@ static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
+static void flash_idle_cb(void* userdata)
+{
+    flash_t* f = (flash_t*) userdata;
+    f->state = STATE_IDLE;
+}
+
+
 int flash_init(flash_t* f)
 {
     if (f == NULL) {
@@ -208,6 +215,7 @@ int flash_init(flash_t* f)
     f->size = NOR_FLASH_SIZE_KB;
     f->state = STATE_IDLE;
     f->dirty = 0;
+    vtimer_init_node(&f->timer, flash_idle_cb, f);
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     f->data = malloc(f->size);
@@ -219,16 +227,6 @@ int flash_init(flash_t* f)
 
     device_init_mem_debug(DEVICE(f), "nor_flash_dev", flash_read, flash_write, flash_debug_read, f->size);
     return 0;
-}
-
-void flash_tick(flash_t* flash, int elapsed_tstates)
-{
-    if (flash->state == STATE_PERFORM_ERASE_DELAY || flash->state == STATE_PERFORM_WRITE_DELAY) {
-        flash->ticks_remaining -= elapsed_tstates;
-        if (flash->ticks_remaining <= 0) {
-            flash->state = STATE_IDLE;
-        }
-    }
 }
 
 static inline uint16_t flash_dereference(flash_t* flash, uint16_t os_addr, uint16_t data_addr)

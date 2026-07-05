@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "hw/device.h"
+#include "utils/vtimer.h"
 
 #define NOR_FLASH_SIZE_KB_MAX (512 * 1024)
 #if CONFIG_NOR_FLASH_512KB
@@ -32,16 +33,14 @@ typedef struct {
     int state;
     /* Byte being written to flash */
     uint8_t writing_byte;
-    /* Number of ticks remaining in case of a delay */
-    int ticks_remaining;
+    /* Virtual timer for write/erase delays */
+    vtimer_node_t timer;
     /* Flag set if any byte was changed (and needs write-back) */
     int dirty;
 } flash_t;
 
 
 int flash_init(flash_t* flash);
-
-void flash_tick(flash_t* flash, int elapsed_tstates);
 
 int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
 

@@ -275,6 +275,10 @@ static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int heigh
 }
 #endif
 
+
+static void zvb_fsm_next(void* userdata);
+
+
 int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 {
     if (dev == NULL || config == NULL) {
@@ -314,9 +318,10 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
         zvb_blitter_init(dev);
     }
 
-    /* Set the state to STATE_IDLE, waiting for the next event */
+    /* Set the state to STATE_RENDERING, waiting for the next event */
     dev->state = STATE_RENDERING;
-    dev->tstates_counter = s_tstates_remaining[dev->state];
+    vtimer_init_node(&dev->timer, zvb_fsm_next, dev);
+    vtimer_schedule_tstates(&dev->timer, s_tstates_remaining[dev->state]);
 
     /* Enable the screen by default */
     dev->status.vid_ena = 1;
@@ -476,34 +481,32 @@ void zvb_force_render(zvb_t* zvb)
 }
 
 
-void zvb_tick(zvb_t* zvb, const int tstates)
+static void zvb_fsm_next(void* userdata)
 {
-    zvb->tstates_counter -= tstates;
-    if (zvb->tstates_counter <= 0) {
-        if (zvb->state == STATE_RENDERING) {
-            zvb->state = STATE_HBLANK;
-            zvb->status.h_blank = 1;
-            /* Ignore v-blank scanlines */
-            if (zvb->current_scanline < 480 && zvb->rendering_enabled) {
-                zvb_blitter_render_scanline(zvb, zvb->current_scanline);
-            }
-        } else if (zvb->state == STATE_HBLANK) {
-            zvb->state = STATE_RENDERING;
-            zvb->status.h_blank = 0;
-            zvb->current_scanline++;
-            /* If we have reached line 480, we enter V-Blank state */
-            if (zvb->current_scanline == 480) {
-                zvb->need_render = true;
-                zvb->status.v_blank = 1;
-            } else if (zvb->current_scanline >= 524) {
-                /* End of v-blank, we start from the top again */
-                zvb->current_scanline = 0;
-                zvb->status.v_blank = 0;
-            }
+    zvb_t* zvb = (zvb_t*) userdata;
+
+    if (zvb->state == STATE_RENDERING) {
+        zvb->state = STATE_HBLANK;
+        zvb->status.h_blank = 1;
+        /* Ignore v-blank scanlines */
+        if (zvb->current_scanline < 480 && zvb->rendering_enabled) {
+            zvb_blitter_render_scanline(zvb, zvb->current_scanline);
         }
-        /* Setup the next t-states counter, if `zvb->tstates_counter` is negative, it means we 
-         * have spent more time than necessary to reach the current state, subtarct it from the next state */
-        zvb->tstates_counter = s_tstates_remaining[zvb->state] + zvb->tstates_counter;
+        vtimer_schedule_tstates(&zvb->timer, s_tstates_remaining[STATE_HBLANK]);
+    } else { /* STATE_HBLANK */
+        zvb->state = STATE_RENDERING;
+        zvb->status.h_blank = 0;
+        zvb->current_scanline++;
+        /* If we have reached line 480, we enter V-Blank state */
+        if (zvb->current_scanline == 480) {
+            zvb->need_render = true;
+            zvb->status.v_blank = 1;
+        } else if (zvb->current_scanline >= 524) {
+            /* End of v-blank, we start from the top again */
+            zvb->current_scanline = 0;
+            zvb->status.v_blank = 0;
+        }
+        vtimer_schedule_tstates(&zvb->timer, s_tstates_remaining[STATE_RENDERING]);
     }
 }
 

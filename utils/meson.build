@@ -2,5 +2,6 @@ sources += files([
     'fifo.c',
     'paths.c',
     'config.c',
-    'notif.c'
+    'notif.c',
+    'vtimer.c',
 ])

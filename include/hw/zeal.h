@@ -24,6 +24,7 @@
 #include "hw/compactflash.h"
 #include "hw/semihost.h"
 #include "utils/config.h"
+#include "utils/vtimer.h"
 #include "hw/userport/snes_adapter.h"
 
 #include "hw/i2c.h"
@@ -101,6 +102,9 @@ struct zeal_t {
 
     /* Misc features */
     zeal_hostfs_t hostfs;
+
+    /* Host keyboard polling timer */
+    vtimer_node_t host_keyb_timer;
 
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hw/device.h"
+#include "utils/vtimer.h"
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
 #include "hw/zvb/zvb_tilemap.h"
@@ -170,7 +171,7 @@ typedef struct {
 
     /* Raster FSM */
     int              state; // Any of the STATE_* macros
-    long             tstates_counter;
+    vtimer_node_t    timer;
     int              current_scanline;
     bool             need_render;
     bool             rendering_enabled;
@@ -208,9 +209,6 @@ int zvb_init(zvb_t* zvb, const zvb_config_t* config, const memory_op_t* ops);
  * @brief Function to call to let the video board be aware of how many
  * interrupts have elapsed.
  */
-void zvb_tick(zvb_t* zvb, const int tstates);
-
-
 /**
  * @brief Prepare the rendering, this will update the textures and images.
  * Must be called before `zvb_render`!
