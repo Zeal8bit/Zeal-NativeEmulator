@@ -26,8 +26,8 @@
     const emulator = new ZealNative({
         canvas,
         romdisk: 'default.img',
-        eeprom: 'eeprom.img',
-        tf: 'tf.img',
+        // eeprom: 'eeprom.img',
+        // tf: 'tf.img',
         imagePersistence: true,
         onImageConflict(image) {
             const useRemote = window.confirm(
