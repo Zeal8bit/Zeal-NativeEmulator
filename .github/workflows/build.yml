@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download WASM Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-wasm
           path: ./wasm-build
@@ -59,34 +59,34 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Linux Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-linux
           path: ./artifacts/linux
 
       - name: Download macOS ARM Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-macos-arm
           path: ./artifacts/macos-arm
 
       - name: Download macOS Intel Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-macos-intel
           path: ./artifacts/macos-intel
 
       - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-windows
           path: ./artifacts/windows
 
       - name: Download WASM Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-wasm
           path: ./artifacts/wasm
@@ -119,7 +119,7 @@ jobs:
           gh release delete "latest" --yes || true
 
       - name: Create or Update Latest Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Latest build (${{ steps.tag.outputs.sha }})
           body: |

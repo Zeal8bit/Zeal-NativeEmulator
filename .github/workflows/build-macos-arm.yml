@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Dependencies
         run: |
@@ -30,7 +30,7 @@ jobs:
           ./build/zeal-native --help
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zeal-native-macos-arm
           path: build/zeal-native

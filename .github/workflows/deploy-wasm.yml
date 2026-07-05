@@ -2,6 +2,9 @@ name: Deploy WebAssembly
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/wasm-hostfs
 
 permissions:
   contents: read
@@ -24,10 +27,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download WASM Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: zeal-native-wasm
           path: ./wasm-build
