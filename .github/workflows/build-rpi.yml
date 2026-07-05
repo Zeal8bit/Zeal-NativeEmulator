@@ -3,6 +3,9 @@ name: Build Raspberry Pi
 on:
   workflow_dispatch:
   workflow_call:
+  push:
+    branches:
+      - feature/build-rpi
 
 jobs:
   build-rpi:
