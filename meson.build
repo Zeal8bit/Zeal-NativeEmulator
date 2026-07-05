@@ -150,8 +150,17 @@ if (host_machine.system() == 'emscripten')
         output: 'index.css',
         copy: true
     )
+    if wasm_template == 'native'
+        configure_file(
+            input: join_paths(wasm_dir, 'favicon.ico'),
+            output: 'favicon.ico',
+            copy: true
+        )
+    endif
 
     wasm_lib_sources = files(
+        'assets/wasm/libnative/indexeddb.js',
+        'assets/wasm/libnative/disk-images.js',
         'assets/wasm/libnative/hostfs.js',
         'assets/wasm/libnative/zeal-native.js',
     )

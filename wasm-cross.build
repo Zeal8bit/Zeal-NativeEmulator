@@ -23,7 +23,7 @@ link_args = ['--emit-symbol-map',
              '-sEXIT_RUNTIME=1',
              '-sMODULARIZE=1',
              '-sEXPORTED_RUNTIME_METHODS=["FS","PATH","HEAPF32","HEAPU8","getValue","setValue"]',
-             '-sEXPORTED_FUNCTIONS=["_main","_malloc","_free","_zeal_exit","_zeal_exit_web","_zeal_debug_toggle_web","_zeal_snes_button_web","_zeal_snes_clear_web","_hostfs_web_complete","_hostfs_web_write_guest"]',
+             '-sEXPORTED_FUNCTIONS=["_main","_malloc","_free","_zeal_exit","_zeal_exit_web","_zeal_flush_storage_web","_zeal_debug_toggle_web","_zeal_snes_button_web","_zeal_snes_clear_web","_hostfs_web_complete","_hostfs_web_write_guest"]',
              '-SEXPORTED_GLOBALS=["_show_fps"]',
               '--embed-file', 'assets/shaders']
 

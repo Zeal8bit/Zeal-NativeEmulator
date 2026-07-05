@@ -2,6 +2,8 @@
     const consoleOutput = document.getElementById('output');
     const canvas = document.getElementById('canvas');
     const reloadButton = document.getElementById('reload');
+    const saveImagesButton = document.getElementById('save-images');
+    const clearImagesButton = document.getElementById('clear-images');
     const mountButton = document.getElementById('mount-hostfs');
     const hostfsStatus = document.getElementById('hostfs-status');
     let mountedHostFS = null;
@@ -24,6 +26,9 @@
     const emulator = new ZealNative({
         canvas,
         romdisk: 'default.img',
+        eeprom: 'eeprom.img',
+        tf: 'tf.img',
+        imagePersistence: true,
         print(text) {
             appendLog(consoleOutput, text);
         },
@@ -33,6 +38,8 @@
         onLoadingChange(loading) {
             emulatorLoading = loading;
             reloadButton.disabled = loading;
+            saveImagesButton.disabled = loading;
+            clearImagesButton.disabled = loading;
             updateHostFSButton();
         },
     });
@@ -106,6 +113,23 @@
         emulator.resumeAudio().catch(reportError);
     });
     reloadButton.addEventListener('click', () => emulator.reload().catch(reportError));
+    saveImagesButton.addEventListener('click', async () => {
+        try {
+            await emulator.saveDiskImages();
+            appendLog(consoleOutput, 'Disk images saved');
+        } catch (error) {
+            reportError(error);
+        }
+    });
+    clearImagesButton.addEventListener('click', async () => {
+        try {
+            await emulator.clearDiskImages();
+            appendLog(consoleOutput, 'Cached disk images cleared');
+            await emulator.reload();
+        } catch (error) {
+            reportError(error);
+        }
+    });
     mountButton.addEventListener('click', toggleHostFS);
     document.getElementById('toggle-debugger').addEventListener('click', () => {
         emulator.toggleDebugger();

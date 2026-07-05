@@ -28,6 +28,13 @@ void zeal_exit_web(void)
 }
 
 EMSCRIPTEN_KEEPALIVE
+void zeal_flush_storage_web(void)
+{
+    flash_save_to_file(&machine.rom, config.arguments.rom_filename);
+    fflush(NULL);
+}
+
+EMSCRIPTEN_KEEPALIVE
 void zeal_debug_toggle_web(void)
 {
 #if CONFIG_ENABLE_DEBUGGER

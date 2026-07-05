@@ -6,6 +6,8 @@
     <title>Zeal Native WASM Emulator</title>
     <link rel="stylesheet" href="index.css" />
     <script src="zeal.elf.js"></script>
+    <script src="libnative/indexeddb.js"></script>
+    <script src="libnative/disk-images.js"></script>
     <script src="libnative/hostfs.js"></script>
     <script src="libnative/zeal-native.js"></script>
 </head>
@@ -16,6 +18,8 @@
     <div class="controls">
         <button id="unmute">Unmute</button>
         <button id="reload">Reload</button>
+        <button id="save-images">Save Data</button>
+        <button id="clear-images">Clear Data</button>
         <button id="mount-hostfs">Mount HostFS</button>
         <label id="hostfs-status" for="mount-hostfs" role="status">HostFS not mounted</label>
         <button id="toggle-debugger">Toggle Debugger</button>

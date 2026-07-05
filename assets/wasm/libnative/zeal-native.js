@@ -26,6 +26,8 @@
             userProgramPath = '/roms/user.bin',
             eepromPath = '/roms/eeprom.img',
             tfPath = '/roms/tf.img',
+            imagePersistence = false,
+            diskImages = {},
             arguments: moduleArguments = null,
             hostfs = null,
             print = text => console.log(`Log: ${text}`),
@@ -49,6 +51,7 @@
             this.userProgramPath = userProgramPath;
             this.eepromPath = eepromPath;
             this.tfPath = tfPath;
+            this.imagePersistence = imagePersistence;
             this.arguments = moduleArguments == null ? [] : [...moduleArguments];
             this.addAssetArgument('-u', userProgramPath, userProgram);
             this.addAssetArgument('-e', eepromPath, eeprom);
@@ -64,6 +67,37 @@
             this.loading = false;
             this.operationPromise = null;
             this.binaryPromises = new Map();
+            const imageDefaults = {
+                romdisk: {
+                    source: romdisk, path: romdiskPath, key: this.cacheKey(romdisk, romdiskPath),
+                    persist: false,
+                },
+                eeprom: {
+                    source: eeprom, path: eepromPath, key: this.cacheKey(eeprom, eepromPath),
+                    persist: true,
+                },
+                tf: {
+                    source: tf, path: tfPath, key: this.cacheKey(tf, tfPath),
+                    persist: true,
+                },
+            };
+            this.diskImages = new DiskImageStore({
+                enabled: imagePersistence,
+                images: Object.entries(imageDefaults).map(([name, defaults]) => ({
+                    name,
+                    ...defaults,
+                    ...(diskImages[name] || {}),
+                })),
+                onWarning: (message, error) => this.printErr(
+                    `${message}: ${error?.message || error}`
+                ),
+            });
+        }
+
+        cacheKey(source, path) {
+            if (typeof source === 'string') return source;
+            if (source instanceof URL) return source.toString();
+            return path.split('/').filter(Boolean).at(-1);
         }
 
         addAssetArgument(flag, path, source) {
@@ -107,12 +141,11 @@
         }
 
         async loadModule() {
-            const [romdisk, userProgram, eeprom, tf] = await Promise.all([
-                this.resolveBinary(this.romdisk),
+            const [diskImages, userProgram] = await Promise.all([
+                this.diskImages.loadAll(),
                 this.resolveBinary(this.userProgram),
-                this.resolveBinary(this.eeprom),
-                this.resolveBinary(this.tf),
             ]);
+            const {romdisk, eeprom, tf} = diskImages;
 
             let resolveExit;
             const exitPromise = new Promise(resolve => {
@@ -193,6 +226,20 @@
         setHostFS(hostfs) {
             this.hostfs = hostfs;
             return this;
+        }
+
+        async saveDiskImages() {
+            if (!this.module) throw new Error('Emulator is not running');
+            this.module._zeal_flush_storage_web?.();
+            await this.diskImages.persist(this.module.FS);
+        }
+
+        clearDiskImages() {
+            return this.diskImages.clear();
+        }
+
+        diskImageUsage() {
+            return this.diskImages.usage();
         }
 
         resumeAudio() {
