@@ -317,13 +317,13 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     panel->rect.h = config_get(key, panel->rect.h);
 
     if(config.arguments.verbose > 2) {
-        log_printf("=== Panel: %s ===\n", panel->title);
-        log_printf("    width: %d\n", (int)panel->rect.w);
-        log_printf("   height: %d\n", (int)panel->rect.h);
-        log_printf("        x: %d\n", (int)panel->rect.x);
-        log_printf("        y: %d\n", (int)panel->rect.y);
-        log_printf("   hidden: %d\n", panel->hidden);
-        log_printf("minimized: %d\n", !!(panel->flags & NK_WINDOW_MINIMIZED));
+        log_printf("[UI] === Panel: %s ===\n", panel->title);
+        log_printf("[UI]     width: %d\n", (int)panel->rect.w);
+        log_printf("[UI]    height: %d\n", (int)panel->rect.h);
+        log_printf("[UI]         x: %d\n", (int)panel->rect.x);
+        log_printf("[UI]         y: %d\n", (int)panel->rect.y);
+        log_printf("[UI]    hidden: %d\n", panel->hidden);
+        log_printf("[UI] minimized: %d\n", !!(panel->flags & NK_WINDOW_MINIMIZED));
     }
 }
 

@@ -436,6 +436,10 @@ void zvb_render(zvb_t* zvb)
 #if CONFIG_PROFILE_RENDER
 void zvb_profile_frame(double elapsed_seconds)
 {
+    if (!config.arguments.profile) {
+        return;
+    }
+
     const double now = GetTime();
     if (s_render_profile.window_start == 0.0) {
         s_render_profile.window_start = now;
@@ -455,7 +459,7 @@ void zvb_profile_frame(double elapsed_seconds)
     const double zvb_avg = s_render_profile.zvb_calls > 0
         ? s_render_profile.zvb_total / s_render_profile.zvb_calls : 0.0;
     log_printf(
-        "[RENDER] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms\n",
+        "[PROFILE][ZVB] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms\n",
         (unsigned long long)s_render_profile.frames,
         frame_avg * 1000.0,
         s_render_profile.frame_max * 1000.0,

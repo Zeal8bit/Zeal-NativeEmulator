@@ -64,6 +64,9 @@ typedef struct {
     bool config_save;
     uint8_t verbose;
     bool no_reset;
+#if CONFIG_PROFILE_RENDER
+    bool profile;
+#endif
 } config_arguments_t;
 
 typedef struct {

@@ -17,6 +17,8 @@
 #include "utils/log.h"
 #include "raylib.h"
 
+static const char* module = "[CONFIG]";
+
 config_t config ={
     .audio = {
         .volume = 100,
@@ -31,6 +33,9 @@ config_t config ={
         .headless = false,
         .headless_run_ticks = 0,
         .verbose = 0,
+#if CONFIG_PROFILE_RENDER
+        .profile = false,
+#endif
     },
 
     .debugger = {
@@ -56,44 +61,47 @@ void config_debug(void)
 {
     if(config.arguments.verbose < 2) return;
 
-    log_printf("[CONFIG] == CONFIG ==\n");
+    log_printf("%s == CONFIG ==\n", module);
 
-    log_printf("[CONFIG] \n");
-    log_printf("[CONFIG] === command line ===\n");
-    log_printf("[CONFIG]   config_path: %s\n", config.arguments.config_path);
-    log_printf("[CONFIG]  rom_filename: %s\n", config.arguments.rom_filename);
-    log_printf("[CONFIG]   hostfs_path: %s\n", config.arguments.hostfs_path);
-    log_printf("[CONFIG]      map_file: %s\n", config.arguments.map_file);
-    log_printf("[CONFIG] debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
-    log_printf("[CONFIG]     headless: %s\n", config.arguments.headless ? "True" : "False");
-    log_printf("[CONFIG] headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
-    log_printf("[CONFIG]   config_save: %s\n", config.arguments.config_save ? "True" : "False");
-    log_printf("[CONFIG]       verbose: %u\n", config.arguments.verbose);
-    log_printf("[CONFIG]      no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
+    log_printf("%s \n", module);
+    log_printf("%s === command line ===\n", module);
+    log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
+    log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
+    log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
+    log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
+    log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
+    log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
+    log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
+    log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
+    log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
+#if CONFIG_PROFILE_RENDER
+    log_printf("%s       profile: %s\n", module, config.arguments.profile ? "True" : "False");
+#endif
 
-    log_printf("[CONFIG] \n");
-    log_printf("[CONFIG] === audio ===\n");
-    log_printf("[CONFIG]  volume: %d\n", config.audio.volume);
+    log_printf("%s \n", module);
+    log_printf("%s === audio ===\n", module);
+    log_printf("%s  volume: %d\n", module, config.audio.volume);
 
-    log_printf("[CONFIG] \n");
-    log_printf("[CONFIG] === debugger ===\n");
-    log_printf("[CONFIG] enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
+    log_printf("%s \n", module);
+    log_printf("%s === debugger ===\n", module);
+    log_printf("%s enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
 
-    log_printf("[CONFIG] \n");
-    log_printf("[CONFIG] === window ===\n");
-    log_printf("[CONFIG]   width: %d\n", config.window.width);
-    log_printf("[CONFIG]  height: %d\n", config.window.height);
-    log_printf("[CONFIG]       x: %d\n", config.window.x);
-    log_printf("[CONFIG]       y: %d\n", config.window.y);
-    log_printf("[CONFIG] display: %d\n", config.window.display);
+    log_printf("%s \n", module);
+    log_printf("%s === window ===\n", module);
+    log_printf("%s   width: %d\n", module, config.window.width);
+    log_printf("%s  height: %d\n", module, config.window.height);
+    log_printf("%s       x: %d\n", module, config.window.x);
+    log_printf("%s       y: %d\n", module, config.window.y);
+    log_printf("%s display: %d\n", module, config.window.display);
 
-    log_printf("[CONFIG] \n");
-    log_printf("[CONFIG] === debugger ===\n");
-    log_printf("[CONFIG]   width: %d\n", config.debugger.width);
-    log_printf("[CONFIG]  height: %d\n", config.debugger.height);
-    log_printf("[CONFIG]       x: %d\n", config.debugger.x);
-    log_printf("[CONFIG]       y: %d\n", config.debugger.y);
-    log_printf("[CONFIG] \n\n");
+    log_printf("%s \n", module);
+    log_printf("%s === debugger ===\n", module);
+    log_printf("%s   width: %d\n", module, config.debugger.width);
+    log_printf("%s  height: %d\n", module, config.debugger.height);
+    log_printf("%s       x: %d\n", module, config.debugger.x);
+    log_printf("%s       y: %d\n", module, config.debugger.y);
+    log_printf("%s \n\n", module);
 }
 
 int usage(const char* progname)
@@ -113,6 +121,9 @@ int usage(const char* progname)
     log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
     log_printf("                                     Optional tstates number to execute can be given\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
+#if CONFIG_PROFILE_RENDER
+    log_printf("      --profile                      Log aggregated render profiling data\n");
+#endif
     log_printf("  -v, --verbose                      Verbose console output; repeat for more detail (-vvv)\n");
     log_printf("  -h, --help                         Show this help message\n");
     log_printf("\n");
@@ -124,6 +135,12 @@ int usage(const char* progname)
 
 int parse_command_args(int argc, char* argv[])
 {
+#if CONFIG_PROFILE_RENDER
+    enum {
+        OPT_PROFILE = 256,
+    };
+#endif
+
     int opt;
 
     struct option long_options[] = {
@@ -139,6 +156,9 @@ int parse_command_args(int argc, char* argv[])
         {      "brk", required_argument, 0, 'b'},
         { "headless", optional_argument, 0, 'n'},
         { "no-reset",       no_argument, 0, 'q'},
+#if CONFIG_PROFILE_RENDER
+        {  "profile",       no_argument, 0, OPT_PROFILE},
+#endif
         {     "save",       no_argument, 0, 's'},
         {  "verbose",       no_argument, 0, 'v'},
         {    "help",        no_argument, 0, 'h'},
@@ -218,6 +238,11 @@ int parse_command_args(int argc, char* argv[])
             case 'q':
                 config.arguments.no_reset = true;
                 break;
+#if CONFIG_PROFILE_RENDER
+            case OPT_PROFILE:
+                config.arguments.profile = true;
+                break;
+#endif
             case '?':
                 // Handle unknown options
                 log_err_printf("[CONFIG] Unknown option -%c\n", optopt);
@@ -229,7 +254,7 @@ int parse_command_args(int argc, char* argv[])
 }
 
 void config_parse_file(const char* file) {
-    printf("[CONFIG] %s\n", path_sanitize(file));
+    log_printf("%s %s\n", module, path_sanitize(file));
     if(!path_exists(file)) return;
 
     config.ini = rini_load_config(file);
