@@ -20,19 +20,30 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build
+          sudo apt-get install -y meson ninja-build unzip
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
           cross-file: wasm-cross.build
-          meson-args: -Dwasm_template=minimal
+          meson-args: -Dwasm_template=native
+
+      - name: Download latest Zeal 8-bit OS image
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/zos_target_zeal8bit_emulator.zip \
+            https://github.com/Zeal8bit/Zeal-8-bit-OS/releases/latest/download/zos_target_zeal8bit_emulator.zip
+          unzip -j /tmp/zos_target_zeal8bit_emulator.zip \
+            os_with_romdisk.img \
+            -d /tmp/zeal-os
+          mv /tmp/zeal-os/os_with_romdisk.img build/default.img
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zeal-native-wasm
           path: |
+            build/default.img
             build/index.html
             build/index.css
             build/index.js
