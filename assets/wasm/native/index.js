@@ -1,13 +1,23 @@
 (() => {
     const consoleOutput = document.getElementById('output');
-    const consoleError = document.getElementById('errors');
     const canvas = document.getElementById('canvas');
     const reloadButton = document.getElementById('reload');
     const mountButton = document.getElementById('mount-hostfs');
     const hostfsStatus = document.getElementById('hostfs-status');
+    let mountedHostFS = null;
+    let hostfsChanging = false;
+    let emulatorLoading = false;
 
-    function appendMessage(element, text) {
-        element.append(document.createTextNode(text), document.createElement('br'));
+    function updateHostFSButton() {
+        mountButton.disabled = hostfsChanging || emulatorLoading || !HostFS.supported;
+    }
+
+    function appendLog(element, text, type='log') {
+        console[type]?.(`Log: ${text}`);
+        const entry = document.createElement('div');
+        entry.classList.add('log-entry', type);
+        entry.textContent = text;
+        element.append(entry);
         element.scrollTop = element.scrollHeight;
     }
 
@@ -15,39 +25,64 @@
         canvas,
         romdisk: 'default.img',
         print(text) {
-            console.log(`Log: ${text}`);
-            appendMessage(consoleOutput, text);
+            appendLog(consoleOutput, text);
         },
         printErr(text) {
-            console.error(`Error: ${text}`);
-            appendMessage(consoleError, text);
+            appendLog(consoleOutput, text, 'error');
         },
         onLoadingChange(loading) {
+            emulatorLoading = loading;
             reloadButton.disabled = loading;
-            mountButton.disabled = loading || !HostFS.supported;
+            updateHostFSButton();
         },
     });
 
     function reportError(error) {
         console.error(error);
-        appendMessage(consoleError, error.message || String(error));
+        appendLog(consoleOutput, error.message || String(error), 'error');
     }
 
     async function mountHostFS() {
+        const hostfs = await HostFS.mount({
+            onError(operation, error) {
+                appendLog(
+                    consoleOutput,
+                    `[HostFS] ${operation}: ${error.message || error}`,
+                    'error'
+                );
+            },
+        });
+        emulator.setHostFS(hostfs);
+        mountedHostFS = hostfs;
+        mountButton.textContent = 'Unmount HostFS';
+        hostfsStatus.textContent = `HostFS mounted: ${hostfs.directory.name}`;
+        await emulator.reload();
+    }
+
+    async function unmountHostFS() {
+        const confirmed = window.confirm(
+            'Unmounting HostFS will restart the emulator and lose any unsaved work. Continue?'
+        );
+        if (!confirmed) return;
+
+        emulator.setHostFS(null);
+        mountedHostFS = null;
+        mountButton.textContent = 'Mount HostFS';
+        hostfsStatus.textContent = 'HostFS not mounted';
+        await emulator.reload();
+    }
+
+    async function toggleHostFS() {
+        if (hostfsChanging) return;
+        hostfsChanging = true;
+        updateHostFSButton();
         try {
-            const hostfs = await HostFS.mount({
-                onError(operation, error) {
-                    appendMessage(
-                        consoleError,
-                        `[HostFS] ${operation}: ${error.message || error}`
-                    );
-                },
-            });
-            emulator.setHostFS(hostfs);
-            hostfsStatus.textContent = `HostFS mounted: ${hostfs.directory.name}`;
-            await emulator.reload();
+            await (mountedHostFS ? unmountHostFS() : mountHostFS());
         } catch (error) {
             if (error.name !== 'AbortError') reportError(error);
+        } finally {
+            hostfsChanging = false;
+            updateHostFSButton();
         }
     }
 
@@ -71,7 +106,7 @@
         emulator.resumeAudio().catch(reportError);
     });
     reloadButton.addEventListener('click', () => emulator.reload().catch(reportError));
-    mountButton.addEventListener('click', mountHostFS);
+    mountButton.addEventListener('click', toggleHostFS);
     document.getElementById('toggle-debugger').addEventListener('click', () => {
         emulator.toggleDebugger();
     });

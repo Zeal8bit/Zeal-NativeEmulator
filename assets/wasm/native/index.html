@@ -17,7 +17,7 @@
         <button id="unmute">Unmute</button>
         <button id="reload">Reload</button>
         <button id="mount-hostfs">Mount HostFS</button>
-        <span id="hostfs-status" role="status">HostFS not mounted</span>
+        <label id="hostfs-status" for="mount-hostfs" role="status">HostFS not mounted</label>
         <button id="toggle-debugger">Toggle Debugger</button>
         <button id="toggle-fps">Toggle FPS</button>
         <label>
@@ -29,10 +29,6 @@
         <div>
             <span class="label">Console</span>
             <div id="output"></div>
-        </div>
-        <div>
-            <span class="label">Errors</span>
-            <div id="errors"></div>
         </div>
     </div>
     <script src="index.js"></script>

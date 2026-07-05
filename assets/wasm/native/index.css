@@ -6,6 +6,7 @@
     --bg: rgba(20, 20, 20, 1);
     --normal: rgba(220, 220, 220, 1);
     --error: rgba(220, 128, 128, 1);
+    --warn: rgba(220, 220, 128, 1);
     --max-width: 1280px;
     background: var(--bg);
     color: var(--normal);
@@ -41,6 +42,7 @@ body {
 
     image-rendering: auto;
     image-rendering: crisp-edges;
+
     &.smooth {
         image-rendering: pixelated;
     }
@@ -77,13 +79,8 @@ body {
     max-width: var(--max-width);
     margin: 16px auto;
     display: grid;
-    grid-template-columns: repeat(1, 1fr);
+    grid-template-columns: 1fr;
     gap: 16px;
-
-    @container (width > 800px) {
-        max-height: 200px;
-        grid-template-columns: repeat(2, 1fr);
-    }
 
     .label {
         display: inline-block;
@@ -94,8 +91,7 @@ body {
     }
 }
 
-#output,
-#errors {
+#output {
     height: 200px;
     display: block;
     overflow-y: scroll;
@@ -109,7 +105,12 @@ body {
     border: 1px solid var(--normal);
 }
 
-#errors {
-    border: 1px solid var(--error);
-    color: var(--error);
+.log-entry {
+    &.error {
+        color: var(--error);
+    }
+
+    &.warn {
+        color: var(--warn);
+    }
 }

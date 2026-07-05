@@ -23,6 +23,9 @@ void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
 
 void snes_controller_load_mappings(void)
 {
+    #ifdef PLATFORM_WEB
+        return;
+    #endif
     // Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path
     const char *config_dir = get_config_dir();
     const char *db_path = config_dir
