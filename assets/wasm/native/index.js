@@ -29,6 +29,13 @@
         eeprom: 'eeprom.img',
         tf: 'tf.img',
         imagePersistence: true,
+        onImageConflict(image) {
+            const useRemote = window.confirm(
+                `${image.key} changed on the server, but your local image has saved changes.\n\n` +
+                'Use the updated server image? Press Cancel to keep your local image.'
+            );
+            return useRemote ? 'remote' : 'local';
+        },
         print(text) {
             appendLog(consoleOutput, text);
         },
@@ -115,8 +122,8 @@
     reloadButton.addEventListener('click', () => emulator.reload().catch(reportError));
     saveImagesButton.addEventListener('click', async () => {
         try {
-            await emulator.saveDiskImages();
-            appendLog(consoleOutput, 'Disk images saved');
+            const saved = await emulator.saveDiskImages();
+            appendLog(consoleOutput, `Disk images saved: ${saved.join(', ') || 'none'}`);
         } catch (error) {
             reportError(error);
         }

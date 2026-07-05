@@ -28,6 +28,7 @@
             tfPath = '/roms/tf.img',
             imagePersistence = false,
             diskImages = {},
+            onImageConflict = null,
             arguments: moduleArguments = null,
             hostfs = null,
             print = text => console.log(`Log: ${text}`),
@@ -91,6 +92,7 @@
                 onWarning: (message, error) => this.printErr(
                     `${message}: ${error?.message || error}`
                 ),
+                onConflict: onImageConflict || (async () => 'remote'),
             });
         }
 
@@ -231,7 +233,7 @@
         async saveDiskImages() {
             if (!this.module) throw new Error('Emulator is not running');
             this.module._zeal_flush_storage_web?.();
-            await this.diskImages.persist(this.module.FS);
+            return this.diskImages.persist(this.module.FS);
         }
 
         clearDiskImages() {
