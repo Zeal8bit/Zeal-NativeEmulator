@@ -449,8 +449,7 @@ static void zvb_tf_start(zvb_spi_t* spi)
     }
 
 #if 0
-    log_printf("=================\n");
-    log_printf("Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
+    log_printf("[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
             spi->ram_wr.data[0],
             spi->ram_wr.data[1],
             spi->ram_wr.data[2],

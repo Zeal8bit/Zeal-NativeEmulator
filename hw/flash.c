@@ -371,7 +371,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     } else {
         strcpy(entry.name, "init.bin");
     }
-    log_printf("Loading user program as %s\n", entry.name);
+    v_log_printf(1, "[FLASH] Loading user program as %s\n", entry.name);
 
     memcpy(romdisk, &entry, sizeof(entry));
 
@@ -415,11 +415,11 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
             const char* config_dir = get_config_dir();
             if (config_dir != NULL) {
                 snprintf(rom_path, sizeof(rom_path), "%s/roms/default.img", config_dir);
-                log_printf("[FLASH] Trying to load %s\n", path_sanitize(rom_path));
+                v_log_printf(1, "[FLASH] Trying to load %s\n", path_sanitize(rom_path));
                 if (access(rom_path, F_OK) != 0) {
                     // Fallback to relative path
                     const char* default_name = "roms/default.img";
-                    log_printf("[FLASH] Trying to load (install-dir) %s\n", default_name);
+                    v_log_printf(1, "[FLASH] Trying to load (install-dir) %s\n", default_name);
                     if (get_install_dir_file(rom_path, default_name) == 0) {
                         log_err_printf("[FLASH] Could not get %s\n", default_name);
                         return -1;
@@ -428,7 +428,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
             } else {
                 // HOME not set, fallback to relative path
                 const char* default_name = "roms/default.img";
-                log_printf("[FLASH] Trying to load %s\n", default_name);
+                v_log_printf(1, "[FLASH] Trying to load %s\n", default_name);
                 if (get_install_dir_file(rom_path, default_name) == 0) {
                     log_err_printf("[FLASH] Could not get (install-dir) %s\n", default_name);
                     return -1;

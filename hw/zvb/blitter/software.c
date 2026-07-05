@@ -87,6 +87,8 @@ void zvb_blitter_init(zvb_t* zvb)
 {
     zvb_blitter_t* bl = &zvb->blitter;
 
+    v_log_printf(1, "[RENDER] Blitter: software\n");
+
     bl->framebuffer = (uint16_t*)malloc(FB_BYTES);
     if (!bl->framebuffer) {
         log_err_printf("Software blitter: framebuffer allocation failed\n");
@@ -408,6 +410,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
     }
 }
 
+
 static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
         const uint16_t* pal_rgb)
@@ -523,6 +526,7 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
     }
 }
 
+
 #if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
 
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
@@ -559,6 +563,13 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 }
 
 #else /* !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
+
+void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
+{
+    /* Full-frame software rendering does not render during scanline ticks. */
+    (void)zvb;
+    (void)scanline;
+}
 
 static void render_gfx_4bit(zvb_t* zvb, uint16_t* sprites_scanline,
                          uint8_t* sprites_behind_fg, const uint16_t* pal_rgb)
@@ -605,4 +616,3 @@ void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
 {
     (void)zvb;
 }
-

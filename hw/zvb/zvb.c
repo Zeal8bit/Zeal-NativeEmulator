@@ -24,7 +24,19 @@
 #define SIZE_WITH_GRID(TILESIZE, TILECOUNT)    ((((TILESIZE)+1)*TILECOUNT)+1)
 
 
-#define BENCHMARK           0
+#if CONFIG_PROFILE_RENDER
+typedef struct {
+    double window_start;
+    double frame_total;
+    double frame_max;
+    double zvb_total;
+    double zvb_max;
+    uint64_t frames;
+    uint64_t zvb_calls;
+} render_profile_t;
+
+static render_profile_t s_render_profile;
+#endif
 
 
 #define ZVB_IO_SIZE         (3 * 16)
@@ -110,7 +122,7 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 {
     switch(addr) {
-        case ZVB_IO_CONFIG_VPOS_LOW: 
+        case ZVB_IO_CONFIG_VPOS_LOW:
             zvb->ctrl.vpos_latch = (zvb->current_scanline >> 8);
             return (zvb->current_scanline >> 0) & 0xff;
         case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
@@ -221,7 +233,7 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if (addr == ZVB_IO_BANK_REG) {
         zvb->io_bank = data;
     } else if (addr == ZVB_MEM_START_REG) {
-        log_err_printf("[WARNING] zvb memory mapping register is not supported\n");
+        log_err_printf("[ZVB][WARNING] zvb memory mapping register is not supported\n");
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         zvb_io_write_control(zvb, subaddr, data);
@@ -387,10 +399,8 @@ void zvb_render(zvb_t* zvb)
 
     zvb->need_render = false;
 
-#if BENCHMARK
-    double startTime = GetTime();
-    static double average = 0;
-    static int counter = 0;
+#if CONFIG_PROFILE_RENDER
+    const double profile_start = GetTime();
 #endif
 
     if (zvb->status.vid_ena) {
@@ -413,17 +423,49 @@ void zvb_render(zvb_t* zvb)
         zvb_render_disabled_mode(zvb);
     }
 
-#if BENCHMARK
-    double endTime = GetTime();
-    double elapsedTime = endTime - startTime;
-    average += elapsedTime;
-    if (++counter == 60) {
-        log_printf("Time taken to render a frame : %f ms\n", (average / 60) * 1000);
-        counter = 0;
-        average = 0;
+#if CONFIG_PROFILE_RENDER
+    const double elapsed = GetTime() - profile_start;
+    s_render_profile.zvb_total += elapsed;
+    if (elapsed > s_render_profile.zvb_max) {
+        s_render_profile.zvb_max = elapsed;
     }
+    s_render_profile.zvb_calls++;
 #endif
 }
+
+#if CONFIG_PROFILE_RENDER
+void zvb_profile_frame(double elapsed_seconds)
+{
+    const double now = GetTime();
+    if (s_render_profile.window_start == 0.0) {
+        s_render_profile.window_start = now;
+    }
+    s_render_profile.frame_total += elapsed_seconds;
+    if (elapsed_seconds > s_render_profile.frame_max) {
+        s_render_profile.frame_max = elapsed_seconds;
+    }
+    s_render_profile.frames++;
+
+    if (now - s_render_profile.window_start < 1.0) {
+        return;
+    }
+
+    const double frame_avg = s_render_profile.frames > 0
+        ? s_render_profile.frame_total / s_render_profile.frames : 0.0;
+    const double zvb_avg = s_render_profile.zvb_calls > 0
+        ? s_render_profile.zvb_total / s_render_profile.zvb_calls : 0.0;
+    log_printf(
+        "[RENDER] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms\n",
+        (unsigned long long)s_render_profile.frames,
+        frame_avg * 1000.0,
+        s_render_profile.frame_max * 1000.0,
+        zvb_avg * 1000.0,
+        s_render_profile.zvb_max * 1000.0);
+
+    memset(&s_render_profile, 0, sizeof(s_render_profile));
+    s_render_profile.window_start = now;
+}
+#endif
 
 
 void zvb_force_render(zvb_t* zvb)
@@ -440,13 +482,6 @@ void zvb_force_render(zvb_t* zvb)
 void zvb_tick(zvb_t* zvb, const int tstates)
 {
     zvb->tstates_counter -= tstates;
-#if BENCHMARK
-    static uint64_t last_render_tstates = 0;
-    static uint64_t counter = 0;
-    static double last_render_time = 0;
-    counter += tstates;
-#endif
-
     if (zvb->tstates_counter <= 0) {
         if (zvb->state == STATE_RENDERING) {
             zvb->state = STATE_HBLANK;
@@ -467,16 +502,6 @@ void zvb_tick(zvb_t* zvb, const int tstates)
                 /* End of v-blank, we start from the top again */
                 zvb->current_scanline = 0;
                 zvb->status.v_blank = 0;
-#if BENCHMARK
-                /* Log the t-states AND real time spent to render a single frame */
-                double current_time = GetTime();
-                double elapsed_time = (current_time - last_render_time);
-                log_printf("[ZVB] Frame rendered in %lu t-states, real time: %f ms\n",
-                        counter - last_render_tstates,
-                        elapsed_time * 1000);
-                last_render_tstates = counter;
-                last_render_time = GetTime();
-#endif
             }
         }
         /* Setup the next t-states counter, if `zvb->tstates_counter` is negative, it means we 

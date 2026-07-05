@@ -316,7 +316,7 @@ void dbg_ui_get_panel_config(dbg_ui_panel_t *panel)
     sprintf(key, "%s_HEIGHT", panel->key);
     panel->rect.h = config_get(key, panel->rect.h);
 
-    if(config.arguments.verbose) {
+    if(config.arguments.verbose > 2) {
         log_printf("=== Panel: %s ===\n", panel->title);
         log_printf("    width: %d\n", (int)panel->rect.w);
         log_printf("   height: %d\n", (int)panel->rect.h);

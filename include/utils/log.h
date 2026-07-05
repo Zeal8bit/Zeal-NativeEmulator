@@ -11,6 +11,7 @@
 
 
 #include <stdio.h>
+#include "utils/config.h"
 
 #define LOG_FD_INPUT            0
 #define LOG_FD_OUTPUT           1
@@ -18,6 +19,12 @@
 
 #define log_printf(...)         printf(__VA_ARGS__)
 #define log_err_printf(...)     fprintf(stderr, __VA_ARGS__)
+#define v_log_printf(level, ...) \
+    do { \
+        if (config.arguments.verbose >= (level)) { \
+            log_printf(__VA_ARGS__); \
+        } \
+    } while (0)
 #define log_perror(fmt, ...) \
     fprintf(stderr, fmt ": %s\n", ##__VA_ARGS__, strerror(errno))
 #define log_flush()             fflush(stdout)

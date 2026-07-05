@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "utils/log.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes_adapter/controller.h"
 #include "hw/userport/snes_adapter/mouse.h"
@@ -51,15 +52,13 @@ static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
         pio_set_a_pin(pio, snes_adapter_data_pin(port), snes_adapter->port_bits[port] & 0x01);
     }
 
-    if (config.arguments.verbose > 2) {
-        printf("[SNES] PIO clock port1=%s/%d/%08x port2=%s/%d/%08x\n",
-            snes_adapter_device_name(snes_adapter->ports[0].device),
-            snes_adapter->ports[0].controller_index,
-            snes_adapter->port_bits[0],
-            snes_adapter_device_name(snes_adapter->ports[1].device),
-            snes_adapter->ports[1].controller_index,
-            snes_adapter->port_bits[1]);
-    }
+    v_log_printf(3, "[SNES] PIO clock port1=%s/%d/%08x port2=%s/%d/%08x\n",
+        snes_adapter_device_name(snes_adapter->ports[0].device),
+        snes_adapter->ports[0].controller_index,
+        snes_adapter->port_bits[0],
+        snes_adapter_device_name(snes_adapter->ports[1].device),
+        snes_adapter->ports[1].controller_index,
+        snes_adapter->port_bits[1]);
 }
 
 
@@ -88,15 +87,13 @@ static void snes_adapter_latch(pio_t* pio, uint8_t pin, uint8_t bit)
         pio_set_a_pin(pio, snes_adapter_data_pin(port), snes_adapter->port_bits[port] & 0x01);
     }
 
-    if (config.arguments.verbose > 2) {
-        printf("[SNES] PIO latch port1=%s/%d/%04x port2=%s/%d/%04x\n",
-            snes_adapter_device_name(snes_adapter->ports[0].device),
-            snes_adapter->ports[0].controller_index,
-            snes_adapter->port_bits[0],
-            snes_adapter_device_name(snes_adapter->ports[1].device),
-            snes_adapter->ports[1].controller_index,
-            snes_adapter->port_bits[1]);
-    }
+    v_log_printf(3, "[SNES] PIO latch port1=%s/%d/%04x port2=%s/%d/%04x\n",
+        snes_adapter_device_name(snes_adapter->ports[0].device),
+        snes_adapter->ports[0].controller_index,
+        snes_adapter->port_bits[0],
+        snes_adapter_device_name(snes_adapter->ports[1].device),
+        snes_adapter->ports[1].controller_index,
+        snes_adapter->port_bits[1]);
 
 }
 

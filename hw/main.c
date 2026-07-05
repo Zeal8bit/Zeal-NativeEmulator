@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
     if(code != 0) return code;
 
     config_parse_file(config.arguments.config_path);
-    if(config.arguments.verbose) config_debug();
+    config_debug();
 
     if (config.arguments.hostfs_path == NULL) {
         log_printf("No HostFS path specified.\n");

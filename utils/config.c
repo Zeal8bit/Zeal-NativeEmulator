@@ -54,44 +54,46 @@ config_t config ={
 
 void config_debug(void)
 {
-    log_printf("== CONFIG ==\n");
+    if(config.arguments.verbose < 2) return;
 
-    log_printf("\n");
-    log_printf("=== command line ===\n");
-    log_printf("  config_path: %s\n", config.arguments.config_path);
-    log_printf(" rom_filename: %s\n", config.arguments.rom_filename);
-    log_printf("  hostfs_path: %s\n", config.arguments.hostfs_path);
-    log_printf("     map_file: %s\n", config.arguments.map_file);
-    log_printf("debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
-    log_printf("    headless: %s\n", config.arguments.headless ? "True" : "False");
-    log_printf("headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
-    log_printf("  config_save: %s\n", config.arguments.config_save ? "True" : "False");
-    log_printf("      verbose: %u\n", config.arguments.verbose);
-    log_printf("     no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
+    log_printf("[CONFIG] == CONFIG ==\n");
 
-    log_printf("\n");
-    log_printf("=== audio ===\n");
-    log_printf(" volume: %d\n", config.audio.volume);
+    log_printf("[CONFIG] \n");
+    log_printf("[CONFIG] === command line ===\n");
+    log_printf("[CONFIG]   config_path: %s\n", config.arguments.config_path);
+    log_printf("[CONFIG]  rom_filename: %s\n", config.arguments.rom_filename);
+    log_printf("[CONFIG]   hostfs_path: %s\n", config.arguments.hostfs_path);
+    log_printf("[CONFIG]      map_file: %s\n", config.arguments.map_file);
+    log_printf("[CONFIG] debug_enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("[CONFIG]     headless: %s\n", config.arguments.headless ? "True" : "False");
+    log_printf("[CONFIG] headless_run_ticks: %lu\n", config.arguments.headless_run_ticks);
+    log_printf("[CONFIG]   config_save: %s\n", config.arguments.config_save ? "True" : "False");
+    log_printf("[CONFIG]       verbose: %u\n", config.arguments.verbose);
+    log_printf("[CONFIG]      no_reset: %s\n", config.arguments.no_reset ? "True" : "False");
 
-    log_printf("\n");
-    log_printf("=== debugger ===\n");
-    log_printf("enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
+    log_printf("[CONFIG] \n");
+    log_printf("[CONFIG] === audio ===\n");
+    log_printf("[CONFIG]  volume: %d\n", config.audio.volume);
 
-    log_printf("\n");
-    log_printf("=== window ===\n");
-    log_printf("  width: %d\n", config.window.width);
-    log_printf(" height: %d\n", config.window.height);
-    log_printf("      x: %d\n", config.window.x);
-    log_printf("      y: %d\n", config.window.y);
-    log_printf("display: %d\n", config.window.display);
+    log_printf("[CONFIG] \n");
+    log_printf("[CONFIG] === debugger ===\n");
+    log_printf("[CONFIG] enabled: %s\n", config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
 
-    log_printf("\n");
-    log_printf("=== debugger ===\n");
-    log_printf("  width: %d\n", config.debugger.width);
-    log_printf(" height: %d\n", config.debugger.height);
-    log_printf("      x: %d\n", config.debugger.x);
-    log_printf("      y: %d\n", config.debugger.y);
-    log_printf("\n\n");
+    log_printf("[CONFIG] \n");
+    log_printf("[CONFIG] === window ===\n");
+    log_printf("[CONFIG]   width: %d\n", config.window.width);
+    log_printf("[CONFIG]  height: %d\n", config.window.height);
+    log_printf("[CONFIG]       x: %d\n", config.window.x);
+    log_printf("[CONFIG]       y: %d\n", config.window.y);
+    log_printf("[CONFIG] display: %d\n", config.window.display);
+
+    log_printf("[CONFIG] \n");
+    log_printf("[CONFIG] === debugger ===\n");
+    log_printf("[CONFIG]   width: %d\n", config.debugger.width);
+    log_printf("[CONFIG]  height: %d\n", config.debugger.height);
+    log_printf("[CONFIG]       x: %d\n", config.debugger.x);
+    log_printf("[CONFIG]       y: %d\n", config.debugger.y);
+    log_printf("[CONFIG] \n\n");
 }
 
 int usage(const char* progname)
