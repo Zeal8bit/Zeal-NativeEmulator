@@ -52,8 +52,10 @@ typedef enum {
     SHADER_TEXT = 0,
     SHADER_GFX,
     SHADER_BITMAP,
+#if CONFIG_ENABLE_DEBUGGER
     SHADER_GFX_DEBUG,
     SHADER_TEXT_DEBUG,
+#endif
     SHADERS_COUNT,
 } zvb_shaders_type_t;
 

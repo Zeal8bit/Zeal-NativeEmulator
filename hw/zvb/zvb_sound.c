@@ -109,6 +109,8 @@ void zvb_sound_deinit(zvb_sound_t* sound)
     StopAudioStream(sound->stream);
     UnloadAudioStream(sound->stream);
     CloseAudioDevice();
+    sound->enabled = false;
+    g_sound = NULL;
 }
 
 /**

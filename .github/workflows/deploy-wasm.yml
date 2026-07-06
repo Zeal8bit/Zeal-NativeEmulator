@@ -1,0 +1,41 @@
+name: Deploy WebAssembly
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/wasm-hostfs
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-wasm:
+    name: Build WebAssembly
+    uses: ./.github/workflows/build-wasm.yml
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build-wasm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Download WASM Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: zeal-native-wasm
+          path: ./wasm-build
+
+      - name: Deploy to GitHub Pages
+        uses: ./.github/actions/deploy-pages
+        with:
+          deploy-path: ./wasm-build

@@ -289,6 +289,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, ops);
 
+#if CONFIG_ENABLE_DEBUGGER
     if (rendering_enabled) {
         dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
@@ -298,6 +299,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
         dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
         zvb_blitter_init(dev);
     }
+#endif
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_RENDERING;
@@ -363,6 +365,8 @@ bool zvb_prepare_render(zvb_t* zvb)
     return true;
 }
 
+
+#if CONFIG_ENABLE_DEBUGGER
 void zvb_render_debug_textures(zvb_t* zvb)
 {
     if (!zvb->rendering_enabled) {
@@ -385,6 +389,7 @@ void zvb_render_debug_textures(zvb_t* zvb)
             break;
     }
 }
+#endif // CONFIG_ENABLE_DEBUGGER
 
 void zvb_render(zvb_t* zvb)
 {
@@ -522,4 +527,10 @@ void zvb_deinit(zvb_t* zvb)
     }
 
     zvb_blitter_deinit(zvb);
+
+#if CONFIG_ENABLE_DEBUGGER
+    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
+        UnloadRenderTexture(zvb->debug_tex[i]);
+    }
+#endif
 }

@@ -21,6 +21,10 @@
 #include <time.h>
 #include <libgen.h>
 
+#ifdef PLATFORM_WEB
+#include <emscripten.h>
+#endif
+
 #include "hw/hostfs.h"
 #include "utils/log.h"
 #include "utils/paths.h"
@@ -64,20 +68,142 @@
 #define ZOS_FL_APPEND       (2 << 2)
 #define ZOS_FL_CREAT        (4 << 2)
 
-
-static int descriptor_valid(hostfs_fd_t* desc)
-{
-    return desc->raw != NULL;
-}
-
 static void set_status(zeal_hostfs_t *host, uint8_t status)
 {
-    host->registers[0xF] = status;
+    host->registers[OPERATION_REG] = status;
 }
 
 static void fs_whoami(zeal_hostfs_t *host)
 {
     set_status(host, 0xD3);
+}
+
+#ifdef PLATFORM_WEB
+static zeal_hostfs_t *web_hostfs;
+
+EM_JS(int, hostfs_web_enabled, (), {
+    return Module.hostfsBackend ? 1 : 0;
+});
+
+EM_JS(void, hostfs_web_start, (int operation, const char *path, int flags,
+                               int descriptor, uint32_t offset,
+                               uint16_t guest_address, uint16_t length,
+                               const uint8_t *write_data), {
+    const request = {
+        operation,
+        path: path ? UTF8ToString(path) : null,
+        flags,
+        descriptor,
+        offset: offset >>> 0,
+        guestAddress: guest_address,
+        length,
+        data: write_data ? HEAPU8.slice(write_data, write_data + length) : null,
+    };
+    Module.hostfsBackend.start(request);
+});
+
+EMSCRIPTEN_KEEPALIVE
+void hostfs_web_complete(uint8_t status, uint8_t reg0, uint8_t reg1,
+                         uint8_t reg2, uint8_t reg3, uint8_t reg4, uint8_t reg5)
+{
+    if (web_hostfs == NULL || web_hostfs->registers[OPERATION_REG] != ZOS_PENDING) {
+        return;
+    }
+    web_hostfs->registers[0] = reg0;
+    web_hostfs->registers[1] = reg1;
+    web_hostfs->registers[2] = reg2;
+    web_hostfs->registers[3] = reg3;
+    web_hostfs->registers[4] = reg4;
+    web_hostfs->registers[5] = reg5;
+    set_status(web_hostfs, status);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void hostfs_web_write_guest(uint16_t address, uint8_t* data, uint16_t length)
+{
+    if (web_hostfs != NULL && data != NULL) {
+        memory_write_bytes(web_hostfs->host_ops, address, data, length);
+    }
+}
+
+static char *get_web_path(zeal_hostfs_t *host)
+{
+    uint16_t address = (host->registers[2] << 8) | host->registers[1];
+    char *path = calloc(1, 256);
+    if (path == NULL) return NULL;
+
+    size_t i;
+    for (i = 0; i < 255; i++) {
+        path[i] = (char) memory_read_byte(host->host_ops, address++);
+        if (path[i] == '\0') return path;
+    }
+    path[255] = '\0';
+    return path;
+}
+
+static void handle_web_operation(zeal_hostfs_t *host, uint8_t operation)
+{
+    char *path = NULL;
+    uint8_t *data = NULL;
+    uint8_t flags = host->registers[0];
+    int descriptor = -1;
+    uint32_t offset = 0;
+    uint16_t guest_address = 0;
+    uint16_t length = 0;
+
+    if (!hostfs_web_enabled()) {
+        set_status(host, ZOS_FAILURE);
+        return;
+    }
+    if (operation == OP_WHOAMI) {
+        fs_whoami(host);
+        return;
+    }
+    if (operation == OP_OPEN || operation == OP_OPENDIR ||
+        operation == OP_MKDIR || operation == OP_RM) {
+        path = get_web_path(host);
+        if (path == NULL) {
+            set_status(host, ZOS_FAILURE);
+            return;
+        }
+    } else if (operation == OP_CLOSE) {
+        descriptor = host->registers[0];
+    } else if (operation == OP_STAT || operation == OP_READDIR) {
+        guest_address = (host->registers[1] << 8) | host->registers[0];
+        descriptor = host->registers[2];
+    } else if (operation == OP_READ || operation == OP_WRITE) {
+        const uint16_t structure = (host->registers[1] << 8) | host->registers[0];
+        uint8_t raw_offset[4];
+        descriptor = memory_read_byte(host->host_ops, structure + ZOS_FD_USER_T);
+        memory_read_bytes(host->host_ops, structure + ZOS_FD_OFFSET_T,
+                          raw_offset, sizeof(raw_offset));
+        offset = (uint32_t) raw_offset[0] |
+                 ((uint32_t) raw_offset[1] << 8) |
+                 ((uint32_t) raw_offset[2] << 16) |
+                 ((uint32_t) raw_offset[3] << 24);
+        guest_address = (host->registers[3] << 8) | host->registers[2];
+        length = (host->registers[5] << 8) | host->registers[4];
+        if (operation == OP_WRITE && length != 0) {
+            data = malloc(length);
+            if (data == NULL) {
+                set_status(host, ZOS_FAILURE);
+                return;
+            }
+            memory_read_bytes(host->host_ops, guest_address, data, length);
+        }
+    }
+
+    hostfs_web_start(operation, path, flags, descriptor, offset,
+                     guest_address, length, data);
+    free(data);
+    free(path);
+}
+#endif
+
+#ifndef PLATFORM_WEB
+static int descriptor_valid(hostfs_fd_t* desc)
+{
+    return desc->raw != NULL;
 }
 
 /**
@@ -664,6 +790,7 @@ static void handle_operation(zeal_hostfs_t *host, uint8_t operation)
             break;
     }
 }
+#endif
 
 
 /**
@@ -692,8 +819,18 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
      */
     if (addr == OPERATION_REG) {
         if (value <= OP_LAST) {
+#ifdef PLATFORM_WEB
+            if (hostfs->registers[OPERATION_REG] == ZOS_PENDING) {
+                log_err_printf("[HostFS] Operation already pending\n");
+                return;
+            }
+#endif
             set_status(hostfs, ZOS_PENDING);
+#ifdef PLATFORM_WEB
+            handle_web_operation(hostfs, value);
+#else
             handle_operation(hostfs, value);
+#endif
         } else {
             log_err_printf("[HostFS] Invalid operation %x\n", value);
             set_status(hostfs, ZOS_FAILURE);
@@ -710,6 +847,9 @@ int hostfs_init(zeal_hostfs_t* hostfs, const memory_op_t* ops)
 {
     memset(hostfs, 0, sizeof(zeal_hostfs_t));
     hostfs->host_ops = ops;
+#ifdef PLATFORM_WEB
+    web_hostfs = hostfs;
+#endif
     device_init_io(DEVICE(hostfs), "hostfs_dev", io_read, io_write, 0x10);
     return 0;
 }

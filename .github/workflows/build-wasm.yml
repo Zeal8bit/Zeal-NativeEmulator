@@ -10,32 +10,45 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        uses: mymindstorm/setup-emsdk@v16
         with:
           version: latest
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build
+          sudo apt-get install -y meson ninja-build unzip
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
           cross-file: wasm-cross.build
-          meson-args: -Denable_debugger=false -Dwasm_template=minimal -Dshow_fps=false -Dembed_roms=false
+          meson-args: -Dwasm_template=native
+
+      - name: Download latest Zeal 8-bit OS image
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/zos_target_zeal8bit_emulator.zip \
+            https://github.com/Zeal8bit/Zeal-8-bit-OS/releases/latest/download/zos_target_zeal8bit_emulator.zip
+          unzip -j /tmp/zos_target_zeal8bit_emulator.zip \
+            os_with_romdisk.img \
+            -d /tmp/zeal-os
+          mv /tmp/zeal-os/os_with_romdisk.img build/default.img
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zeal-native-wasm
           path: |
+            build/default.img
+            build/favicon.ico
             build/index.html
             build/index.css
             build/index.js
+            build/libnative
             build/zeal.elf.js
             build/zeal.elf.wasm
           retention-days: 30

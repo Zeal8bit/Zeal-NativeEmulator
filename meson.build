@@ -110,7 +110,7 @@ endif
 linker_args = meson.get_external_property('link_args', [])
 
 if host_machine.system() == 'emscripten'
-    if get_option('embed_roms')
+    if get_option('wasm_embed_roms')
         linker_args += ['--embed-file', 'roms']
     endif
 endif
@@ -140,17 +140,47 @@ if (host_machine.system() == 'emscripten')
         output: 'index.html',
         copy: true
     )
-    if(wasm_template == 'minimal')
-        configure_file(
-            input: join_paths(wasm_dir, 'index.js'),
-            output: 'index.js',
-            copy: true
-        )
-    endif
+    configure_file(
+        input: join_paths(wasm_dir, 'index.js'),
+        output: 'index.js',
+        copy: true
+    )
     configure_file(
         input: join_paths(wasm_dir, 'index.css'),
         output: 'index.css',
         copy: true
+    )
+    if wasm_template == 'native'
+        configure_file(
+            input: join_paths(wasm_dir, 'favicon.ico'),
+            output: 'favicon.ico',
+            copy: true
+        )
+    endif
+
+    wasm_lib_sources = files(
+        'assets/wasm/libnative/indexeddb.js',
+        'assets/wasm/libnative/disk-images.js',
+        'assets/wasm/libnative/hostfs.js',
+        'assets/wasm/libnative/zeal-native.js',
+    )
+    wasm_lib_copy_script = join_paths(
+        meson.project_source_root(),
+        'tools',
+        'copy_wasm_lib.py',
+    )
+    custom_target(
+        'copy_wasm_libnative',
+        input: wasm_lib_sources,
+        output: 'libnative.stamp',
+        command: [
+            'python3',
+            wasm_lib_copy_script,
+            join_paths(meson.project_build_root(), 'libnative'),
+            '@OUTPUT@',
+            '@INPUT@',
+        ],
+        build_by_default: true,
     )
 
     patch_script = join_paths(meson.project_source_root(), 'tools', 'wasm_patch.py')

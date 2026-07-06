@@ -1,115 +1,79 @@
 (() => {
-    // TODO: edit the user program here
-    const USER_PROGRAM = 'microbe.bin';
-
-    console.log('Zeal Native Minimal Loading...');
-
     const canvas = document.getElementById('canvas');
-    let moduleInstance = null;
-    function loadModule(userProgram) {
-        const defaultModule = {
-            arguments: ['-u', 'roms/user.bin'],
-            print: function(text) {
-                    console.log("Log: " + text);
-                },
-                printErr: function(text) {
-                    console.log("Error: " + text);
-            },
-            canvas: (function() {
-                return canvas;
-            })(),
-            onRuntimeInitialized: function() {
-                this.FS.writeFile('/roms/user.bin', userProgram);
-                canvas.setAttribute('tabindex', '0');
-                canvas.focus();
-            }
-        };
-        Module(defaultModule).then(mod => moduleInstance = mod);
-    }
-
-    window.addEventListener('load', async () => {
-        await fetch(USER_PROGRAM).then((response) => {
-            if(!response.ok) throw new Error(`Failed to fetch ${USER_PROGRAM}`);
-            return response.arrayBuffer();
-        }).then((buffer) => {
-            console.log('buffer', buffer);
-            return new Uint8Array(buffer);
-        }).then(file => {
-            loadModule(file);
-        }).catch(err => console.error(err));
+    const viewport = document.querySelector('.viewport');
+    const emulator = new ZealNative({
+        canvas,
+        romdisk: 'default.img',
+        userProgram: 'microbe.bin',
     });
 
-    function resumeAudioIfNeeded() {
-        if (Module.audioContext && Module.audioContext.state === 'suspended') {
-            Module.audioContext.resume().then(() => {
-                console.log("Audio context resumed");
-            });
-        }
-    }
+    let lastTouchEnd = 0;
+    viewport.addEventListener('touchend', event => {
+        const now = performance.now();
+        if (now - lastTouchEnd < 350) event.preventDefault();
+        lastTouchEnd = now;
+    }, { passive: false });
+    viewport.addEventListener('dblclick', event => event.preventDefault());
 
+    window.addEventListener('load', () => {
+        emulator.start()
+            .then(() => emulator.clearSnesButtons())
+            .catch(error => console.error(error));
+    });
 
+    const releaseButtons = [];
 
-    const bStart = document.querySelector('#controls .buttons-start');
-    const bSelect = document.querySelector('#controls .buttons-select');
-
-    const bUp = document.querySelector('#controls .d-pad-up');
-    const bRight = document.querySelector('#controls .d-pad-right');
-    const bDown = document.querySelector('#controls .d-pad-down');
-    const bLeft = document.querySelector('#controls .d-pad-left');
-
-    const bA = document.querySelector('#controls .buttons-a');
-    const bB = document.querySelector('#controls .buttons-b');
-    const bX = document.querySelector('#controls .buttons-x');
-    const bY = document.querySelector('#controls .buttons-y');
-
-    const bL = document.querySelector('#controls .buttons-l');
-    const bR = document.querySelector('#controls .buttons-r');
-
-    function sendKey(type, key, code, keyCode) {
-        const e = {
-            key,
-            code,
-            keyCode,
-            which: keyCode,
-            bubbles: true,
+    function attachButtonListener(element, button) {
+        let pressed = false;
+        const onPress = event => {
+            event.preventDefault();
+            if (pressed) return;
+            pressed = true;
+            element.setPointerCapture?.(event.pointerId);
+            emulator.resumeAudio().catch(error => console.error(error));
+            emulator.setSnesButton(button, true);
         };
-        console.log('key', type, key, code);
-        canvas.dispatchEvent(new KeyboardEvent(type, e));
+        const onRelease = event => {
+            event.preventDefault();
+            if (!pressed) return;
+            pressed = false;
+            emulator.setSnesButton(button, false);
+        };
+
+        element.addEventListener('pointerdown', onPress);
+        element.addEventListener('pointerup', onRelease);
+        element.addEventListener('pointercancel', onRelease);
+        element.addEventListener('lostpointercapture', onRelease);
+        releaseButtons.push(() => {
+            pressed = false;
+        });
     }
 
-    function attachKeypressListener(el, key, code, keyCode) {
-        const onPress = (e) => {
-            e.preventDefault();
-            sendKey('keydown', key, code, keyCode);
-        }
-        const onRelease = (e) => {
-            e.preventDefault();
-            sendKey('keyup', key, code, keyCode);
-        }
-
-        el.addEventListener('mousedown', onPress);
-        el.addEventListener('mouseup', onRelease);
-
-        el.addEventListener('touchstart', onPress, { passive: false });
-        el.addEventListener('touchend', onRelease);
-        el.addEventListener('touchcancel', onRelease);
+    function clearButtons() {
+        for (const releaseButton of releaseButtons) releaseButton();
+        emulator.clearSnesButtons();
     }
 
-    attachKeypressListener(bStart, "Enter", "Enter", 13);
-    attachKeypressListener(bStart, "'", "Quote", 222);
+    const controls = [
+        ['.buttons-start', 'start'],
+        ['.buttons-select', 'select'],
+        ['.d-pad-up', 'up'],
+        ['.d-pad-right', 'right'],
+        ['.d-pad-down', 'down'],
+        ['.d-pad-left', 'left'],
+        ['.buttons-a', 'a'],
+        ['.buttons-b', 'b'],
+        ['.buttons-x', 'x'],
+        ['.buttons-y', 'y'],
+        ['.buttons-l', 'l'],
+        ['.buttons-r', 'r'],
+    ];
+    for (const [selector, button] of controls) {
+        attachButtonListener(document.querySelector(`#controls ${selector}`), button);
+    }
 
-    attachKeypressListener(bUp, "ArrowUp", "ArrowUp", 38);
-    attachKeypressListener(bRight, "ArrowRight", "ArrowRight", 39);
-    attachKeypressListener(bDown, "ArrowDown", "ArrowDown", 40);
-    attachKeypressListener(bLeft, "ArrowLeft", "ArrowLeft", 37);
-
-    attachKeypressListener(bA, "x", "KeyX", 88);   // X
-    attachKeypressListener(bB, "z", "KeyZ", 90);   // Z
-    attachKeypressListener(bX, "s", "KeyS", 83);   // S
-    attachKeypressListener(bY, "a", "KeyA", 65);   // A
-
-    attachKeypressListener(bL, "q", "KeyQ", 81);   // Q
-    attachKeypressListener(bR, "w", "KeyW", 87);   // W
-
-    console.log('Zeal Native Minimal Loaded!');
+    window.addEventListener('blur', clearButtons);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearButtons();
+    });
 })();

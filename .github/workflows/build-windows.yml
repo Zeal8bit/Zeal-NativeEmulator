@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Check
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Dependencies
         run: |
@@ -25,7 +25,7 @@ jobs:
           raylib-path: ${{ github.workspace }}/raylib/win64
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zeal-native-windows
           path: build/zeal-native.exe

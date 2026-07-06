@@ -16,4 +16,4 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
-option('embed_roms', type: 'boolean', value: true, description: 'Embed the `roms/` dir in WASM builds')
+option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the `roms/` dir in WASM builds')

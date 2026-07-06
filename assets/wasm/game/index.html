@@ -2,10 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Zeal Native WASM Emulator</title>
     <link rel="stylesheet" href="index.css" />
     <script src="zeal.elf.js"></script>
+    <script src="libnative/indexeddb.js"></script>
+    <script src="libnative/disk-images.js"></script>
+    <script src="libnative/hostfs.js"></script>
+    <script src="libnative/zeal-native.js"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/regular.min.css" integrity="sha512-x3gns+l9p4mIK7vYLOCUoFS2P1gavFvnO9Its8sr0AkUk46bgf9R51D8xeRUwCSk+W93YbXWi19BYzXDNBH5SA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
     <div class="viewport">
@@ -18,10 +25,10 @@
                 <div class="button buttons-r">R</div>
             </div>
             <div class="d-pad">
-                <div class="button d-pad-up">⬆️</div>
-                <div class="button d-pad-right">➡️</div>
-                <div class="button d-pad-down">⬇️</div>
-                <div class="button d-pad-left">⬅️</div>
+                <div class="button d-pad-up"><i class="fa-classic fa-arrow-up"></i></i></div>
+                <div class="button d-pad-right"><i class="fa-classic fa-arrow-right"></i></div>
+                <div class="button d-pad-down"><i class="fa-classic fa-arrow-down"></i></div>
+                <div class="button d-pad-left"><i class="fa-classic fa-arrow-left"></i></div>
             </div>
             <div class="start-select">
                 <div class="button buttons-select">Select</div>
