@@ -12,7 +12,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "rini.h"
-#include "raylib.h"
 
 
 typedef struct {
@@ -144,13 +143,6 @@ void config_window_update(bool dbg_enabled);
  * @brief Set the Window to the current config settings
  */
 void config_window_set(bool dbg_enabled);
-
-/**
- * @brief Force aspect ratio on Window Size
- * @param size The initial size
- * @return The size forced into the aspect ratio (larger dim remain)
- */
-Vector2 config_aspect_force(Vector2 size);
 
 bool config_keyboard_passthru(bool dbg_enabled);
 

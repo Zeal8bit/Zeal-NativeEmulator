@@ -18,7 +18,7 @@
 static char path_buffer[PATH_MAX] = { 0 };
 
 #ifdef _WIN32
-    #include <windows.h>
+    #include <libloaderapi.h>
     void get_executable_path(char *buffer, size_t size) {
         GetModuleFileName(NULL, buffer, (DWORD)size);
     }
