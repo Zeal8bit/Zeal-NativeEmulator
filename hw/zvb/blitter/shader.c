@@ -247,13 +247,6 @@ void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 void zvb_blitter_deinit(zvb_t* zvb)
 {
     UnloadRenderTexture(zvb->blitter.main_texture);
-#if CONFIG_ENABLE_DEBUGGER
-    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        UnloadRenderTexture(zvb->debug_tex[i]);
-    }
-#endif
-
-    /* Unload shaders */
     for (int i = 0; i < SHADERS_COUNT; i++) {
         UnloadShader(zvb->blitter.shaders[i].shader);
     }
