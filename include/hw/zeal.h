@@ -24,12 +24,15 @@
 #include "hw/compactflash.h"
 #include "hw/semihost.h"
 #include "utils/config.h"
-#include "debugger/debugger_ui.h"
 #include "hw/userport/snes_adapter.h"
 
 #include "hw/i2c.h"
 #include "hw/i2c/ds1307.h"
 #include "hw/i2c/at24c512.h"
+
+#if CONFIG_ENABLE_DEBUGGER
+#include "debugger/debugger_ui.h"
+#endif
 
 typedef uint8_t dev_idx_t;
 
@@ -136,6 +139,13 @@ int zeal_run(zeal_t* machine);
 void zeal_exit(zeal_t* machine);
 
 /**
+ * @brief Quantize a scale factor to the next or previous 10% step.
+ */
+float zeal_scale_quantize_tenths(float scale, float step);
+
+#if CONFIG_ENABLE_DEBUGGER
+
+/**
  * @brief Enable Zeal Debugger view
  */
 int zeal_debug_enable(zeal_t* machine);
@@ -150,7 +160,4 @@ int zeal_debug_disable(zeal_t* machine);
  */
 void zeal_debug_toggle(dbg_t *dbg);
 
-/**
- * @brief Quantize a scale factor to the next or previous 10% step.
- */
-float zeal_scale_quantize_tenths(float scale, float step);
+#endif // CONFIG_ENABLE_DEBUGGER

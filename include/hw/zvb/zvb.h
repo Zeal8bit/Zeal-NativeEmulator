@@ -155,7 +155,9 @@ typedef struct {
 
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
+#if CONFIG_ENABLE_DEBUGGER
     RenderTexture    debug_tex[DBG_VIEW_TOTAL];
+#endif
 
     /* Internal values */
     zvb_status_t     status;
@@ -238,6 +240,16 @@ void zvb_deinit(zvb_t* zvb);
 
 
 /**
+ * @brief Get the texture containing the rendered frame, ready to draw to screen.
+ */
+static inline Texture zvb_output_texture(zvb_t* zvb)
+{
+    return zvb->blitter.main_texture.texture;
+}
+
+
+#if CONFIG_ENABLE_DEBUGGER
+/**
  * @brief Render the current VRAM state in the debug textures, must be called after `render` function
  */
 void zvb_render_debug_textures(zvb_t* zvb);
@@ -253,12 +265,4 @@ static inline const RenderTexture* zvb_get_debug_textures(zvb_t* zvb, int* count
     }
     return zvb->debug_tex;
 }
-
-
-/**
- * @brief Get the texture containing the rendered frame, ready to draw to screen.
- */
-static inline Texture zvb_output_texture(zvb_t* zvb)
-{
-    return zvb->blitter.main_texture.texture;
-}
+#endif
