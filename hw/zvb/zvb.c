@@ -289,17 +289,17 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, ops);
 
+    if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
-    if (rendering_enabled) {
         dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
         dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
         dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
         dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
+#endif
         zvb_blitter_init(dev);
     }
-#endif
 
     /* Set the state to STATE_IDLE, waiting for the next event */
     dev->state = STATE_RENDERING;
@@ -496,7 +496,7 @@ void zvb_tick(zvb_t* zvb, const int tstates)
             zvb->state = STATE_HBLANK;
             zvb->status.h_blank = 1;
             /* Ignore v-blank scanlines */
-            if (zvb->current_scanline < 480) {
+            if (zvb->current_scanline < 480 && zvb->rendering_enabled) {
                 zvb_blitter_render_scanline(zvb, zvb->current_scanline);
             }
         } else if (zvb->state == STATE_HBLANK) {
