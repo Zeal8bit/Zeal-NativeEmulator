@@ -1,11 +1,12 @@
 /**
- * SPDX-FileCopyrightText: 2019 superzazu/Nicolas Allemand <contact@nicolasallemand.com>; 2024 Zeal 8-bit Computer
+ * SPDX-FileCopyrightText: 2019-2026 superzazu/Nicolas Allemand <contact@nicolasallemand.com>; 2024 Zeal 8-bit Computer
  * <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: MIT
  *
  * Original source code comes from https://github.com/superzazu/z80
  * Modifications made by @zeal8bit: make I/O port operations on 16-bit addresses.
+ * Integrate the MMU in the CPU for performance reasons
  */
 
 #ifndef Z80_Z80_H_
@@ -14,14 +15,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "mmu.h"
 
 typedef struct z80 z80;
 struct z80 {
-    uint8_t (*read_byte)(void*, uint16_t);
-    void (*write_byte)(void*, uint16_t, uint8_t);
-    uint8_t (*port_in)(void*, uint16_t);
-    void (*port_out)(void*, uint16_t, uint8_t);
-    void* userdata;
+    /* MMU is embedded in the CPU for direct access from the emulation core,
+     * eliminating function pointer indirection on every memory access. */
+    mmu_t mmu;
 
     unsigned long cyc; // cycle count (t-states)
 
@@ -42,8 +42,14 @@ struct z80 {
     bool int_pending : 1, nmi_pending : 1;
 };
 
+static inline mmu_t* z80_get_mmu(z80* z)
+{
+    return &z->mmu;
+}
+
 void z80_init(z80* const z);
 int z80_instruction_size(z80* const z);
+unsigned long z80_run_for(z80* const z, unsigned long tstates);
 int  z80_step(z80* const z);
 void z80_debug_output(z80* const z);
 void z80_get_debug_output(z80* const z, char* s);

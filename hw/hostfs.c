@@ -26,6 +26,7 @@
 #endif
 
 #include "hw/hostfs.h"
+#include "hw/mmu.h"
 #include "utils/log.h"
 #include "utils/paths.h"
 
@@ -122,7 +123,9 @@ EMSCRIPTEN_KEEPALIVE
 void hostfs_web_write_guest(uint16_t address, uint8_t* data, uint16_t length)
 {
     if (web_hostfs != NULL && data != NULL) {
-        memory_write_bytes(web_hostfs->host_ops, address, data, length);
+        for (uint16_t i = 0; i < length; i++) {
+            mmu_write_virt_addr(web_hostfs->mmu, address + i, data[i]);
+        }
     }
 }
 
@@ -134,7 +137,7 @@ static char *get_web_path(zeal_hostfs_t *host)
 
     size_t i;
     for (i = 0; i < 255; i++) {
-        path[i] = (char) memory_read_byte(host->host_ops, address++);
+        path[i] = (char) mmu_read_virt_addr(host->mmu, address++);
         if (path[i] == '\0') return path;
     }
     path[255] = '\0';
@@ -174,9 +177,10 @@ static void handle_web_operation(zeal_hostfs_t *host, uint8_t operation)
     } else if (operation == OP_READ || operation == OP_WRITE) {
         const uint16_t structure = (host->registers[1] << 8) | host->registers[0];
         uint8_t raw_offset[4];
-        descriptor = memory_read_byte(host->host_ops, structure + ZOS_FD_USER_T);
-        memory_read_bytes(host->host_ops, structure + ZOS_FD_OFFSET_T,
-                          raw_offset, sizeof(raw_offset));
+        descriptor = mmu_read_virt_addr(host->mmu, structure + ZOS_FD_USER_T);
+        for (int i = 0; i < (int)sizeof(raw_offset); i++) {
+            raw_offset[i] = mmu_read_virt_addr(host->mmu, structure + ZOS_FD_OFFSET_T + i);
+        }
         offset = (uint32_t) raw_offset[0] |
                  ((uint32_t) raw_offset[1] << 8) |
                  ((uint32_t) raw_offset[2] << 16) |
@@ -189,7 +193,9 @@ static void handle_web_operation(zeal_hostfs_t *host, uint8_t operation)
                 set_status(host, ZOS_FAILURE);
                 return;
             }
-            memory_read_bytes(host->host_ops, guest_address, data, length);
+            for (uint16_t i = 0; i < length; i++) {
+                data[i] = mmu_read_virt_addr(host->mmu, guest_address + i);
+            }
         }
     }
 
@@ -275,7 +281,7 @@ static char *get_path(zeal_hostfs_t *host)
     char path[256];
     size_t i = 0;
     while (i < sizeof(path) - 1) {
-        const uint8_t byte = memory_read_byte(host->host_ops, virt_addr++);
+        const uint8_t byte = mmu_read_virt_addr(host->mmu, virt_addr++);
         if (byte == 0) {
             break;
         }
@@ -550,10 +556,14 @@ static void fs_stat(zeal_hostfs_t *host)
 
     /* Write the structure to memory so that the Z80 sees it */
     if (descriptor->is_dir) {
-        memory_write_bytes(host->host_ops, struct_addr, (uint8_t*) &zos_stat, sizeof(zos_stat));
+        for (size_t i = 0; i < sizeof(zos_stat); i++) {
+            mmu_write_virt_addr(host->mmu, struct_addr + i, ((uint8_t*)&zos_stat)[i]);
+        }
     } else {
-        memory_write_bytes(host->host_ops, struct_addr, (uint8_t*) &zos_stat.s_date,
-                           sizeof(zos_stat) - sizeof(zos_stat.s_size));
+        const size_t date_size = sizeof(zos_stat) - sizeof(zos_stat.s_size);
+        for (size_t i = 0; i < date_size; i++) {
+            mmu_write_virt_addr(host->mmu, struct_addr + i, ((uint8_t*)&zos_stat.s_date)[i]);
+        }
     }
 
     /* Set success status */
@@ -565,7 +575,9 @@ static int seek_file(zeal_hostfs_t *host, uint16_t struct_addr, FILE* file)
 {
     /* Get the 32-bit offset to start reading from */
     uint8_t offset[4] = { 0 };
-    memory_read_bytes(host->host_ops, struct_addr + ZOS_FD_OFFSET_T, offset, sizeof(offset));
+    for (int i = 0; i < (int)sizeof(offset); i++) {
+        ((uint8_t*)offset)[i] = mmu_read_virt_addr(host->mmu, struct_addr + ZOS_FD_OFFSET_T + i);
+    }
     const long seek_to = offset[3] << 24 |
                          offset[2] << 16 |
                          offset[1] << 8  |
@@ -585,7 +597,7 @@ static void fs_read(zeal_hostfs_t *host)
     size_t total_bytes_written = 0;
 
     /* Get the abstract context from the structure */
-    const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
+    const int desc = mmu_read_virt_addr(host->mmu, struct_addr + ZOS_FD_USER_T);
     if (desc >= MAX_OPENED_FILES) {
         set_status(host, ZOS_FAILURE);
         return;
@@ -607,7 +619,9 @@ static void fs_read(zeal_hostfs_t *host)
             break;
         }
 
-        memory_write_bytes(host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_read);
+        for (size_t i = 0; i < bytes_read; i++) {
+            mmu_write_virt_addr(host->mmu, buffer_addr + total_bytes_written + i, buffer[i]);
+        }
 
         total_bytes_written += bytes_read;
         bytes_remaining -= bytes_read;
@@ -629,7 +643,7 @@ static void fs_write(zeal_hostfs_t *host) {
     size_t total_bytes_written = 0;
 
     /* Get the abstract context from the structure */
-    const int desc = memory_read_byte(host->host_ops, struct_addr + ZOS_FD_USER_T);
+    const int desc = mmu_read_virt_addr(host->mmu, struct_addr + ZOS_FD_USER_T);
     if (desc >= MAX_OPENED_FILES) {
         set_status(host, ZOS_FAILURE);
         return;
@@ -645,7 +659,9 @@ static void fs_write(zeal_hostfs_t *host) {
 
     while (bytes_remaining > 0) {
         size_t bytes_to_write = MIN(bytes_remaining, sizeof(buffer));
-        memory_read_bytes(host->host_ops, buffer_addr + total_bytes_written, buffer, bytes_to_write);
+        for (size_t i = 0; i < bytes_to_write; i++) {
+            buffer[i] = mmu_read_virt_addr(host->mmu, buffer_addr + total_bytes_written + i);
+        }
         fwrite(buffer, 1, bytes_to_write, file);
 
         total_bytes_written += bytes_to_write;
@@ -746,8 +762,10 @@ static void fs_readdir(zeal_hostfs_t *host)
 #else
     const uint8_t is_file = (entry->d_type == DT_REG) ? 1 : 0;
 #endif
-    memory_write_byte(host->host_ops, buffer_addr++, is_file);
-    memory_write_bytes(host->host_ops, buffer_addr, (void*) out_name, ZOS_MAX_NAME_LENGTH);
+    mmu_write_virt_addr(host->mmu, buffer_addr++, is_file);
+    for (int i = 0; i < ZOS_MAX_NAME_LENGTH; i++) {
+        mmu_write_virt_addr(host->mmu, buffer_addr + i, ((uint8_t*)out_name)[i]);
+    }
     set_status(host, ZOS_SUCCESS);
 }
 
@@ -843,10 +861,10 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
 }
 
 
-int hostfs_init(zeal_hostfs_t* hostfs, const memory_op_t* ops)
+int hostfs_init(zeal_hostfs_t* hostfs, mmu_t* mmu)
 {
     memset(hostfs, 0, sizeof(zeal_hostfs_t));
-    hostfs->host_ops = ops;
+    hostfs->mmu = mmu;
 #ifdef PLATFORM_WEB
     web_hostfs = hostfs;
 #endif

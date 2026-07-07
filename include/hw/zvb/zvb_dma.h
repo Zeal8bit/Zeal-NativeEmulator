@@ -8,7 +8,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "hw/memory_op.h"
+#include "hw/mmu.h"
+
 
 /**
  * @brief I/O registers address, relative to the controller
@@ -75,15 +76,15 @@ typedef struct {
     };
     /* Clock divider for all the transfers */
     zvb_dma_clk_t      clk;
-    /* Machine operations for mmeory read and write */
-    const memory_op_t* ops;
+    /* MMU for physical memory access */
+    mmu_t* mmu;
 } zvb_dma_t;
 
 
 /**
  * @brief Initialize the DMA controller
  */
-void zvb_dma_init(zvb_dma_t* dma, const memory_op_t* ops);
+void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu);
 
 
 /**

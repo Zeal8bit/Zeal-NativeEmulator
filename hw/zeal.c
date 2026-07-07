@@ -67,46 +67,7 @@ bool show_fps = false;
 #endif
 
 
-/**
- * @brief Callback invoked when the CPU tries to read a byte in memory space
- */
-static uint8_t zeal_mem_read(void* opaque, uint16_t virt_addr)
-{
-    const zeal_t* machine    = (zeal_t*) opaque;
-    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
-    device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
 
-    if (device) {
-        return device->mem_region.read(device, phys_addr - start_addr);
-    }
-
-    log_printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
-    return 0;
-}
-
-/**
- * @brief Read a byte from memory given a physical address
- */
-static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
-{
-    if (phys_addr >= MEM_SPACE_SIZE) {
-        log_printf("[INFO] Invalid physical address memory read: 0x%04x\n", phys_addr);
-        return 0;
-    }
-    const zeal_t* machine    = (zeal_t*) opaque;
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
-    device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
-
-    if (device) {
-        return device->mem_region.read(device, phys_addr - start_addr);
-    }
-
-    log_printf("[INFO] No device replied to physical memory read: 0x%04x\n", phys_addr);
-    return 0;
-}
 
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -115,8 +76,8 @@ static uint8_t zeal_phys_mem_read(void* opaque, uint32_t phys_addr)
  */
 static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 {
-    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
+    const int phys_addr      = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
+    const map_entry_t* entry = &machine->cpu.mmu.mem_mapping[phys_addr / MMU_PAGE_SIZE];
     device_t* device         = entry->dev;
     const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
 
@@ -130,135 +91,6 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
     return 0;
 }
 #endif
-
-
-static void zeal_mem_write(void* opaque, uint16_t virt_addr, uint8_t data)
-{
-    const zeal_t* machine    = (zeal_t*) opaque;
-    const int phys_addr      = mmu_get_phys_addr(&machine->mmu, virt_addr);
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
-    device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
-
-    if (device) {
-        device->mem_region.write(device, phys_addr - start_addr, data);
-    } else {
-        log_printf("[INFO] No device replied to memory write: 0x%04x\n", phys_addr);
-    }
-}
-
-/**
- * @brief Write a byte to memory given a physical address
- */
-static void zeal_phys_mem_write(void* opaque, uint32_t phys_addr, uint8_t data)
-{
-    if (phys_addr >= MEM_SPACE_SIZE) {
-        log_printf("[INFO] Invalid physical address memory write: 0x%04x\n", phys_addr);
-        return;
-    }
-    const zeal_t* machine    = (zeal_t*) opaque;
-    const map_entry_t* entry = &machine->mem_mapping[phys_addr / MMU_PAGE_SIZE];
-    device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
-
-    if (device) {
-        device->mem_region.write(device, phys_addr - start_addr, data);
-    } else {
-        log_printf("[INFO] No device replied to physical memory write: 0x%04x\n", phys_addr);
-    }
-}
-
-static uint8_t zeal_io_read(void* opaque, uint16_t addr)
-{
-    zeal_t* machine          = (zeal_t*) opaque;
-    const int low            = addr & 0xff;
-    const map_entry_t* entry = &machine->io_mapping[low];
-    device_t* device         = entry->dev;
-
-    if (device && device->io_region.read) {
-        device->io_region.upper_addr = addr >> 8;
-        return device->io_region.read(device, low - entry->page_from);
-    }
-
-    log_printf("[INFO] No device replied to I/O read: 0x%04x\n", low);
-    return 0;
-}
-
-static void zeal_io_write(void* opaque, uint16_t addr, uint8_t data)
-{
-    zeal_t* machine          = (zeal_t*) opaque;
-    const int low            = addr & 0xff;
-    const map_entry_t* entry = &machine->io_mapping[low];
-    device_t* device         = entry->dev;
-
-    if (device && device->io_region.write) {
-        device->io_region.write(device, low - entry->page_from, data);
-    } else {
-        log_printf("[INFO] No device replied to I/O write: 0x%04x\n", low);
-    }
-}
-
-/**
- * @brief Initialize the CPU and set the callbacks for the memory and I/O buses access.
- */
-static void zeal_init_cpu(zeal_t* machine)
-{
-    z80_init(&machine->cpu);
-    machine->cpu.userdata   = (void*) machine;
-    machine->cpu.read_byte  = zeal_mem_read;
-    machine->cpu.write_byte = zeal_mem_write;
-    machine->cpu.port_in    = zeal_io_read;
-    machine->cpu.port_out   = zeal_io_write;
-}
-
-
-static void zeal_add_io_device(zeal_t* machine, int region_start, device_t* dev)
-{
-    /* Start and end address of the region mapped for the device */
-    const int region_size = dev->io_region.size;
-    const int region_end  = region_start + region_size - 1;
-    if (region_start >= IO_MAPPING_SIZE || region_end >= IO_MAPPING_SIZE || region_size == 0) {
-        log_err_printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
-        return;
-    }
-
-    /* Register the device in the array */
-    for (int i = region_start; i <= region_end; i++) {
-        machine->io_mapping[i] = (map_entry_t) {.dev = dev, .page_from = region_start};
-    }
-}
-
-static void zeal_add_mem_device(zeal_t* machine, const int region_start, device_t* dev)
-{
-    const int region_size = dev->mem_region.size;
-    const int region_end  = region_start + region_size - 1;
-    if (region_start >= MEM_SPACE_SIZE || region_end >= MEM_SPACE_SIZE || region_size == 0) {
-        log_err_printf("%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
-        return;
-    }
-
-    /* Make sure the alignment is correct too! */
-    if ((region_start & (MEM_SPACE_ALIGN - 1)) != 0 || (region_size & (MEM_SPACE_ALIGN - 1)) != 0) {
-        log_err_printf("%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
-               region_size);
-        return;
-    }
-
-    /* Number of pages the device needs */
-    const int start_page = region_start / MEM_SPACE_ALIGN;
-    const int page_count = region_size / MEM_SPACE_ALIGN;
-
-    for (int i = 0; i < page_count; i++) {
-        const int page = start_page + i;
-        map_entry_t* entry = &machine->mem_mapping[page];
-
-        if (entry->dev != NULL) {
-            log_err_printf("%s: cannot register device %s in page %d, device %s is already mapped\n",
-                __func__, dev->name, page, entry->dev->name);
-        }
-        *entry = (map_entry_t) {.dev = dev, .page_from = start_page};
-    }
-}
 
 
 static int key_can_repeat(int code)
@@ -336,20 +168,13 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
 }
 
 
-static memory_op_t s_ops = {
-    .read_byte = zeal_mem_read,
-    .write_byte = zeal_mem_write,
-    .phys_read_byte = zeal_phys_mem_read,
-    .phys_write_byte = zeal_phys_mem_write,
-};
-
 int zeal_reset(zeal_t* machine)
 {
-    zeal_init_cpu(machine);
+    z80_init(&machine->cpu);
     if (!machine->headless) {
         zeal_read_keyboard_reset(machine);
     }
-    device_reset(DEVICE(&machine->mmu));
+    device_reset(DEVICE(&machine->cpu.mmu));
     device_reset(DEVICE(&machine->pio));
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
@@ -374,13 +199,6 @@ int zeal_init(zeal_t* machine)
     if (machine == NULL) {
         return 1;
     }
-
-    /* It wouldn't make sense to have two machines now... */
-    if (s_ops.opaque != NULL) {
-        log_err_printf("[ZEAL] ERROR: machine already initialized\n");
-        return 2;
-    }
-    s_ops.opaque = machine;
 
     memset(machine, 0, sizeof(*machine));
     vtimer_init();
@@ -428,34 +246,24 @@ int zeal_init(zeal_t* machine)
 #endif // CONFIG_ENABLE_DEBUGGER
     }
 
-    zeal_init_cpu(machine);
+    z80_init(&machine->cpu);
+    mmu_t* mmu = z80_get_mmu(&machine->cpu);
 
-    // const mmu = new MMU();
-    err = mmu_init(&machine->mmu);
-    CHECK_ERR(err);
-
-    // const rom = new ROM(this);
     err = flash_init(&machine->rom);
     CHECK_ERR(err);
 
-    // const ram = new RAM(512*KB);
     err = ram_init(&machine->ram);
     CHECK_ERR(err);
 
-    // const pio = new PIO(this);
     err = pio_init(machine, &machine->pio);
     CHECK_ERR(err);
 
-    // const uart = new UART(this, pio);
     err = uart_init(&machine->uart, &machine->pio);
     CHECK_ERR(err);
-    // const uart_web_serial = new UART_WebSerial(this, pio);
 
-    // const i2c = new I2C(this, pio);
     err = i2c_init(&machine->i2c_bus, &machine->pio);
     CHECK_ERR(err);
 
-    // const keyboard = new Keyboard(this, pio);
     err = keyboard_init(&machine->keyboard, &machine->pio);
     CHECK_ERR(err);
     vtimer_init_node(&machine->host_keyb_timer, host_keyboard_check_cb, machine);
@@ -464,28 +272,21 @@ int zeal_init(zeal_t* machine)
     err = snes_adapter_init(&machine->snes_adapter, &machine->pio);
     CHECK_ERR(err);
 
-    // const ds1307 = new I2C_DS1307(this, i2c);
     err = ds1307_init(&machine->rtc);
     CHECK_ERR(err);
 
     err = i2c_connect(&machine->i2c_bus, &machine->rtc.parent);
     CHECK_ERR(err);
 
-    // /* Extensions */
-    // const compactflash = new CompactFlash(this);
     const int cf_err = compactflash_init(&machine->compactflash, config.arguments.cf_filename);
 
-    // /* We could pass an initial content to the EEPROM, but set it to null for the moment */
-    // const eeprom = new I2C_EEPROM(this, i2c, null);
     err = at24c512_init(&machine->eeprom, config.arguments.eeprom_filename);
     CHECK_ERR(err);
 
     err = i2c_connect(&machine->i2c_bus, &machine->eeprom.parent);
     CHECK_ERR(err);
 
-    // /* Create a HostFS to ease the file and directory access for the VM */
-    // const hostfs = new HostFS(this.mem_read, this.mem_write);
-    err = hostfs_init(&machine->hostfs, &s_ops);
+    err = hostfs_init(&machine->hostfs, mmu);
     CHECK_ERR(err);
 
     /* Initialize the semihosting device with CPU pointer for register access */
@@ -493,17 +294,17 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
 
     /* Register the devices in the memory space */
-    zeal_add_mem_device(machine, 0x000000, &machine->rom.parent);
+    mmu_register_mem_device(mmu, 0x000000, &machine->rom.parent);
     if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
         /* Create a mirror in the upper 256KB */
-        zeal_add_mem_device(machine, 0x040000, &machine->rom.parent);
+        mmu_register_mem_device(mmu, 0x040000, &machine->rom.parent);
     }
 
-    zeal_add_mem_device(machine, 0x080000, &machine->ram.parent);
+    mmu_register_mem_device(mmu, 0x080000, &machine->ram.parent);
     const zvb_config_t zvb_config = {
         .rendering_enabled = !machine->headless,
     };
-    err = zvb_init(&machine->zvb, &zvb_config, &s_ops);
+    err = zvb_init(&machine->zvb, &zvb_config, mmu);
     CHECK_ERR(err);
     if (!machine->headless) {
         SetMasterVolume(config.audio.volume / 100.0f);
@@ -511,18 +312,18 @@ int zeal_init(zeal_t* machine)
             notif_show("Volume: %d%%", config.audio.volume);
         }
     }
-    zeal_add_mem_device(machine, 0x100000, &machine->zvb.parent);
+    mmu_register_mem_device(mmu, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
-    zeal_add_io_device(machine, 0x10, &machine->semihost.parent);
+    mmu_register_io_device(mmu, 0x10, &machine->semihost.parent);
     if (cf_err == 0) {
-        zeal_add_io_device(machine, 0x70, &machine->compactflash.parent);
+        mmu_register_io_device(mmu, 0x70, &machine->compactflash.parent);
     }
-    zeal_add_io_device(machine, 0x80, &machine->zvb.parent);
-    zeal_add_io_device(machine, 0xc0, &machine->hostfs.parent);
-    zeal_add_io_device(machine, 0xd0, &machine->pio.parent);
-    zeal_add_io_device(machine, 0xe0, &machine->keyboard.parent);
-    zeal_add_io_device(machine, 0xf0, &machine->mmu.parent);
+    mmu_register_io_device(mmu, 0x80, &machine->zvb.parent);
+    mmu_register_io_device(mmu, 0xc0, &machine->hostfs.parent);
+    mmu_register_io_device(mmu, 0xd0, &machine->pio.parent);
+    mmu_register_io_device(mmu, 0xe0, &machine->keyboard.parent);
+    mmu_register_io_device(mmu, 0xf0, &machine->cpu.mmu.parent);
 
 #if CONFIG_ENABLE_DEBUGGER
     /* Since the debugger may depend on some components, make sure they are all initialized */
@@ -724,6 +525,12 @@ static int zeal_dbg_mode_run(zeal_t* machine)
 static int zeal_normal_mode_run(zeal_t* machine)
 {
     int rendered = 0;
+
+    /* Check the next event and run for that many ticks */
+    // const uint64_t next_event = vtimer_next_event();
+    // unsigned long ran_for = z80_run_for(&machine->cpu, next_event);
+    // vtimer_tick(ran_for);
+
     const int elapsed_tstates = z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset!
@@ -733,7 +540,6 @@ static int zeal_normal_mode_run(zeal_t* machine)
         zeal_exit(machine);
         return 2;
     }
-
     vtimer_tick(elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {

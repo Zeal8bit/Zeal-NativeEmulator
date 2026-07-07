@@ -102,7 +102,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
         log_printf("TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
-            machine->cpu.write_byte(machine, (uint16_t) (addr + i), val[i]);
+            mmu_write_virt_addr(&machine->cpu.mmu, (uint16_t) (addr + i), val[i]);
         }
     } else {
         // Invalid address
@@ -171,19 +171,19 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
         }
         for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
             const int virt  = i * 16*1024;
-            const int value = machine->mmu.pages[i];
+            const int value = machine->cpu.mmu.pages[i];
 
             mmu->entries[i] = (dbg_mmu_entry_t) {
                 .virt_addr = virt,
                 .value     = value,
-                .phys_addr = mmu_get_phys_addr(&machine->mmu, virt),
+                .phys_addr = mmu_get_phys_addr(&machine->cpu.mmu, virt),
             };
             /* Get the device being mapped there */
             if (value >= MEM_MAPPING_SIZE) {
                 log_err_printf("[DEBUGGER] MMU value cannot exceed total memory space\n");
                 return false;
             }
-            const device_t* mapped_dev = machine->mem_mapping[value].dev;
+            const device_t* mapped_dev = machine->cpu.mmu.mem_mapping[value].dev;
             if (mapped_dev != NULL) {
                 mmu->entries[i].device = mapped_dev->name;
             }

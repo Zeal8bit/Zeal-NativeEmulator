@@ -13,7 +13,7 @@
 #include "utils/log.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
-#include "hw/memory_op.h"
+#include "hw/mmu.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
 #include "hw/zvb/blitter/blitter.h"
@@ -279,7 +279,7 @@ static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int heigh
 static void zvb_fsm_next(void* userdata);
 
 
-int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
+int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
 {
     if (dev == NULL || config == NULL) {
         return 1;
@@ -304,7 +304,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound, rendering_enabled);
-    zvb_dma_init(&dev->dma, ops);
+    zvb_dma_init(&dev->dma, mmu);
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER

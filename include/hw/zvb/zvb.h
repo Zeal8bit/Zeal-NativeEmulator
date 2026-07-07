@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hw/device.h"
+#include "hw/mmu.h"
 #include "utils/vtimer.h"
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
@@ -202,7 +203,7 @@ static inline bool zvb_is_text_mode(const zvb_t* zvb)
  * @param zvb Context to fill and return
  * @param config Initialization options for the video board
  */
-int zvb_init(zvb_t* zvb, const zvb_config_t* config, const memory_op_t* ops);
+int zvb_init(zvb_t* zvb, const zvb_config_t* config, mmu_t* mmu);
 
 
 /**

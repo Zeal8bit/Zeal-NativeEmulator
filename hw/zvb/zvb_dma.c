@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "utils/log.h"
+#include "hw/mmu.h"
 #include "hw/zvb/zvb_dma.h"
 
 #define DEBUG_DMA   0
@@ -20,7 +21,9 @@ static void dma_start_transfer(zvb_dma_t* dma)
     zvb_dma_descriptor_t desc = { 0 };
 
     do {
-        memory_phys_read_bytes(dma->ops, dma->desc_addr, (void*) &desc, sizeof(zvb_dma_descriptor_t));
+        for (size_t i = 0; i < sizeof(zvb_dma_descriptor_t); i++) {
+            ((uint8_t*)&desc)[i] = mmu_read_phys_addr(dma->mmu, dma->desc_addr + i);
+        }
         const int rd_ops = desc.flags.rd_op;
         const int wr_ops = desc.flags.wr_op;
 
@@ -37,8 +40,8 @@ static void dma_start_transfer(zvb_dma_t* dma)
 
         /* Descriptor is ready, perform the copy */
         for (int i = 0; i < desc.length; i++) {
-            const uint8_t data = memory_phys_read_byte(dma->ops, desc.rd_addr);
-            memory_phys_write_byte(dma->ops, desc.wr_addr, data);
+            const uint8_t data = mmu_read_phys_addr(dma->mmu, desc.rd_addr);
+            mmu_write_phys_addr(dma->mmu, desc.wr_addr, data);
 
 #if DEBUG_DMA
             log_printf("Transfer: src=0x%08X, dst=0x%08X, byte=0x%02X\n", desc.rd_addr, desc.wr_addr, data);
@@ -59,12 +62,12 @@ static void dma_start_transfer(zvb_dma_t* dma)
 }
 
 
-void zvb_dma_init(zvb_dma_t* dma, const memory_op_t* ops)
+void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu)
 {
     dma->clk.rd_cycle = 1;
     dma->clk.wr_cycle = 1;
     dma->desc_addr = 0;
-    dma->ops = ops;
+    dma->mmu = mmu;
 }
 
 void zvb_dma_reset(zvb_dma_t* dma)

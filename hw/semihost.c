@@ -83,23 +83,23 @@ static inline uint8_t get_low_byte(uint16_t value)
 }
 
 /**
- * @brief Read a byte from memory via the CPU's read_byte callback
+ * @brief Read a byte from memory via the CPU's embedded MMU
  */
 static uint8_t semihost_read_mem(semihost_t* dev, uint16_t addr)
 {
-    if (dev->cpu && dev->cpu->read_byte) {
-        return dev->cpu->read_byte(dev->cpu->userdata, addr);
+    if (dev->cpu) {
+        return mmu_read_virt_addr(&dev->cpu->mmu, addr);
     }
     return 0;
 }
 
 /**
- * @brief Write a byte to memory via the CPU's write_byte callback
+ * @brief Write a byte to memory via the CPU's embedded MMU
  */
 static void semihost_write_mem(semihost_t* dev, uint16_t addr, uint8_t value)
 {
-    if (dev->cpu && dev->cpu->write_byte) {
-        dev->cpu->write_byte(dev->cpu->userdata, addr, value);
+    if (dev->cpu) {
+        mmu_write_virt_addr(&dev->cpu->mmu, addr, value);
     }
 }
 
