@@ -126,12 +126,6 @@ void zvb_blitter_deinit(zvb_t* zvb)
         UnloadRenderTexture(bl->main_texture);
         bl->main_texture.id = 0;
     }
-    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        if (zvb->debug_tex[i].id != 0) {
-            UnloadRenderTexture(zvb->debug_tex[i]);
-            zvb->debug_tex[i].id = 0;
-        }
-    }
 }
 
 /* ================================================================== */
