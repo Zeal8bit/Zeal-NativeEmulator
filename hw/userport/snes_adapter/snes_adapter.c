@@ -165,7 +165,9 @@ int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio)
     snes_mouse_init(&snes_adapter->mouse);
     snes_adapter->mouse.machine = pio->machine;
     snes_adapter_listen(snes_adapter);
+#ifdef CONFIG_AUTO_ATTACH_SNES_MOUSE
     snes_adapter_set_mouse_port(snes_adapter, SNES_MOUSE_DEFAULT_PORT);
+#endif
 
     snes_adapter_attach_available_controllers(snes_adapter);
 
@@ -297,7 +299,9 @@ static void snes_adapter_attach_available_controllers(snes_adapter_t* snes_adapt
 
         if (port != SNES_PORT_DETACHED) {
             if (available) {
-                printf("[SNES] Found \"%s\"\n", snes_adapter_controller_name(snes_adapter, i));
+                printf("[SNES] Found \"%s\" (%d axes)\n",
+                    snes_adapter_controller_name(snes_adapter, i),
+                    snes_controller_axis_count(i));
             }
             snes_adapter_set_controller_port(snes_adapter, i, port);
         }
@@ -334,6 +338,7 @@ void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter)
 void snes_adapter_detach(snes_adapter_t* snes_adapter)
 {
     snes_mouse_detach(&snes_adapter->mouse);
+    snes_controller_deinit();
     pio_unlisten_a_pin_change(snes_adapter->pio, SNES_IO_LATCH);
     pio_unlisten_a_pin_change(snes_adapter->pio, SNES_IO_CLOCK);
 }

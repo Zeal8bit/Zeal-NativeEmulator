@@ -70,6 +70,17 @@ if get_option('enable_debugger')
     add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
 endif
 
+if get_option('auto_attach_snes_mouse')
+    add_project_arguments('-DCONFIG_AUTO_ATTACH_SNES_MOUSE', language: 'c')
+endif
+
+if get_option('target_retroflag_gpi2')
+    if host_machine.system() != 'linux'
+        error('target_retroflag_gpi2 requires a Linux target')
+    endif
+    add_project_arguments('-DCONFIG_TARGET_RETROFLAG_GPI2', language: 'c')
+endif
+
 if (host_machine.system() == 'darwin')
     add_project_arguments('-D_DARWIN_C_SOURCE', language: 'c')
 endif
@@ -104,7 +115,19 @@ endif
 add_project_link_arguments('-lraylib', '-lm', language: 'c')
 
 if host_machine.system() == 'linux'
-    add_project_link_arguments('-lX11', language: 'c')
+    if get_option('linux_display_backend') == 'x11'
+        add_project_link_arguments('-lX11', language: 'c')
+    elif get_option('linux_display_backend') == 'drm'
+        add_project_link_arguments('-lGLESv2',
+                                   '-lEGL',
+                                   '-ldrm',
+                                   '-lgbm',
+                                   '-lpthread',
+                                   '-ldl',
+                                   '-lrt',
+                                   '-latomic',
+                                   language: 'c')
+    endif
 endif
 
 linker_args = meson.get_external_property('link_args', [])

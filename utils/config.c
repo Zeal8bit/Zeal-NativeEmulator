@@ -68,6 +68,7 @@ void config_debug(void)
     log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
     log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
     log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
+    log_printf("%s  run_filename: %s\n", module, config.arguments.run_filename);
     log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
     log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
     log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
@@ -112,6 +113,7 @@ int usage(const char* progname)
     log_printf("  -s, --save <file>                  Save * arguments to Zeal Config\n");
     log_printf("  -r, --rom <file>                   * Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
+    log_printf("      --run <path>                   Run a program from HostFS\n");
     log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
     log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
     log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
@@ -135,11 +137,12 @@ int usage(const char* progname)
 
 int parse_command_args(int argc, char* argv[])
 {
-#if CONFIG_PROFILE_RENDER
     enum {
-        OPT_PROFILE = 256,
-    };
+        OPT_RUN = 256,
+#if CONFIG_PROFILE_RENDER
+        OPT_PROFILE,
 #endif
+    };
 
     int opt;
 
@@ -149,6 +152,7 @@ int parse_command_args(int argc, char* argv[])
         {   "eeprom", required_argument, 0, 'e'},
         {       "tf", required_argument, 0, 't'},
         {    "uprog", required_argument, 0, 'u'},
+        {      "run", required_argument, 0, OPT_RUN},
         {       "cf", required_argument, 0, 'C'},
         {   "hostfs", required_argument, 0, 'H'},
         {      "map", required_argument, 0, 'm'},
@@ -188,6 +192,9 @@ int parse_command_args(int argc, char* argv[])
             case 'u':
                 config.arguments.uprog_filename = optarg;
                 break;
+            case OPT_RUN:
+                config.arguments.run_filename = optarg;
+                break;
             case 'C':
                 config.arguments.cf_filename = optarg;
                 break;
@@ -195,6 +202,7 @@ int parse_command_args(int argc, char* argv[])
                 return usage(argv[0]);
             case 'H':
                 config.arguments.hostfs_path = optarg;
+                config.arguments.hostfs_explicit = true;
                 break;
             case 'm':
                 config.arguments.map_file = optarg;
@@ -248,6 +256,11 @@ int parse_command_args(int argc, char* argv[])
                 log_err_printf("[CONFIG] Unknown option -%c\n", optopt);
                 return 1;
         }
+    }
+
+    if (config.arguments.uprog_filename != NULL && config.arguments.run_filename != NULL) {
+        log_err_printf("[CONFIG] --uprog and --run cannot be used together\n");
+        return 1;
     }
 
     return 0;

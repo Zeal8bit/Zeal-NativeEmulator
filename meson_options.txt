@@ -6,9 +6,13 @@ option('raylib_path', type : 'string', value : '', description : 'Path to Raylib
 ## Debugger
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 
+## Input
+option('auto_attach_snes_mouse', type: 'boolean', value: true, description: 'Automatically attach the SNES mouse at startup')
+
 ## Rendering
 option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
 option('blitter_software_scanline_rendering', type: 'boolean', value: false, description: 'Per scanline renderinginstead of per frame (software blitter only)')
+option('linux_display_backend', type: 'combo', choices: ['x11', 'drm'], value: 'x11', description: 'Linux display backend used by Raylib')
 
 ## Profiling
 option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
@@ -17,3 +21,6 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
 option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the `roms/` dir in WASM builds')
+
+## Target / Device Specific
+option('target_retroflag_gpi2', type: 'boolean', value: false, description: 'Enable RetroFlag GPi Case 2 controller input mapping')

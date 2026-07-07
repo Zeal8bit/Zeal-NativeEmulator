@@ -1,0 +1,16 @@
+.git
+.DS_Store
+.vscode
+build
+build-*
+build-rpi*
+build-wasm*
+external
+raylib
+roms
+targets
+tests
+tmp
+*.elf
+*.ini
+

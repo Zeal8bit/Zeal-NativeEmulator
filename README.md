@@ -50,6 +50,36 @@ meson compile
 
 You will then have a `zeal.elf` binary that you can run. You can check all the parameters via `./zeal.elf --help`.
 
+### Raspberry Pi compilation
+
+Raspberry Pi builds use separate Meson profiles for each target ABI:
+
+```sh
+meson setup build-rpi0 --cross-file raspberrypi0-cross.build
+meson setup build-rpi3 --cross-file raspberrypi3-cross.build
+meson setup build-rpi64 --native-file raspberrypi64-cross.build
+meson setup build-rpi-gpi2 --native-file raspberrypi-gpi2.build
+```
+
+When using the local Docker/Podman builder, run the Compose services from the repository root:
+
+```sh
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi0
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi3
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi64
+podman compose -f docker/rpi/docker-compose.yml run --rm build-rpi-gpi2
+```
+
+The output binaries are:
+
+* `build-rpi0/zeal-native.armv6` for Pi Zero
+* `build-rpi3/zeal-native.armv7` for Pi 3
+* `build-rpi64/zeal-native.arm64` for Pi 4/5 64-bit OS
+* `build-rpi-gpi2/zeal-native.gpi2-arm64` for the RetroFlag GPi Case 2 with CM4
+
+Release archives contain the target binary, the shared Raylib library under
+`lib/`, and runtime fonts and controller mappings under `assets/`.
+
 ### WebAssembly compilation
 
 To compile to WASM, use the following commands:
@@ -104,6 +134,7 @@ Options:
   -s, --save <file>             Save * arguments to Zeal Config
   -r, --rom <file>              * Load ROM file
   -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address
+      --run <path>              Run a program from HostFS
   -e, --eeprom <file>           Load EEPROM file
   -t, --tf <file>               Load TF/SDcard file
   -H, --hostfs <path>           Set host filesystem path
@@ -115,6 +146,21 @@ Options:
 Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
 ```
+
+`--run` launches a program directly from HostFS and sets the Zeal OS current
+working directory to `H:/`. Without `-H`, the program's directory becomes the
+HostFS root. With `-H`, the run path is relative to the explicit HostFS root:
+
+```sh
+zeal-native --run user.bin
+zeal-native --run path/user.bin
+zeal-native --run user.bin -H bin/
+```
+
+`--run` and `-u` select different startup mechanisms and cannot be combined.
+Normally, Zeal OS relaunches the startup program when it exits. Passing
+`--no-reset` (`-q`) treats that return to the kernel like a reset and exits the
+emulator instead.
 
 ## Supported Features
 
