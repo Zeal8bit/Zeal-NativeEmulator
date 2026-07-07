@@ -21,9 +21,7 @@ static void dma_start_transfer(zvb_dma_t* dma)
     zvb_dma_descriptor_t desc = { 0 };
 
     do {
-        for (size_t i = 0; i < sizeof(zvb_dma_descriptor_t); i++) {
-            ((uint8_t*)&desc)[i] = mmu_read_phys_addr(dma->mmu, dma->desc_addr + i);
-        }
+        mmu_phys_read_array(dma->mmu, dma->desc_addr, (uint8_t*)&desc, sizeof(zvb_dma_descriptor_t));
         const int rd_ops = desc.flags.rd_op;
         const int wr_ops = desc.flags.wr_op;
 
@@ -40,8 +38,8 @@ static void dma_start_transfer(zvb_dma_t* dma)
 
         /* Descriptor is ready, perform the copy */
         for (int i = 0; i < desc.length; i++) {
-            const uint8_t data = mmu_read_phys_addr(dma->mmu, desc.rd_addr);
-            mmu_write_phys_addr(dma->mmu, desc.wr_addr, data);
+            const uint8_t data = mmu_phys_read_byte(dma->mmu, desc.rd_addr);
+            mmu_phys_write_byte(dma->mmu, desc.wr_addr, data);
 
 #if DEBUG_DMA
             log_printf("Transfer: src=0x%08X, dst=0x%08X, byte=0x%02X\n", desc.rd_addr, desc.wr_addr, data);

@@ -101,9 +101,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
     if (addr & 0x80000000) {
         log_printf("TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
-        for (int i = 0; i < len; i++) {
-            mmu_write_virt_addr(&machine->cpu.mmu, (uint16_t) (addr + i), val[i]);
-        }
+        mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
     } else {
         // Invalid address
         return -1;

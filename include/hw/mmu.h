@@ -76,7 +76,7 @@ int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr);
  * @brief Read a byte from a virtual address via cached vpages.
  * Returns 0 if no device is mapped at that address.
  */
-static inline uint8_t mmu_read_virt_addr(const mmu_t* mmu, uint16_t virt_addr)
+static inline uint8_t mmu_virt_read_byte(const mmu_t* mmu, uint16_t virt_addr)
 {
     const int idx = (virt_addr >> 14) & 0x3;
     const mmu_cached_page_t* vp = &mmu->vpages[idx];
@@ -89,7 +89,7 @@ static inline uint8_t mmu_read_virt_addr(const mmu_t* mmu, uint16_t virt_addr)
 /**
  * @brief Write a byte to a virtual address via cached vpages.
  */
-static inline void mmu_write_virt_addr(mmu_t* mmu, uint16_t virt_addr, uint8_t data)
+static inline void mmu_virt_write_byte(mmu_t* mmu, uint16_t virt_addr, uint8_t data)
 {
     const int idx = (virt_addr >> 14) & 0x3;
     const mmu_cached_page_t* vp = &mmu->vpages[idx];
@@ -103,7 +103,7 @@ static inline void mmu_write_virt_addr(mmu_t* mmu, uint16_t virt_addr, uint8_t d
  * @brief Read a byte from a physical address via the device mapping table.
  * Returns 0 if no device is mapped at that address.
  */
-static inline uint8_t mmu_read_phys_addr(const mmu_t* mmu, uint32_t phys_addr)
+static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return 0;
     const int page = phys_addr / MEM_SPACE_ALIGN;
@@ -116,7 +116,7 @@ static inline uint8_t mmu_read_phys_addr(const mmu_t* mmu, uint32_t phys_addr)
 /**
  * @brief Write a byte to a physical address via the device mapping table.
  */
-static inline void mmu_write_phys_addr(mmu_t* mmu, uint32_t phys_addr, uint8_t data)
+static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t data)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return;
     const int page = phys_addr / MEM_SPACE_ALIGN;
@@ -129,7 +129,7 @@ static inline void mmu_write_phys_addr(mmu_t* mmu, uint32_t phys_addr, uint8_t d
 /**
  * @brief Read a byte from an I/O port. Uses the flat 256-byte I/O mapping.
  */
-static inline uint8_t mmu_read_io_addr(mmu_t* mmu, uint16_t addr)
+static inline uint8_t mmu_io_read_byte(mmu_t* mmu, uint16_t addr)
 {
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
@@ -142,7 +142,7 @@ static inline uint8_t mmu_read_io_addr(mmu_t* mmu, uint16_t addr)
 /**
  * @brief Write a byte to an I/O port. Uses the flat 256-byte I/O mapping.
  */
-static inline void mmu_write_io_addr(mmu_t* mmu, uint16_t addr, uint8_t data)
+static inline void mmu_io_write_byte(mmu_t* mmu, uint16_t addr, uint8_t data)
 {
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
@@ -161,5 +161,26 @@ void mmu_register_io_device(mmu_t* mmu, int region_start, device_t* dev);
  * @brief Register a memory device in the MMU memory mapping table
  */
 void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev);
+
+
+/**
+ * @brief Read len bytes from consecutive virtual addresses into buf.
+ */
+void mmu_virt_read_array(const mmu_t* mmu, uint16_t virt_addr, uint8_t* buf, uint16_t len);
+
+/**
+ * @brief Write len bytes from buf to consecutive virtual addresses.
+ */
+void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint16_t len);
+
+/**
+ * @brief Read len bytes from consecutive physical addresses into buf.
+ */
+void mmu_phys_read_array(const mmu_t* mmu, uint32_t phys_addr, uint8_t* buf, uint16_t len);
+
+/**
+ * @brief Write len bytes from buf to consecutive physical addresses.
+ */
+void mmu_phys_write_array(mmu_t* mmu, uint32_t phys_addr, const uint8_t* buf, uint16_t len);
 
 

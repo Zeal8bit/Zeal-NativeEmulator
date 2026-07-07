@@ -92,24 +92,24 @@ static const uint8_t cyc_ddfd[256] = {
 
 static inline uint8_t rb(z80* const z, uint16_t addr)
 {
-    return mmu_read_virt_addr(&z->mmu, addr);
+    return mmu_virt_read_byte(&z->mmu, addr);
 }
 
 static inline void wb(z80* const z, uint16_t addr, uint8_t val)
 {
-    mmu_write_virt_addr(&z->mmu, addr, val);
+    mmu_virt_write_byte(&z->mmu, addr, val);
 }
 
 static inline uint16_t rw(z80* const z, uint16_t addr)
 {
-    uint8_t data = mmu_read_virt_addr(&z->mmu, addr);
-    return (mmu_read_virt_addr(&z->mmu, addr + 1) << 8) | data;
+    uint8_t data = mmu_virt_read_byte(&z->mmu, addr);
+    return (mmu_virt_read_byte(&z->mmu, addr + 1) << 8) | data;
 }
 
 static inline void ww(z80* const z, uint16_t addr, uint16_t val)
 {
-    mmu_write_virt_addr(&z->mmu, addr, val & 0xFF);
-    mmu_write_virt_addr(&z->mmu, addr + 1, val >> 8);
+    mmu_virt_write_byte(&z->mmu, addr, val & 0xFF);
+    mmu_virt_write_byte(&z->mmu, addr + 1, val >> 8);
 }
 
 static inline void pushw(z80* const z, uint16_t val)
@@ -672,7 +672,7 @@ static inline void cpd(z80* const z)
 
 static void in_r_c(z80* const z, uint8_t* r)
 {
-    *r    = mmu_read_io_addr(&z->mmu, (z->b << 8) | z->c);
+    *r    = mmu_io_read_byte(&z->mmu, (z->b << 8) | z->c);
     z->zf = *r == 0;
     z->sf = *r >> 7;
     z->pf = parity(*r);
@@ -682,7 +682,7 @@ static void in_r_c(z80* const z, uint8_t* r)
 
 static void ini(z80* const z)
 {
-    uint8_t val = mmu_read_io_addr(&z->mmu, (z->b << 8) | z->c);
+    uint8_t val = mmu_io_read_byte(&z->mmu, (z->b << 8) | z->c);
     wb(z, get_hl(z), val);
     set_hl(z, get_hl(z) + 1);
     z->b       -= 1;
@@ -700,7 +700,7 @@ static void ind(z80* const z)
 
 static void outi(z80* const z)
 {
-    mmu_write_io_addr(&z->mmu, get_bc(z), rb(z, get_hl(z)));
+    mmu_io_write_byte(&z->mmu, get_bc(z), rb(z, get_hl(z)));
     set_hl(z, get_hl(z) + 1);
     z->b       -= 1;
     z->zf       = z->b == 0;
@@ -1365,13 +1365,13 @@ void exec_opcode(z80* const z, uint8_t opcode)
         case 0xDB: {
             const uint8_t port = nextb(z);
             const uint8_t a    = z->a;
-            z->a               = mmu_read_io_addr(&z->mmu, (z->a << 8) | port);
+            z->a               = mmu_io_read_byte(&z->mmu, (z->a << 8) | port);
             z->mem_ptr         = (a << 8) | (z->a + 1);
         } break; // in a,(n)
 
         case 0xD3: {
             const uint8_t port = nextb(z);
-            mmu_write_io_addr(&z->mmu, (z->a << 8) | port, z->a);
+            mmu_io_write_byte(&z->mmu, (z->a << 8) | port, z->a);
             z->mem_ptr = (port + 1) | (z->a << 8);
         } break; // out (n), a
 
@@ -1804,15 +1804,15 @@ void exec_opcode_ed(z80* const z, uint8_t opcode)
             }
             break; // indr
 
-        case 0x41: mmu_write_io_addr(&z->mmu, get_bc(z), z->b); break; // out (c), b
-        case 0x49: mmu_write_io_addr(&z->mmu, get_bc(z), z->c); break; // out (c), c
-        case 0x51: mmu_write_io_addr(&z->mmu, get_bc(z), z->d); break; // out (c), d
-        case 0x59: mmu_write_io_addr(&z->mmu, get_bc(z), z->e); break; // out (c), e
-        case 0x61: mmu_write_io_addr(&z->mmu, get_bc(z), z->h); break; // out (c), h
-        case 0x69: mmu_write_io_addr(&z->mmu, get_bc(z), z->l); break; // out (c), l
-        case 0x71: mmu_write_io_addr(&z->mmu, get_bc(z), 0); break;    // out (c), 0
+        case 0x41: mmu_io_write_byte(&z->mmu, get_bc(z), z->b); break; // out (c), b
+        case 0x49: mmu_io_write_byte(&z->mmu, get_bc(z), z->c); break; // out (c), c
+        case 0x51: mmu_io_write_byte(&z->mmu, get_bc(z), z->d); break; // out (c), d
+        case 0x59: mmu_io_write_byte(&z->mmu, get_bc(z), z->e); break; // out (c), e
+        case 0x61: mmu_io_write_byte(&z->mmu, get_bc(z), z->h); break; // out (c), h
+        case 0x69: mmu_io_write_byte(&z->mmu, get_bc(z), z->l); break; // out (c), l
+        case 0x71: mmu_io_write_byte(&z->mmu, get_bc(z), 0); break;    // out (c), 0
         case 0x79:
-            mmu_write_io_addr(&z->mmu, get_bc(z), z->a);
+            mmu_io_write_byte(&z->mmu, get_bc(z), z->a);
             z->mem_ptr = get_bc(z) + 1;
             break; // out (c), a
 

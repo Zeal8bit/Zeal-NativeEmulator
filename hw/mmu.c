@@ -130,3 +130,35 @@ int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr)
     /* Highest bits are from the page, remaining 16KB are from address */
     return (highest << 14) | (virt_addr & (MMU_PAGE_SIZE - 1));
 }
+
+
+void mmu_virt_read_array(const mmu_t* mmu, uint16_t virt_addr, uint8_t* buf, uint16_t len)
+{
+    for (uint16_t i = 0; i < len; i++) {
+        buf[i] = mmu_virt_read_byte(mmu, virt_addr + i);
+    }
+}
+
+
+void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint16_t len)
+{
+    for (uint16_t i = 0; i < len; i++) {
+        mmu_virt_write_byte(mmu, virt_addr + i, buf[i]);
+    }
+}
+
+
+void mmu_phys_read_array(const mmu_t* mmu, uint32_t phys_addr, uint8_t* buf, uint16_t len)
+{
+    for (uint16_t i = 0; i < len; i++) {
+        buf[i] = mmu_phys_read_byte(mmu, phys_addr + i);
+    }
+}
+
+
+void mmu_phys_write_array(mmu_t* mmu, uint32_t phys_addr, const uint8_t* buf, uint16_t len)
+{
+    for (uint16_t i = 0; i < len; i++) {
+        mmu_phys_write_byte(mmu, phys_addr + i, buf[i]);
+    }
+}

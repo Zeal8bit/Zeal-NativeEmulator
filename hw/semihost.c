@@ -88,7 +88,7 @@ static inline uint8_t get_low_byte(uint16_t value)
 static uint8_t semihost_read_mem(semihost_t* dev, uint16_t addr)
 {
     if (dev->cpu) {
-        return mmu_read_virt_addr(&dev->cpu->mmu, addr);
+        return mmu_virt_read_byte(&dev->cpu->mmu, addr);
     }
     return 0;
 }
@@ -99,7 +99,7 @@ static uint8_t semihost_read_mem(semihost_t* dev, uint16_t addr)
 static void semihost_write_mem(semihost_t* dev, uint16_t addr, uint8_t value)
 {
     if (dev->cpu) {
-        mmu_write_virt_addr(&dev->cpu->mmu, addr, value);
+        mmu_virt_write_byte(&dev->cpu->mmu, addr, value);
     }
 }
 
