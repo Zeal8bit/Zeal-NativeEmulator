@@ -10,6 +10,7 @@
 #include <stddef.h>
 
 #include "hw/device.h"
+#include "hw/host/stdin.h"
 #include "hw/pio.h"
 #include "utils/fifo.h"
 
@@ -17,6 +18,13 @@
 #define MAX_KEYCODES    10
 #define FIFO_SIZE       512
 #define BREAK_CODE      0xF0
+
+typedef enum {
+    KEYBOARD_MOD_NONE  = 0,
+    KEYBOARD_MOD_SHIFT = 1 << 0,
+    KEYBOARD_MOD_CTRL  = 1 << 1,
+    KEYBOARD_MOD_ALT   = 1 << 2,
+} keyboard_modifiers_t;
 
 /**
  * @brief Period, in T-states, to check the host computer keyboard.
@@ -36,8 +44,7 @@ typedef enum {
     PS2_INACTIVE = 2,
 } ps2_state_t;
 
-
-typedef struct {
+typedef struct keyboard {
     // device_t
     device_t    parent;
     size_t      size; // in bytes
@@ -52,9 +59,13 @@ typedef struct {
     fifo_t      queue;
     uint8_t     pin_state;
     ps2_state_t state;
+
+    host_stdin_t host_stdin;
 } keyboard_t;
 
-int keyboard_init(keyboard_t* keyboard, pio_t* pio);
+int keyboard_init(keyboard_t* keyboard, pio_t* pio, bool stdin_enabled);
+void keyboard_deinit(keyboard_t* keyboard);
+bool keyboard_tap_key(keyboard_t* keyboard, uint16_t keycode, uint8_t modifiers);
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode);
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode);
 

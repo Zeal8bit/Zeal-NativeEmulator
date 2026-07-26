@@ -32,6 +32,7 @@ config_t config ={
         .no_reset = false,
         .headless = false,
         .headless_run_ticks = 0,
+        .keyboard_stdin = false,
         .verbose = 0,
 #if CONFIG_PROFILE_RENDER
         .profile = false,
@@ -72,6 +73,7 @@ void config_debug(void)
     log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
     log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
     log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
+    log_printf("%s keyboard_stdin: %s\n", module, config.arguments.keyboard_stdin ? "True" : "False");
     log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
     log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
     log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
@@ -120,6 +122,7 @@ int usage(const char* progname)
     log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
     log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
     log_printf("                                     Optional tstates number to execute can be given\n");
+    log_printf("      --stdin                        Feed host stdin to emulated PS/2 keyboard\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
 #if CONFIG_PROFILE_RENDER
     log_printf("      --profile                      Log aggregated render profiling data\n");
@@ -135,11 +138,12 @@ int usage(const char* progname)
 
 int parse_command_args(int argc, char* argv[])
 {
-#if CONFIG_PROFILE_RENDER
     enum {
-        OPT_PROFILE = 256,
-    };
+        OPT_STDIN = 256,
+#if CONFIG_PROFILE_RENDER
+        OPT_PROFILE,
 #endif
+    };
 
     int opt;
 
@@ -155,6 +159,7 @@ int parse_command_args(int argc, char* argv[])
         {    "debug", required_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
         { "headless", optional_argument, 0, 'n'},
+        {    "stdin",       no_argument, 0, OPT_STDIN},
         { "no-reset",       no_argument, 0, 'q'},
 #if CONFIG_PROFILE_RENDER
         {  "profile",       no_argument, 0, OPT_PROFILE},
@@ -230,6 +235,14 @@ int parse_command_args(int argc, char* argv[])
                 /* force debugger off in headless mode */
                 config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
                 break;
+            case OPT_STDIN:
+#ifdef _WIN32
+                log_err_printf("[CONFIG] --stdin is not supported on Windows\n");
+                return 1;
+#else
+                config.arguments.keyboard_stdin = true;
+                break;
+#endif
             case 'v':
                 if (config.arguments.verbose < UINT8_MAX) {
                     config.arguments.verbose++;

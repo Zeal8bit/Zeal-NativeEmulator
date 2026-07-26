@@ -60,6 +60,7 @@ typedef struct {
     const char* breakpoints;
     unsigned long headless_run_ticks;
     bool headless;
+    bool keyboard_stdin;
     bool config_save;
     uint8_t verbose;
     bool no_reset;

@@ -6,4 +6,4 @@ roms/*
 *.ini
 .vscode
 external/
-tests/*
+__pycache__/

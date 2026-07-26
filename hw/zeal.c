@@ -447,7 +447,7 @@ int zeal_init(zeal_t* machine)
     CHECK_ERR(err);
 
     // const keyboard = new Keyboard(this, pio);
-    err = keyboard_init(&machine->keyboard, &machine->pio);
+    err = keyboard_init(&machine->keyboard, &machine->pio, config.arguments.keyboard_stdin);
     CHECK_ERR(err);
 
     err = snes_adapter_init(&machine->snes_adapter, &machine->pio);

@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <signal.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "raylib.h"
@@ -97,7 +98,7 @@ struct zeal_t {
 
     /* Renderer */
     bool headless;
-    bool should_exit;
+    volatile sig_atomic_t should_exit;
 
     /* Misc features */
     zeal_hostfs_t hostfs;

@@ -1,6 +1,7 @@
 sources += files([
         'flash.c',
         'hostfs.c',
+        'host/stdin.c',
         'keyboard.c',
         'main.c',
         'mmu.c',

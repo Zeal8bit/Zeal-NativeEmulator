@@ -96,8 +96,18 @@ size_t fifo_size(fifo_t *fifo) {
     }
 
     if (fifo->wr >= fifo->rd) {
+        if (fifo->wr == fifo->rd) {
+            return fifo->size;
+        }
         return fifo->wr - fifo->rd;
     } else {
         return (fifo->size - fifo->rd) + fifo->wr;
     }
+}
+
+size_t fifo_available(fifo_t *fifo) {
+    if (fifo == NULL || fifo->array == NULL) {
+        return 0;
+    }
+    return fifo->size - fifo_size(fifo);
 }

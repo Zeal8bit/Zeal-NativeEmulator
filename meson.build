@@ -125,6 +125,10 @@ exec = executable(
     install: true
 )
 
+if host_machine.system() != 'emscripten'
+    subdir('tests')
+endif
+
 # meson compile run to launch emulator after building
 run_target(
     'run',

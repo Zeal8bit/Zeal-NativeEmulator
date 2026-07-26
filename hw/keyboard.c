@@ -141,12 +141,23 @@ static void keyboard_reset(device_t* dev)
     keyboard->state = PS2_IDLE;
     keyboard->elapsed_tstates = 0;
     keyboard->shift_register = 0;
+    host_stdin_reset(&keyboard->host_stdin);
     pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
     fifo_reset(&keyboard->queue);
 }
 
 
-int keyboard_init(keyboard_t* keyboard, pio_t* pio)
+void keyboard_deinit(keyboard_t* keyboard)
+{
+    if(keyboard == NULL) {
+        return;
+    }
+
+    host_stdin_deinit(&keyboard->host_stdin);
+    fifo_deinit(&keyboard->queue);
+}
+
+int keyboard_init(keyboard_t* keyboard, pio_t* pio, bool stdin_enabled)
 {
     /* On the real hardware, the active signal stays on for ~19.7 microseconds */
     PS2_SCANCODE_DURATION = us_to_tstates(19.7);
@@ -162,6 +173,10 @@ int keyboard_init(keyboard_t* keyboard, pio_t* pio)
     assert(fifo_init(&keyboard->queue, FIFO_SIZE));
     keyboard_reset(DEVICE(keyboard));
 
+    if(host_stdin_init(&keyboard->host_stdin, stdin_enabled) != 0) {
+        keyboard_deinit(keyboard);
+        return -1;
+    }
     return 0;
 }
 
@@ -179,6 +194,8 @@ bool keyboard_check(keyboard_t* keyboard, int elapsed)
 
 void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed)
 {
+    host_stdin_tick(&keyboard->host_stdin, keyboard, elapsed);
+
     keyboard->elapsed_tstates += elapsed;
 
     switch (keyboard->state) {
@@ -218,6 +235,10 @@ void keyboard_tick(keyboard_t* keyboard, pio_t* pio, int elapsed)
 
 static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 {
+    if(keycode >= DIM(TABLE)) {
+        return 0;
+    }
+
     switch (keycode) {
         case KEY_PAUSE: {
             codes[0] = 0xE1;
@@ -239,6 +260,9 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
         } break;
         default: {
             uint16_t code = TABLE[keycode];
+            if(code == 0) {
+                return 0;
+            }
             if (code > 256) {
                 codes[0] = code >> 8;
                 codes[1] = code & 0xFF;
@@ -251,41 +275,93 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
     return 0;
 }
 
-uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
+static uint8_t append_pressed(uint8_t* sequence, uint8_t pos, uint16_t keycode)
 {
     uint8_t codes[MAX_KEYCODES];
-    int n_codes = get_ps2_code(keycode, codes);
-    for (int i = 0; i < n_codes; i++) {
-        fifo_push(&keyboard->queue, codes[i]);
+    const uint8_t count = get_ps2_code(keycode, codes);
+    memcpy(&sequence[pos], codes, count);
+    return pos + count;
+}
+
+static uint8_t append_released(uint8_t* sequence, uint8_t pos, uint16_t keycode)
+{
+    if(keycode == KEY_PAUSE) {
+        return pos;
     }
 
-    return 0;
+    uint8_t codes[MAX_KEYCODES];
+    uint8_t count = get_ps2_code(keycode, codes);
+    if(count == 0) {
+        return pos;
+    }
+
+    if(codes[0] == 0xE0) {
+        sequence[pos++] = codes[0];
+        count--;
+        memmove(codes, &codes[1], count);
+    }
+    sequence[pos++] = BREAK_CODE;
+    memcpy(&sequence[pos], codes, count);
+    return pos + count;
+}
+
+static bool enqueue_sequence(keyboard_t* keyboard, const uint8_t* sequence, uint8_t count)
+{
+    if(keyboard == NULL || count == 0 || fifo_available(&keyboard->queue) < count) {
+        return false;
+    }
+
+    for(uint8_t i = 0; i < count; i++) {
+        assert(fifo_push(&keyboard->queue, sequence[i]));
+    }
+    return true;
+}
+
+uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
+{
+    uint8_t sequence[MAX_KEYCODES];
+    const uint8_t count = append_pressed(sequence, 0, keycode);
+    return enqueue_sequence(keyboard, sequence, count) ? 0 : 1;
 }
 
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
 {
-    /* PAUSE has no break code */
-    if (keycode == KEY_PAUSE) {
-        return 0;
+    uint8_t sequence[MAX_KEYCODES + 1];
+    const uint8_t count = append_released(sequence, 0, keycode);
+    return count == 0 || enqueue_sequence(keyboard, sequence, count) ? 0 : 1;
+}
+
+bool keyboard_tap_key(keyboard_t* keyboard, uint16_t keycode, uint8_t modifiers)
+{
+    uint8_t sequence[32];
+    uint8_t pos = 0;
+
+    if(modifiers & KEYBOARD_MOD_CTRL) {
+        pos = append_pressed(sequence, pos, KEY_LEFT_CONTROL);
+    }
+    if(modifiers & KEYBOARD_MOD_ALT) {
+        pos = append_pressed(sequence, pos, KEY_LEFT_ALT);
+    }
+    if(modifiers & KEYBOARD_MOD_SHIFT) {
+        pos = append_pressed(sequence, pos, KEY_LEFT_SHIFT);
     }
 
-    uint8_t codes[MAX_KEYCODES];
-    int n_codes = get_ps2_code(keycode, codes);
-    if (n_codes < 1) {
-        return 1;
+    const uint8_t key_start = pos;
+    pos = append_pressed(sequence, pos, keycode);
+    if(pos == key_start) {
+        return false;
+    }
+    pos = append_released(sequence, pos, keycode);
+
+    if(modifiers & KEYBOARD_MOD_SHIFT) {
+        pos = append_released(sequence, pos, KEY_LEFT_SHIFT);
+    }
+    if(modifiers & KEYBOARD_MOD_ALT) {
+        pos = append_released(sequence, pos, KEY_LEFT_ALT);
+    }
+    if(modifiers & KEYBOARD_MOD_CTRL) {
+        pos = append_released(sequence, pos, KEY_LEFT_CONTROL);
     }
 
-    /* If the first keycode is `0xE0`, we have to send `0E0` before BREAK_CODE */
-    uint8_t* from = codes;
-    if (codes[0] == 0xE0) {
-        fifo_push(&keyboard->queue, codes[0]);
-        n_codes--;
-        from++;
-    }
-    fifo_push(&keyboard->queue, BREAK_CODE);
-    for (int i = 0; i < n_codes; i++) {
-        fifo_push(&keyboard->queue, from[i]);
-    }
-
-    return 0;
+    return enqueue_sequence(keyboard, sequence, pos);
 }

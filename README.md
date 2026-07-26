@@ -95,6 +95,27 @@ For first time users, you will need to provide a `roms/default.img` or use the `
 You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
 download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Zeal8bit/Zeal-8-bit-OS/releases) page.
 
+Native macOS, Linux, and Raspberry Pi builds can optionally feed host standard
+input to the emulated PS/2 keyboard:
+
+```sh
+zeal-native --headless --stdin
+printf 'ls\r' | zeal-native --headless --stdin
+```
+
+`--stdin` is opt-in. Interactive terminals are placed in noncanonical,
+no-echo mode while the emulator runs, so keys arrive immediately. Ctrl-C still
+stops the emulator and terminal settings are restored during cleanup. Pipes
+remain open until EOF; EOF does not stop the emulator.
+
+ANSI/SS3 sequences produced by common terminals are translated to PS/2 keys,
+including arrows, navigation keys, F1 through F12, Shift-Tab, and xterm
+Shift/Alt/Ctrl modifiers. The input layout is US ASCII.
+
+This option controls PS/2 keyboard input only. UART remains transmit-only and
+writes guest UART output to host stdout when the guest kernel is configured
+for UART output. `--stdin` is unavailable on Windows and WebAssembly builds.
+
 ```sh
 $ zeal.elf -h
 Usage: build/zeal.elf [OPTIONS]
@@ -132,8 +153,8 @@ Currently, the following features from Zeal 8-bit Computer are emulated:
   * Audio controller (all voices, including the sample table)
   * CRC controller
   * SPI controller
-* PS/2 Keyboard, with interrupts
-* UART TX: prints to stdout
+* PS/2 Keyboard, with interrupts and optional native stdin input
+* UART TX: prints to stdout (UART RX is not emulated)
 * I2C: bus emulated, supporting write/read/write-read operations
   * DS1307 RTC
   * 24C512 (64KB) EEPROM is emulated

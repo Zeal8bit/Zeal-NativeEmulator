@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <string.h>
 #include <unistd.h>
 
 #ifdef PLATFORM_WEB
@@ -18,6 +20,14 @@
 #include "utils/config.h"
 
 static zeal_t machine;
+
+#ifndef PLATFORM_WEB
+static void handle_interrupt(int signal_number)
+{
+    (void) signal_number;
+    machine.should_exit = 1;
+}
+#endif
 
 #ifdef PLATFORM_WEB
 EMSCRIPTEN_KEEPALIVE
@@ -58,6 +68,11 @@ void zeal_snes_clear_web(void)
 int main(int argc, char* argv[])
 {
     int code = 0;
+#ifndef PLATFORM_WEB
+    void (*previous_sigint_handler)(int) = SIG_DFL;
+    bool sigint_handler_installed = false;
+#endif
+
     code = parse_command_args(argc, argv);
     if(code != 0) return code;
 
@@ -73,36 +88,56 @@ int main(int argc, char* argv[])
         log_printf("Non-option argument: %s\n", argv[i]);
     }
 
-    if (zeal_init(&machine)) {
+    code = zeal_init(&machine);
+    if (code != 0) {
         log_err_printf("Error initializing the machine\n");
-        goto deinit;
+        goto cleanup;
     }
 
     if (flash_load_from_file(&machine.rom, config.arguments.rom_filename,
                              config.arguments.uprog_filename)) {
-        goto deinit;
+        code = 1;
+        goto cleanup;
     }
 
 #ifndef PLATFORM_WEB
     if (hostfs_load_path(&machine.hostfs, config.arguments.hostfs_path)) {
-        goto deinit;
+        code = 1;
+        goto cleanup;
     }
 #endif
 
     if (config.arguments.tf_filename != NULL &&
         zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
-        goto deinit;
+        code = 1;
+        goto cleanup;
     }
+
+#ifndef PLATFORM_WEB
+    previous_sigint_handler = signal(SIGINT, handle_interrupt);
+    if (previous_sigint_handler == SIG_ERR) {
+        log_perror("Failed to install SIGINT handler");
+        code = 1;
+        goto cleanup;
+    }
+    sigint_handler_installed = true;
+#endif
 
     code = zeal_run(&machine);
 
     flash_save_to_file(&machine.rom, config.arguments.rom_filename);
 
     int saved = config_save();
-    config_unload();
-    if(!saved && code == 0) return saved; // ???
+    if(!saved && code == 0) code = saved; // ???
 
-deinit:
+cleanup:
+#ifndef PLATFORM_WEB
+    if (sigint_handler_installed) {
+        signal(SIGINT, previous_sigint_handler);
+    }
+#endif
+    keyboard_deinit(&machine.keyboard);
     zvb_sound_deinit(&machine.zvb.sound);
+    config_unload();
     return code;
 }
