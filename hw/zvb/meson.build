@@ -13,6 +13,10 @@ sources += files([
     'zvb_sound.c'
 ])
 
+if get_option('enable_debugger')
+    sources += files('debug.c')
+endif
+
 if (get_option('blitter_software'))
     sources += files([
         'blitter/software.c'

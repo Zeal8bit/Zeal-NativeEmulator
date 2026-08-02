@@ -4,7 +4,6 @@ fs = import('fs')
 shader_files = [
   'gfx_shader.glsl',
   'text_shader.glsl',
-  'text_debug.glsl',
   'bitmap_shader.glsl',
   'gfx_debug.glsl'
 ]

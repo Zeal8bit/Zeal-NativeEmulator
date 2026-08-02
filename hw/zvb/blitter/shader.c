@@ -12,7 +12,6 @@
 #include "assets/shaders/bitmap_shader.h"
 
 #if CONFIG_ENABLE_DEBUGGER
-#include "assets/shaders/text_debug.h"
 #include "assets/shaders/gfx_debug.h"
 #endif
 
@@ -75,17 +74,6 @@ void zvb_blitter_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
 
 #if CONFIG_ENABLE_DEBUGGER
-    /* Text debug shaders */
-    st_shader = &dev->blitter.shaders[SHADER_TEXT_DEBUG];
-    v_log_printf(1, "[RENDER] Compiling shader text_debug\n");
-    shader = LoadShaderFromMemory(NULL, s_text_debug);
-    st_shader->shader = shader;
-    st_shader->objects[TEXT_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
-    st_shader->objects[TEXT_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
-    st_shader->objects[TEXT_SHADER_FONT_IDX]     = GetShaderLocation(shader, SHADER_FONT_NAME);
-    st_shader->objects[TEXT_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
-    st_shader->objects[TEXT_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
-
     st_shader = &dev->blitter.shaders[SHADER_GFX_DEBUG];
     v_log_printf(1, "[RENDER] Compiling shader gfx_debug\n");
     shader = LoadShaderFromMemory(NULL, s_gfx_debug);
@@ -258,69 +246,6 @@ void zvb_blitter_deinit(zvb_t* zvb)
  * @brief Render the debug textures when we are in text mode.
  * The `zvb_render` function must be called first.
  */
-void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
-{
-    /* Since we want to generate a debug texture, we only need to set it to debug mode */
-    zvb_shader_t* st_shader = &zvb->blitter.shaders[SHADER_TEXT_DEBUG];
-    const Shader shader = st_shader->shader;
-    const int mode_idx     = st_shader->objects[TEXT_SHADER_VIDMODE_IDX];
-    const int dbg_mode_idx = st_shader->objects[TEXT_SHADER_DBGMODE_IDX];
-    const int tilemaps_idx = st_shader->objects[TEXT_SHADER_TILEMAPS_IDX];
-    const int font_idx     = st_shader->objects[TEXT_SHADER_FONT_IDX];
-    const int palette_idx  = st_shader->objects[TEXT_SHADER_PALETTE_IDX];
-    /* Include the debug grid in the final texture width. Add one pixel to show a red outline */
-    const int grid_thickness = 1;
-    const int width = TEXT_MAXIMUM_COLUMNS * (TEXT_CHAR_WIDTH + grid_thickness) + 1;
-    const int height = TEXT_MAXIMUM_LINES * (TEXT_CHAR_HEIGHT + grid_thickness) + 1;
-
-    /* Tilemap mode */
-    int dbg_mode = TEXT_DEBUG_LAYER0_MODE;
-    BeginTextureMode(zvb->debug_tex[DBG_TILEMAP_LAYER0]);
-        BeginShaderMode(shader);
-            ClearBackground(BLANK);
-            /* Transfer all the texture to the GPU */
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
-            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
-            SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
-            SetShaderValueTexture(shader, font_idx, zvb_font_texture(&zvb->font));
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, width, height },
-                            /* Since the texture is bigger than the content, render the content at the top left */
-                            (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-
-    /* Font mode, no need to reload all the textures, they are all in the shaders already */
-    dbg_mode = TEXT_DEBUG_LAYER1_MODE;
-    BeginTextureMode(zvb->debug_tex[DBG_TILEMAP_LAYER1]);
-        ClearBackground(BLANK);
-        BeginShaderMode(shader);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, width, height },
-                            /* Since the texture is bigger than the content, render the content at the top left */
-                            (Vector2){ 0, ZVB_DBG_RES_HEIGHT-height },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-
-    dbg_mode = TEXT_DEBUG_FONT_MODE;
-    RenderTexture* texture = &zvb->debug_tex[DBG_FONT];
-    BeginTextureMode(*texture);
-        ClearBackground(BLANK);
-        BeginShaderMode(shader);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            (Vector2){ 0, 0 },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-}
-
-
 void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
 {
     /* Since we want to generate a debug texture, we only need to set it to debug mode */

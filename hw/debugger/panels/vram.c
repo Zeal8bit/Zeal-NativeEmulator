@@ -248,29 +248,24 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
                 ui_tab_layer(dctx, current_tab == TAB_LAYER1);
                 break;
             case TAB_TILESET:
-                if (zvb_is_gfx_mode(dctx->zvb)) {
-                    ui_tab_set(dctx, &(tab_args_t) {
-                        .img = &dctx->vram[DBG_TILESET],
-                        .entry_name = "Tile Index",
-                        .tile_size = {
-                            .x = TILE_WIDTH,
-                            .y = TILE_HEIGHT,
-                        }
-                    });
-                }
+                ui_tab_set(dctx, &(tab_args_t) {
+                    .img = &dctx->vram[DBG_TILESET],
+                    .entry_name = "Tile Index",
+                    .tile_size = {
+                        .x = TILE_WIDTH,
+                        .y = TILE_HEIGHT,
+                    }
+                });
                 break;
             case TAB_PALETTE:
-                /* TODO: implement palette for text mode too? */
-                if (zvb_is_gfx_mode(dctx->zvb)) {
-                    ui_tab_set(dctx, &(tab_args_t) {
-                        .img = &dctx->vram[DBG_PALETTE],
-                        .entry_name = "Color",
-                        .tile_size = {
-                            .x = TILE_WIDTH,
-                            .y = TILE_HEIGHT,
-                        }
-                    });
-                }
+                ui_tab_set(dctx, &(tab_args_t) {
+                    .img = &dctx->vram[DBG_PALETTE],
+                    .entry_name = "Color",
+                    .tile_size = {
+                        .x = TILE_WIDTH,
+                        .y = TILE_HEIGHT,
+                    }
+                });
                 break;
             case TAB_FONT:
                 ui_tab_set(dctx, &(tab_args_t) {

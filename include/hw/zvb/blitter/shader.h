@@ -17,7 +17,6 @@
 #define TEXT_SHADER_CURCOLOR_IDX    5
 #define TEXT_SHADER_CURCHAR_IDX     6
 #define TEXT_SHADER_TSCROLL_IDX     7
-#define TEXT_SHADER_DBGMODE_IDX     4
 
 #define TEXT_SHADER_OBJ_COUNT       8
 
@@ -36,17 +35,10 @@
 #define ZVB_SHADER_MAX_OBJ_COUNT    8
 
 /* Special mode to tell the shader to debug the texture */
-#define TEXT_DEBUG_MODE             0xffffffff
 #define GFX_DEBUG_TILESET_MODE      0
 #define GFX_DEBUG_LAYER0_MODE       1
 #define GFX_DEBUG_LAYER1_MODE       2
 #define GFX_DEBUG_PALETTE_MODE      3
-
-#define TEXT_DEBUG_FONT_MODE        0
-#define TEXT_DEBUG_LAYER0_MODE      1
-#define TEXT_DEBUG_LAYER1_MODE      2
-#define TEXT_DEBUG_PALETTE_MODE     3
-
 
 typedef enum {
     SHADER_TEXT = 0,
@@ -54,7 +46,6 @@ typedef enum {
     SHADER_BITMAP,
 #if CONFIG_ENABLE_DEBUGGER
     SHADER_GFX_DEBUG,
-    SHADER_TEXT_DEBUG,
 #endif
     SHADERS_COUNT,
 } zvb_shaders_type_t;

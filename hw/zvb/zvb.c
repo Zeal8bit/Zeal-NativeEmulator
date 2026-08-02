@@ -376,7 +376,10 @@ void zvb_render_debug_textures(zvb_t* zvb)
     switch (zvb->mode) {
         case MODE_TEXT_640:
         case MODE_TEXT_320:
-            zvb_blitter_render_debug_text_mode(zvb);
+            /* Keep this backend-neutral. The software implementation was
+             * previously empty and the text debug shader is not reliable on
+             * every OpenGL backend supported by raylib. */
+            zvb_render_debug_textures_cpu(zvb);
             break;
 
         case MODE_BITMAP_256:

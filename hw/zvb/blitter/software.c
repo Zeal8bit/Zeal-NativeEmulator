@@ -208,11 +208,6 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
     EndTextureMode();
 }
 
-void zvb_blitter_render_debug_text_mode(zvb_t* zvb)
-{
-    (void)zvb;
-}
-
 /* ================================================================== */
 /*  BITMAP MODE                                                        */
 /* ================================================================== */

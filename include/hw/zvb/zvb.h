@@ -253,6 +253,7 @@ static inline Texture zvb_output_texture(zvb_t* zvb)
  * @brief Render the current VRAM state in the debug textures, must be called after `render` function
  */
 void zvb_render_debug_textures(zvb_t* zvb);
+void zvb_render_debug_textures_cpu(zvb_t* zvb);
 
 
 /**
