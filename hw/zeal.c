@@ -616,9 +616,10 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         return 0;
     }
 
-    /* Generate VRAM debug textures if the VRAM debugging window is opened */
-    if (debugger_ui_vram_panel_opened(machine->dbg_ui)) {
-        zvb_render_debug_textures(&machine->zvb);
+    /* Update only the VRAM debug view currently focused in the panel */
+    const dbg_vram_t debug_view = debugger_ui_vram_panel_opened(machine->dbg_ui);
+    if (debug_view != DBG_VIEW_NONE) {
+        zvb_render_debug_textures(&machine->zvb, debug_view);
     }
 
     debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);

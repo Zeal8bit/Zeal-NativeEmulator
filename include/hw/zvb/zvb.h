@@ -156,7 +156,9 @@ typedef struct {
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
 #if CONFIG_ENABLE_DEBUGGER
-    RenderTexture    debug_tex[DBG_VIEW_TOTAL];
+    /* CPU-side pixel buffer + GPU texture for each VRAM debug view */
+    Image            debug_img[DBG_VIEW_TOTAL];
+    Texture          debug_tex[DBG_VIEW_TOTAL];
 #endif
 
     /* Internal values */
@@ -250,16 +252,15 @@ static inline Texture zvb_output_texture(zvb_t* zvb)
 
 #if CONFIG_ENABLE_DEBUGGER
 /**
- * @brief Render the current VRAM state in the debug textures, must be called after `render` function
+ * @brief Render the current VRAM state of one debug view, must be called after `render` function
  */
-void zvb_render_debug_textures(zvb_t* zvb);
-void zvb_render_debug_textures_cpu(zvb_t* zvb);
+void zvb_render_debug_textures(zvb_t* zvb, dbg_vram_t view);
 
 
 /**
  * @brief Get a pointer to the array of VRAM debug textures
  */
-static inline const RenderTexture* zvb_get_debug_textures(zvb_t* zvb, int* count)
+static inline const Texture* zvb_get_debug_textures(zvb_t* zvb, int* count)
 {
     if (count) {
         *count = DBG_VIEW_TOTAL;

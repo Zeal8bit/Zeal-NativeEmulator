@@ -21,21 +21,13 @@
     #define MAX(a,b)    ((a) > (b) ? (a) : (b))
 #endif
 
-typedef enum {
-    TAB_LAYER0,
-    TAB_LAYER1,
-    TAB_TILESET,
-    TAB_PALETTE,
-    TAB_FONT,
-    TAB_COUNT,
-} tab_t;
-
+/* Tab indices map 1:1 to dbg_vram_t values */
 static const char *s_tab_names[] = {
-    [TAB_LAYER0]  = "Layer0",
-    [TAB_LAYER1]  = "Layer1",
-    [TAB_TILESET] = "Tileset",
-    [TAB_PALETTE] = "Palette",
-    [TAB_FONT]    = "Font",
+    [DBG_TILEMAP_LAYER0] = "Layer0",
+    [DBG_TILEMAP_LAYER1] = "Layer1",
+    [DBG_TILESET]        = "Tileset",
+    [DBG_PALETTE]        = "Palette",
+    [DBG_FONT]           = "Font",
 };
 static const struct nk_color s_active_color   = { .r = 0, .g = 0x2d, .b = 0x78, .a = 0xff };
 static const struct nk_color s_inactive_color = { .r = 0x6c, .g = 0x70, .b = 0x86, .a = 0xff };
@@ -214,12 +206,12 @@ static void ui_tab_set(struct dbg_ui_t* dctx, const tab_args_t* args)
 
 void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* dbg)
 {
-    static int current_tab = 0;
+    int current_tab = dctx->vram_tab;
     struct nk_context* ctx = dctx->ctx;
 
-    nk_layout_row_dynamic(ctx, 30, TAB_COUNT);
+    nk_layout_row_dynamic(ctx, 30, DBG_VIEW_TOTAL);
 
-    for (int i = 0; i < TAB_COUNT; ++i) {
+    for (int i = 0; i < DBG_VIEW_TOTAL; ++i) {
         if (i == current_tab) {
             nk_style_push_color(ctx, &ctx->style.button.normal.data.color, s_active_color);
         } else {
@@ -232,6 +224,8 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
 
         nk_style_pop_color(ctx);
     }
+    /* Persist the active tab so the renderer only updates this view */
+    dctx->vram_tab = (dbg_vram_t)current_tab;
 
     // Content Area
     nk_layout_row_dynamic(ctx, panel->rect.h - 85, 1);
@@ -243,11 +237,11 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
 
     if (nk_group_begin_titled(ctx, "tab_content", s_tab_names[current_tab], 0)) {
         switch (current_tab) {
-            case TAB_LAYER0:
-            case TAB_LAYER1:
-                ui_tab_layer(dctx, current_tab == TAB_LAYER1);
+            case DBG_TILEMAP_LAYER0:
+            case DBG_TILEMAP_LAYER1:
+                ui_tab_layer(dctx, current_tab == DBG_TILEMAP_LAYER1);
                 break;
-            case TAB_TILESET:
+            case DBG_TILESET:
                 ui_tab_set(dctx, &(tab_args_t) {
                     .img = &dctx->vram[DBG_TILESET],
                     .entry_name = "Tile Index",
@@ -257,7 +251,7 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
                     }
                 });
                 break;
-            case TAB_PALETTE:
+            case DBG_PALETTE:
                 ui_tab_set(dctx, &(tab_args_t) {
                     .img = &dctx->vram[DBG_PALETTE],
                     .entry_name = "Color",
@@ -267,7 +261,7 @@ void ui_panel_vram(struct dbg_ui_panel_t* panel, struct dbg_ui_t* dctx, dbg_t* d
                     }
                 });
                 break;
-            case TAB_FONT:
+            case DBG_FONT:
                 ui_tab_set(dctx, &(tab_args_t) {
                     .img = &dctx->vram[DBG_FONT],
                     .entry_name = "Char",

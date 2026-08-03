@@ -28,6 +28,7 @@ typedef enum {
 
 /* VRAM Debug types */
 typedef enum {
+    DBG_VIEW_NONE = -1,
     DBG_TILEMAP_LAYER0 = 0,
     DBG_TILEMAP_LAYER1,
     DBG_TILESET,

@@ -56,6 +56,8 @@ struct dbg_ui_t {
     hwaddr             dis_addr;
     hwaddr             dis_size;
     struct nk_image    vram[DBG_MAX_VRAM_VIEWS];
+    /* Currently focused VRAM debug view/tab (dbg_vram_t), DBG_VIEW_NONE when panel closed */
+    dbg_vram_t         vram_tab;
     zvb_t*             zvb;
     bool               main_view_bounds_valid;
     Rectangle          main_view_bounds;
@@ -79,7 +81,7 @@ struct dbg_ui_panel_t {
 
 typedef struct {
     const RenderTexture2D* main_view;
-    const RenderTexture2D* debug_views;
+    const Texture* debug_views;
     int debug_views_count;
     zvb_t* zvb;
 } dbg_ui_init_args_t;
@@ -110,7 +112,7 @@ void debugger_ui_prepare_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 void debugger_ui_render(struct dbg_ui_t* dctx, dbg_t* dbg);
 bool debugger_ui_main_view_focused(const struct dbg_ui_t* dctx);
 bool debugger_ui_main_view_bounds(const struct dbg_ui_t* dctx, Rectangle* bounds);
-bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
+dbg_vram_t debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx);
 
 /** Helpers */
 bool dbg_ui_clickable_label(struct nk_context* ctx, const char* label, const char* value, bool active);

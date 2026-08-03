@@ -446,7 +446,7 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
     dbg_ctx->view = TextureToNuklear(args->main_view->texture);
 
     for (int i = 0; i < args->debug_views_count && i < DBG_MAX_VRAM_VIEWS; i++) {
-        dbg_ctx->vram[i] = TextureToNuklear(args->debug_views[i].texture);
+        dbg_ctx->vram[i] = TextureToNuklear(args->debug_views[i]);
     }
     dbg_ctx->zvb = args->zvb;
 
@@ -455,6 +455,7 @@ int debugger_ui_init(struct dbg_ui_t** ret_ctx, const dbg_ui_init_args_t* args)
     dbg_ctx->mem_view_addr = 0;
     dbg_ctx->dis_addr = 0;
     dbg_ctx->dis_size = 50;
+    dbg_ctx->vram_tab = DBG_TILEMAP_LAYER0;
 
     *ret_ctx = dbg_ctx;
 
@@ -572,8 +573,10 @@ bool debugger_ui_main_view_bounds(const struct dbg_ui_t* dctx, Rectangle* bounds
     return true;
 }
 
-bool debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx)
+dbg_vram_t debugger_ui_vram_panel_opened(const struct dbg_ui_t* dctx)
 {
-    (void) dctx;
-    return !dbg_panels[DBG_UI_PANEL_VRAM].hidden;
+    if (dctx == NULL || dbg_panels[DBG_UI_PANEL_VRAM].hidden) {
+        return DBG_VIEW_NONE;
+    }
+    return dctx->vram_tab;
 }

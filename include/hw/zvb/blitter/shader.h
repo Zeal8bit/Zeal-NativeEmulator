@@ -28,25 +28,15 @@
 #define GFX_SHADER_SCROLL0_IDX      4
 #define GFX_SHADER_SCROLL1_IDX      5
 #define GFX_SHADER_PALETTE_IDX      6
-#define GFX_SHADER_DBGMODE_IDX      3
 
 #define GFX_SHADER_OBJ_COUNT        7
 
 #define ZVB_SHADER_MAX_OBJ_COUNT    8
 
-/* Special mode to tell the shader to debug the texture */
-#define GFX_DEBUG_TILESET_MODE      0
-#define GFX_DEBUG_LAYER0_MODE       1
-#define GFX_DEBUG_LAYER1_MODE       2
-#define GFX_DEBUG_PALETTE_MODE      3
-
 typedef enum {
     SHADER_TEXT = 0,
     SHADER_GFX,
     SHADER_BITMAP,
-#if CONFIG_ENABLE_DEBUGGER
-    SHADER_GFX_DEBUG,
-#endif
     SHADERS_COUNT,
 } zvb_shaders_type_t;
 

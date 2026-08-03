@@ -11,10 +11,6 @@
 #include "assets/shaders/text_shader.h"
 #include "assets/shaders/bitmap_shader.h"
 
-#if CONFIG_ENABLE_DEBUGGER
-#include "assets/shaders/gfx_debug.h"
-#endif
-
 /**
  * @brief Names of the variables in the shader
  */
@@ -72,18 +68,6 @@ void zvb_blitter_init(zvb_t* dev)
     st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
     st_shader->objects[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(shader, SHADER_TILESET_NAME);
     st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
-
-#if CONFIG_ENABLE_DEBUGGER
-    st_shader = &dev->blitter.shaders[SHADER_GFX_DEBUG];
-    v_log_printf(1, "[RENDER] Compiling shader gfx_debug\n");
-    shader = LoadShaderFromMemory(NULL, s_gfx_debug);
-    st_shader->shader = shader;
-    st_shader->objects[GFX_SHADER_VIDMODE_IDX]  = GetShaderLocation(shader, SHADER_VIDMODE_NAME);
-    st_shader->objects[GFX_SHADER_TILEMAPS_IDX] = GetShaderLocation(shader, SHADER_TILEMAPS_NAME);
-    st_shader->objects[GFX_SHADER_TILESET_IDX]  = GetShaderLocation(shader, SHADER_TILESET_NAME);
-    st_shader->objects[GFX_SHADER_PALETTE_IDX]  = GetShaderLocation(shader, SHADER_PALETTE_NAME);
-    st_shader->objects[GFX_SHADER_DBGMODE_IDX]  = GetShaderLocation(shader, "debug_mode");
-#endif
 }
 
 
@@ -239,83 +223,3 @@ void zvb_blitter_deinit(zvb_t* zvb)
         UnloadShader(zvb->blitter.shaders[i].shader);
     }
 }
-
-
-#if CONFIG_ENABLE_DEBUGGER
-/**
- * @brief Render the debug textures when we are in text mode.
- * The `zvb_render` function must be called first.
- */
-void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
-{
-    /* Since we want to generate a debug texture, we only need to set it to debug mode */
-    zvb_shader_t* st_shader = &zvb->blitter.shaders[SHADER_GFX_DEBUG];
-    const Shader shader = st_shader->shader;
-    const int mode_idx     = st_shader->objects[GFX_SHADER_VIDMODE_IDX];
-    const int dbg_mode_idx = st_shader->objects[GFX_SHADER_DBGMODE_IDX];
-    const int tilemaps_idx = st_shader->objects[GFX_SHADER_TILEMAPS_IDX];
-    const int tileset_idx  = st_shader->objects[GFX_SHADER_TILESET_IDX];
-    const int palette_idx  = st_shader->objects[GFX_SHADER_PALETTE_IDX];
-
-    int dbg_mode = GFX_DEBUG_LAYER0_MODE;
-    RenderTexture* texture = &zvb->debug_tex[DBG_TILEMAP_LAYER0];
-
-    BeginTextureMode(*texture);
-        BeginShaderMode(shader);
-            /* Transfer all the texture to the GPU */
-            SetShaderValue(shader, mode_idx, &zvb->mode, SHADER_UNIFORM_INT);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            SetShaderValueTexture(shader, palette_idx, zvb_pal_texture(&zvb->palette));
-            SetShaderValueTexture(shader, tilemaps_idx, *zvb_tilemap_texture(&zvb->layers));
-            SetShaderValueTexture(shader, tileset_idx, *zvb_tileset_texture(&zvb->tileset));
-
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            (Vector2){ 0, 0 },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-
-    /* Debug layer 1, tell the shader to debug layer 1 in the mode (bit 30) */
-    dbg_mode = GFX_DEBUG_LAYER1_MODE;
-    texture = &zvb->debug_tex[DBG_TILEMAP_LAYER1];
-    BeginTextureMode(*texture);
-        BeginShaderMode(shader);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            (Vector2){ 0, 0 },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-
-    /* Debug the tileset, in this case, we have 16x32 tiles at most */
-    dbg_mode = GFX_DEBUG_TILESET_MODE;
-    texture = &zvb->debug_tex[DBG_TILESET];
-    BeginTextureMode(*texture);
-        ClearBackground(BLANK);
-        BeginShaderMode(shader);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            (Vector2){ 0, 0 },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-
-    /* Palette mode */
-    dbg_mode = GFX_DEBUG_PALETTE_MODE;
-    texture = &zvb->debug_tex[DBG_PALETTE];
-    BeginTextureMode(*texture);
-        ClearBackground(BLANK);
-        BeginShaderMode(shader);
-            SetShaderValue(shader, dbg_mode_idx, &dbg_mode, SHADER_UNIFORM_INT);
-            DrawTextureRec(zvb->blitter.main_texture.texture,
-                            (Rectangle){ 0, 0, texture->texture.width, texture->texture.height },
-                            (Vector2){ 0, 0 },
-                            WHITE);
-        EndShaderMode();
-    EndTextureMode();
-}
-
-#endif // CONFIG_ENABLE_DEBUGGER

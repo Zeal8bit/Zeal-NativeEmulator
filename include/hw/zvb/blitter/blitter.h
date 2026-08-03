@@ -24,6 +24,4 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb);
 
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline);
 
-void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb);
-
 void zvb_blitter_deinit(zvb_t* dev);

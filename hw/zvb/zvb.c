@@ -262,6 +262,19 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
+#if CONFIG_ENABLE_DEBUGGER
+/**
+ * @brief Create the CPU Image and its GPU Texture for one VRAM debug view.
+ * The image keeps its pixel buffer, which is filled by the CPU debug renderer
+ * and uploaded to the texture with UpdateTexture().
+ */
+static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int height)
+{
+    dev->debug_img[view] = GenImageColor(width, height, BLANK);
+    dev->debug_tex[view] = LoadTextureFromImage(dev->debug_img[view]);
+}
+#endif
+
 int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 {
     if (dev == NULL || config == NULL) {
@@ -291,12 +304,12 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, const memory_op_t* ops)
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
-        dev->debug_tex[DBG_TILEMAP_LAYER0]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        dev->debug_tex[DBG_TILEMAP_LAYER1]  = LoadRenderTexture(ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER0, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER1, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-        dev->debug_tex[DBG_TILESET] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-        dev->debug_tex[DBG_PALETTE] = LoadRenderTexture(SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-        dev->debug_tex[DBG_FONT]    = LoadRenderTexture(SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
+        zvb_debug_tex_init(dev, DBG_TILESET, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
+        zvb_debug_tex_init(dev, DBG_PALETTE, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
+        zvb_debug_tex_init(dev, DBG_FONT,    SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
 #endif
         zvb_blitter_init(dev);
     }
@@ -365,34 +378,6 @@ bool zvb_prepare_render(zvb_t* zvb)
     return true;
 }
 
-
-#if CONFIG_ENABLE_DEBUGGER
-void zvb_render_debug_textures(zvb_t* zvb)
-{
-    if (!zvb->rendering_enabled) {
-        return;
-    }
-
-    switch (zvb->mode) {
-        case MODE_TEXT_640:
-        case MODE_TEXT_320:
-            /* Keep this backend-neutral. The software implementation was
-             * previously empty and the text debug shader is not reliable on
-             * every OpenGL backend supported by raylib. */
-            zvb_render_debug_textures_cpu(zvb);
-            break;
-
-        case MODE_BITMAP_256:
-        case MODE_BITMAP_320:
-            // zvb_blitter_render_debug_bitmap_mode(zvb);
-            break;
-
-        default:
-            zvb_blitter_render_debug_gfx_mode(zvb);
-            break;
-    }
-}
-#endif // CONFIG_ENABLE_DEBUGGER
 
 void zvb_render(zvb_t* zvb)
 {
@@ -533,7 +518,8 @@ void zvb_deinit(zvb_t* zvb)
 
 #if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        UnloadRenderTexture(zvb->debug_tex[i]);
+        UnloadTexture(zvb->debug_tex[i]);
+        UnloadImage(zvb->debug_img[i]);
     }
 #endif
 }

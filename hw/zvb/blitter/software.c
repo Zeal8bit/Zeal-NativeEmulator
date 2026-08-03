@@ -600,8 +600,3 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 }
 
 #endif /* ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
-
-void zvb_blitter_render_debug_gfx_mode(zvb_t* zvb)
-{
-    (void)zvb;
-}
