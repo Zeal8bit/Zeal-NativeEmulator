@@ -820,6 +820,12 @@ void z80_init(z80* const z)
     /* MMU is embedded in the CPU, init it first so device sub-system is ready */
     mmu_init(&z->mmu);
 
+    z80_reset(z);
+}
+
+/* Reset CPU state without destroying the embedded MMU's device mappings. */
+void z80_reset(z80* const z)
+{
     z->cyc = 0;
 
     z->pc      = 0;

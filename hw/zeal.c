@@ -170,7 +170,7 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
 
 int zeal_reset(zeal_t* machine)
 {
-    z80_init(&machine->cpu);
+    z80_reset(&machine->cpu);
     if (!machine->headless) {
         zeal_read_keyboard_reset(machine);
     }
