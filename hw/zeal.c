@@ -176,6 +176,7 @@ int zeal_reset(zeal_t* machine)
     }
     device_reset(DEVICE(&machine->cpu.mmu));
     device_reset(DEVICE(&machine->pio));
+    i2c_reset(&machine->i2c_bus, &machine->pio);
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
 
