@@ -167,6 +167,18 @@ static void i2c_clear_data(i2c_t* i2c)
 }
 
 
+void i2c_reset(i2c_t* bus, pio_t* pio)
+{
+    bus->st = I2C_IDLE;
+    i2c_clear_data(bus);
+
+    /* I2C is idle when both open-drain lines are released high. */
+    pio_set_b_pin(pio, IO_I2C_SCL_OUT_PIN, 1);
+    pio_set_b_pin(pio, IO_I2C_SDA_OUT_PIN, 1);
+    pio_set_b_pin(pio, IO_I2C_SDA_IN_PIN, 1);
+}
+
+
 static void write_sda(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)
 {
     i2c_t* i2c = (i2c_t*) arg;
@@ -209,8 +221,7 @@ int i2c_init(i2c_t* bus, pio_t* pio)
     /* TODO: implement custom argument to the PIO callbacks */
     memset(bus, 0, sizeof(i2c_t));
 
-    pio_set_b_pin(pio, IO_I2C_SCL_OUT_PIN, 1);
-    pio_set_b_pin(pio, IO_I2C_SDA_OUT_PIN, 1);
+    i2c_reset(bus, pio);
 
     pio_listen_b_pin(pio, IO_I2C_SCL_OUT_PIN, write_scl, bus);
     pio_listen_b_pin(pio, IO_I2C_SDA_OUT_PIN, write_sda, bus);

@@ -51,6 +51,14 @@ int i2c_init(i2c_t* bus, pio_t* pio);
 
 
 /**
+ * @brief Reset the I2C protocol state and release the bus lines.
+ *
+ * Connected devices are preserved.
+ */
+void i2c_reset(i2c_t* bus, pio_t* pio);
+
+
+/**
  * @brief Connect a device on the I2C bus.
  *
  * @returns 0 on success
