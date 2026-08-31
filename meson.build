@@ -41,6 +41,7 @@ endif
 # List all the subdirectories that contain source code
 sources = []
 subdir('hw')
+subdir('app')
 subdir('utils')
 subdir('assets')
 

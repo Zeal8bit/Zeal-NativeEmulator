@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/zeal.h"
+#include "app/console/console.h"
 #include "utils/log.h"
 #include "utils/config.h"
 #include "utils/notif.h"
@@ -206,8 +207,14 @@ int zeal_init(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
     machine->dbg_read_memory = debug_read_memory;
     machine->dbg.running = true;
-    /* Set the debug mode in the machine structure as soon as possible */
-    machine->dbg_enabled = config_debugger_enabled() && !machine->headless;
+    /* Set the debug mode in the machine structure as soon as possible.
+     * In console mode the debugger is only enabled when explicitly requested
+     * with --debug; the config file must not implicitly enable it. */
+    if (config.arguments.console) {
+        machine->dbg_enabled = (config.debugger.enabled == DEBUGGER_STATE_ARG);
+    } else {
+        machine->dbg_enabled = config_debugger_enabled() && !machine->headless;
+    }
 #endif // CONFIG_ENABLE_DEBUGGER
 
     if (!machine->headless) {
@@ -234,17 +241,21 @@ int zeal_init(zeal_t* machine)
 
 #if CONFIG_ENABLE_DEBUGGER
         config_window_set(machine->dbg_enabled);
-        /* Initialize the debugger */
-        zeal_debugger_init(machine, &machine->dbg);
-        /* Load symbols if provided */
-        if (config.arguments.map_file) {
-            debugger_load_symbols(&machine->dbg, config.arguments.map_file);
-        }
-        if (config.arguments.breakpoints) {
-            debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
-        }
 #endif // CONFIG_ENABLE_DEBUGGER
     }
+
+#if CONFIG_ENABLE_DEBUGGER
+    /* The debugger back-end is GUI-free and also drives the headless console
+     * debugger, so initialize it regardless of the rendering mode. */
+    zeal_debugger_init(machine, &machine->dbg);
+    /* Load symbols if provided */
+    if (config.arguments.map_file) {
+        debugger_load_symbols(&machine->dbg, config.arguments.map_file);
+    }
+    if (config.arguments.breakpoints) {
+        debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+    }
+#endif // CONFIG_ENABLE_DEBUGGER
 
     z80_init(&machine->cpu);
     mmu_t* mmu = z80_get_mmu(&machine->cpu);
@@ -367,20 +378,20 @@ static void host_keyboard_check_cb(void* userdata)
 
 
 /**
- * @brief Run Zeal 8-bit Computer VM in headless mode (no window/input/presentation)
+ * @brief Execute a single Z80 instruction and advance the virtual timer.
+ * If --no-reset is set and the PC returns to 0, the machine is flagged to exit.
  */
-static int zeal_headless_mode_run(zeal_t* machine)
+static void zeal_step(zeal_t* machine)
 {
     const int elapsed_tstates = z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset! */
         log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
         zeal_exit(machine);
-        return 0;
+        return;
     }
 
     vtimer_tick(elapsed_tstates);
-    return 0;
 }
 
 
@@ -388,8 +399,12 @@ static int zeal_headless_mode_run(zeal_t* machine)
 int zeal_debug_enable(zeal_t* machine)
 {
     if (machine->headless) {
-        return -1;
+        /* Headless console debugger: no window to configure */
+        machine->dbg_enabled = true;
+        machine->dbg_state = ST_PAUSED;
+        return config.arguments.console ? 0 : -1;
     }
+
     config_window_update(machine->dbg_enabled);
     int ret = 0;
     machine->dbg_enabled = true;
@@ -514,6 +529,53 @@ static int zeal_dbg_mode_run(zeal_t* machine)
     }
     return rendered;
 }
+
+/**
+ * @brief Run the machine while the debugger state machine allows it, up to
+ * max_tstates T-states (0 = until the debugger pauses). Used by the headless
+ * console debugger.
+ *
+ * Handles step and step-over requests, ticking the vtimer after each
+ * instruction, and stops as soon as a breakpoint is hit or the budget is
+ * spent. The machine is always left ST_PAUSED.
+ *
+ * @return true if stopped because of a breakpoint or step request, false if
+ *         the budget was spent or the machine was flagged to exit.
+ */
+bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
+{
+    const unsigned long target = machine->cpu.cyc + max_tstates;
+    bool debugger_stop = false;
+
+    while (!machine->should_exit) {
+        /* A step-over request sets a temporary breakpoint past the call */
+        if (machine->dbg_state == ST_REQ_STEP_OVER) {
+            const int instr_size = z80_instruction_size(&machine->cpu);
+            debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + instr_size);
+            machine->dbg_state = ST_RUNNING;
+        }
+
+        const int elapsed = z80_step(&machine->cpu);
+        vtimer_tick(elapsed);
+
+        /* Stop on a single step or a breakpoint */
+        if (machine->dbg_state == ST_REQ_STEP ||
+            debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
+            machine->dbg_state = ST_PAUSED;
+            debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
+            debugger_stop = true;
+            break;
+        }
+
+        /* Stop once the requested number of T-states has been spent */
+        if (max_tstates > 0 && machine->cpu.cyc >= target) {
+            break;
+        }
+    }
+
+    machine->dbg_state = ST_PAUSED;
+    return debugger_stop;
+}
 #endif // CONFIG_ENABLE_DEBUGGER
 
 
@@ -627,18 +689,50 @@ static void zeal_loop(zeal_t* machine)
     }
 }
 
+/**
+ * @brief Run the machine in headless mode (no window/rendering).
+ *
+ * In console mode it is driven by commands from stdin (console_run()).
+ * Otherwise it auto-runs until it exits or the requested number of
+ * T-states is reached.
+ */
 static void zeal_run_headless(zeal_t* machine)
 {
-    while (!machine->should_exit) {
-        zeal_headless_mode_run(machine);
-        if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
-            log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
-            break;
+    if (config.arguments.console) {
+        console_run(machine);
+    } else {
+        while (!machine->should_exit) {
+            zeal_step(machine);
+            if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
+                log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
+                break;
+            }
         }
     }
 
     snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
+}
+
+/**
+ * @brief Run the machine for a given number of Z80 T-states.
+ * Used by the console 'wait' command to make test scripts deterministic.
+ */
+void zeal_run_for_tstates(zeal_t* machine, unsigned long tstates)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    if (machine->dbg_enabled) {
+        /* Debugger mode: honor breakpoints and step requests while running */
+        debugger_continue(&machine->dbg);
+        zeal_debugger_run(machine, tstates);
+        return;
+    }
+#endif
+    const unsigned long target = machine->cpu.cyc + tstates;
+
+    while (machine->cpu.cyc < target && !machine->should_exit) {
+        zeal_step(machine);
+    }
 }
 
 void zeal_exit(zeal_t* machine)

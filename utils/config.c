@@ -31,6 +31,7 @@ config_t config ={
         .config_save = false,
         .no_reset = false,
         .headless = false,
+        .console = false,
         .headless_run_ticks = 0,
         .verbose = 0,
 #if CONFIG_PROFILE_RENDER
@@ -72,6 +73,7 @@ void config_debug(void)
     log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
     log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
     log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
+    log_printf("%s     console: %s\n", module, config.arguments.console ? "True" : "False");
     log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
     log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
     log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
@@ -120,6 +122,7 @@ int usage(const char* progname)
     log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
     log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
     log_printf("                                     Optional tstates number to execute can be given\n");
+    log_printf("  -o, --console                      Read control commands from stdin (implies headless)\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
 #if CONFIG_PROFILE_RENDER
     log_printf("      --profile                      Log aggregated render profiling data\n");
@@ -152,9 +155,10 @@ int parse_command_args(int argc, char* argv[])
         {       "cf", required_argument, 0, 'C'},
         {   "hostfs", required_argument, 0, 'H'},
         {      "map", required_argument, 0, 'm'},
-        {    "debug", required_argument, 0, 'g'},
+        {    "debug", optional_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
         { "headless", optional_argument, 0, 'n'},
+        {  "console",       no_argument, 0, 'o'},
         { "no-reset",       no_argument, 0, 'q'},
 #if CONFIG_PROFILE_RENDER
         {  "profile",       no_argument, 0, OPT_PROFILE},
@@ -168,7 +172,7 @@ int parse_command_args(int argc, char* argv[])
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::qsgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::oqsgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -229,6 +233,11 @@ int parse_command_args(int argc, char* argv[])
                 }
                 /* force debugger off in headless mode */
                 config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
+                break;
+            case 'o':
+                config.arguments.console = true;
+                /* Console mode is headless by definition */
+                config.arguments.headless = true;
                 break;
             case 'v':
                 if (config.arguments.verbose < UINT8_MAX) {
