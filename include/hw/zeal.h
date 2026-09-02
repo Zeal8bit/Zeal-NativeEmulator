@@ -104,6 +104,11 @@ int zeal_reset(zeal_t* machine);
 int zeal_run(zeal_t* machine);
 
 /**
+ * @brief Run the machine for a given number of Z80 T-states (console 'wait' command)
+ */
+void zeal_run_for_tstates(zeal_t* machine, unsigned long tstates);
+
+/**
  * @brief Stop the virtual machine, and call CloseWindow()
  */
 void zeal_exit(zeal_t* machine);
@@ -129,5 +134,11 @@ int zeal_debug_disable(zeal_t* machine);
  * @brief Toggle the Zeal Debugger view
  */
 void zeal_debug_toggle(dbg_t *dbg);
+
+/**
+ * @brief Run the machine while the debugger state machine allows it (console debugger).
+ * @return true if stopped by a breakpoint or step request, false otherwise.
+ */
+bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates);
 
 #endif // CONFIG_ENABLE_DEBUGGER

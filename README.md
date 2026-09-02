@@ -109,11 +109,57 @@ Options:
   -H, --hostfs <path>           Set host filesystem path
   -m, --map <file>              Load memory map file (for debugging)
   -g, --debug                   * Enable debug mode
+  -n, --headless [<tstates>]    Run without GUI (no window/input/rendering)
+  -o, --console                 Read control commands from stdin (implies headless)
   -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
   -h, --help                    Show this help message
 
 Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
+```
+
+## Headless Console
+
+`--console` reads one command per line from `stdin`, which makes it easy to drive the emulator deterministically from scripts and CI. Supported commands:
+
+| Command            | Description                                        |
+| ------------------ | -------------------------------------------------- |
+| `help`             | Show available commands                            |
+| `press <key>`      | Press and hold a key                               |
+| `release <key>`    | Release a key                                      |
+| `tap <key>`        | Press and release a key                            |
+| `run <tstates>`    | Advance emulation by N Z80 T-states                |
+| `reset`            | Reset the emulator                                 |
+| `quit`             | Exit the emulator                                  |
+
+`run` is based on emulated Z80 T-states, so tests are deterministic and can run faster than real time. Keys include `A-Z`, `0-9`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ENTER`, `ESC`, `SPACE`, `BACKSPACE`, `TAB`, `SHIFT`, `CTRL`, `ALT` and more.
+
+```sh
+$ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal.elf --headless --console --rom game.elf
+```
+
+### Debugger console
+
+Adding `--debug` turns the console into a headless debugger front-end, using the same `dbg_t` back-end as the GUI debugger. Since the console is the only headless debugger front-end, `--headless --debug` is equivalent to `--console --debug`:
+
+| Command              | Description                     |
+| -------------------- | ------------------------------- |
+| `c` / `continue`     | Continue until a breakpoint     |
+| `s` / `step`         | Single step                     |
+| `so` / `step_over`   | Step over a call                |
+| `p` / `pause`        | Pause                           |
+| `bp <addr|sym>`      | Set a breakpoint                |
+| `bc <addr|sym>`      | Clear a breakpoint              |
+| `bl`                 | List breakpoints                |
+| `regs`               | Show CPU registers              |
+| `rb <addr> [count]`  | Read memory bytes               |
+| `r16` / `r32 <addr>` | Read a 16/32-bit value          |
+| `wb <addr> <v...>`   | Write memory bytes              |
+| `u <addr> [count]`   | Disassemble memory              |
+| `mmu`                | Show MMU mappings               |
+
+```sh
+$ printf 'bp main\nc\nregs\nquit\n' | build/zeal.elf --console --debug --rom game.elf
 ```
 
 ## Supported Features
