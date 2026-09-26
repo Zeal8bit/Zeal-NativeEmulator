@@ -14,8 +14,18 @@ typedef enum {
     UI_CONTROLLER_PORT,
     UI_MOUSE_RESET,
     UI_MOUSE_SPEED,
-    UI_ON
+    UI_ON,
+    UI_SNES_PORT
 } dbg_host_action_t;
+enum { DBG_SNES_PORTS = 2, DBG_HOST_GAMEPADS = 4, DBG_SNES_DETACHED = -1, DBG_SNES_MOUSE = -2 };
+typedef struct {
+    /* Each port selects detached, mouse, or a host gamepad index. */
+    int32_t ports[DBG_SNES_PORTS];
+    struct {
+        uint32_t available;
+        char name[128];
+    } gamepads[DBG_HOST_GAMEPADS];
+} dbg_snes_state_t;
 typedef struct {
     dbg_t *debugger;
     const char *config_directory;
@@ -27,6 +37,7 @@ typedef struct {
     void (*notification)(char *output, uint32_t capacity);
     int (*font_atlas)(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16]);
     void (*mouse)(dbg_t *, int32_t dx, int32_t dy, uint32_t buttons);
+    void (*snes_state)(dbg_t *, dbg_snes_state_t *);
 } dbg_ui_init_args_t;
 int debugger_ui_init(dbg_ui_t **, const dbg_ui_init_args_t *);
 void debugger_ui_deinit(dbg_ui_t *);

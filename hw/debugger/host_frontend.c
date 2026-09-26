@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#include "host_frontend.h"
+#include "hw/userport/snes_adapter/controller.h"
 #include "hw/zeal.h"
 #include "utils/notif.h"
 #include "utils/paths.h"
@@ -9,6 +11,14 @@ static void host_action(dbg_t *dbg, dbg_host_action_t op, int32_t a, int32_t b)
 {
     zeal_t *m = dbg->arg;
     switch (op) {
+    case UI_SNES_PORT:
+        if (b == DBG_SNES_DETACHED)
+            snes_adapter_assign_port(&m->snes_adapter, a, SNES_PORT_DEVICE_DETACHED, 0);
+        else if (b == DBG_SNES_MOUSE)
+            snes_adapter_assign_port(&m->snes_adapter, a, SNES_PORT_DEVICE_MOUSE, 0);
+        else if (b >= 0 && b < SNES_GAMEPAD_COUNT && snes_controller_available(b))
+            snes_adapter_assign_port(&m->snes_adapter, a, SNES_PORT_DEVICE_CONTROLLER, b);
+        break;
     case UI_ON:
         zeal_debug_enable(m);
         break;
@@ -79,6 +89,24 @@ static void host_notification(char *out, uint32_t capacity)
         snprintf(out, capacity, "%s", notif_text());
 }
 
+static void host_snes_state(dbg_t *dbg, dbg_snes_state_t *out)
+{
+    snes_adapter_t *adapter = &((zeal_t *)dbg->arg)->snes_adapter;
+    memset(out, 0, sizeof(*out));
+    for (unsigned i = 0; i < DBG_SNES_PORTS; ++i) {
+        const snes_port_assignment_t *port = &adapter->ports[i];
+        out->ports[i] = port->device == SNES_PORT_DEVICE_MOUSE        ? DBG_SNES_MOUSE
+                        : port->device == SNES_PORT_DEVICE_CONTROLLER ? port->controller_index
+                                                                      : DBG_SNES_DETACHED;
+    }
+    for (unsigned i = 0; i < DBG_HOST_GAMEPADS; ++i) {
+        out->gamepads[i].available = snes_controller_available(i);
+        const char *name = out->gamepads[i].available ? snes_controller_name(i) : NULL;
+        snprintf(out->gamepads[i].name, sizeof(out->gamepads[i].name), "%s",
+                 name ? name : "Disconnected gamepad");
+    }
+}
+
 static int host_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16])
 {
     char path[PATH_MAX];
@@ -130,6 +158,7 @@ void debugger_host_frontend_args(dbg_t *dbg, dbg_ui_init_args_t *args)
                                  .mouse = host_mouse,
                                  .font_atlas = host_font_atlas,
                                  .notification = host_notification};
+    args->snes_state = host_snes_state;
     const char *keys[] = {"P_VIDEO",  "P_CPU", "P_BREAKPOINTS", "P_DISASSEMBLER",
                           "P_MEMORY", "P_MMU", "P_SEMIHOST",    "P_VRAM"};
     for (unsigned i = 0; i < 8; ++i) {

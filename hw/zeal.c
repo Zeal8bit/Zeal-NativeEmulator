@@ -48,7 +48,7 @@ typedef struct {
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 #if CONFIG_ENABLE_DEBUGGER
-void debugger_host_frontend_args(dbg_t*,dbg_ui_init_args_t*);
+#include "hw/debugger/host_frontend.h"
 #include "hw/debugger/bindings_internal.h"
 #endif
 

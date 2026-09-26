@@ -156,6 +156,7 @@ int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio)
         snes_adapter->port_bits[i] = 0xFFFF;
         snes_adapter->ports[i].device = SNES_PORT_DEVICE_DETACHED;
         snes_adapter->ports[i].controller_index = SNES_PORT_DETACHED;
+        snes_adapter->port_manual[i] = false;
     }
 
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
@@ -240,6 +241,22 @@ int snes_adapter_get_controller_port(const snes_adapter_t *snes_adapter, uint8_t
     return SNES_PORT_DETACHED;
 }
 
+bool snes_adapter_assign_port(snes_adapter_t *adapter, int port, snes_port_device_t device, int index)
+{
+    if (port < 0 || port >= SNES_CONTROLLER_COUNT || device < SNES_PORT_DEVICE_DETACHED ||
+        device > SNES_PORT_DEVICE_MOUSE ||
+        (device == SNES_PORT_DEVICE_CONTROLLER && (index < 0 || index >= SNES_GAMEPAD_COUNT)))
+        return false;
+    int previous = device == SNES_PORT_DEVICE_MOUSE ? snes_adapter_get_mouse_port(adapter) :
+        device == SNES_PORT_DEVICE_CONTROLLER ? snes_adapter_get_controller_port(adapter, index) : -1;
+    adapter->port_manual[port] = true;
+    if (previous >= 0) adapter->port_manual[previous] = true;
+    if (device == SNES_PORT_DEVICE_MOUSE) snes_adapter_set_mouse_port(adapter, port);
+    else if (device == SNES_PORT_DEVICE_CONTROLLER) snes_adapter_set_controller_port(adapter, index, port);
+    else snes_adapter_detach_port(adapter, port);
+    return true;
+}
+
 int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter)
 {
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
@@ -257,8 +274,9 @@ void snes_adapter_update(snes_adapter_t *snes_adapter)
         bool available = snes_controller_available(i);
         bool needed_for_virtual_controller = i == 0 && snes_adapter->virtual_controller_enabled;
 
-        if (!available && !needed_for_virtual_controller &&
-            snes_adapter_get_controller_port(snes_adapter, i) != SNES_PORT_DETACHED) {
+        int assigned_port = snes_adapter_get_controller_port(snes_adapter, i);
+        if (!available && !needed_for_virtual_controller && assigned_port != SNES_PORT_DETACHED &&
+            !snes_adapter->port_manual[assigned_port]) {
             snes_adapter_set_controller_port(snes_adapter, i, SNES_PORT_DETACHED);
         }
         snes_adapter->controllers[i].attached = available;
@@ -280,16 +298,18 @@ static void snes_adapter_attach_available_controllers(snes_adapter_t* snes_adapt
         }
 
         int port = SNES_PORT_DETACHED;
-        if (i == 0) {
+        if (i == 0 && !snes_adapter->port_manual[0]) {
             port = 0;
         } else {
             for (uint8_t candidate = 0; candidate < SNES_CONTROLLER_COUNT; candidate++) {
-                if (snes_adapter->ports[candidate].device == SNES_PORT_DEVICE_DETACHED) {
+                if (!snes_adapter->port_manual[candidate] &&
+                    snes_adapter->ports[candidate].device == SNES_PORT_DEVICE_DETACHED) {
                     port = candidate;
                     break;
                 }
             }
             if (port == SNES_PORT_DETACHED &&
+                !snes_adapter->port_manual[1] &&
                 snes_adapter->ports[1].device == SNES_PORT_DEVICE_MOUSE) {
                 port = 1;
             }

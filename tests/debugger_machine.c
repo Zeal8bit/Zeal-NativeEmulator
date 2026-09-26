@@ -1,4 +1,5 @@
 #include "hw/debugger/bindings_internal.h"
+#include "hw/debugger/host_frontend.h"
 #include "hw/zeal.h"
 #include <assert.h>
 #include <string.h>
@@ -10,6 +11,32 @@ int main(void)
     config.debugger.enabled = DEBUGGER_STATE_ARG;
     assert(zeal_init(&machine) == 0);
     dbg_t *d = &machine.dbg;
+    dbg_ui_init_args_t host;
+    debugger_host_frontend_args(d, &host);
+    dbg_snes_state_t snes;
+    host.action(d, UI_SNES_PORT, 0, DBG_SNES_MOUSE);
+    host.snes_state(d, &snes);
+    assert(snes.ports[0] == DBG_SNES_MOUSE && snes.ports[1] == DBG_SNES_DETACHED);
+    snes_adapter_set_virtual_button(&machine.snes_adapter, SNES_BTN_A, true);
+    snes_adapter_update(&machine.snes_adapter);
+    host.snes_state(d, &snes);
+    assert(snes.ports[0] == DBG_SNES_MOUSE); // Automatic controller attachment must not replace it.
+    host.action(d, UI_SNES_PORT, 1, DBG_SNES_MOUSE);
+    host.snes_state(d, &snes);
+    assert(snes.ports[0] == DBG_SNES_DETACHED && snes.ports[1] == DBG_SNES_MOUSE);
+    host.action(d, UI_SNES_PORT, 1, DBG_SNES_DETACHED);
+    snes_adapter_update(&machine.snes_adapter);
+    host.snes_state(d, &snes);
+    assert(snes.ports[0] == DBG_SNES_DETACHED && snes.ports[1] == DBG_SNES_DETACHED);
+    assert(!snes_adapter_assign_port(&machine.snes_adapter, 2, SNES_PORT_DEVICE_MOUSE, 0));
+    assert(!snes_adapter_assign_port(&machine.snes_adapter, 0, SNES_PORT_DEVICE_CONTROLLER, 4));
+    assert(snes_adapter_assign_port(&machine.snes_adapter, 0, SNES_PORT_DEVICE_CONTROLLER, 0));
+    assert(snes_adapter_assign_port(&machine.snes_adapter, 1, SNES_PORT_DEVICE_CONTROLLER, 0));
+    assert(snes_adapter_get_controller_port(&machine.snes_adapter, 0) == 1);
+    assert(machine.snes_adapter.ports[0].device == SNES_PORT_DEVICE_DETACHED);
+    machine.snes_adapter.virtual_controller_enabled = false;
+    snes_adapter_update(&machine.snes_adapter);
+    assert(snes_adapter_get_controller_port(&machine.snes_adapter, 0) == 1); // Keep choice for reconnect.
     mmu_io_write_byte(&machine.cpu.mmu, 0xf1, 32);
     uint8_t program[] = {0x3e, 0x42, 0x32, 0x20, 0x40, 0x00, 0xc3, 0x00, 0x40};
     assert(debugger_memory_write(d, DBG_VIRTUAL, 0x4000, program, sizeof(program)) == DBG_OK);

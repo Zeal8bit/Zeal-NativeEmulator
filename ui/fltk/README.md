@@ -37,6 +37,8 @@ Configuration lives in the usual `.zeal8bit` directory, or `ZEAL_CONFIG_DIR` whe
 
 CPU shortcuts use Command on macOS and Control elsewhere: F5 Continue, F6 Pause, F9 Toggle Breakpoint, F10 Step Over, F11 Step, Shift+Backspace Reset. Modifier+F1 toggles debugger mode. Keyboard Passthrough sends these keys to the guest when Video has focus. SNES port assignment, mouse speed reset, volume, and notifications are available through the shell.
 
+SNES exposes **Port 1** and **Port 2**. Each offers Detached, Emulated SNES Mouse, and connected host gamepads by name, with the current assignment checked. Assigning a device to the other port moves it. Explicit choices are preserved during emulation; a selected gamepad that disconnects remains assigned for reconnection and appears disabled in the menu. Host gamepad slots are input sources, not additional emulated SNES ports.
+
 ## Themes
 
 Theme code is independent of panel rendering. Panels request semantic roles such as `text`, `selection`, `breakpoint`, and `current`; widgets receive shared styling and font metrics. Theme changes preserve panel state.

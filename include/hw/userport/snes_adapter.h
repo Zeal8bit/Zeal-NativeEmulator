@@ -125,6 +125,7 @@ typedef struct {
     uint16_t virtual_controller_bits;
     bool virtual_controller_enabled;
     snes_port_assignment_t ports[SNES_CONTROLLER_COUNT];
+    bool port_manual[SNES_CONTROLLER_COUNT]; // Automatic discovery must preserve explicit port choices.
     snes_controller_t controllers[SNES_GAMEPAD_COUNT];
     snes_mouse_t mouse;
 } snes_adapter_t;
@@ -135,6 +136,7 @@ void snes_adapter_detach(snes_adapter_t *snes_adapter);
 void snes_adapter_update(snes_adapter_t *snes_adapter);
 void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t index, int port);
 void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port);
+bool snes_adapter_assign_port(snes_adapter_t *adapter, int port, snes_port_device_t device, int index);
 void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter);
 int snes_adapter_get_controller_port(const snes_adapter_t *snes_adapter, uint8_t index);
 int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter);

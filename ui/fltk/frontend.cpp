@@ -65,6 +65,12 @@ struct dbg_ui_t {
     double last_refresh = 0;
     dbg_snapshot_t snapshot{};
     std::string message;
+    dbg_snes_state_t snes{};
+    struct SnesChoice {
+        dbg_ui_t *ui;
+        int port, device;
+    };
+    std::vector<SnesChoice> snes_choices;
     Fl_Color color(const char *role) const
     {
         auto rgb = theme.colors.at(role);
@@ -73,6 +79,7 @@ struct dbg_ui_t {
     void apply_theme();
     void select_theme(const std::string &);
     void build_menu();
+    void refresh_snes();
     void layout();
     void changed_layout();
     void save();
@@ -1123,24 +1130,29 @@ static void menu_callback(Fl_Widget *w, void *data)
         u->volume = std::clamp(u->volume + (s == "Audio/Volume Up" ? 10 : -10), 0, 100);
         u->host.action(u->host.debugger, UI_VOLUME, u->volume, 0);
         u->message = "Volume " + std::to_string(u->volume) + "%";
-    } else if (s == "SNES/Mouse/Reset Speed")
+    } else if (s == "SNES/Reset Mouse Speed")
         u->host.action(u->host.debugger, UI_MOUSE_RESET, 0, 0);
-    else if (s.rfind("SNES/", 0) == 0) {
-        int port = s.find("Port 1") != s.npos ? 0 : s.find("Port 2") != s.npos ? 1 : -1;
-        if (s.find("Mouse") != s.npos)
-            u->host.action(u->host.debugger, UI_MOUSE_PORT, port, 0);
-        else {
-            int index = s.find("Controller 1") != s.npos   ? 0
-                        : s.find("Controller 2") != s.npos ? 1
-                        : s.find("Controller 3") != s.npos ? 2
-                                                           : 3;
-            u->host.action(u->host.debugger, UI_CONTROLLER_PORT, index, port);
-        }
-    }
+}
+void dbg_ui_t::refresh_snes()
+{
+    if (!host.snes_state || Fl::grab())
+        return;
+    dbg_snes_state_t current;
+    host.snes_state(host.debugger, &current);
+    if (std::memcmp(&current, &snes, sizeof(current)))
+        build_menu();
 }
 void dbg_ui_t::build_menu()
 {
     menu->clear();
+    if (host.snes_state)
+        host.snes_state(host.debugger, &snes);
+    else {
+        snes = {};
+        std::fill(std::begin(snes.ports), std::end(snes.ports), DBG_SNES_DETACHED);
+    }
+    snes_choices.clear();
+    snes_choices.reserve(DBG_SNES_PORTS * (DBG_HOST_GAMEPADS + 2));
     auto add = [&](const std::string &s, int key = 0, int flags = 0) {
         menu->add(s.c_str(), key, menu_callback, this, flags);
     };
@@ -1171,10 +1183,38 @@ void dbg_ui_t::build_menu()
     add("Video/Scale Down", FL_COMMAND + FL_SHIFT + '-');
     add("Audio/Volume Up", FL_COMMAND + FL_SHIFT + '0');
     add("Audio/Volume Down", FL_COMMAND + FL_SHIFT + '9');
-    for (std::string device : {"Mouse", "Controller 1", "Controller 2", "Controller 3", "Controller 4"})
-        for (auto port : {"Detached", "Port 1", "Port 2"})
-            add("SNES/" + device + "/" + port);
-    add("SNES/Mouse/Reset Speed");
+    for (int port = 0; port < DBG_SNES_PORTS; ++port) {
+        auto option = [&](const std::string &label, int device, bool available = true) {
+            std::string escaped;
+            for (char c : label) {
+                if (c == '/' || c == '\\')
+                    escaped += '\\';
+                if (c == '&')
+                    escaped += '&';
+                escaped += c;
+            }
+            snes_choices.push_back({this, port, device});
+            const auto path = "SNES/Port " + std::to_string(port + 1) + "/" + escaped;
+            menu->add(
+                path.c_str(), 0,
+                [](Fl_Widget *, void *data) {
+                    const auto &choice = *static_cast<SnesChoice *>(data);
+                    choice.ui->release();
+                    choice.ui->host.action(choice.ui->host.debugger, UI_SNES_PORT, choice.port,
+                                           choice.device);
+                },
+                &snes_choices.back(),
+                FL_MENU_RADIO | (snes.ports[port] == device ? FL_MENU_VALUE : 0) |
+                    (available ? 0 : FL_MENU_INACTIVE));
+        };
+        option("Detached", DBG_SNES_DETACHED);
+        option("Emulated SNES Mouse", DBG_SNES_MOUSE);
+        for (int index = 0; index < DBG_HOST_GAMEPADS; ++index)
+            if (snes.gamepads[index].available || snes.ports[port] == index)
+                option(std::string(snes.gamepads[index].name) + " [" + std::to_string(index) + "]", index,
+                       snes.gamepads[index].available);
+    }
+    add("SNES/Reset Mouse Speed");
 }
 class MainWindow : public Fl_Double_Window
 {
@@ -1319,6 +1359,7 @@ static void smoke_tick(dbg_ui_t *u)
         return;
     static double started = now();
     static int phase = 0;
+    static dbg_snes_state_t original_snes{};
     double elapsed = now() - started;
     auto capture = [&](const char *suffix) {
         u->last_refresh = 0;
@@ -1344,13 +1385,23 @@ static void smoke_tick(dbg_ui_t *u)
         for (int screen = 0; screen < Fl::screen_count(); ++screen) {
             int x, y, width, height;
             Fl::screen_work_area(x, y, width, height, screen);
-            u->window->position(x + (width - u->window->w()) / 2,
-                                y + (height - u->window->h()) / 2);
+            u->window->position(x + (width - u->window->w()) / 2, y + (height - u->window->h()) / 2);
             Fl::check();
             fltk_check_menu_placement(*u->window, *u->menu);
         }
         u->window->position(original_x, original_y);
         Fl::check();
+        assert(!u->menu->find_item("SNES/Controller 3") && !u->menu->find_item("SNES/Port 3"));
+        u->host.snes_state(u->host.debugger, &original_snes);
+        pick("SNES/Port 1/Emulated SNES Mouse");
+        u->refresh_snes();
+        assert(u->snes.ports[0] == DBG_SNES_MOUSE && u->snes.ports[1] != DBG_SNES_MOUSE);
+        assert(u->menu->find_item("SNES/Port 1/Emulated SNES Mouse")->value());
+        pick("SNES/Port 2/Emulated SNES Mouse");
+        u->refresh_snes();
+        assert(u->snes.ports[0] == DBG_SNES_DETACHED && u->snes.ports[1] == DBG_SNES_MOUSE);
+        pick("SNES/Port 2/Detached");
+        u->refresh_snes();
         // Releasing guest keys must not cancel a popup's own FLTK grab.
         Fl::grab(u->window);
         u->release();
@@ -1367,14 +1418,20 @@ static void smoke_tick(dbg_ui_t *u)
         pick("CPU/Continue");
         phase++;
     } else if (phase == 1 && elapsed > 1) {
+        u->refresh_snes();
+        assert(u->snes.ports[0] == DBG_SNES_DETACHED && u->snes.ports[1] == DBG_SNES_DETACHED);
+        for (int port = 0; port < DBG_SNES_PORTS; ++port)
+            u->host.action(u->host.debugger, UI_SNES_PORT, port, original_snes.ports[port]);
+        u->refresh_snes();
         pick("CPU/Pause");
         u->workspace.detach(6, 50, 50);
         u->changed_layout();
         phase++;
     } else if (phase == 2 && elapsed > 1.2) {
         assert(u->floating.count(6));
-        assert(u->floating.at(6)->screen_num() == Fl::screen_num(
-            u->floating.at(6)->x(), u->floating.at(6)->y(), u->floating.at(6)->w(), u->floating.at(6)->h()));
+        assert(u->floating.at(6)->screen_num() ==
+               Fl::screen_num(u->floating.at(6)->x(), u->floating.at(6)->y(), u->floating.at(6)->w(),
+                              u->floating.at(6)->h()));
         u->workspace.dock(6, 5, 0);
         u->changed_layout();
         pick("Theme/Light");
@@ -1450,6 +1507,7 @@ extern "C" void debugger_ui_poll(dbg_ui_t *u)
 #endif
     if (!u->shown)
         return;
+    u->refresh_snes();
     Fl::check();
     if (u->rebuild)
         u->layout();
