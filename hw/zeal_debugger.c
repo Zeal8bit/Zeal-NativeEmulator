@@ -10,7 +10,7 @@
 #include <string.h>
 #include "hw/zeal.h"
 #include "utils/log.h"
-#include "debugger/debugger_impl.h"
+#include "hw/debugger/debugger_internal.h"
 #include "debugger/zeal_debugger.h"
 
 
@@ -56,7 +56,7 @@ static void zeal_debugger_set_regs(dbg_t *dbg, regs_t *regs)
     cpu->b  = regs->b;  cpu->c  = regs->c;
     cpu->d  = regs->d;  cpu->e  = regs->e;
     cpu->h  = regs->h;  cpu->l  = regs->l;
-    cpu->a_ = regs->a;  cpu->f_ = regs->f_;
+    cpu->a_ = regs->a_;  cpu->f_ = regs->f_;
     cpu->b_ = regs->b_; cpu->c_ = regs->c_;
     cpu->d_ = regs->d_; cpu->e_ = regs->e_;
     cpu->h_ = regs->h_; cpu->l_ = regs->l_;
@@ -76,7 +76,9 @@ static int zeal_debugger_get_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        log_printf("TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
+        addr &= 0x7fffffff;
+        if (len < 0 || addr >= MEM_SPACE_SIZE || (unsigned)len > MEM_SPACE_SIZE - addr) return -1;
+        for (int i = 0; i < len; ++i) val[i] = mmu_phys_read_byte(&machine->cpu.mmu, addr + i);
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
             val[i] = machine->dbg_read_memory(machine, (uint16_t) (addr + i));
@@ -99,9 +101,11 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        log_printf("TODO: PHYSICAL ADDRESS WRITE\n");
+        addr &= 0x7fffffff;
+        if (len < 0 || addr >= MEM_SPACE_SIZE || (unsigned)len > MEM_SPACE_SIZE - addr) return -1;
+        for (int i = 0; i < len; ++i) mmu_phys_write_byte(&machine->cpu.mmu, addr + i, val[i]);
     } else if (addr <= 0xffff) {
-        mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
+        for (int i = 0; i < len; ++i) mmu_virt_write_byte(&machine->cpu.mmu, (uint16_t)(addr + i), val[i]);
     } else {
         // Invalid address
         return -1;
@@ -110,6 +114,8 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
     return 0;
 }
 
+
+static void zeal_debugger_stop_cb(dbg_t* dbg) { ((zeal_t*)dbg->arg)->should_exit = true; }
 
 static void zeal_debugger_pause_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
@@ -401,6 +407,7 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
         return -1;
     }
 
+    dbg->stop_cb = zeal_debugger_stop_cb;
     dbg->arg = machine;
     dbg->pause_cb = zeal_debugger_pause_cb;
     dbg->is_paused_cb = zeal_debugger_is_paused_cb;

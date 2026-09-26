@@ -1,5 +1,7 @@
 sources += files([
     'debugger.c',
+    'api.c',
+    'inspection.c',
     'debugger_ui.c',
     'disassembler_z80.c',
     'raylib-nuklear.c',

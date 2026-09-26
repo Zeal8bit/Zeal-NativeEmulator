@@ -13,6 +13,8 @@
 typedef struct dbg_t dbg_t;
 typedef struct regs_t regs_t;
 
+#define DBG_MAX_POINTS 128
+
 /* Custom type for the hardware address */
 typedef uint32_t hwaddr;
 
@@ -75,3 +77,40 @@ typedef struct {
     uint32_t    size : 3;
     uint32_t    label : 1;
 } instr_data_t;
+
+/* Create a pair of registers that can be accessed as bytes of a single 16-bit value */
+#define REGISTER_PAIR(msb, lsb, pair) \
+    union { \
+        struct { \
+            uint8_t lsb; \
+            uint8_t msb; \
+        }; \
+        uint16_t pair; \
+    }
+
+/* CPU Register structure */
+struct regs_t {
+    uint16_t pc;
+    uint16_t sp;
+
+    REGISTER_PAIR(a, f, af);
+    REGISTER_PAIR(b, c, bc);
+    REGISTER_PAIR(d, e, de);
+    REGISTER_PAIR(h, l, hl);
+
+    /* Alternate register set */
+    REGISTER_PAIR(a_, f_, af_);
+    REGISTER_PAIR(b_, c_, bc_);
+    REGISTER_PAIR(d_, e_, de_);
+    REGISTER_PAIR(h_, l_, hl_);
+
+    uint16_t ix, iy;
+    REGISTER_PAIR(i, r, ir);
+};
+
+
+
+typedef struct {
+    hwaddr            addr;
+    watchpoint_type_t type;
+} watchpoint_t;

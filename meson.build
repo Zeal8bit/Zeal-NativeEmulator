@@ -120,7 +120,7 @@ endif
 exec = executable(
     OUTPUT_BIN,
     sources,
-    include_directories: ['include'],
+    include_directories: ['include', '.'],
     dependencies: dependencies,
     link_args: linker_args,
     install: true
@@ -192,4 +192,11 @@ if (host_machine.system() == 'emscripten')
         depends: exec,
         build_by_default: true,
     )
+endif
+
+if get_option('enable_debugger')
+    api_test = executable('debugger-api-test',
+        'tests/debugger_api.c', 'hw/debugger/debugger.c', 'hw/debugger/api.c',
+        include_directories: ['include', '.'])
+    test('debugger-api', api_test)
 endif

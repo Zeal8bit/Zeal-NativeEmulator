@@ -9,9 +9,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "debugger/debugger_types.h"
+#include "debugger/api.h"
 
-#define DBG_MAX_POINTS  128
 #define DBG_SYM_COUNT   32
 
 /* Callback types */
@@ -24,41 +23,7 @@ typedef bool (*debugger_alt_op)(dbg_t *dbg, int operation, void* arg);
 typedef void (*debugger_regs_op)(dbg_t *dbg, regs_t *regs);
 typedef int (*debugger_mem_op)(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);
 
-/* Create a pair of registers that can be accessed as bytes of a single 16-bit value */
-#define REGISTER_PAIR(msb, lsb, pair) \
-    union { \
-        struct { \
-            uint8_t lsb; \
-            uint8_t msb; \
-        }; \
-        uint16_t pair; \
-    }
 
-/* CPU Register structure */
-struct regs_t {
-    uint16_t pc;
-    uint16_t sp;
-
-    REGISTER_PAIR(a, f, af);
-    REGISTER_PAIR(b, c, bc);
-    REGISTER_PAIR(d, e, de);
-    REGISTER_PAIR(h, l, hl);
-
-    /* Alternate register set */
-    REGISTER_PAIR(a_, f_, af_);
-    REGISTER_PAIR(b_, c_, bc_);
-    REGISTER_PAIR(d_, e_, de_);
-    REGISTER_PAIR(h_, l_, hl_);
-
-    uint16_t ix, iy;
-    REGISTER_PAIR(i, r, ir);
-};
-
-
-typedef struct {
-    hwaddr            addr;
-    watchpoint_type_t type;
-} watchpoint_t;
 
 typedef struct {
     hwaddr  addr;
@@ -99,5 +64,12 @@ struct dbg_t {
     debugger_mem_op  set_mem_cb;
     debugger_alt_op  alt_op;
 
+    debugger_ctrl_op stop_cb;
+    dbg_reason_t reason;
+    uint64_t sequence;
+    dbg_event_record_t events[64];
+    bool stopped;
     void*            arg;
 };
+
+void debugger_record(dbg_t*, dbg_reason_t, uint32_t, uint32_t);

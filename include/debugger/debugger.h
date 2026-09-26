@@ -10,7 +10,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "debugger_types.h"
-#include "debugger_impl.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 /* Breakpoint management */
@@ -67,3 +69,7 @@ int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 void debugger_init(dbg_t *dbg);
 void debugger_deinit(dbg_t *dbg);
 
+
+#ifdef __cplusplus
+}
+#endif

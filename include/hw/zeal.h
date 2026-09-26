@@ -32,6 +32,7 @@
 #include "hw/i2c/at24c512.h"
 
 #if CONFIG_ENABLE_DEBUGGER
+#include "hw/debugger/debugger_internal.h"
 #include "debugger/debugger_ui.h"
 #endif
 

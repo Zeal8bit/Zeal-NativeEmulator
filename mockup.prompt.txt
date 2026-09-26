@@ -1,0 +1,29 @@
+Use case: ui-mockup.
+Create one high-resolution landscape raster UI mockup, approximately 1920x1280, of "Zeal 8-bit Debugger" showing its agreed default docked layout. This is a believable practical C++ FLTK 1.4 desktop debugger with a custom dark gtk+ theme, not a web dashboard. Direct flat screenshot of the complete single app window, no perspective, no surrounding desktop, no device, no annotations outside UI.
+Clean, compact, readable native widgets: straight rectangular panel borders, very slightly beveled small buttons, restrained 2px corner radius, slim draggable panel headers with small grip marks, undock and close icons, thin resize splitters. NO floating cards or big whitespace, no gradients/glow/glass, no oversized rounded pills. Dark navy-charcoal palette (#1e1e2e content, #181825 headers, #313244 controls, #cdd6f4 text), restrained lavender/blue selected state, green continue icon, amber paused state, red breakpoints. Crisp sans-serif UI labels, aligned monospace hex data.
+Top narrow title bar "Zeal 8-bit Debugger". Menu row "File   CPU   View   SNES   Video   Theme". Compact toolbar "Continue", "Step", "Step Over", "Reset", then amber status "Paused at $0218", right side simple dropdown "Theme: Dark" and "Layout: Default". All dropdowns closed.
+Main area a precise non-overlapping edge-to-edge docked grid:
+upper section about 62% height, columns 52%/21%/27%.
+Upper left large "Video" panel: actual rectangular 4:3 emulation output centered, black background, simple authentic pixel monospace boot console with readable "ZEAL 8-BIT COMPUTER", "Zeal OS", "Z80 @ 10 MHz", "System ready.", "> _"; neutral compact lower video toolbar "640 x 480" "Scale 1.0x" and keyboard icon. Video is the most visually dominant panel, black screen intact with generous internal empty black space appropriate to boot console.
+Upper middle "CPU" panel occupying about 68% of its column height: tidy register rows, byte columns and register pairs with AF $0044, BC $0000, DE $4000, HL $8000, PC $0218, SP $FF00, IX $0000, IY $0000; six compact flags C N P/V H Z S. Byte values appear clickable/editable with subtle borders. Under CPU in same middle column, "Breakpoints" panel with two rows $0218 and $034A, small red dot and remove x each, and address input plus "Add".
+Upper right "Disassembler" panel filling whole upper section: aligned breakpoint gutter, address, instruction columns. Label "main:" then believable Z80 assembly lines:
+0200  LD SP,$FF00
+0203  LD HL,$8000
+0206  LD DE,$8001
+0209  LD BC,$07FF
+020C  LD (HL),$00
+020E  LDIR
+0210  CALL $034A
+0213  LD A,$07
+0215  OUT ($80),A
+0217  NOP
+0218  HALT
+0219  JR $0218
+Highlight whole row 0218 HALT with muted blue selection, current-instruction arrow and distinct red breakpoint dot. Plenty of readable vertical spacing, slim scrollbar.
+Lower section about 38% height, aligned same column boundaries.
+Bottom left "Memory Viewer" panel: address selector "$8000", compact "View", range "256 bytes", checkbox "CP437"; coherent hex dump header 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F and ASCII column; around eight readable rows starting 8000, 8010, 8020, 8030. One byte plus matching ASCII character has lavender highlight. Zero-fill most rows; initial bytes 5A 65 61 6C 20 38 2D 62 69 74 00 00 00 00 00 00 with ASCII Zeal 8-bit.
+Bottom middle "MMU Viewer": table "Virtual" "Physical" "Device", four rows "$0000  $000000  ROM", "$4000  $004000  ROM", "$8000  $080000  RAM", "$C000  $084000  RAM"; compact and aligned.
+Bottom right "Semihost": small table of counter statistics with readable "#", "min/avg/max (us)", "total (ms)" columns, rows 0*, 1!, 2, a few plausible short numbers, footer "* running   ! break on update".
+Bottom thin application status bar "Paused" on left, "Z80 10 MHz" then "Keyboard: Video focus" and rightmost "Dark".
+VRAM panel is hidden in default layout, do not show VRAM content or extra panels.
+Preserve visual hierarchy, aligned table columns, accurate panel names, realistic restrained desktop debugger styling, readable text. No extra marketing copy, no implementation labels.

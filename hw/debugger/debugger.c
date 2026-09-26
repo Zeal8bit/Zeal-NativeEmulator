@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include "hw/debugger/debugger_internal.h"
 #include "debugger/debugger.h"
 #include "utils/log.h"
 
@@ -49,6 +50,7 @@ bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address)
 
 bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address)
 {
+    if (!dbg) return false;
     /* No need to set a temporary breakpoint if there is a real breakpoint already */
     if (debugger_is_breakpoint_set(dbg, address)) {
         return false;
@@ -184,19 +186,19 @@ int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
 
 /* Watchpoint management */
 bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
-    if (!dbg) {
+    if (!dbg || wp.type < WATCHPOINT_READ || wp.type > WATCHPOINT_RW) {
         return false;
     }
     /* Check if a watchpoint already exists at the address */
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == wp.addr) {
+        if (dbg->watchpoints[i].type && dbg->watchpoints[i].addr == wp.addr) {
             dbg->watchpoints[i].type |= wp.type;
             return true;
         }
     }
     /* Find an empty slot and add the new watchpoint */
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == 0) {
+        if (dbg->watchpoints[i].type == 0) {
             dbg->watchpoints[i] = wp;
             return true;
         }
@@ -210,7 +212,7 @@ bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
         return false;
     }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
+        if (dbg->watchpoints[i].type && dbg->watchpoints[i].addr == address) {
             dbg->watchpoints[i].addr = 0;
             dbg->watchpoints[i].type = 0;
             return true;
@@ -224,7 +226,7 @@ bool debugger_is_watchpoint_set(dbg_t *dbg, hwaddr address) {
         return false;
     }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
+        if (dbg->watchpoints[i].type && dbg->watchpoints[i].addr == address) {
             return true;
         }
     }
@@ -238,7 +240,7 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
 
     unsigned int found = 0;
     for (int i = 0; i < DBG_MAX_POINTS && found < size; i++) {
-        if (dbg->watchpoints[i].addr != 0) {
+        if (dbg->watchpoints[i].type != 0) {
             wps[found++] = dbg->watchpoints[i];
         }
     }
@@ -250,7 +252,7 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
 /* Memory inspection */
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 {
-    if (dbg == NULL || val == NULL || len == 0) {
+    if (dbg == NULL || val == NULL || len <= 0) {
         return;
     }
     dbg->get_mem_cb(dbg, addr, len, val);
@@ -258,7 +260,7 @@ void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
 void debugger_write_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 {
-    if (dbg == NULL || val == NULL || len == 0) {
+    if (dbg == NULL || val == NULL || len <= 0) {
         return;
     }
     dbg->set_mem_cb(dbg, addr, len, val);
@@ -372,37 +374,14 @@ bool debugger_load_symbols(dbg_t *dbg, const char *filename)
         return false;
     }
 
-    symbols_t *current = &dbg->symbols;
-
-    char line[MAX_LINE_LENGTH];
-    char name[MAX_LINE_LENGTH];
-    unsigned int address;
-    char type[MAX_LINE_LENGTH];
-
+    char line[1024];
+    bool ok = true;
     while (fgets(line, sizeof(line), file)) {
-        /* Parse the line and ensure it contains "addr" */
-        if (sscanf(line, "%s = $%x ; %s,", name, &address, type) == 3 && strcmp(type, "addr,") == 0 ) {
-            /* Store the symbol */
-            current->array[current->count].name = strdup(name);
-            current->array[current->count].addr = (hwaddr)address;
-            current->count++;
-
-            /* If the current array is full, allocate a new symbols_t block */
-            if (current->count >= DBG_SYM_COUNT) {
-                current->next = (symbols_t *)calloc(1, sizeof(symbols_t));
-                if (!current->next) {
-                    fclose(file);
-                    log_perror("[MAP] Memory allocation failed");
-                    return false;  // Memory allocation failed
-                }
-                current = current->next;
-            }
-        }
+        if (debugger_symbols_text(dbg, line, (uint32_t)strlen(line)) != DBG_OK) { ok = false; break; }
     }
-
+    if (ferror(file)) ok = false;
     fclose(file);
-    log_printf("[MAP] %s loaded successfully\n", filename);
-    return true;
+    return ok;
 }
 
 
@@ -504,5 +483,12 @@ void debugger_deinit(dbg_t *dbg)
     if (dbg == NULL) {
         return;
     }
-    (void) dbg;
+    symbols_t *block = &dbg->symbols;
+    while (block) {
+        for (unsigned i = 0; i < block->count; ++i) free((void*)block->array[i].name);
+        symbols_t *next = block->next;
+        if (block != &dbg->symbols) free(block);
+        block = next;
+    }
+    memset(&dbg->symbols, 0, sizeof(dbg->symbols));
 }
