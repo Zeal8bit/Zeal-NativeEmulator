@@ -348,8 +348,10 @@ struct Panel : Fl_Group {
 
 void dbg_ui_t::release()
 {
-    Fl::grab(nullptr);
     if (panels[0]) {
+        // FLTK menus own the same global grab. Only release our video capture.
+        if (panels[0]->captured && Fl::grab() == panels[0]->window())
+            Fl::grab(nullptr);
         panels[0]->captured = false;
         panels[0]->mouse_fraction_x = panels[0]->mouse_fraction_y = 0;
     }
@@ -525,7 +527,6 @@ int Canvas::handle(int event)
     int row = u->theme.row_height;
     if (event == FL_UNFOCUS || event == FL_HIDE) {
         if (p->id == 0) {
-            p->captured = false;
             u->release();
         }
         return 1;
@@ -1325,11 +1326,29 @@ static void smoke_tick(dbg_ui_t *u)
         delete[] pixels;
         assert(f.good());
     };
+    auto pick = [&](const char *label) {
+        const auto item = u->menu->find_item(label);
+        assert(item);
+        u->menu->picked(item);
+    };
     if (phase == 0 && elapsed > .2) {
-        u->command(DBG_CONTINUE);
+        // Releasing guest keys must not cancel a popup's own FLTK grab.
+        Fl::grab(u->window);
+        u->release();
+        assert(Fl::grab() == u->window);
+        Fl::grab(nullptr);
+        u->panels[0]->captured = true;
+        Fl::grab(u->panels[0]->window());
+        u->panels[0]->canvas->handle(FL_UNFOCUS);
+        assert(!Fl::grab() && !u->panels[0]->captured);
+        pick("Video/Scale Up");
+        assert(u->scale == 2);
+        pick("Video/Scale Down");
+        assert(u->scale == 1);
+        pick("CPU/Continue");
         phase++;
     } else if (phase == 1 && elapsed > 1) {
-        u->command(DBG_PAUSE);
+        pick("CPU/Pause");
         u->workspace.detach(6, 50, 50);
         u->changed_layout();
         phase++;
@@ -1337,13 +1356,14 @@ static void smoke_tick(dbg_ui_t *u)
         assert(u->floating.count(6));
         u->workspace.dock(6, 5, 0);
         u->changed_layout();
-        u->select_theme("Light");
+        pick("Theme/Light");
+        assert(u->theme_name == "Light");
         phase++;
     } else if (phase == 3 && elapsed > 1.4) {
         assert(u->workspace.leaf(6) == u->workspace.leaf(5));
         capture("-light");
-        u->workspace.show(7);
-        u->changed_layout();
+        pick("View/VRAM");
+        assert(u->workspace.leaf(7));
         phase++;
     } else if (phase >= 4 && phase <= 8 && elapsed > 1.6 + (phase - 4) * .2) {
         u->panels[7]->choice->value(phase - 4);
@@ -1369,7 +1389,7 @@ static void smoke_tick(dbg_ui_t *u)
         u->command(DBG_STEP);
         phase++;
     } else if (phase == 11 && elapsed > 3.2) {
-        u->host.action(u->host.debugger, UI_OFF, 0, 0);
+        pick("File/Debugger Off");
         phase++;
     } else if (phase == 12 && elapsed > 3.4) {
         assert(!u->shown);
