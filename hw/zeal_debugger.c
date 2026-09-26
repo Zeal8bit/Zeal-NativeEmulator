@@ -11,6 +11,7 @@
 #include "hw/zeal.h"
 #include "utils/log.h"
 #include "hw/debugger/debugger_internal.h"
+#include "hw/debugger/disassembler_internal.h"
 #include "debugger/zeal_debugger.h"
 
 
@@ -114,6 +115,17 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
     return 0;
 }
 
+
+static void zeal_memory_watch(void* arg, uint16_t address, uint32_t access)
+{
+    dbg_t* dbg=arg;
+    zeal_t* machine=dbg->arg;
+    /* Stop after the current instruction; only record the first access. */
+    if (machine->dbg_state != ST_PAUSED) {
+        machine->dbg_state=ST_PAUSED;
+        debugger_record(dbg,DBG_REASON_WATCHPOINT,address,access);
+    }
+}
 
 static void zeal_debugger_stop_cb(dbg_t* dbg) { ((zeal_t*)dbg->arg)->should_exit = true; }
 
@@ -407,6 +419,9 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
         return -1;
     }
 
+    machine->cpu.watch_mask=dbg->watch_mask;
+    machine->cpu.memory_observer=zeal_memory_watch;
+    machine->cpu.memory_observer_arg=dbg;
     dbg->stop_cb = zeal_debugger_stop_cb;
     dbg->arg = machine;
     dbg->pause_cb = zeal_debugger_pause_cb;

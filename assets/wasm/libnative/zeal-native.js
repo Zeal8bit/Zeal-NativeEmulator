@@ -270,12 +270,6 @@
             return true;
         }
 
-        toggleDebugger() {
-            if (!this.module?._zeal_debug_toggle_web) return false;
-            this.module._zeal_debug_toggle_web();
-            this.canvas.focus();
-            return true;
-        }
 
         toggleFps() {
             if (!this.module || !this.module._show_fps) return false;

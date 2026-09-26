@@ -14,3 +14,6 @@ void notif_show(const char* fmt, ...);
 int notif_estimate_width(void);
 void notif_render(int x, int y);
 bool notif_visible(void);
+
+/* Borrowed until next notification; empty when expired. */
+const char* notif_text(void);

@@ -119,6 +119,7 @@ static void main_reset(dbg_t *dbg)
 static void debugger_scale_up(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->arg)->dbg_ui,1); }
 static void debugger_scale_down(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->arg)->dbg_ui,-1); }
 
+#if CONFIG_FLTK_UI
 static debugger_key_t debugger_key_toggle = {
     .label = "Toggle Debugger",
     .key = KEY_F1,
@@ -126,6 +127,8 @@ static debugger_key_t debugger_key_toggle = {
     .pressed = false,
     .shifted = false
 };
+
+#endif
 
 static debugger_key_t main_keys[] = {
     { .label = "Scale Up", .key = KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
@@ -171,9 +174,12 @@ bool zeal_ui_input(zeal_t* machine)
 
     bool shift = (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT));
 
+    debugger_key_t *opt;
+    bool pressed = false;
+#if CONFIG_FLTK_UI
     // toggle between main view and debugger view
-    debugger_key_t *opt = &debugger_key_toggle;
-    bool pressed = IsKeyDown(opt->key);
+    opt = &debugger_key_toggle;
+    pressed = IsKeyDown(opt->key);
     handled = handled || (pressed);
     if(meta && !opt->pressed && pressed) {
         zeal_debug_toggle(&machine->dbg);
@@ -182,6 +188,7 @@ bool zeal_ui_input(zeal_t* machine)
         opt->pressed = false;
     }
 
+#endif
     int keys_size;
     debugger_key_t *keys;
     if(machine->dbg_enabled) {

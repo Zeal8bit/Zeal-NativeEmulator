@@ -6,6 +6,7 @@ project(
     default_options: [
         'buildtype=debugoptimized',
         'c_std=c99',
+        'cpp_std=c++17',
         'warning_level=everything',
         'warning_level=2',
     ],
@@ -45,8 +46,7 @@ if ui_option == 'fltk' and (is_web or not get_option('enable_debugger'))
 endif
 fltk_ui = get_option('enable_debugger') and not is_web and ui_option != 'none'
 if fltk_ui
-    add_languages('cpp', required: true)
-    add_project_arguments('-std=c++17', language: 'cpp')
+    add_languages('cpp', native: false, required: true)
     add_project_arguments('-DCONFIG_FLTK_UI=1', language: 'c')
 endif
 
@@ -131,12 +131,24 @@ if host_machine.system() == 'emscripten'
     endif
 endif
 
+# FLTK flags and includes apply only to the C++ frontend library.
+ui_objects = []
+ui_link_dependencies = []
+if fltk_ui
+    ui_library = static_library('zeal-fltk-ui', fltk_sources, build_by_default: false,
+        include_directories: ['include'], dependencies: fltk_dep, override_options: ['cpp_std=c++17'])
+    ui_objects = ui_library.extract_all_objects(recursive: true)
+    ui_link_dependencies += fltk_dep.partial_dependency(link_args: true, links: true)
+endif
+
 # Compiler and build targets
 exec = executable(
     OUTPUT_BIN,
-    sources,
+    sources, files('hw/main.c'),
     include_directories: ['include', '.'],
-    dependencies: dependencies,
+    dependencies: dependencies + ui_link_dependencies,
+    objects: ui_objects,
+    link_language: fltk_ui ? 'cpp' : 'c',
     link_args: linker_args + ['-lraylib', '-lm'] + (raylib_lib_dir != '' ? ['-L' + raylib_lib_dir] : []),
     install: true
 )
@@ -211,12 +223,23 @@ endif
 
 if get_option('enable_debugger')
     api_test = executable('debugger-api-test',
-        'tests/debugger_api.c', 'hw/debugger/debugger.c', 'hw/debugger/api.c',
-        include_directories: ['include', '.'])
-    test('debugger-api', api_test)
+        'tests/debugger_api.c', 'hw/debugger/debugger.c', 'hw/debugger/api.c', 'hw/debugger/bindings.c',
+        include_directories: ['include', '.'],
+        link_args: is_web ? ['-sMODULARIZE=1', '-sEXPORTED_RUNTIME_METHODS=HEAPU8', '-sEXPORTED_FUNCTIONS=_main,_malloc,_free'] : [])
+    if is_web
+        test('debugger-wasm-exports', find_program('node'), args: [files('tests/wasm_debugger.cjs'), api_test.full_path()], depends: api_test)
+    else
+        test('debugger-api', api_test)
+    endif
 endif
 
 if fltk_ui
-    models_test = executable('fltk-models-test', 'tests/fltk_models.cpp', 'ui/fltk/theme.cpp', 'ui/fltk/dock.cpp', include_directories: ['.', 'include'])
+    models_test = executable('fltk-models-test', 'tests/fltk_models.cpp', 'ui/fltk/theme.cpp', 'ui/fltk/dock.cpp', 'ui/fltk/input.cpp', include_directories: ['.', 'include'], dependencies: fltk_dep, override_options: ['cpp_std=c++17'])
     test('fltk-models', models_test)
+endif
+
+if get_option('enable_debugger') and not fltk_ui and not is_web
+    machine_test = executable('debugger-machine-test', sources, 'tests/debugger_machine.c',
+        include_directories: ['include', '.'], dependencies: dependencies, link_args: linker_args)
+    test('debugger-machine', machine_test, env: ['ZEAL_CONFIG_DIR=' + meson.project_build_root() / 'test-config'])
 endif

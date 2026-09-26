@@ -23,6 +23,11 @@ struct z80 {
      * eliminating function pointer indirection on every memory access. */
     mmu_t mmu;
 
+#if CONFIG_ENABLE_DEBUGGER
+    const uint8_t* watch_mask;
+    void (*memory_observer)(void*, uint16_t, uint32_t);
+    void* memory_observer_arg;
+#endif
     unsigned long cyc; // cycle count (t-states)
 
     uint16_t pc, sp, ix, iy;                // special purpose registers

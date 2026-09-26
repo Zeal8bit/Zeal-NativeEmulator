@@ -186,13 +186,14 @@ int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
 
 /* Watchpoint management */
 bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
-    if (!dbg || wp.type < WATCHPOINT_READ || wp.type > WATCHPOINT_RW) {
+    if (!dbg || wp.addr > 65535 || wp.type < WATCHPOINT_READ || wp.type > WATCHPOINT_RW) {
         return false;
     }
     /* Check if a watchpoint already exists at the address */
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
         if (dbg->watchpoints[i].type && dbg->watchpoints[i].addr == wp.addr) {
             dbg->watchpoints[i].type |= wp.type;
+            dbg->watch_mask[wp.addr] = dbg->watchpoints[i].type;
             return true;
         }
     }
@@ -200,6 +201,7 @@ bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
         if (dbg->watchpoints[i].type == 0) {
             dbg->watchpoints[i] = wp;
+            dbg->watch_mask[wp.addr] = wp.type;
             return true;
         }
     }
@@ -213,6 +215,7 @@ bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
     }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
         if (dbg->watchpoints[i].type && dbg->watchpoints[i].addr == address) {
+            dbg->watch_mask[address] = 0;
             dbg->watchpoints[i].addr = 0;
             dbg->watchpoints[i].type = 0;
             return true;
@@ -252,7 +255,7 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
 /* Memory inspection */
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 {
-    if (dbg == NULL || val == NULL || len <= 0) {
+    if (dbg == NULL || val == NULL || len <= 0 || !dbg->get_mem_cb) {
         return;
     }
     dbg->get_mem_cb(dbg, addr, len, val);
@@ -260,7 +263,7 @@ void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
 void debugger_write_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 {
-    if (dbg == NULL || val == NULL || len <= 0) {
+    if (dbg == NULL || val == NULL || len <= 0 || !dbg->set_mem_cb) {
         return;
     }
     dbg->set_mem_cb(dbg, addr, len, val);
@@ -270,7 +273,7 @@ void debugger_write_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 /* Register access */
 void debugger_get_registers(dbg_t *dbg, regs_t *regs)
 {
-    if (dbg == NULL || regs == NULL) {
+    if (dbg == NULL || regs == NULL || dbg->get_regs_cb == NULL) {
         return;
     }
     dbg->get_regs_cb(dbg, regs);
@@ -278,7 +281,7 @@ void debugger_get_registers(dbg_t *dbg, regs_t *regs)
 
 void debugger_set_registers(dbg_t *dbg, regs_t *regs)
 {
-    if (dbg == NULL || regs == NULL) {
+    if (dbg == NULL || regs == NULL || dbg->set_regs_cb == NULL) {
         return;
     }
     dbg->set_regs_cb(dbg, regs);
@@ -288,19 +291,13 @@ void debugger_set_registers(dbg_t *dbg, regs_t *regs)
 /* Execution control */
 void debugger_step(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->step_cb == NULL) {
-        return;
-    }
-    dbg->step_cb(dbg);
+    (void)debugger_command(dbg, DBG_STEP);
 }
 
 /* Execution control */
 void debugger_step_over(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->step_over_cb == NULL) {
-        return;
-    }
-    dbg->step_over_cb(dbg);
+    (void)debugger_command(dbg, DBG_STEP_OVER);
 }
 
 void debugger_breakpoint(dbg_t *dbg) {
@@ -312,27 +309,18 @@ void debugger_breakpoint(dbg_t *dbg) {
 
 void debugger_continue(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->continue_cb == NULL) {
-        return;
-    }
-    dbg->continue_cb(dbg);
+    (void)debugger_command(dbg, DBG_CONTINUE);
 }
 
 
 void debugger_pause(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->pause_cb == NULL) {
-        return;
-    }
-    dbg->pause_cb(dbg);
+    (void)debugger_command(dbg, DBG_PAUSE);
 }
 
 void debugger_reset(dbg_t *dbg)
 {
-    if (dbg == NULL || dbg->reset_cb == NULL) {
-        return;
-    }
-    dbg->reset_cb(dbg);
+    (void)debugger_command(dbg, DBG_RESET);
 }
 
 
@@ -348,15 +336,19 @@ bool debugger_is_paused(dbg_t *dbg)
 /* Event handling */
 debug_event_t debugger_check_event(dbg_t *dbg)
 {
-    (void) dbg;
-    return DEBUG_EVENT_NONE;
+    if (!dbg) return DEBUG_EVENT_NONE;
+    return dbg->reason == DBG_REASON_BREAKPOINT ? DEBUG_EVENT_BREAKPOINT_HIT :
+        dbg->reason == DBG_REASON_WATCHPOINT ? DEBUG_EVENT_MEMORY_WATCH :
+        dbg->reason == DBG_REASON_STEP ? DEBUG_EVENT_STEP_COMPLETE : DEBUG_EVENT_NONE;
 }
 
 
 void debugger_handle_event(dbg_t *dbg, debug_event_t event)
 {
-    (void) dbg;
-    (void) event;
+    if (!dbg || event == DEBUG_EVENT_NONE) return;
+    debugger_pause(dbg);
+    debugger_record(dbg, event == DEBUG_EVENT_BREAKPOINT_HIT ? DBG_REASON_BREAKPOINT :
+        event == DEBUG_EVENT_MEMORY_WATCH ? DBG_REASON_WATCHPOINT : DBG_REASON_STEP, 0, 0);
 }
 
 
@@ -449,12 +441,13 @@ int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
     /* Check if the current address has a label */
     const char* label = debugger_get_symbol(dbg, address);
     if (label != NULL) {
-        strncpy(instr->label, label, sizeof(instr->label) - 1);
+        snprintf(instr->label, sizeof(instr->label), "%s", label);
     } else {
         /* Make sure to return an empty label */
         instr->label[0] = 0;
     }
 
+    instr->size = bytes;
     return bytes;
 }
 

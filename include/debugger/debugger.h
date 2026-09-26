@@ -65,9 +65,7 @@ bool debugger_find_symbol(dbg_t *dbg, const char *symbol_name, hwaddr *address);
 // int debugger_disassemble(dbg_t *dbg, hwaddr address, char *buffer, int size);
 int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr);
 
-/* Debugger initialization */
-void debugger_init(dbg_t *dbg);
-void debugger_deinit(dbg_t *dbg);
+/* Context lifetime is managed by the emulator host. */
 
 
 #ifdef __cplusplus

@@ -101,3 +101,5 @@ void notif_render(int x, int y)
     const Color text = (Color) { 0xff, 0xe3, 0x45, alpha };
     DrawText(g_notif.text, x, y, NOTIF_FONT_SIZE, text);
 }
+
+const char* notif_text(void) { return notif_visible() ? g_notif.text : ""; }

@@ -92,24 +92,30 @@ static const uint8_t cyc_ddfd[256] = {
 
 static inline uint8_t rb(z80* const z, uint16_t addr)
 {
+#if CONFIG_ENABLE_DEBUGGER
+    if (z->watch_mask && (z->watch_mask[addr] & 1)) z->memory_observer(z->memory_observer_arg,addr,1);
+#endif
     return mmu_virt_read_byte(&z->mmu, addr);
 }
 
 static inline void wb(z80* const z, uint16_t addr, uint8_t val)
 {
+#if CONFIG_ENABLE_DEBUGGER
+    if (z->watch_mask && (z->watch_mask[addr] & 2)) z->memory_observer(z->memory_observer_arg,addr,2);
+#endif
     mmu_virt_write_byte(&z->mmu, addr, val);
 }
 
 static inline uint16_t rw(z80* const z, uint16_t addr)
 {
-    uint8_t data = mmu_virt_read_byte(&z->mmu, addr);
-    return (mmu_virt_read_byte(&z->mmu, addr + 1) << 8) | data;
+    uint8_t data = rb(z, addr);
+    return (rb(z, addr + 1) << 8) | data;
 }
 
 static inline void ww(z80* const z, uint16_t addr, uint16_t val)
 {
-    mmu_virt_write_byte(&z->mmu, addr, val & 0xFF);
-    mmu_virt_write_byte(&z->mmu, addr + 1, val >> 8);
+    wb(z, addr, val & 0xFF);
+    wb(z, addr + 1, val >> 8);
 }
 
 static inline void pushw(z80* const z, uint16_t val)
@@ -817,6 +823,9 @@ static inline void process_interrupts(z80* const z)
 // initialises a z80 struct. MMU initialisation is handled internally.
 void z80_init(z80* const z)
 {
+#if CONFIG_ENABLE_DEBUGGER
+    z->watch_mask=NULL; z->memory_observer=NULL; z->memory_observer_arg=NULL;
+#endif
     /* MMU is embedded in the CPU, init it first so device sub-system is ready */
     mmu_init(&z->mmu);
 
@@ -878,14 +887,14 @@ void z80_reset(z80* const z)
 /* Get the size of the next instruction to execute, in bytes */
 int z80_instruction_size(z80* const z)
 {
-    uint8_t opcode = rb(z, z->pc);
+    uint8_t opcode = mmu_virt_read_byte(&z->mmu,z->pc);
     int size = op_size[opcode];
 
     if (size != 0) {
         return size;
     }
     /* Opcode is a prefix, we need to read the next byte */
-    uint8_t opcode2 = rb(z, z->pc + 1);
+    uint8_t opcode2 = mmu_virt_read_byte(&z->mmu,(uint16_t)(z->pc+1));
     if (opcode == 0xFD || opcode == 0xDD) {
         size = op_fddd_size[opcode2];
         /* If the size is 0, the instruction is invalid */

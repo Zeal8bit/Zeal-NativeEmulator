@@ -35,14 +35,6 @@ void zeal_flush_storage_web(void)
 }
 
 EMSCRIPTEN_KEEPALIVE
-void zeal_debug_toggle_web(void)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    zeal_debug_toggle(&machine.dbg);
-#endif
-}
-
-EMSCRIPTEN_KEEPALIVE
 void zeal_snes_button_web(uint8_t button, int pressed)
 {
     snes_adapter_set_virtual_button(&machine.snes_adapter, button, pressed != 0);

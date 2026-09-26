@@ -109,6 +109,9 @@ void snes_mouse_reset_scale(snes_mouse_t* mouse)
 
 void snes_mouse_update(snes_mouse_t* mouse)
 {
+#if CONFIG_ENABLE_DEBUGGER
+    if(mouse->machine && mouse->machine->dbg_frontend_visible) return;
+#endif
     bool capture_button_down = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE);
 
     if (!mouse->attached) {
@@ -147,20 +150,26 @@ void snes_mouse_update(snes_mouse_t* mouse)
 uint32_t snes_mouse_latch(snes_mouse_t* mouse)
 {
     uint32_t bits = 0xFFFFFFFF;
-    Vector2 delta = GetMouseDelta();
-    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
-
-    bool active = mouse->captured || cursor_in_bounds;
-    if (!active) {
-        delta = (Vector2) { 0.0f, 0.0f };
+    Vector2 delta;
+    bool active,left,right;
+#if CONFIG_ENABLE_DEBUGGER
+    zeal_t* machine=mouse->machine;
+    if(machine && machine->dbg_frontend_visible) {
+        delta=(Vector2){machine->frontend_mouse_dx*mouse->delta_scale,machine->frontend_mouse_dy*mouse->delta_scale};
+        machine->frontend_mouse_dx=machine->frontend_mouse_dy=0;
+        active=debugger_ui_main_view_focused(machine->dbg_ui);
+        left=(machine->frontend_mouse_buttons&1)!=0;right=(machine->frontend_mouse_buttons&2)!=0;
+    } else
+#endif
+    {
+        delta=GetMouseDelta();
+        active=mouse->captured||snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
+        Vector2 scale=snes_mouse_window_scale(mouse->delta_scale);delta.x*=scale.x;delta.y*=scale.y;
+        left=IsMouseButtonDown(MOUSE_BUTTON_LEFT);right=IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
     }
-
-    Vector2 scale = snes_mouse_window_scale(mouse->delta_scale);
-    delta.x *= scale.x;
-    delta.y *= scale.y;
-
-    snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_RIGHT, active && IsMouseButtonDown(MOUSE_BUTTON_RIGHT));
-    snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_LEFT, active && IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+    if(!active)delta=(Vector2){0,0};
+    snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_RIGHT,active&&right);
+    snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_LEFT,active&&left);
 
     snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_SPEED_LSB, SNES_MOUSE_DEFAULT_SPEED & 0x01);
     snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_SPEED_MSB, (SNES_MOUSE_DEFAULT_SPEED >> 1) & 0x01);

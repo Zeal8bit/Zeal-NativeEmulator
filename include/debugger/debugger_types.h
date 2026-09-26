@@ -71,12 +71,7 @@ typedef struct {
 } dbg_instr_t;
 
 
-typedef struct {
-    char*       fmt;
-    char*       fmt_lab;
-    uint32_t    size : 3;
-    uint32_t    label : 1;
-} instr_data_t;
+
 
 /* Create a pair of registers that can be accessed as bytes of a single 16-bit value */
 #define REGISTER_PAIR(msb, lsb, pair) \

@@ -20,3 +20,4 @@ option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the
 
 option('debugger_ui', type: 'combo', choices: ['auto', 'fltk', 'none'], value: 'auto', description: 'Desktop debugger frontend (web auto selects none)')
 option('fltk_test_hooks', type: 'boolean', value: false, description: 'Enable bounded desktop UI smoke-test automation')
+option('fltk_config', type: 'string', value: '', description: 'Optional path to target fltk-config, including cross builds')

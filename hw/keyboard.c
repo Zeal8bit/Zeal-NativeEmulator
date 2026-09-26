@@ -27,6 +27,8 @@ static const uint16_t TABLE[384] = {
     [KEY_ENTER]        = 0x5A,
     [KEY_LEFT_SHIFT]   = 0x12,
     [KEY_RIGHT_SHIFT]  = 0x59,
+    [KEY_RIGHT_CONTROL] = 0xE014,
+    [KEY_KP_ENTER] = 0xE05A,
     [KEY_LEFT_CONTROL] = 0xE014,
     [KEY_LEFT_ALT]     = 0x11,
     [KEY_RIGHT_ALT]    = 0xE011,
@@ -237,6 +239,7 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
             return 4;
         } break;
         default: {
+            if (keycode >= sizeof(TABLE)/sizeof(TABLE[0]) || !TABLE[keycode]) return 0;
             uint16_t code = TABLE[keycode];
             if (code > 256) {
                 codes[0] = code >> 8;
@@ -254,6 +257,7 @@ uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 {
     uint8_t codes[MAX_KEYCODES];
     int n_codes = get_ps2_code(keycode, codes);
+    if (!n_codes) return 1;
     for (int i = 0; i < n_codes; i++) {
         fifo_push(&keyboard->queue, codes[i]);
     }
