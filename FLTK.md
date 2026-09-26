@@ -95,6 +95,7 @@ Validated locally on macOS ARM with FLTK 1.4.5 and Raylib 5.5:
 - UI-free native C build and real-machine tests pass, including CPU stepping, breakpoints/watchpoints, alternate registers, virtual/physical memory, MMU, Semihost, headless VRAM metadata, and stop.
 - Debugger-disabled native and WASM builds pass. Backend-enabled WASM build and JavaScript exported-API smoke test pass.
 - Compile commands confirm emulator sources compile as C; UI-free and WASM configurations contain no C++ sources. FLTK sources include no private hardware headers.
+- Menu placement regression checks open all seven dropdowns on each of three macOS monitors, including after moving the debugger; native popup bounds remain within the debugger window. Explicit monitor selection fixes startup popups being clamped to the primary monitor.
 - Bounded rendered smoke tests run the bundled ROM, pause/step, detach/redock, switch Dark/Light/custom larger-font themes, inspect all five VRAM tabs, toggle debugger off/on, save configuration, capture screenshots, and terminate cleanly. Video orientation and CP437 rendering checked visually.
 - Short smoke-run frame readback/copy measurements: shader average 850 µs, maximum 2055 µs across 140 copies; software average 847 µs, maximum 3534 µs across 138 copies. These are local smoke measurements, not sustained performance benchmarks.
 

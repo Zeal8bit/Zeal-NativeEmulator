@@ -30,6 +30,9 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#ifdef CONFIG_FLTK_TESTS
+#include "../../tests/fltk_popup_checks.h"
+#endif
 
 using zeal_ui::DockNode;
 using zeal_ui::Theme;
@@ -932,6 +935,7 @@ void dbg_ui_t::layout()
         f.x = std::clamp(f.x, sx, sx + sw - f.w);
         f.y = std::clamp(f.y, sy, sy + sh - f.h);
         auto w = new FloatWindow(this, f.panel, f.x, f.y, f.w, f.h);
+        w->screen_num(Fl::screen_num(f.x, f.y, f.w, f.h));
         w->size_range(200, 160);
         w->begin();
         w->add(panels[f.panel]);
@@ -1226,6 +1230,9 @@ extern "C" int debugger_ui_init(dbg_ui_t **out, const dbg_ui_init_args_t *args)
     width = std::min(width, sw);
     height = std::min(height, sh);
     u->window = new MainWindow(u, width, height);
+    // Position alone can leave FLTK's cached screen at 0, so menus clamp to
+    // the wrong monitor even though Cocoa places the owner window correctly.
+    u->window->screen_num(Fl::screen_num(sx, sy, sw, sh));
     u->window->position(sx + (sw - width) / 2, sy + (sh - height) / 2);
     u->window->size_range(640, 480);
     u->window->begin();
@@ -1332,6 +1339,18 @@ static void smoke_tick(dbg_ui_t *u)
         u->menu->picked(item);
     };
     if (phase == 0 && elapsed > .2) {
+        fltk_check_menu_placement(*u->window, *u->menu);
+        const int original_x = u->window->x(), original_y = u->window->y();
+        for (int screen = 0; screen < Fl::screen_count(); ++screen) {
+            int x, y, width, height;
+            Fl::screen_work_area(x, y, width, height, screen);
+            u->window->position(x + (width - u->window->w()) / 2,
+                                y + (height - u->window->h()) / 2);
+            Fl::check();
+            fltk_check_menu_placement(*u->window, *u->menu);
+        }
+        u->window->position(original_x, original_y);
+        Fl::check();
         // Releasing guest keys must not cancel a popup's own FLTK grab.
         Fl::grab(u->window);
         u->release();
@@ -1354,6 +1373,8 @@ static void smoke_tick(dbg_ui_t *u)
         phase++;
     } else if (phase == 2 && elapsed > 1.2) {
         assert(u->floating.count(6));
+        assert(u->floating.at(6)->screen_num() == Fl::screen_num(
+            u->floating.at(6)->x(), u->floating.at(6)->y(), u->floating.at(6)->w(), u->floating.at(6)->h()));
         u->workspace.dock(6, 5, 0);
         u->changed_layout();
         pick("Theme/Light");

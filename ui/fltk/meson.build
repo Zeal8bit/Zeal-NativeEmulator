@@ -20,4 +20,5 @@ fltk_sources = files('frontend.cpp', 'theme.cpp', 'dock.cpp', 'input.cpp')
 
 if get_option('fltk_test_hooks')
     add_project_arguments('-DCONFIG_FLTK_TESTS=1', language: 'cpp')
+    fltk_sources += files('../../tests/fltk_popup_checks.cpp')
 endif
