@@ -10,7 +10,7 @@
 #include <math.h>
 #include "raylib.h"
 #include "utils/config.h"
-#include "debugger/debugger_ui.h"
+#include "debugger/frontend.h"
 #include "hw/zeal.h"
 #include "hw/zvb/zvb.h"
 #include "utils/notif.h"
@@ -115,6 +115,9 @@ static void main_reset(dbg_t *dbg)
     }
     dbg->reset_cb(dbg);
 }
+
+static void debugger_scale_up(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->arg)->dbg_ui,1); }
+static void debugger_scale_down(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->arg)->dbg_ui,-1); }
 
 static debugger_key_t debugger_key_toggle = {
     .label = "Toggle Debugger",

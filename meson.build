@@ -38,12 +38,27 @@ else
 endif
 
 
+ui_option = get_option('debugger_ui')
+is_web = host_machine.system() == 'emscripten'
+if ui_option == 'fltk' and (is_web or not get_option('enable_debugger'))
+    error('FLTK requires a desktop build with enable_debugger=true')
+endif
+fltk_ui = get_option('enable_debugger') and not is_web and ui_option != 'none'
+if fltk_ui
+    add_languages('cpp', required: true)
+    add_project_arguments('-std=c++17', language: 'cpp')
+    add_project_arguments('-DCONFIG_FLTK_UI=1', language: 'c')
+endif
+
 # List all the subdirectories that contain source code
 sources = []
 subdir('hw')
 subdir('app')
 subdir('utils')
 subdir('assets')
+if fltk_ui
+    subdir('ui/fltk')
+endif
 
 
 run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)
@@ -122,7 +137,7 @@ exec = executable(
     sources,
     include_directories: ['include', '.'],
     dependencies: dependencies,
-    link_args: linker_args,
+    link_args: linker_args + ['-lraylib', '-lm'] + (raylib_lib_dir != '' ? ['-L' + raylib_lib_dir] : []),
     install: true
 )
 
@@ -199,4 +214,9 @@ if get_option('enable_debugger')
         'tests/debugger_api.c', 'hw/debugger/debugger.c', 'hw/debugger/api.c',
         include_directories: ['include', '.'])
     test('debugger-api', api_test)
+endif
+
+if fltk_ui
+    models_test = executable('fltk-models-test', 'tests/fltk_models.cpp', 'ui/fltk/theme.cpp', 'ui/fltk/dock.cpp', include_directories: ['.', 'include'])
+    test('fltk-models', models_test)
 endif

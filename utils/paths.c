@@ -137,8 +137,10 @@ const char* get_home_dir(void) {
 
 const char *get_config_dir(void) {
     static char path[PATH_MAX];
+    const char* override = getenv("ZEAL_CONFIG_DIR");
     const char* home = get_home_dir();
-    snprintf(path, sizeof(path), "%s/.zeal8bit", home);
+    if (override && *override) snprintf(path, sizeof(path), "%s", override);
+    else snprintf(path, sizeof(path), "%s/.zeal8bit", home ? home : ".");
 
     if(os_mkdir(path, 0755) != 0 && errno != EEXIST) {
         perror("mkdir");

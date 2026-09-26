@@ -17,3 +17,6 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
 option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the `roms/` dir in WASM builds')
+
+option('debugger_ui', type: 'combo', choices: ['auto', 'fltk', 'none'], value: 'auto', description: 'Desktop debugger frontend (web auto selects none)')
+option('fltk_test_hooks', type: 'boolean', value: false, description: 'Enable bounded desktop UI smoke-test automation')

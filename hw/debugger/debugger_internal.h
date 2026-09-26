@@ -64,6 +64,9 @@ struct dbg_t {
     debugger_mem_op  set_mem_cb;
     debugger_alt_op  alt_op;
 
+    uint8_t* video_pixels;
+    dbg_image_info_t video_info;
+    uint32_t video_capacity;
     debugger_ctrl_op stop_cb;
     dbg_reason_t reason;
     uint64_t sequence;
@@ -73,3 +76,5 @@ struct dbg_t {
 };
 
 void debugger_record(dbg_t*, dbg_reason_t, uint32_t, uint32_t);
+
+void debugger_capture_video(dbg_t*);

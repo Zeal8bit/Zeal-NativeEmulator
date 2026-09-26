@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include "utils/config.h"
-#include "debugger/debugger_ui.h"
+
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "utils/log.h"
@@ -386,7 +386,7 @@ int config_save(void)
     rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
     rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
 
-    dbg_ui_config_save(&ini);
+
 #endif // CONFIG_ENABLE_DEBUGGER
 
     rini_save_config(ini, config.arguments.config_path);

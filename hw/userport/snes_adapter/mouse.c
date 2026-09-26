@@ -55,16 +55,7 @@ static bool snes_mouse_cursor_in_rect(Rectangle bounds)
 
 static Rectangle snes_mouse_active_bounds(snes_mouse_t* mouse)
 {
-#if CONFIG_ENABLE_DEBUGGER
-    if (mouse->machine != NULL && mouse->machine->dbg_enabled && mouse->machine->dbg_ui != NULL) {
-        Rectangle bounds;
-        if (debugger_ui_main_view_bounds(mouse->machine->dbg_ui, &bounds)) {
-            return bounds;
-        }
-    }
-#else
     (void)mouse;
-#endif
     return (Rectangle) { 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() };
 }
 

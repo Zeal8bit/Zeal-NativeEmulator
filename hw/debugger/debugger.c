@@ -491,4 +491,5 @@ void debugger_deinit(dbg_t *dbg)
         block = next;
     }
     memset(&dbg->symbols, 0, sizeof(dbg->symbols));
+    free(dbg->video_pixels); dbg->video_pixels = NULL;
 }

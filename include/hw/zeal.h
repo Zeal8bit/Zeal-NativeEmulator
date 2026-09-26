@@ -33,7 +33,7 @@
 
 #if CONFIG_ENABLE_DEBUGGER
 #include "hw/debugger/debugger_internal.h"
-#include "debugger/debugger_ui.h"
+#include "debugger/frontend.h"
 #endif
 
 typedef uint8_t dev_idx_t;
@@ -76,9 +76,14 @@ struct zeal_t {
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER
     bool             dbg_enabled;
+    bool             dbg_frontend_visible;
+    double           dbg_last_frame;
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     struct dbg_ui_t* dbg_ui;
+    bool frontend_keys[384];
+    int frontend_mouse_dx, frontend_mouse_dy;
+    uint32_t frontend_mouse_buttons;
     uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);
 #endif
 };

@@ -46,6 +46,9 @@ typedef struct {
 
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
+#if CONFIG_ENABLE_DEBUGGER
+void debugger_host_frontend_args(dbg_t*,dbg_ui_init_args_t*);
+#endif
 
 bool zeal_ui_input(zeal_t* machine);
 
@@ -375,6 +378,8 @@ static void host_keyboard_check_cb(void* userdata)
     if (zeal_ui_input(machine)) {
         return;
     }
+    if (machine->dbg_ui && machine->dbg_enabled) return;
+
     /* Skip if the debugger main view doesn't have focus */
     if (machine->dbg_ui != NULL && !debugger_ui_main_view_focused(machine->dbg_ui)) {
         return;
@@ -412,28 +417,37 @@ int zeal_debug_enable(zeal_t* machine)
         return config.arguments.console ? 0 : -1;
     }
 
-    config_window_update(machine->dbg_enabled);
-    int ret = 0;
+    if (!machine->dbg_enabled) config_window_update(false);
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
-    config_window_set(true);
-    if(machine->dbg_ui == NULL) {
-        dbg_ui_init_args_t args = {
-            .main_view = &machine->zvb.blitter.main_texture,
-            .zvb = &machine->zvb,
-        };
-        args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
-        ret = debugger_ui_init(&machine->dbg_ui, &args);
+#if CONFIG_FLTK_UI
+    if (!machine->dbg_ui) {
+        dbg_ui_init_args_t args;
+        debugger_host_frontend_args(&machine->dbg, &args);
+        if (debugger_ui_init(&machine->dbg_ui, &args) != 0) return -1;
     }
-    return ret;
+    SetWindowState(FLAG_WINDOW_ALWAYS_RUN);
+    SetWindowState(FLAG_WINDOW_HIDDEN);
+    SetTargetFPS(0);
+    machine->dbg_frontend_visible = true;
+    machine->dbg_last_frame = GetTime();
+    debugger_ui_show(machine->dbg_ui, true);
+#endif
+    return 0;
 }
-
 
 int zeal_debug_disable(zeal_t* machine)
 {
-    config_window_update(machine->dbg_enabled);
+    machine->dbg_frontend_visible = false;
+    debugger_ui_show(machine->dbg_ui, false);
     machine->dbg_enabled = false;
     machine->dbg_state = ST_RUNNING;
+#if CONFIG_FLTK_UI
+    ClearWindowState(FLAG_WINDOW_HIDDEN);
+    ClearWindowState(FLAG_WINDOW_ALWAYS_RUN);
+    SetTargetFPS(60);
+    SetWindowFocused();
+#endif
     config_window_set(false);
     return 0;
 }
@@ -471,6 +485,7 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         /* Display all the devices that have a render function */
         zvb_render(&machine->zvb);
     } else if (machine->dbg_state == ST_PAUSED) {
+        if (GetTime() - machine->dbg_last_frame < 1.0/30) return 1;
         zvb_force_render(&machine->zvb);
     } else {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
@@ -483,17 +498,21 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         zvb_render_debug_textures(&machine->zvb, debug_view);
     }
 
-    debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);
-    BeginDrawing();
-        /* Grey brackground */
-        ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
-        debugger_ui_render(machine->dbg_ui, &machine->dbg);
-        notif_render(GetScreenWidth() - notif_estimate_width() - 20, 10);
-        if(show_fps == true) {
-            DrawFPS(10, 10);
-        }
-
-    EndDrawing();
+    if (machine->dbg_ui && machine->dbg_frontend_visible) {
+        double remaining = 1.0/60 - (GetTime() - machine->dbg_last_frame);
+        if (remaining > 0) WaitTime(remaining);
+        machine->dbg_last_frame = GetTime();
+        debugger_capture_video(&machine->dbg);
+        debugger_ui_refresh(machine->dbg_ui);
+        PollInputEvents();
+    } else {
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawTextureRec(machine->zvb.blitter.main_texture.texture,
+            (Rectangle){0,0, machine->zvb.blitter.main_texture.texture.width,
+                machine->zvb.blitter.main_texture.texture.height}, (Vector2){0,0}, WHITE);
+        EndDrawing();
+    }
 
 #if CONFIG_PROFILE_RENDER
     zvb_profile_frame(GetTime() - profile_start);
@@ -524,6 +543,8 @@ static int zeal_dbg_mode_run(zeal_t* machine)
         if (machine->dbg_state == ST_REQ_STEP ||
             debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc))
         {
+            debugger_record(&machine->dbg, machine->dbg_state == ST_REQ_STEP ? DBG_REASON_STEP : DBG_REASON_BREAKPOINT,
+                machine->cpu.pc, 0);
             machine->dbg_state = ST_PAUSED;
             debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
         }
@@ -568,6 +589,8 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
         /* Stop on a single step or a breakpoint */
         if (machine->dbg_state == ST_REQ_STEP ||
             debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
+            debugger_record(&machine->dbg, machine->dbg_state == ST_REQ_STEP ? DBG_REASON_STEP : DBG_REASON_BREAKPOINT,
+                machine->cpu.pc, 0);
             machine->dbg_state = ST_PAUSED;
             debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
             debugger_stop = true;
@@ -666,6 +689,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
 static void zeal_loop(zeal_t* machine)
 {
     int rendered = 0;
+    unsigned slice = 0;
     /**
      * When compiling for WASM, it is not necessary to execute WindowShouldClose as often as possible.
      * On the contrary, calling it too much would slow the emulation heavily!
@@ -680,6 +704,7 @@ static void zeal_loop(zeal_t* machine)
     while(rendered < 1) {
 #endif
 
+        if (machine->should_exit || ++slice >= 16384) break;
         int frame_rendered = 0;
 #if CONFIG_ENABLE_DEBUGGER
         if (machine->dbg_enabled) {
@@ -717,6 +742,9 @@ static void zeal_run_headless(zeal_t* machine)
         }
     }
 
+#if CONFIG_ENABLE_DEBUGGER
+    debugger_deinit(&machine->dbg);
+#endif
     snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
 }
@@ -766,6 +794,10 @@ int zeal_run(zeal_t* machine)
             break;
         }
 #endif // CONFIG_ENABLE_DEBUGGER
+#if CONFIG_ENABLE_DEBUGGER
+        debugger_ui_poll(machine->dbg_ui);
+        if (machine->should_exit) break;
+#endif
         zeal_loop(machine);
     }
 
@@ -779,6 +811,9 @@ int zeal_run(zeal_t* machine)
         config_window_update(false);
 #endif // CONFIG_ENABLE_DEBUGGER
 
+#if CONFIG_ENABLE_DEBUGGER
+    debugger_deinit(&machine->dbg);
+#endif
     snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
     CloseWindow();
