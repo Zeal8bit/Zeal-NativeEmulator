@@ -83,4 +83,27 @@ Validation covers:
 - Comparable ROM workloads against current frontend: sustain existing 60 FPS target where baseline achieves it, responsive controls, no new audio underruns. Record frame-copy overhead.
 - Desktop FLTK builds, backend-enabled/UI-free builds, debugger-disabled builds, console/headless runs, and web builds with backend enabled/disabled. Verify no Nuklear remains and web/UI-free configurations require neither FLTK nor C++.
 
-Integration remains unproven until the integration gate passes. This document specifies planned work; the emulator and UI implementation have not yet been changed.
+## Implementation status — feature/fltk-demo
+
+Implemented the C backend/public API split, FLTK C++ frontend, eight panels, dock/tab/float workspace, versioned persistence, Dark/Light/custom themes, shared CP437 rendering, host input bridge, and explicit WASM bindings. Nuklear sources, bundled headers, and browser debugger controls are removed. Raylib still owns rendering, audio, and controller services. See [frontend guide](ui/fltk/README.md) for build commands, controls, theme format, API ownership, and browser buffer layouts.
+
+Desktop `auto` selects FLTK on this demo branch. This is an implementation preview; the three-platform release gate above has not passed. Floating windows currently hold individual panels; nested splits and tab groups live in the main workspace.
+
+Validated locally on macOS ARM with FLTK 1.4.5 and Raylib 5.5:
+
+- Native FLTK builds with shader and software blitters; C API and workspace/theme/input model tests pass.
+- UI-free native C build and real-machine tests pass, including CPU stepping, breakpoints/watchpoints, alternate registers, virtual/physical memory, MMU, Semihost, headless VRAM metadata, and stop.
+- Debugger-disabled native and WASM builds pass. Backend-enabled WASM build and JavaScript exported-API smoke test pass.
+- Compile commands confirm emulator sources compile as C; UI-free and WASM configurations contain no C++ sources. FLTK sources include no private hardware headers.
+- Bounded rendered smoke tests run the bundled ROM, pause/step, detach/redock, switch Dark/Light/custom larger-font themes, inspect all five VRAM tabs, toggle debugger off/on, save configuration, capture screenshots, and terminate cleanly. Video orientation and CP437 rendering checked visually.
+- Short smoke-run frame readback/copy measurements: shader average 850 µs, maximum 2055 µs across 140 copies; software average 847 µs, maximum 3534 µs across 138 copies. These are local smoke measurements, not sustained performance benchmarks.
+
+Desktop CI recipes now build FLTK, run available native model tests, and stage dependencies/assets/licenses without an installation step. Windows uses target-built FLTK and matching C/C++ structure-layout flags. These CI and packaging changes have not been executed remotely.
+
+Release validation still required:
+
+- Linux and Windows live integration, packaged launch on clean machines, and macOS Intel execution.
+- Multi-monitor restoration, DPI changes, exhaustive panel interactions, keyboard passthrough/focus transitions, SNES capture, and controller reconnects on each platform.
+- Bitmap and disabled-video workloads, sustained 60 FPS comparison with the previous frontend, and audio-underrun measurements. Current rendered checks exercise the bundled text-mode ROM and VRAM inspectors.
+
+The separate browser debugger presentation remains intentionally deferred; its C exports are available now.

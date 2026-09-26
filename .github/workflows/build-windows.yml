@@ -15,18 +15,25 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc-mingw-w64-x86-64 pkg-config cmake
+          sudo apt-get install -y meson ninja-build gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config
+
+      - name: Build target FLTK locally
+        run: ./tools/build_fltk.sh windows
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
           build-dir: build
+          meson-args: -Dfltk_config=${{ github.workspace }}/external/fltk-1.4.5/fltk-config
           cross-file: win64-cross.build
           raylib-path: ${{ github.workspace }}/raylib/win64
+
+      - name: Package runtime dependencies
+        run: ./tools/package_desktop.py build windows
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-windows
-          path: build/zeal-native.exe
+          path: build/package/
           retention-days: 30

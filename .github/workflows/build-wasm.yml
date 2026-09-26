@@ -28,6 +28,12 @@ jobs:
           cross-file: wasm-cross.build
           meson-args: -Dwasm_template=native
 
+      - name: Build and test C debugger exports
+        run: |
+          meson setup build-wasm-api --cross-file wasm-cross.build -Denable_debugger=true
+          meson compile -C build-wasm-api
+          meson test -C build-wasm-api --print-errorlogs
+
       - name: Download latest Zeal 8-bit OS image
         run: |
           curl --fail --location --retry 3 \

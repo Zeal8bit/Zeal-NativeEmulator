@@ -7,6 +7,9 @@ pkgconfig = 'x86_64-w64-mingw32-pkg-config'
 
 [built-in options]
 c_args = ['-mno-ms-bitfields']
+cpp_args = ['-mno-ms-bitfields']
+# Keep the C++/thread runtime inside the executable; target FLTK is static too.
+cpp_link_args = ['-static', '-static-libgcc', '-static-libstdc++']
 
 [host_machine]
 system = 'windows'

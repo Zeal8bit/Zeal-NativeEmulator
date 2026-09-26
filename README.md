@@ -17,7 +17,7 @@ Whether you're developing software for Zeal 8-bit Computer or just using it to e
 An emulator for the Zeal 8-bit Computer already exists: it's called [Zeal-WebEmulator](https://github.com/Zeal8bit/Zeal-WebEmulator). That emulator is also public and open-source. To make it easily accessible without requiring any installation, it was developed in JavaScript and runs entirely in the web browser. However, due to this implementation choice, it struggles to maintain full speed and deliver a native-like experience when running Z80 CPU-intensive programs.
 
 That's where the **Zeal Native Emulator** comes in!
-This project is written entirely in C, using Raylib for 2D rendering and Nuklear for UI. It takes advantage of hardware acceleration through OpenGL and GLSL shaders, delivering a fast and smooth experience that works just like the real hardware. Even if the emulated programs are very demanding or CPU-intensive, the emulator always runs at full speed!
+The emulator and debugger backend are written in C, using Raylib for rendering, audio, and controller input. The desktop debugger uses a separate FLTK 1.4 C++17 frontend with dockable panels and independent themes. It takes advantage of hardware acceleration through OpenGL and GLSL shaders, delivering a fast and smooth experience that works just like the real hardware. Even if the emulated programs are very demanding or CPU-intensive, the emulator always runs at full speed!
 
 Thanks to its native implementation, this emulator is also much more portable, it can be adapted to other platforms including (but not limited to) WASM and Android. See the [Ports](#ports) section for more details.
 
@@ -62,7 +62,7 @@ meson compile
 
 > [!NOTE]
 > WebAssembly builds disable the debugger by default. Pass
-> `-Denable_debugger=true` to enable it explicitly.
+> `-Denable_debugger=true` to enable the C debugger API explicitly. Web builds have no built-in debugger UI; a separate web frontend can consume the exported C bindings.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
 Keep in mind that this build will use the Raylib 5.5 release that is present at the root of the project, in `raylib/wasm`. If you wish to override this library and use your own version
@@ -199,6 +199,10 @@ Currently, the following features from Zeal 8-bit Computer are emulated:
 * microSD/TF card support
 * HostFS support to access a directory of the desktop computer in the emulator directly
 
+The desktop debugger uses FLTK with nested splits, tabs, detachable panels, and Dark/Light or custom file-based themes. See [FLTK debugger build, controls, themes, and API documentation](ui/fltk/README.md). Raylib remains responsible for guest rendering and audio; only the desktop UI uses C++.
+
+Use Meson `-Ddebugger_ui=none` for a C-only backend/console build, or `-Denable_debugger=false` to omit debugging entirely. Desktop `auto` selects FLTK; web `auto` selects no debugger frontend.
+
 The emulator also implements a debugger, with the following features:
 
 * Breakpoints
@@ -272,9 +276,7 @@ It is now possible to switch to 320x240 text-mode and display text.
 
 * Z80 CPU C implementation from [Superzazu](https://github.com/superzazu/z80) is distributed under the [MIT licence](https://github.com/superzazu/z80/blob/master/LICENSE).
 * [Raylib](https://github.com/raysan5/raylib) is distributed under this [LICENSE](raylib/LICENSE.txt)
-* [raylib-nuklear](https://github.com/RobLoach/raylib-nuklear) is distributed under an [unmodified zlib/libpng license](include/ui//raylib-nuklear.h)
-* [nuklear](https://github.com/Immediate-Mode-UI/Nuklear/) is distributed under [various licenses](include/ui/nuklear.h)
-* ProggyClean font is distributed under this [LICENSE](https://github.com/chrissimpkins/codeface/blob/master/fonts/proggy-clean/license.txt)
+* FLTK is distributed under the [FLTK license with static-linking exception](https://www.fltk.org/COPYING.php).
 
 All other files are distributed under the Apache 2.0 License, unless noted otherwise. See LICENSE file for more information.
 

@@ -14,7 +14,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install meson ninja pkg-config raylib
+          brew install meson ninja pkg-config raylib fltk
 
       - name: Setup Environment Variables
         run: |
@@ -28,10 +28,14 @@ jobs:
       - name: Test Executable
         run: |
           ./build/zeal-native --help
+          meson test -C build --print-errorlogs
+
+      - name: Package runtime dependencies
+        run: ./tools/package_desktop.py build macos
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-macos
-          path: build/zeal-native
+          path: build/package/
           retention-days: 30

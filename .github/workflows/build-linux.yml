@@ -15,21 +15,26 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+          sudo apt-get install -y libx11-dev libxft-dev libxext-dev libxinerama-dev libxcursor-dev libxfixes-dev libxrender-dev meson ninja-build gcc g++ pkg-config
+
+      - name: Build FLTK locally
+        run: ./tools/build_fltk.sh
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
+          meson-args: -Dfltk_config=${{ github.workspace }}/external/fltk-1.4.5/fltk-config
           raylib-path: ${{ github.workspace }}/raylib/linux64
 
-      # Test execution after having an AppImage
-      #- name: Test Executable
-      #  run: |
-      #    LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib ./build/zeal-native --help
+      - name: Test debugger and workspace models
+        run: LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib meson test -C build --print-errorlogs
+
+      - name: Package runtime dependencies
+        run: ./tools/package_desktop.py build linux
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-linux
-          path: build/zeal-native
+          path: build/package/
           retention-days: 30
