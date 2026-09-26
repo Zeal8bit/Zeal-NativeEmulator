@@ -95,6 +95,19 @@ For first time users, you will need to provide a `roms/default.img` or use the `
 You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
 download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Zeal8bit/Zeal-8-bit-OS/releases) page.
 
+ROM, EEPROM, and TF/SD card images use the following priority, independently:
+
+1. Command-line flag: `-r`/`--rom`, `-e`/`--eeprom`, or `-t`/`--tf`.
+2. `zeal.ini` value: `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME`.
+3. Existing file named by `ZEAL_NATIVE_ROM`, `ZEAL_NATIVE_EEPROM`, or `ZEAL_NATIVE_TF`.
+4. Existing `roms/default.img`, `roms/eeprom.img`, or `roms/tf.img` relative to the current working directory.
+5. Existing `~/.zeal8bit/roms/default.img`, `~/.zeal8bit/roms/eeprom.img`, or `~/.zeal8bit/roms/tf.img`.
+
+Explicit flag and INI paths are used as given, even if missing. Missing environment
+and default paths are skipped. EEPROM and TF images are optional; a ROM is required.
+`--save` records configured image paths, not automatic fallbacks. Automatically
+selected ROM images are not written back; EEPROM and TF images retain their normal writeback behavior.
+
 ```sh
 $ zeal.elf -h
 Usage: build/zeal.elf [OPTIONS]

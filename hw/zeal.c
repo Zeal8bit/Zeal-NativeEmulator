@@ -184,7 +184,7 @@ int zeal_reset(zeal_t* machine)
     /* If a user program was specified, re-read the ROM and re-inject it so that
      * recompiled programs are picked up automatically on reset */
     if (config.arguments.uprog_filename != NULL) {
-        flash_load_from_file(&machine->rom, config.arguments.rom_filename, config.arguments.uprog_filename);
+        flash_load_from_file(&machine->rom, config.images.rom, config.arguments.uprog_filename);
     }
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -298,7 +298,7 @@ int zeal_init(zeal_t* machine)
 
     const int cf_err = compactflash_init(&machine->compactflash, config.arguments.cf_filename);
 
-    err = at24c512_init(&machine->eeprom, config.arguments.eeprom_filename);
+    err = at24c512_init(&machine->eeprom, config.images.eeprom);
     CHECK_ERR(err);
 
     err = i2c_connect(&machine->i2c_bus, &machine->eeprom.parent);

@@ -62,6 +62,7 @@ int main(int argc, char* argv[])
     if(code != 0) return code;
 
     config_parse_file(config.arguments.config_path);
+    config_resolve_images();
     config_debug();
 
     if (config.arguments.hostfs_path == NULL) {
@@ -78,7 +79,7 @@ int main(int argc, char* argv[])
         goto deinit;
     }
 
-    if (flash_load_from_file(&machine.rom, config.arguments.rom_filename,
+    if (flash_load_from_file(&machine.rom, config.images.rom,
                              config.arguments.uprog_filename)) {
         goto deinit;
     }
@@ -89,8 +90,8 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    if (config.arguments.tf_filename != NULL &&
-        zvb_spi_load_tf_image(&machine.zvb.spi, config.arguments.tf_filename)) {
+    if (config.images.tf != NULL &&
+        zvb_spi_load_tf_image(&machine.zvb.spi, config.images.tf)) {
         goto deinit;
     }
 
