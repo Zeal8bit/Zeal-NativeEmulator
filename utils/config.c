@@ -136,6 +136,44 @@ int usage(const char* progname)
     exit(0);
 }
 
+static const char* resolve_image_path(const char* configured, const char* env_name,
+                                      const char* relative_path, char path[PATH_MAX])
+{
+    if (configured != NULL) {
+        return configured;
+    }
+    const char* env_path = getenv(env_name);
+    if (env_path != NULL && env_path[0] != '\0' && path_exists(env_path)) {
+        return env_path;
+    }
+    if (path_exists(relative_path)) {
+        return relative_path;
+    }
+    const char* config_dir = get_config_dir();
+    if (config_dir == NULL) {
+        return NULL;
+    }
+
+    const int length = snprintf(path, PATH_MAX, "%s/%s", config_dir, relative_path);
+    if (length < 0 || length >= PATH_MAX || !path_exists(path)) {
+        return NULL;
+    }
+    return path;
+}
+
+void config_resolve_images(void)
+{
+    static char rom_path[PATH_MAX];
+    static char eeprom_path[PATH_MAX];
+    static char tf_path[PATH_MAX];
+    config.images.rom = resolve_image_path(config.arguments.rom_filename,
+        "ZEAL_NATIVE_ROM", "roms/default.img", rom_path);
+    config.images.eeprom = resolve_image_path(config.arguments.eeprom_filename,
+        "ZEAL_NATIVE_EEPROM", "roms/eeprom.img", eeprom_path);
+    config.images.tf = resolve_image_path(config.arguments.tf_filename,
+        "ZEAL_NATIVE_TF", "roms/tf.img", tf_path);
+}
+
 int parse_command_args(int argc, char* argv[])
 {
 #if CONFIG_PROFILE_RENDER
@@ -269,6 +307,12 @@ void config_parse_file(const char* file) {
     if(config.arguments.rom_filename == NULL) {
         config.arguments.rom_filename = rini_get_config_value_text_fallback(config.ini, "ROM_FILENAME", NULL);
     }
+    if(config.arguments.eeprom_filename == NULL) {
+        config.arguments.eeprom_filename = rini_get_config_value_text_fallback(config.ini, "EEPROM_FILENAME", NULL);
+    }
+    if(config.arguments.tf_filename == NULL) {
+        config.arguments.tf_filename = rini_get_config_value_text_fallback(config.ini, "TF_FILENAME", NULL);
+    }
 
     config.debugger.config_enabled = rini_get_config_value_fallback(config.ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
@@ -309,6 +353,10 @@ int config_save(void)
         rini_set_config_comment_line(&ini, "Arguments");
         if(args->rom_filename != NULL)
             rini_set_config_value_text(&ini, "ROM_FILENAME", args->rom_filename, "ROM Filename");
+        if(args->eeprom_filename != NULL)
+            rini_set_config_value_text(&ini, "EEPROM_FILENAME", args->eeprom_filename, "EEPROM Filename");
+        if(args->tf_filename != NULL)
+            rini_set_config_value_text(&ini, "TF_FILENAME", args->tf_filename, "TF/SD Card Filename");
 
         if(config.debugger.enabled == DEBUGGER_STATE_ARG) {
             config.debugger.config_enabled = true;

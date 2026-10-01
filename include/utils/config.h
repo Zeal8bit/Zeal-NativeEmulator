@@ -74,6 +74,12 @@ typedef struct {
     config_debugger_t debugger;
     config_window_t window; // main window options
     config_arguments_t arguments;
+    /* Resolved load paths; keep automatic defaults out of saved arguments. */
+    struct {
+        const char* rom;
+        const char* eeprom;
+        const char* tf;
+    } images;
     rini_config ini;
 } config_t;
 
@@ -94,6 +100,9 @@ int parse_command_args(int argc, char* argv[]);
  * @brief Parse the INI Config File
  */
 void config_parse_file(const char* file);
+
+/** Resolve image paths after parsing both command-line arguments and the INI file. */
+void config_resolve_images(void);
 
 /**
  * @brief Free/unload the rini_config
