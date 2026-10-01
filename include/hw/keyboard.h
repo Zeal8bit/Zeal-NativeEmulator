@@ -45,7 +45,7 @@ typedef struct {
     pio_t*      pio;
 
     // Keyboard specific
-    vtimer_node_t timer;            // schedules PS2 state transitions
+    vtimer_node_t timer;            // schedules PS2 state transitions / timeouts
     uint8_t     shift_register;
     fifo_t      queue;
     uint8_t     pin_state;

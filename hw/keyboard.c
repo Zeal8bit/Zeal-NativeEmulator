@@ -17,31 +17,32 @@
 #include "hw/keyboard.h"
 #include "hw/pio.h"
 
-static unsigned long PS2_SCANCODE_DURATION = 0;
 static unsigned long PS2_KEY_TIMING = 0;
+static unsigned long PS2_READ_TIMEOUT = 0;
 
 
 static const uint16_t TABLE[384] = {
-    [KEY_BACKSPACE]    = 0x66,
-    [KEY_TAB]          = 0x0D,
-    [KEY_ENTER]        = 0x5A,
-    [KEY_LEFT_SHIFT]   = 0x12,
-    [KEY_RIGHT_SHIFT]  = 0x59,
-    [KEY_LEFT_CONTROL] = 0xE014,
-    [KEY_LEFT_ALT]     = 0x11,
-    [KEY_RIGHT_ALT]    = 0xE011,
+    [KEY_BACKSPACE]     = 0x66,
+    [KEY_TAB]           = 0x0D,
+    [KEY_ENTER]         = 0x5A,
+    [KEY_LEFT_SHIFT]    = 0x12,
+    [KEY_RIGHT_SHIFT]   = 0x59,
+    [KEY_LEFT_CONTROL]  = 0x14,
+    [KEY_RIGHT_CONTROL] = 0xE014,
+    [KEY_LEFT_ALT]      = 0x11,
+    [KEY_RIGHT_ALT]     = 0xE011,
     // [KEY_PAUSE] = 0xE1, 0x14, 0x77, 0xE1, 0xF0, 0x14, 0xE0, 0x77,
-    [KEY_CAPS_LOCK] = 0x58,
-    [KEY_ESCAPE]    = 0x76,
-    [KEY_PAGE_UP]   = 0xE07D,
-    [KEY_SPACE]     = 0x29,
-    [KEY_PAGE_DOWN] = 0xE07A,
-    [KEY_END]       = 0xE069,
-    [KEY_HOME]      = 0xE06C,
-    [KEY_LEFT]      = 0xE06B,
-    [KEY_UP]        = 0xE075,
-    [KEY_RIGHT]     = 0xE074,
-    [KEY_DOWN]      = 0xE072,
+    [KEY_CAPS_LOCK]     = 0x58,
+    [KEY_ESCAPE]        = 0x76,
+    [KEY_PAGE_UP]       = 0xE07D,
+    [KEY_SPACE]         = 0x29,
+    [KEY_PAGE_DOWN]     = 0xE07A,
+    [KEY_END]           = 0xE069,
+    [KEY_HOME]          = 0xE06C,
+    [KEY_LEFT]          = 0xE06B,
+    [KEY_UP]            = 0xE075,
+    [KEY_RIGHT]         = 0xE074,
+    [KEY_DOWN]          = 0xE072,
     // [KEY_PRINTSCREEN] = 0xE0, 0x12, 0xE0, 0x7C,
     [KEY_INSERT]        = 0xE070,
     [KEY_DELETE]        = 0xE071,
@@ -83,6 +84,7 @@ static const uint16_t TABLE[384] = {
     [KEY_Z]             = 0x1A,
     [KEY_LEFT_SUPER]    = 0xE01F,
     [KEY_RIGHT_SUPER]   = 0xE027,
+    [KEY_KB_MENU]       = 0xE02F,
     [KEY_KP_0]          = 0x70,
     [KEY_KP_1]          = 0x69,
     [KEY_KP_2]          = 0x72,
@@ -98,6 +100,7 @@ static const uint16_t TABLE[384] = {
     [KEY_KP_SUBTRACT]   = 0x7B,
     [KEY_KP_DECIMAL]    = 0x71,
     [KEY_KP_DIVIDE]     = 0xE04A,
+    [KEY_KP_ENTER]      = 0xE05A,
     [KEY_F1]            = 0x05,
     [KEY_F2]            = 0x06,
     [KEY_F3]            = 0x04,
@@ -130,6 +133,16 @@ static uint8_t io_read(device_t* dev, uint32_t addr)
     keyboard_t* keyboard = (keyboard_t*) dev;
     (void) addr;
 
+    if (keyboard->state == PS2_ACTIVE) {
+        /* CPU acknowledged interrupt and read the scancode byte from the shift register.
+         * Deassert active-low interrupt signal (raise Pin 7 high) and schedule inter-byte delay. */
+        keyboard->pin_state = 1;
+        pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+        keyboard->state = PS2_INACTIVE;
+        vtimer_cancel(&keyboard->timer);
+        vtimer_schedule_tstates(&keyboard->timer, PS2_KEY_TIMING);
+    }
+
     return keyboard->shift_register;
 }
 
@@ -147,17 +160,18 @@ static void keyboard_reset(device_t* dev)
 
 
 /**
- * @brief Function called after a key was pushed to the FIFO, it will go to the next FSM state if currenlty in
+ * @brief Function called after a key was pushed to the FIFO, it will go to the next FSM state if currently in
  * IDLE and schedule the timer.
  */
 static void keyboard_key_available(keyboard_t* keyboard)
 {
     if (keyboard->state == PS2_IDLE) {
-        fifo_pop(&keyboard->queue, &keyboard->shift_register);
-        keyboard->pin_state = 0;
-        pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
-        keyboard->state = PS2_ACTIVE;
-        vtimer_schedule_tstates(&keyboard->timer, PS2_SCANCODE_DURATION);
+        if (fifo_pop(&keyboard->queue, &keyboard->shift_register)) {
+            keyboard->pin_state = 0;
+            pio_set_b_pin(keyboard->pio, IO_KEYBOARD_PIN, keyboard->pin_state);
+            keyboard->state = PS2_ACTIVE;
+            vtimer_schedule_tstates(&keyboard->timer, PS2_READ_TIMEOUT);
+        }
     }
 }
 
@@ -171,7 +185,8 @@ static void keyboard_tick_cb(void* userdata)
 
     switch (kb->state) {
         case PS2_ACTIVE:
-            /* End of start bit: pin goes high, enter inactive gap */
+            /* Safety timeout: CPU did not read port 0xE0 within PS2_READ_TIMEOUT.
+             * Deassert interrupt pin and advance to next scancode. */
             kb->pin_state = 1;
             pio_set_b_pin(kb->pio, IO_KEYBOARD_PIN, kb->pin_state);
             kb->state = PS2_INACTIVE;
@@ -179,16 +194,17 @@ static void keyboard_tick_cb(void* userdata)
             break;
 
         case PS2_INACTIVE:
-            /* Gap between bytes complete, back to idle. Try to send next key. */
+            /* Inter-byte timing complete. Check if more bytes in queue. */
             if (fifo_pop(&kb->queue, &kb->shift_register)) {
                 kb->pin_state = 0;
                 pio_set_b_pin(kb->pio, IO_KEYBOARD_PIN, kb->pin_state);
                 kb->state = PS2_ACTIVE;
-                vtimer_schedule_tstates(&kb->timer, PS2_SCANCODE_DURATION);
+                vtimer_schedule_tstates(&kb->timer, PS2_READ_TIMEOUT);
             } else {
                 kb->state = PS2_IDLE;
             }
             break;
+
         default:
             break;
     }
@@ -197,11 +213,10 @@ static void keyboard_tick_cb(void* userdata)
 
 int keyboard_init(keyboard_t* keyboard, pio_t* pio)
 {
-    /* On the real hardware, the active signal stays on for ~19.7 microseconds */
-    PS2_SCANCODE_DURATION = us_to_tstates(19.7);
-    /* We have a delay of 3.9ms between each scancode */
-    PS2_KEY_TIMING = us_to_tstates(3900); // 39000
-    /* The release code happens 30ms after the first code is issued */
+    /* Delay between scancode bytes (500us @ 10MHz = 5000 T-states) */
+    PS2_KEY_TIMING = us_to_tstates(500);
+    /* Fallback safety timeout if CPU does not read port 0xE0 (50ms) */
+    PS2_READ_TIMEOUT = us_to_tstates(50000);
 
     keyboard->pio = pio;
     keyboard->size = 0x10;
@@ -231,13 +246,19 @@ static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
         } break;
         case KEY_PRINT_SCREEN: {
             codes[0] = 0xE0;
-            codes[0] = 0x12;
-            codes[0] = 0xE0;
-            codes[0] = 0x7C;
+            codes[1] = 0x12;
+            codes[2] = 0xE0;
+            codes[3] = 0x7C;
             return 4;
         } break;
         default: {
+            if (keycode >= DIM(TABLE)) {
+                return 0;
+            }
             uint16_t code = TABLE[keycode];
+            if (code == 0) {
+                return 0;
+            }
             if (code > 256) {
                 codes[0] = code >> 8;
                 codes[1] = code & 0xFF;
@@ -269,13 +290,22 @@ uint8_t key_released(keyboard_t* keyboard, uint16_t keycode)
         return 0;
     }
 
+    if (keycode == KEY_PRINT_SCREEN) {
+        const uint8_t ps_break[] = { 0xE0, 0xF0, 0x7C, 0xE0, 0xF0, 0x12 };
+        for (size_t i = 0; i < sizeof(ps_break); i++) {
+            fifo_push(&keyboard->queue, ps_break[i]);
+        }
+        keyboard_key_available(keyboard);
+        return 0;
+    }
+
     uint8_t codes[MAX_KEYCODES];
     int n_codes = get_ps2_code(keycode, codes);
     if (n_codes < 1) {
         return 1;
     }
 
-    /* If the first keycode is `0xE0`, we have to send `0E0` before BREAK_CODE */
+    /* If the first keycode is `0xE0`, we have to send `0xE0` before BREAK_CODE */
     uint8_t* from = codes;
     if (codes[0] == 0xE0) {
         fifo_push(&keyboard->queue, codes[0]);
