@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "theme.h"
+#include "ui/fltk/theme.h"
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -13,21 +13,25 @@ Theme Theme::preset(bool light)
                                                        {"border", 0xc2ccd6},     {"selection", 0xc0dcf4},
                                                        {"link", 0x1266ab},       {"breakpoint", 0xc63550},
                                                        {"current", 0xd5eadc},    {"paused", 0x906500},
-                                                       {"warning", 0xc65318}}
+                                                       {"warning", 0xc65318},    {"success", 0x2e7d32},
+                                                       {"icon", 0x3a4655}}
                      : std::map<std::string, unsigned>{
                            {"background", 0x202730}, {"surface", 0x171d25},    {"text", 0xdce4ed},
                            {"muted", 0x8e9eb0},      {"border", 0x3a4655},     {"selection", 0x314e6b},
                            {"link", 0x73b9ef},       {"breakpoint", 0xef768b}, {"current", 0x254638},
-                           {"paused", 0xefc46a},     {"warning", 0xf19a62}};
+                           {"paused", 0xefc46a},     {"warning", 0xf19a62},    {"success", 0x6ec07a},
+                            {"icon", 0xc7d2de}};
     return t;
 }
+
 static std::string trim(std::string s)
 {
-    auto a = s.find_first_not_of(" \t\r");
+    size_t a = s.find_first_not_of(" \t\r");
     if (a == s.npos)
         return {};
     return s.substr(a, s.find_last_not_of(" \t\r") - a + 1);
 }
+
 bool Theme::load(const std::string &file, Theme &out, std::string &error)
 {
     std::ifstream f(file);
@@ -43,7 +47,7 @@ bool Theme::load(const std::string &file, Theme &out, std::string &error)
         line = trim(line);
         if (line.empty() || line[0] == '#' || line[0] == ';')
             continue;
-        auto eq = line.find('=');
+        size_t eq = line.find('=');
         if (eq == line.npos || !fields.emplace(trim(line.substr(0, eq)), trim(line.substr(eq + 1))).second) {
             error = "Invalid or duplicate theme field at line " + std::to_string(number);
             return false;

@@ -18,6 +18,7 @@ class GlyphFont
             codes[i] = unicode[i];
         loaded = host.font_atlas && host.font_atlas(codes, atlas.data());
     }
+
     bool draw(uint8_t character, int x, int y, int width, int height, Fl_Color foreground,
               Fl_Color background) const
     {
@@ -29,8 +30,8 @@ class GlyphFont
         std::vector<unsigned char> pixels(width * height * 3);
         for (int yy = 0; yy < height; yy++)
             for (int xx = 0; xx < width; xx++) {
-                auto a = atlas[character * 128 + (yy * 16 / height) * 8 + xx * 8 / width];
-                auto p = &pixels[(yy * width + xx) * 3];
+                uint8_t a = atlas[character * 128 + (yy * 16 / height) * 8 + xx * 8 / width];
+                unsigned char *p = &pixels[(yy * width + xx) * 3];
                 p[0] = (fr * a + br * (255 - a)) / 255;
                 p[1] = (fg * a + bg * (255 - a)) / 255;
                 p[2] = (fb * a + bb * (255 - a)) / 255;

@@ -16,9 +16,33 @@ if fltk_config_path != '' or (not fltk_dep.found() and not meson.is_cross_build(
 elif not fltk_dep.found()
     error('Cross builds require target FLTK 1.4 pkg-config metadata or -Dfltk_config=/path/to/target/fltk-config')
 endif
-fltk_sources = files('frontend.cpp', 'theme.cpp', 'dock.cpp', 'input.cpp')
+fltk_sources = files(
+    'frontend.cpp',
+    'theme.cpp',
+    'dock.cpp',
+    'input.cpp',
+    'util.cpp',
+    'debugger_ui.cpp',
+    'widgets/dock_surface.cpp',
+    'widgets/float_window.cpp',
+    'widgets/table.cpp',
+    'widgets/text_input.cpp',
+    'widgets/canvas.cpp',
+    'widgets/control_row.cpp',
+    'widgets/memory_table.cpp',
+    'widgets/list_table.cpp',
+    'panels/panel.cpp',
+    'panels/video.cpp',
+    'panels/cpu.cpp',
+    'panels/breakpoints.cpp',
+    'panels/disassembler.cpp',
+    'panels/memory.cpp',
+    'panels/mmu.cpp',
+    'panels/semihost.cpp',
+    'panels/vram.cpp',
+)
 
 if get_option('fltk_test_hooks')
     add_project_arguments('-DCONFIG_FLTK_TESTS=1', language: 'cpp')
-    fltk_sources += files('../../tests/fltk_popup_checks.cpp')
+    fltk_sources += files('smoke.cpp', '../../tests/fltk_popup_checks.cpp')
 endif

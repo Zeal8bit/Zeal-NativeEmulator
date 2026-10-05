@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "input.h"
+#include "ui/fltk/input.h"
 #include <FL/Enumerations.H>
 unsigned fltk_key_to_host(int k)
 {
