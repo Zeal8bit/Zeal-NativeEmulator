@@ -563,10 +563,6 @@ static void zvb_rpu_load(void* userdata, uint16_t address, uint8_t data)
 static void zvb_software_raster_next(zvb_t* zvb)
 {
     const int start = zvb->current_hpos;
-    if (start == 0 && zvb->current_scanline == 0 && zvb->raster_rendering) {
-        zvb_text_info_t info;
-        zvb_text_update(&zvb->text, &info);
-    }
     zvb_raster_span_t span = { .zvb = zvb, .x = start, .rendered = zvb->raster_rendered_x };
     /* Eight VGA pixels, two 50 MHz FPGA clocks per pixel. CPU bus events
      * remain quantized by the emulator's instruction-boundary timer dispatch. */
@@ -590,6 +586,10 @@ static void zvb_software_raster_next(zvb_t* zvb)
         if (zvb->current_scanline == 480) {
             zvb->need_render = true;
             zvb->status.v_blank = 1;
+            /* Cursor blinking follows FPGA vblank even when presentation is
+             * skipped, rendering is headless, or the board is in graphics mode. */
+            zvb_text_info_t info;
+            zvb_text_update(&zvb->text, &info);
         } else if (zvb->current_scanline >= 524) {
             zvb->current_scanline = 0;
             zvb->status.v_blank = 0;

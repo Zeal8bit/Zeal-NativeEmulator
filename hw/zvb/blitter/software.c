@@ -145,7 +145,8 @@ static void render_text_span(zvb_t* zvb, int y, int start, int end)
     const int row = py / CHAR_H;
     const uint16_t* pal = zvb_get_palette(zvb);
     zvb_text_info_t info;
-    zvb_text_get_info(&zvb->text, &info);
+    const bool cursor_shown = zvb_text_get_info(&zvb->text, &info);
+    const uint32_t cursor_address = zvb_text_cursor_address(&zvb->text);
     for (int x = start; x < end; x++) {
         const int px = x / scale;
         const int col = px / CHAR_W;
@@ -153,7 +154,7 @@ static void render_text_span(zvb_t* zvb, int y, int start, int end)
                           (col + info.scroll[0]) % COLS;
         uint8_t tile = zvb->layers.raw_layer0[index];
         uint8_t attr = zvb->layers.raw_layer1[index];
-        if (col == info.pos[0] && row == info.pos[1]) {
+        if (cursor_shown && (uint32_t)index == cursor_address) {
             tile = info.charidx;
             attr = (info.color[0] << 4) | info.color[1];
         }
@@ -175,8 +176,6 @@ static void present_frame(zvb_t* zvb)
 void zvb_blitter_render_text_mode(zvb_t* zvb)
 {
     if (!zvb->blitter.raster_frame) {
-        zvb_text_info_t info;
-        zvb_text_update(&zvb->text, &info);
         for (int y = 0; y < FB_HEIGHT; y++) render_text_span(zvb, y, 0, FB_WIDTH);
     }
     present_frame(zvb);
