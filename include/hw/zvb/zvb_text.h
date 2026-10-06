@@ -144,3 +144,6 @@ uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr);
  * @returns true if the cursor is shown, false else.
  */
 bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info);
+
+/* Snapshot cursor/scroll without advancing the once-per-frame blink. */
+bool zvb_text_get_info(const zvb_text_t* text, zvb_text_info_t* info);

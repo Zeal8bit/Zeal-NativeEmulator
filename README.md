@@ -77,6 +77,35 @@ For example, if Raylib is not installed in the system's default path, you can pa
 meson setup build -Draylib_path=/path/to/your/raylib
 ```
 
+### Raster Processing Unit (software renderer)
+
+Build with `-Dblitter_software=true` to run the ZVB 1.0.0 RPU. Starting
+it automatically enables raster rendering for that frame; the scanline build
+option is optional. The shader renderer does not execute RPU programs.
+
+The `zvb_rpu` module implements the FPGA's 256 three-byte instructions:
+WAIT, SKIP, JUMP, MASK and LOAD. Select I/O bank 5 to access its registers,
+or use board-relative memory `0x20a0`–`0x20bf` (the second 16 bytes mirror the
+first). Register 1 selects the upload address; write each instruction to
+register 2 in low, middle, high byte order. The address advances after the
+third byte and wraps at 256. Write `0x80` to register 0 to start; bit 6 resets
+the controller without clearing program RAM. Register 0 reads idle/raw interrupt/
+interrupt enable in bits 0/1/2. Register 3 writes the raw interrupt bit.
+
+LOAD addresses are board-relative, 14-bit addresses. They use the same memory
+and peripheral decoders as CPU writes, including palette latching and video
+control at `0x1ff0`. Tileset memory is outside the RPU's address range.
+Raster comparisons use physical VGA pixels in all modes, with horizontal
+operands in units of eight pixels. Execution models two 50 MHz FPGA clocks per
+pixel, preserves changes within a line, and restarts the PC at frame origin.
+CPU/RPU bus ordering remains limited by instruction-boundary timer dispatch;
+FPGA video pipeline latency and bus arbitration are not modeled. RPU interrupt
+state is implemented, but the board's general-purpose interrupt connection to
+the CPU is not implemented.
+
+Run the headless instruction, memory mapping, framebuffer and timing checks with
+`meson test -C build --print-errorlogs` in a software-renderer build.
+
 ### Clean
 
 To clean the build, you can either use:

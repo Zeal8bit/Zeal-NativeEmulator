@@ -44,9 +44,9 @@ void vtimer_init_node(vtimer_node_t* node,
 }
 
 
-void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns)
+void vtimer_schedule_at_ns(vtimer_node_t* node, uint64_t deadline_ns)
 {
-    node->deadline = s_ns + delay_ns;
+    node->deadline = deadline_ns;
     node->next     = NULL;
 
     /* Insert sorted by deadline (ascending), stable (FIFO for same deadline). */
@@ -61,6 +61,12 @@ void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns)
         node->next = cur->next;
         cur->next  = node;
     }
+}
+
+
+void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns)
+{
+    vtimer_schedule_at_ns(node, s_ns + delay_ns);
 }
 
 

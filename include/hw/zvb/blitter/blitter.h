@@ -25,3 +25,7 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb);
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline);
 
 void zvb_blitter_deinit(zvb_t* dev);
+
+#if ZVB_BLITTER_SOFTWARE
+void zvb_blitter_render_span(zvb_t* zvb, int scanline, int start, int end);
+#endif

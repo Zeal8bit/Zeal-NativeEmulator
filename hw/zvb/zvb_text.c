@@ -167,6 +167,12 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
         }
     }
 
+    return zvb_text_get_info(text, info);
+}
+
+bool zvb_text_get_info(const zvb_text_t* text, zvb_text_info_t* info)
+{
+    if (text == NULL || info == NULL) return false;
     *info = (zvb_text_info_t) {
         .pos   = { text->cursor_pos.x, text->cursor_pos.y },
         .color = { (text->cursor_color >> 4) & 0xf,

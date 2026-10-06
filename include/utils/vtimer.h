@@ -121,3 +121,6 @@ void vtimer_stall(uint64_t elapsed_tstates);
  * @param node  Timer node to cancel.
  */
 void vtimer_cancel(vtimer_node_t* node);
+
+/* Schedule an absolute deadline, preserving cadence after late dispatch. */
+void vtimer_schedule_at_ns(vtimer_node_t* node, uint64_t deadline_ns);

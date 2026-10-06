@@ -20,6 +20,7 @@
 #include "hw/zvb/zvb_crc32.h"
 #include "hw/zvb/zvb_sound.h"
 #include "hw/zvb/zvb_dma.h"
+#include "hw/zvb/zvb_rpu.h"
 #include "debugger/debugger_types.h"
 
 #if ZVB_BLITTER_SHADER
@@ -84,6 +85,7 @@
 #define ZVB_IO_MAPPING_CRC      2
 #define ZVB_IO_MAPPING_SOUND    3
 #define ZVB_IO_MAPPING_DMA      4
+#define ZVB_IO_MAPPING_RPU      5
 
 
 /**
@@ -124,8 +126,8 @@ typedef union {
 
 typedef struct {
     uint8_t  vpos_latch;
-    uint8_t  l0_latch;
-    uint8_t  l1_latch;
+    uint8_t  scroll_x_latch;
+    uint8_t  scroll_y_latch;
     uint32_t l0_scroll_x;
     uint32_t l0_scroll_y;
     uint32_t l1_scroll_x;
@@ -154,6 +156,7 @@ typedef struct {
     zvb_crc32_t      peri_crc32;
     zvb_sound_t      sound;
     zvb_dma_t        dma;
+    zvb_rpu_t        rpu;
 
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
@@ -174,6 +177,9 @@ typedef struct {
     int              state; // Any of the STATE_* macros
     vtimer_node_t    timer;
     int              current_scanline;
+    int              current_hpos;
+    int              raster_rendered_x;
+    bool             raster_rendering;
     bool             need_render;
     bool             rendering_enabled;
 } zvb_t;
