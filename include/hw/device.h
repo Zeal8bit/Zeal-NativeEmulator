@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #define DEVICE(dev) &((dev)->parent)
 
 typedef struct device_t device_t;
@@ -18,6 +21,10 @@ typedef struct {
     uint8_t (*read)(device_t* dev, uint32_t addr);
     uint8_t (*debug_read)(device_t* dev, uint32_t addr); /* Same as read but valid for write-only areas */
     void (*write)(device_t* dev, uint32_t addr, uint8_t data);
+    /* All mapped devices support DMA through ordinary read/write callbacks.
+     * This only permits deferring accesses within an event-free time window;
+     * absent/false keeps side-effecting accesses individually ordered. */
+    bool (*dma_access_can_defer)(device_t* dev, uint32_t addr);
     int size;
     uint8_t upper_addr;
 } region_t;

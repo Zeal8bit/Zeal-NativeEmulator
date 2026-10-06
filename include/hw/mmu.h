@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "hw/device.h"
 
 #define MMU_PAGE_SIZE   (16 * 1024)
@@ -71,7 +72,6 @@ int mmu_init(mmu_t* mmu);
  */
 int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr);
 
-
 /**
  * @brief Read a byte from a virtual address via cached vpages.
  * Returns 0 if no device is mapped at that address.
@@ -106,9 +106,10 @@ static inline void mmu_virt_write_byte(mmu_t* mmu, uint16_t virt_addr, uint8_t d
 static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return 0;
-    const int page = phys_addr / MEM_SPACE_ALIGN;
-    const map_entry_t* entry = &mmu->mem_mapping[page];
-    if (!entry->dev) return 0;
+    const map_entry_t* entry = &mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+    if (!entry->dev) {
+        return 0;
+    }
     return entry->dev->mem_region.read(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN);
 }
 
@@ -119,9 +120,10 @@ static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t data)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return;
-    const int page = phys_addr / MEM_SPACE_ALIGN;
-    const map_entry_t* entry = &mmu->mem_mapping[page];
-    if (!entry->dev) return;
+    const map_entry_t* entry = &mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+    if (!entry->dev) {
+        return;
+    }
     entry->dev->mem_region.write(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN, data);
 }
 
@@ -162,7 +164,6 @@ void mmu_register_io_device(mmu_t* mmu, int region_start, device_t* dev);
  */
 void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev);
 
-
 /**
  * @brief Read len bytes from consecutive virtual addresses into buf.
  */
@@ -182,5 +183,3 @@ void mmu_phys_read_array(const mmu_t* mmu, uint32_t phys_addr, uint8_t* buf, uin
  * @brief Write len bytes from buf to consecutive physical addresses.
  */
 void mmu_phys_write_array(mmu_t* mmu, uint32_t phys_addr, const uint8_t* buf, uint16_t len);
-
-
