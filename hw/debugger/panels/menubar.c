@@ -223,6 +223,12 @@ void ui_menubar(struct dbg_ui_t* dctx, dbg_t* dbg, dbg_ui_panel_t *panels, int p
             if (nk_menu_item_label(ctx, "Scale Down", NK_TEXT_LEFT)) {
                 debugger_scale_down(dbg);
             }
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+            bool scanline_rendering = zvb_scanline_rendering_requested(&machine->zvb);
+            if (nk_checkbox_label(ctx, "Scanline rendering", &scanline_rendering)) {
+                zvb_set_scanline_rendering(&machine->zvb, scanline_rendering);
+            }
+#endif
             nk_menu_end(ctx);
         }
 
