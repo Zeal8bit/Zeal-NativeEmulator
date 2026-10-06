@@ -6,74 +6,121 @@
 
 
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "utils/log.h"
 #include "hw/mmu.h"
 #include "hw/zvb/zvb_dma.h"
 
-#define DEBUG_DMA   0
+#define DMA_CLOCK_NS 20UL
+#define DMA_ADDRESS_MASK (MEM_SPACE_SIZE - 1u)
 
-static void dma_start_transfer(zvb_dma_t* dma)
+static void dma_schedule(zvb_dma_t* dma, unsigned clocks)
 {
-    /* Grab the first descriptor from memory */
-    zvb_dma_descriptor_t desc = { 0 };
+    vtimer_schedule_ns(&dma->timer, clocks * DMA_CLOCK_NS);
+}
 
-    do {
-        mmu_phys_read_array(dma->mmu, dma->desc_addr, (uint8_t*)&desc, sizeof(zvb_dma_descriptor_t));
-        const int rd_ops = desc.flags.rd_op;
-        const int wr_ops = desc.flags.wr_op;
 
-#if DEBUG_DMA
-        log_printf("Descriptor @ %08x:\n", dma->desc_addr);
-        log_printf("  Read Address: 0x%08X\n", desc.rd_addr);
-        log_printf("  Write Address: 0x%08X\n", desc.wr_addr);
-        log_printf("  Length: %d\n", desc.length);
-        log_printf("  Flags:\n");
-        log_printf("    Read Operation: %d\n", desc.flags.rd_op);
-        log_printf("    Write Operation: %d\n", desc.flags.wr_op);
-        log_printf("    Last: %d\n", desc.flags.last);
-#endif
+static uint32_t dma_next_address(uint32_t address, unsigned operation)
+{
+    if (operation == DMA_OP_INC) address++;
+    else if (operation == DMA_OP_DEC) address--;
+    return address & DMA_ADDRESS_MASK;
+}
 
-        /* Descriptor is ready, perform the copy */
-        for (int i = 0; i < desc.length; i++) {
-            const uint8_t data = mmu_phys_read_byte(dma->mmu, desc.rd_addr);
-            mmu_phys_write_byte(dma->mmu, desc.wr_addr, data);
 
-#if DEBUG_DMA
-            log_printf("Transfer: src=0x%08X, dst=0x%08X, byte=0x%02X\n", desc.rd_addr, desc.wr_addr, data);
-#endif
+static void dma_advance(void* userdata)
+{
+    zvb_dma_t* dma = userdata;
+    const unsigned read_clocks = 1u + dma->clk.rd_cycle;
+    const unsigned write_clocks = 1u + dma->clk.wr_cycle;
 
-            /* Check if we have to modify the addresses */
-            if (rd_ops == DMA_OP_INC)      desc.rd_addr++;
-            else if (rd_ops == DMA_OP_DEC) desc.rd_addr--;
+    switch (dma->state) {
+        case DMA_REQUEST:
+            /* Initial ACK is accepted at the triggering instruction boundary.
+             * Chained requests take one additional FPGA clock. */
+            dma->descriptor_index = 0;
+            dma->state = DMA_DESCRIPTOR;
+            dma_schedule(dma, read_clocks);
+            break;
 
-            if (wr_ops == DMA_OP_INC)      desc.wr_addr++;
-            else if (wr_ops == DMA_OP_DEC) desc.wr_addr--;
+        case DMA_DESCRIPTOR: {
+            const uint8_t value = mmu_phys_read_byte(dma->mmu, dma->desc_addr);
+            dma->desc_addr = (dma->desc_addr + 1) & DMA_ADDRESS_MASK;
+            switch (dma->descriptor_index++) {
+                case 0: dma->rd_addr = value; break;
+                case 1: dma->rd_addr |= (uint32_t)value << 8; break;
+                case 2: dma->rd_addr |= (uint32_t)(value & 0x3f) << 16; break;
+                case 3: dma->wr_addr = value; break;
+                case 4: dma->wr_addr |= (uint32_t)value << 8; break;
+                case 5: dma->wr_addr |= (uint32_t)(value & 0x3f) << 16; break;
+                case 6: dma->remaining = value; break;
+                case 7: dma->remaining |= (uint16_t)value << 8; break;
+                case 8: {
+                    /* The RTL skips padding and, for zero length, tests the
+                     * previous flags register before its nonblocking update. */
+                    const uint8_t previous_flags = dma->flags;
+                    dma->flags = value;
+                    dma->desc_addr = (dma->desc_addr + 3) & DMA_ADDRESS_MASK;
+                    if (dma->remaining == 0) {
+                        dma->state = (previous_flags & 1) ? DMA_RELEASE : DMA_REQUEST;
+                        dma_schedule(dma, 1);
+                    } else {
+                        dma->state = DMA_READ;
+                        dma_schedule(dma, read_clocks);
+                    }
+                    return;
+                }
+            }
+            dma_schedule(dma, read_clocks);
+            break;
         }
-        /* Make the descriptor pointer go to the next descriptor */
-        dma->desc_addr += sizeof(zvb_dma_descriptor_t);
-    } while (!desc.flags.last);
 
-    /* TODO: add number of elapsed T-states to the CPU? */
+        case DMA_READ:
+            dma->data = mmu_phys_read_byte(dma->mmu, dma->rd_addr);
+            dma->state = DMA_WRITE;
+            dma_schedule(dma, write_clocks);
+            break;
+
+        case DMA_WRITE:
+            mmu_phys_write_byte(dma->mmu, dma->wr_addr, dma->data);
+            dma->rd_addr = dma_next_address(dma->rd_addr, (dma->flags >> 1) & 3);
+            dma->wr_addr = dma_next_address(dma->wr_addr, (dma->flags >> 3) & 3);
+            if (--dma->remaining == 0) {
+                dma->state = (dma->flags & 1) ? DMA_RELEASE : DMA_REQUEST;
+                dma_schedule(dma, 1);
+            } else {
+                dma->state = DMA_READ;
+                dma_schedule(dma, read_clocks);
+            }
+            break;
+
+        case DMA_RELEASE:
+            dma->state = DMA_IDLE;
+            dma->mmu->bus_requested = false;
+            break;
+
+        case DMA_IDLE:
+            break;
+    }
 }
 
 
 void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu)
 {
-    dma->clk.rd_cycle = 1;
-    dma->clk.wr_cycle = 1;
     dma->desc_addr = 0;
+    dma->flags = 0;
     dma->mmu = mmu;
+    vtimer_init_node(&dma->timer, dma_advance, dma);
+    zvb_dma_reset(dma);
 }
+
 
 void zvb_dma_reset(zvb_dma_t* dma)
 {
-    /* Different than boot values */
-    dma->clk.rd_cycle = 6;
-    dma->clk.wr_cycle = 5;
-    /* Descriptor address unchanged on reset */
+    vtimer_cancel(&dma->timer);
+    dma->state = DMA_IDLE;
+    dma->mmu->bus_requested = false;
+    dma->rd_addr = dma->wr_addr = dma->remaining = 0;
+    /* CLK_DIV reset value in ZVB 1.0.0; descriptor address is unchanged. */
+    dma->clk.raw = 0x56;
 }
 
 
@@ -94,7 +141,12 @@ void zvb_dma_write(zvb_dma_t* dma, uint32_t port, uint8_t value)
     switch (port) {
         case DMA_REG_CTRL:
             if ((value & DMA_CTRL_START) != 0) {
-                dma_start_transfer(dma);
+                if (dma->state == DMA_IDLE) {
+                    dma->state = DMA_REQUEST;
+                    dma->mmu->bus_requested = true;
+                    /* Defer ACK until the CPU finishes the OUT instruction. */
+                    dma_schedule(dma, 0);
+                }
             }
             break;
         case DMA_REG_DESC_ADDR0:
@@ -104,7 +156,7 @@ void zvb_dma_write(zvb_dma_t* dma, uint32_t port, uint8_t value)
             dma->desc_addr1 = value;
             break;
         case DMA_REG_DESC_ADDR2:
-            dma->desc_addr2 = value;
+            dma->desc_addr2 = value & 0x3f;
             break;
         case DMA_REG_CLK_DIV:
             dma->clk.raw = value;

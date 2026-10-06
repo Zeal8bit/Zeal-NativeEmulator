@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "hw/device.h"
 
 #define MMU_PAGE_SIZE   (16 * 1024)
@@ -55,6 +56,9 @@ typedef struct {
         uint8_t (*read_byte)(void*, uint16_t);
         void (*write_byte)(void*, uint16_t, uint8_t);
     } ops;
+
+    /* DMA holds the CPU bus until its release event. */
+    bool bus_requested;
 
     /* MMU page registers */
     uint8_t pages[MMU_PAGES_COUNT];

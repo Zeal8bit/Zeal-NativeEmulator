@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "hw/mmu.h"
+#include "utils/vtimer.h"
 
 
 /**
@@ -76,6 +77,16 @@ typedef struct {
     };
     /* Clock divider for all the transfers */
     zvb_dma_clk_t      clk;
+    /* Bus state, advanced at 50 MHz deadlines by the virtual timer. */
+    vtimer_node_t timer;
+    enum { DMA_IDLE, DMA_REQUEST, DMA_DESCRIPTOR, DMA_READ, DMA_WRITE,
+           DMA_RELEASE } state;
+    uint8_t descriptor_index;
+    uint8_t flags;
+    uint8_t data;
+    uint32_t rd_addr;
+    uint32_t wr_addr;
+    uint16_t remaining;
     /* MMU for physical memory access */
     mmu_t* mmu;
 } zvb_dma_t;

@@ -390,15 +390,13 @@ static void host_keyboard_check_cb(void* userdata)
  */
 static void zeal_step(zeal_t* machine)
 {
-    const int elapsed_tstates = z80_step(&machine->cpu);
+    z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset! */
         log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
         zeal_exit(machine);
         return;
     }
-
-    vtimer_tick(elapsed_tstates);
 }
 
 
@@ -516,9 +514,7 @@ static int zeal_dbg_mode_run(zeal_t* machine)
             machine->dbg_state = ST_RUNNING;
         }
 
-        const int elapsed_tstates = z80_step(&machine->cpu);
-
-        vtimer_tick(elapsed_tstates);
+        z80_step(&machine->cpu);
 
         /* Check if we reached a breakpoint or if we have to do a single step */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -562,8 +558,7 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
             machine->dbg_state = ST_RUNNING;
         }
 
-        const int elapsed = z80_step(&machine->cpu);
-        vtimer_tick(elapsed);
+        z80_step(&machine->cpu);
 
         /* Stop on a single step or a breakpoint */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -598,9 +593,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
     /* Check the next event and run for that many ticks */
     // const uint64_t next_event = vtimer_next_event();
     // unsigned long ran_for = z80_run_for(&machine->cpu, next_event);
-    // vtimer_tick(ran_for);
 
-    const int elapsed_tstates = z80_step(&machine->cpu);
+    z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset!
          * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
@@ -609,7 +603,6 @@ static int zeal_normal_mode_run(zeal_t* machine)
         zeal_exit(machine);
         return 2;
     }
-    vtimer_tick(elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;

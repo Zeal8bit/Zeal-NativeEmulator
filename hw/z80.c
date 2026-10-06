@@ -14,6 +14,7 @@
 
 #include "utils/log.h"
 #include "hw/z80.h"
+#include "utils/vtimer.h"
 
 // MARK: timings
 static const uint8_t op_size[256] = {
@@ -827,6 +828,7 @@ void z80_init(z80* const z)
 void z80_reset(z80* const z)
 {
     z->cyc = 0;
+    z->mmu.bus_requested = false;
 
     z->pc      = 0;
     z->sp      = 0xFFFF;
@@ -901,18 +903,30 @@ int z80_instruction_size(z80* const z)
 }
 
 
-// executes the next instruction in memory + handles interrupts
-int z80_step(z80* const z)
+// Execute an instruction, or yield one T-state while DMA owns the bus.
+unsigned long z80_step(z80* const z)
 {
-    int cycles = z->cyc;
-    if (z->halted) {
-        exec_opcode(z, 0x00);
+    const unsigned long cycles = z->cyc;
+    if (z->mmu.bus_requested) {
+        z->cyc++;
+        vtimer_stall(1);
     } else {
-        const uint8_t opcode = nextb(z);
-        exec_opcode(z, opcode);
+        if (z->halted) {
+            exec_opcode(z, 0x00);
+        } else {
+            const uint8_t opcode = nextb(z);
+            exec_opcode(z, opcode);
+        }
+        vtimer_tick(z->cyc - cycles);
     }
 
-    process_interrupts(z);
+    /* Events during a bus hold must become pending before acceptance. Never
+     * execute another opcode or acknowledge an interrupt while DMA owns it. */
+    if (!z->mmu.bus_requested) {
+        const unsigned long before_interrupt = z->cyc;
+        process_interrupts(z);
+        vtimer_tick(z->cyc - before_interrupt);
+    }
     return z->cyc - cycles;
 }
 
