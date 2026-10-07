@@ -64,6 +64,7 @@ typedef struct {
     bool config_save;
     uint8_t verbose;
     bool no_reset;
+    bool no_dma;
 #if CONFIG_PROFILE_RENDER
     bool profile;
 #endif

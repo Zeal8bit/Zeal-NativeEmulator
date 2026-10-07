@@ -8,6 +8,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "hw/mmu.h"
 #include "utils/vtimer.h"
 
@@ -89,13 +90,14 @@ typedef struct {
     uint16_t remaining;
     /* MMU for physical memory access */
     mmu_t* mmu;
+    bool bus_connected; /* Physical handshake wiring, retained across reset */
 } zvb_dma_t;
 
 
 /**
- * @brief Initialize the DMA controller
+ * @brief Initialize the DMA controller with physical bus handshake connectivity.
  */
-void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu);
+void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu, bool bus_connected);
 
 
 /**

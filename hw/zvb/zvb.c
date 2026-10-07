@@ -405,7 +405,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     zvb_spi_init(&dev->spi);
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound, rendering_enabled);
-    zvb_dma_init(&dev->dma, mmu);
+    zvb_dma_init(&dev->dma, mmu, !config->dma_disabled);
     zvb_rpu_init(&dev->rpu);
     zvb_timer_init(&dev->peri_timer, zvb_update_interrupts, dev);
     zvb_relocate(dev, 8);

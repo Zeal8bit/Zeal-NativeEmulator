@@ -224,12 +224,20 @@ Options:
   -g, --debug                   * Enable debug mode
   -n, --headless [<tstates>]    Run without GUI (no window/input/rendering)
   -o, --console                 Read control commands from stdin (implies headless)
+      --no-dma                  Disconnect ZVB DMA bus handshake wiring
   -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
   -h, --help                    Show this help message
 
 Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
 ```
+
+Pass `--no-dma` to model a ZVB without the additional BUSREQ/BUSACK wiring.
+DMA remains connected by default. With the flag, DMA registers remain accessible,
+but transfer requests wait for an acknowledgement that never arrives: the CPU
+continues running and DMA transfers no memory. The rest of the ZVB remains active.
+Emulated reset preserves the disconnected wiring. This is a command-line option
+for the current run and is not saved to `zeal.ini`.
 
 ## Headless Console
 

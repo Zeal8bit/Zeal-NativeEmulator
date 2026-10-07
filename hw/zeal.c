@@ -321,6 +321,7 @@ int zeal_init(zeal_t* machine)
     mmu_register_mem_device(mmu, 0x080000, &machine->ram.parent);
     const zvb_config_t zvb_config = {
         .rendering_enabled = !machine->headless,
+        .dma_disabled = config.arguments.no_dma,
         .pio = &machine->pio,
     };
     err = zvb_init(&machine->zvb, &zvb_config, mmu);

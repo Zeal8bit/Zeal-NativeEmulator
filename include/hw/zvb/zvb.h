@@ -156,6 +156,7 @@ typedef struct {
 
 typedef struct {
     bool rendering_enabled;
+    bool dma_disabled; /* Missing BUSREQ/BUSACK wiring; other ZVB features remain active */
     pio_t* pio;
 } zvb_config_t;
 

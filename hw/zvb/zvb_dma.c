@@ -103,11 +103,12 @@ static void dma_advance(void* userdata)
 }
 
 
-void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu)
+void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu, bool bus_connected)
 {
     dma->desc_addr = 0;
     dma->flags = 0;
     dma->mmu = mmu;
+    dma->bus_connected = bus_connected;
     vtimer_init_node(&dma->timer, dma_advance, dma);
     zvb_dma_reset(dma);
 }
@@ -143,9 +144,13 @@ void zvb_dma_write(zvb_dma_t* dma, uint32_t port, uint8_t value)
             if ((value & DMA_CTRL_START) != 0) {
                 if (dma->state == DMA_IDLE) {
                     dma->state = DMA_REQUEST;
-                    dma->mmu->bus_requested = true;
-                    /* Defer ACK until the CPU finishes the OUT instruction. */
-                    dma_schedule(dma, 0);
+                    /* A disconnected BUSREQ never reaches the CPU and no ACK
+                     * returns. Keep the request pending without advancing it. */
+                    if (dma->bus_connected) {
+                        dma->mmu->bus_requested = true;
+                        /* Defer ACK until the CPU finishes the OUT instruction. */
+                        dma_schedule(dma, 0);
+                    }
                 }
             }
             break;
