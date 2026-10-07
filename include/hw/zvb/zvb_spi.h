@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #define SPI_RAM_LEN     8
-#define SPI_VERSION     1
+#define SPI_VERSION     0
 
 #define TF_DATA_TOKEN   0xFE
 
@@ -24,13 +24,13 @@
     #define SPI_REG_CTRL_RESET      (1 << 6)    // Reset the SPI controller
     #define SPI_REG_CTRL_CS_START   (1 << 5)    // Assert chip select (low)
     #define SPI_REG_CTRL_CS_END     (1 << 4)    // De-assert chip select signal (high)
-    #define SPI_REG_CTRL_CS_SEL     (1 << 3)    // Select among two chip selects (0 for TF card, 1 is reserved)
+    #define SPI_REG_CTRL_CS_SEL     (1 << 3)    // Select among two chip selects (0 for TF card, 1 is unused)
     #define SPI_REG_CTRL_RSV2       (1 << 2)
     #define SPI_REG_CTRL_RSV1       (1 << 1)
     #define SPI_REG_CTRL_STATE      (1 << 0)    // SPI controller in BUSY state if 1, IDLE if 0
 #define SPI_REG_CLK_DIV     2
 #define SPI_REG_RAM_LEN     3
-#define SPI_REG_CHECKSUM    4
+#define SPI_REG_OPERAND     4
 #define SPI_REG_RAM_FIFO    7
 #define SPI_REG_RAM_FROM    8
 #define SPI_REG_RAM_TO      15
@@ -41,7 +41,7 @@ typedef union {
         uint32_t busy : 1;
         uint32_t rsv1 : 1;
         uint32_t rsv2 : 1;
-        uint32_t csel : 1;   // 0 for TF Card, 1 for reserved
+        uint32_t csel : 1;   // 0 for TF card, 1 is unused
         uint32_t cend : 1;   // De-assert chip select signal (high)
         uint32_t cstart : 1; // Assert the chip select (low)
         uint32_t reset : 1;  // Reset the controller
@@ -98,6 +98,7 @@ typedef struct {
 typedef struct {
     uint8_t         clk_div;
     uint8_t         ram_len;
+    uint8_t         operand;
     zvb_spi_ram_t   ram_rd;
     zvb_spi_ram_t   ram_wr;
     /* When 1, the TF chip select line is asserted */

@@ -86,7 +86,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 
     switch(addr) {
         case SPI_REG_CTRL:
-            /* Only accept TF CS (0) */
+            /* The TF card is connected to CS0. */
             if (ctrl.csel == 0) {
                 /* CS_START has the priority over CS_END */
                 if (ctrl.cstart) {
@@ -98,10 +98,10 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
             }
 
             if (ctrl.reset) {
-                spi->clk_div = 2;
+                spi->clk_div = 10;
                 spi->ram_len = 0;
-                spi->ram_rd.idx = 0;
-                spi->ram_wr.idx = 0;
+                spi->tf_cs = 0;
+                zvb_tf_deassert(spi);
             } else if (ctrl.start && spi->tf_cs == 1) {
                 zvb_tf_start(spi);
             }
@@ -118,7 +118,8 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
                 spi->ram_wr.idx = 0;
             }
             break;
-        case SPI_REG_CHECKSUM:
+        case SPI_REG_OPERAND:
+            spi->operand = value;
             break;
         case SPI_REG_RAM_FIFO:
             index = spi->ram_wr.idx;
@@ -148,8 +149,8 @@ uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr)
             return spi->clk_div;
         case SPI_REG_RAM_LEN:
             return spi->ram_len;
-        case SPI_REG_CHECKSUM:
-            return 0; // TODO?
+        case SPI_REG_OPERAND:
+            return spi->operand;
         case SPI_REG_RAM_FIFO:
             assert(spi->ram_rd.idx < SPI_RAM_LEN);
             const uint8_t data = spi->ram_rd.data[spi->ram_rd.idx];
