@@ -43,15 +43,6 @@
 #define REG_MST_VOL    0xE
 #define REG_MST_ENA    0xF
 
-static inline float volume_steps_to_float(int value, int bits)
-{
-    const int mask = (1 << bits) - 1;
-    const float step = 1.0 / (mask + 1);
-    /* Highest bit of all volume registers mark a disable sound */
-    return ((value & mask) + 1) * step;
-}
-
-
 typedef struct {
     uint8_t freq_low;
     uint8_t freq_high;
@@ -88,6 +79,9 @@ typedef struct {
     atomic_int output;
 } zvb_sample_table_t;
 
+typedef struct {
+    int16_t left, right;
+} zvb_pcm_frame_t;
 
 typedef struct {
     zvb_voice_t        voices[VOICE_COUNT];
@@ -99,15 +93,15 @@ typedef struct {
     zvb_sample_table_t sample_table;
     /* RayLib's audio stream */
     AudioStream        stream;
-    /* Volume interpreted from the master_volume register */
-    float              left_volume;
-    float              right_volume;
     bool               enabled;
     uint16_t           sample_clock_counter;
     uint16_t           lfsr;
+    uint8_t            mix_state;
+    uint16_t           mean_left, mean_right;
     /* Host playback queue, separate from the emulated hardware FIFO. */
     atomic_flag        output_lock;
-    int16_t            output_samples[SAMPLE_OUTPUT_SIZE];
+    zvb_pcm_frame_t    output_samples[SAMPLE_OUTPUT_SIZE];
+    zvb_pcm_frame_t    output_last;
     unsigned           output_head, output_tail, output_count;
 } zvb_sound_t;
 
