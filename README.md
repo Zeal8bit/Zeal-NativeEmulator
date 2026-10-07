@@ -77,105 +77,22 @@ For example, if Raylib is not installed in the system's default path, you can pa
 meson setup build -Draylib_path=/path/to/your/raylib
 ```
 
-### Raster Processing Unit (software renderer)
+### Renderer options
 
-Build with `-Dblitter_software=true` to run the ZVB 1.0.0 RPU. Starting
-it automatically enables raster rendering for that frame; the scanline build
-option is optional. The shader renderer does not execute RPU programs.
+Use the software renderer for new builds:
 
-The `zvb_rpu` module implements the FPGA's 256 three-byte instructions:
-WAIT, SKIP, JUMP, MASK and LOAD. Select I/O bank 5 to access its registers,
-or use board-relative memory `0x20a0`–`0x20bf` (the second 16 bytes mirror the
-first). Register 1 selects the upload address; write each instruction to
-register 2 in low, middle, high byte order. The address advances after the
-third byte and wraps at 256. Write `0x80` to register 0 to start; bit 6 resets
-the controller without clearing program RAM. Register 0 reads idle/raw interrupt/
-interrupt enable in bits 0/1/2. Register 3 writes the raw interrupt bit.
+```sh
+meson setup build -Dblitter_software=true
+```
 
-LOAD addresses are board-relative, 14-bit addresses. They use the same memory
-and peripheral decoders as CPU writes, including palette latching and video
-control at `0x1ff0`. Tileset memory is outside the RPU's address range.
-Raster comparisons use physical VGA pixels in all modes, with horizontal
-operands in units of eight pixels. Execution models two 50 MHz FPGA clocks per
-pixel, preserves changes within a line, and restarts the PC at frame origin.
-CPU/RPU bus ordering remains limited by instruction-boundary timer dispatch;
-FPGA video pipeline latency and bus arbitration are not modeled.
+The software renderer draws pixels on the CPU and uses Raylib to display them.
+It supports RPU effects. Set `-Dblitter_software_scanline_rendering=true` to
+render each scanline instead of a whole frame; RPU programs enable raster
+rendering automatically when needed.
 
-### Timer, interrupts and VRAM window (software renderer)
-
-I/O bank 6, also available at board-relative memory `0x20c0`–`0x20df`,
-implements the 50 MHz timer. Registers 1/2 set the divider, 3/4 the reload
-value, and 5/6 the counter. Write low then high; all pairs share byte latches.
-Read low before high. Control register 0 has start/restart (bit 7), auto-reload
-(6), decrement (5), interrupt enable (4), and load-reload-value (0).
-Clearing bit 7 does not stop the timer. Reaching zero sets register 7 bit 0;
-write one to clear it. Auto-reload occurs on the following timer tick.
-
-Horizontal raster reads at `0x92`/`0x93` and vertical reads at `0x90`/`0x91`
-latch the high byte when the low byte is read. Video status `0x9d` enables
-horizontal and vertical blank interrupts in bits 2 and 3. Blank edges latch
-regardless of enable; `0x9e` bits 0/1 read these latches and clear on writing
-one. Bit 2 reports the combined general-purpose interrupt. PIO B5 receives
-the active-low horizontal/audio/RPU/timer interrupt; B6 receives vertical
-blank. Program the PIO interrupt mode, mask and vector as on hardware.
-Audio FIFO consumption and empty interrupts run independently of host audio.
-The active-low PIO B5/B6 connections are documented in the
-[PIO system port](https://zeal8bit.com/docs/en/pio/) and
-[video connector](https://zeal8bit.com/docs/en/video_port/) chapters;
-ZVB's [bus pinout](https://zeal8bit.com/docs/zvb/en/overview/) identifies
-INT1 as general-purpose and INT0 as vertical blank.
-
-`0x9f` reports enabled external sources. Neither the supplied FPGA snapshot
-nor the public documentation specifies their status-bit order, so the current
-assignments remain provisional: audio bit 0, RPU bit 1, timer bit 2.
-The published [video configuration](https://zeal8bit.com/docs/zvb/en/video_configuration/)
-chapter describes a different interrupt register layout (`0x9f` as interrupt
-clear). For registers explicitly defined by the supplied 1.0.0 RTL, this
-emulator follows that RTL (`0x9e` write-one-to-clear, `0x9f` external status).
-
-`0x8f` relocates the complete 128 KiB board window to `(value & 31) << 17`
-and reads back the selected bank. CPU and DMA accesses follow the window;
-underlying RAM/ROM mappings reappear when it moves. RPU LOAD addresses remain
-board-relative. Reset restores bank 8 (`0x100000`) and retains VRAM contents.
-Local regression checks remain ignored under `tests/`; Meson has no test targets.
-
-### ZVB accuracy (software renderer)
-
-The supplied ZVB 1.0.0 RTL defines register behavior and peripheral clocks.
-The software renderer also follows the public
-[sprite documentation](https://zeal8bit.com/docs/zvb/en/sprites_memory/) where
-the snapshot lacks the sprite implementation.
-
-| Area | Implemented behavior |
-| --- | --- |
-| Sprites | 4-bit palette selection; ninth tile bit only in 4-bit mode; 64 KiB tileset wrapping; index priority; 40 sprites per line; opaque palette black |
-| VGA enable | Reset output is black; enable changes latch during vertical blank and remain fixed during the visible frame |
-| SPI | Version/operand registers, reset retention, divider timing, BUSY and partial receive bytes; TF on CS1; commands can span transfers |
-| Audio | Four clocked PSG voices, deterministic noise, waveform/reload pipelines, integer stereo mixing, FIFO and interrupts without host audio |
-| CRC32 | Complemented accumulator reads and writes, including restoration of partial checksums |
-| TF image | Streaming single-block reads/writes, read CRC16, complete-sector bounds and file-error handling |
-
-The 40-sprite limit is published in the
-[ZVB introduction](https://www.zeal8bit.com/getting-started-zvb/).
-The emulator selects the first 40 sprites intersecting the line in index order;
-exact hardware admission rules cannot be verified without the sprite module.
-SPI connections follow the published
-[controller documentation](https://zeal8bit.com/docs/zvb/en/spi_controller/).
-
-Remaining limits:
-
-* CPU bus accesses occur at instruction boundaries; FPGA bus arbitration and
-  video RAM/compositor pipeline latency are not simulated.
-* The snapshot lacks the sprite module, font module, graphics address generator,
-  final compositor, top-level connections and `default_palette.mem`. Exact
-  startup font/palette contents and complete pixel-level parity cannot be verified.
-* External interrupt status-bit ordering remains provisional as described above.
-  The math peripheral has a decoder but no supplied implementation and is not emulated.
-* Host audio consumes PCM frames; the hardware DAC serial interface and analog
-  behavior are not simulated.
-* The TF model supports basic single-block operations, not the full SD command
-  set: OCR/CMD58, multi-block transfers and write/command CRC validation remain
-  unsupported. TF behavior is a card model, rather than logic in the supplied RTL.
+The shader renderer (`-Dblitter_software=false`) is deprecated and does not
+support RPU effects. It remains the default build setting for now, so select
+the software renderer explicitly.
 
 ### Clean
 
@@ -232,12 +149,9 @@ Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
 ```
 
-Pass `--no-dma` to model a ZVB without the additional BUSREQ/BUSACK wiring.
-DMA remains connected by default. With the flag, DMA registers remain accessible,
-but transfer requests wait for an acknowledgement that never arrives: the CPU
-continues running and DMA transfers no memory. The rest of the ZVB remains active.
-Emulated reset preserves the disconnected wiring. This is a command-line option
-for the current run and is not saved to `zeal.ini`.
+Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
+features running. DMA is enabled by default. The option applies to the current
+run, survives emulated resets, and is not saved to `zeal.ini`.
 
 ## Headless Console
 
