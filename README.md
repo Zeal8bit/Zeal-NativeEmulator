@@ -139,6 +139,44 @@ underlying RAM/ROM mappings reappear when it moves. RPU LOAD addresses remain
 board-relative. Reset restores bank 8 (`0x100000`) and retains VRAM contents.
 Local regression checks remain ignored under `tests/`; Meson has no test targets.
 
+### ZVB accuracy (software renderer)
+
+The supplied ZVB 1.0.0 RTL defines register behavior and peripheral clocks.
+The software renderer also follows the public
+[sprite documentation](https://zeal8bit.com/docs/zvb/en/sprites_memory/) where
+the snapshot lacks the sprite implementation.
+
+| Area | Implemented behavior |
+| --- | --- |
+| Sprites | 4-bit palette selection; ninth tile bit only in 4-bit mode; 64 KiB tileset wrapping; index priority; 40 sprites per line; opaque palette black |
+| VGA enable | Reset output is black; enable changes latch during vertical blank and remain fixed during the visible frame |
+| SPI | Version/operand registers, reset retention, divider timing, BUSY and partial receive bytes; TF on CS1; commands can span transfers |
+| Audio | Four clocked PSG voices, deterministic noise, waveform/reload pipelines, integer stereo mixing, FIFO and interrupts without host audio |
+| CRC32 | Complemented accumulator reads and writes, including restoration of partial checksums |
+| TF image | Streaming single-block reads/writes, read CRC16, complete-sector bounds and file-error handling |
+
+The 40-sprite limit is published in the
+[ZVB introduction](https://www.zeal8bit.com/getting-started-zvb/).
+The emulator selects the first 40 sprites intersecting the line in index order;
+exact hardware admission rules cannot be verified without the sprite module.
+SPI connections follow the published
+[controller documentation](https://zeal8bit.com/docs/zvb/en/spi_controller/).
+
+Remaining limits:
+
+* CPU bus accesses occur at instruction boundaries; FPGA bus arbitration and
+  video RAM/compositor pipeline latency are not simulated.
+* The snapshot lacks the sprite module, font module, graphics address generator,
+  final compositor, top-level connections and `default_palette.mem`. Exact
+  startup font/palette contents and complete pixel-level parity cannot be verified.
+* External interrupt status-bit ordering remains provisional as described above.
+  The math peripheral has a decoder but no supplied implementation and is not emulated.
+* Host audio consumes PCM frames; the hardware DAC serial interface and analog
+  behavior are not simulated.
+* The TF model supports basic single-block operations, not the full SD command
+  set: OCR/CMD58, multi-block transfers and write/command CRC validation remain
+  unsupported. TF behavior is a card model, rather than logic in the supplied RTL.
+
 ### Clean
 
 To clean the build, you can either use:
