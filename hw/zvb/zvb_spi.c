@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <limits.h>
 #include "hw/zvb/zvb_spi.h"
 #include "utils/log.h"
 
@@ -66,18 +67,27 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
     }
 
     /* Open it in both read and write */
-    spi->tf.img = fopen(filename, "r+");
-    if (spi->tf.img == NULL) {
+    FILE* image = fopen(filename, "r+b");
+    if (image == NULL) {
         log_perror("[TF] Could not open TF Card image");
         return 1;
     }
 
-    log_printf("[TF] %s loaded successfully\n", filename);
-
     /* Save the size of the file */
-    fseek(spi->tf.img, 0, SEEK_END);
-    spi->tf.img_size = ftell(spi->tf.img);
-    fseek(spi->tf.img, 0, SEEK_SET);
+    if (fseek(image, 0, SEEK_END) != 0) {
+        fclose(image);
+        return 1;
+    }
+    const long size = ftell(image);
+    if (size < 0 || fseek(image, 0, SEEK_SET) != 0) {
+        fclose(image);
+        return 1;
+    }
+    if (spi->tf.img) fclose(spi->tf.img);
+    spi->tf.img = image;
+    spi->tf.img_size = (size_t)size;
+    zvb_tf_deassert(spi);
+    log_printf("[TF] %s loaded successfully\n", filename);
     return 0;
 }
 
@@ -221,6 +231,16 @@ static void zvb_r1_response(zvb_tf_t* tf, uint8_t r1)
     tf->reply_len = 2;
 }
 
+static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
+{
+    /* Validate a complete sector before multiplying; never wrap a large
+     * guest address or extend the host image with an out-of-range write. */
+    if (!tf->img || (uint64_t)sector >= tf->img_size / TF_BLK_SIZE)
+        return false;
+    const uint64_t offset = (uint64_t)sector * TF_BLK_SIZE;
+    return offset <= LONG_MAX && fseek(tf->img, (long)offset, SEEK_SET) == 0;
+}
+
 
 static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t param)
 {
@@ -282,22 +302,21 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 r1.ill_cmd = 1;
                 zvb_r1_response(tf, r1.raw);
             } else {
-                tf->state = TF_READ_BLOCK;
-                /* TODO: check the size of the file against the block number */
-                const uint32_t offset = param * TF_BLK_SIZE;
-                if (fseek(tf->img, offset, SEEK_SET) < 0) {
-                    log_perror("[TF] Could not seek into image for reading");
-                    r1.param_err = 1;
+                if (!zvb_tf_seek_block(tf, param)) {
+                    r1.addr_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     return;
                 }
                 tf->reply[0] = 0xFF;     // Dummy byte
                 tf->reply[1] = 0x00;     // ACK!
                 tf->reply[2] = TF_DATA_TOKEN;     // Set as ready!
-                int rd = fread(tf->reply + TF_BLK_DUMMY_BYTES, 1, TF_BLK_SIZE, tf->img);
+                const size_t rd = fread(tf->reply + TF_BLK_DUMMY_BYTES, 1, TF_BLK_SIZE, tf->img);
                 if (rd < TF_BLK_SIZE) {
-                    log_err_printf("[TF] Warning could only read %d/%d bytes from the image file\n", rd, TF_BLK_SIZE);
+                    r1.param_err = 1;
+                    zvb_r1_response(tf, r1.raw);
+                    return;
                 }
+                tf->state = TF_READ_BLOCK;
                 tf->reply_idx = 0;
                 tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES;
             }
@@ -308,25 +327,12 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 r1.ill_cmd = 1;
                 zvb_r1_response(tf, r1.raw);
             } else {
-                tf->state = TF_WRITE_BLOCK_WAIT_TOK;
-                /* TODO: check the size of the file against the block number */
-                const size_t offset = param * TF_BLK_SIZE;
-                if (offset >= tf->img_size) {
-                    log_err_printf("[TF] Invalid write offset: 0x%zx/0x%zx\n", offset, tf->img_size);
-                    r1.param_err = 1;
+                if (!zvb_tf_seek_block(tf, param)) {
+                    r1.addr_err = 1;
                     zvb_r1_response(tf, r1.raw);
-                    tf->state = TF_IDLE;
                     break;
                 }
-#if DEBUG_WRITE
-                log_printf("[TF] Write block, offset: 0x%lx (sector: %x)\n", offset, param);
-#endif
-                if (fseek(tf->img, offset, SEEK_SET) < 0) {
-                    log_perror("[TF] Could not seek into image for writing");
-                    r1.param_err = 1;
-                    zvb_r1_response(tf, r1.raw);
-                    return;
-                }
+                tf->state = TF_WRITE_BLOCK_WAIT_TOK;
                 tf->reply[0] = 0xFF;     // Dummy byte
                 tf->reply[1] = 0x00;     // ACK!
                 tf->reply_idx = 0;
