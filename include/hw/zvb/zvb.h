@@ -189,7 +189,7 @@ typedef struct {
     /* Internal values */
     zvb_status_t     status;
     zvb_ctrl_t       ctrl;
-    bool             screen_enabled;
+    bool             screen_enabled; /* VGA enable latched during vertical blank */
     uint8_t          io_bank;
     uint8_t          scratch[4];
     uint8_t          phys_bank;

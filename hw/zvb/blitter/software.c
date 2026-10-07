@@ -471,7 +471,7 @@ void zvb_blitter_render_span(zvb_t* zvb, int scanline, int start, int end)
 {
     if (start >= end || !zvb->blitter.framebuffer) return;
     zvb->blitter.raster_frame = true;
-    if (!zvb->status.vid_ena) {
+    if (!zvb->screen_enabled) {
         memset(zvb->blitter.framebuffer + scanline * FB_WIDTH + start, 0,
                (end - start) * sizeof(uint16_t));
         return;

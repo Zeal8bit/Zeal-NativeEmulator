@@ -454,6 +454,7 @@ static void zvb_reset(device_t* dev)
     zvb->mode = MODE_DEFAULT;
     memset(&zvb->ctrl, 0, sizeof(zvb->ctrl));
     zvb->status.raw = 0x80;
+    zvb->screen_enabled = false;
     zvb->blank_latches = zvb->io_bank = 0;
     zvb_relocate(zvb, 8);
     vtimer_cancel(&zvb->timer);
@@ -475,7 +476,7 @@ static void zvb_reset(device_t* dev)
 
 
 /**
- * @brief Render the screen when `vid_ena` is set (screen disabled)
+ * @brief Present black when the VGA output is disabled.
  */
 static void zvb_render_disabled_mode(zvb_t* zvb)
 {
@@ -540,7 +541,11 @@ void zvb_render(zvb_t* zvb)
         zvb_blitter_render_gfx_mode(zvb);
     } else
 #endif
+#if ZVB_BLITTER_SOFTWARE
+    if (zvb->screen_enabled) {
+#else
     if (zvb->status.vid_ena) {
+#endif
         switch (zvb->mode) {
             case MODE_TEXT_640:
             case MODE_TEXT_320:
@@ -649,6 +654,10 @@ static void zvb_software_raster_next(zvb_t* zvb)
      * remain quantized by the emulator's instruction-boundary timer dispatch. */
     for (int x = start; x < start + 8; x++) {
         span.x = x;
+        /* ZealVGARendering samples video_enable throughout vertical blank,
+         * retaining it for the entire following visible frame. */
+        if (zvb->current_scanline >= 480)
+            zvb->screen_enabled = zvb->status.vid_ena;
         zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
         zvb_sound_clock(&zvb->sound);
         zvb_spi_clock(&zvb->spi);
