@@ -241,6 +241,17 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
     return offset <= LONG_MAX && fseek(tf->img, (long)offset, SEEK_SET) == 0;
 }
 
+static uint16_t zvb_tf_data_crc(const uint8_t* data)
+{
+    uint16_t crc = 0;
+    for (unsigned i = 0; i < TF_BLK_SIZE; i++) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (unsigned bit = 0; bit < 8; bit++)
+            crc = (crc << 1) ^ (crc & 0x8000 ? 0x1021 : 0);
+    }
+    return crc;
+}
+
 
 static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t param)
 {
@@ -317,8 +328,11 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                     return;
                 }
                 tf->state = TF_READ_BLOCK;
+                const uint16_t crc = zvb_tf_data_crc(tf->reply + TF_BLK_DUMMY_BYTES);
+                tf->reply[TF_BLK_DUMMY_BYTES + TF_BLK_SIZE] = crc >> 8;
+                tf->reply[TF_BLK_DUMMY_BYTES + TF_BLK_SIZE + 1] = crc;
                 tf->reply_idx = 0;
-                tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES;
+                tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES + 2;
             }
             break;
         case TF_WRITE_BLK:
