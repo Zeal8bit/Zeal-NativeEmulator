@@ -69,13 +69,13 @@ static inline int font_bit(const uint8_t* raw_font, int char_idx,
 /** Get 8-bit colour index from tileset at tile * 256 + offset. */
 static inline uint8_t tileset_8bit(const uint8_t* raw, int tile, int offset)
 {
-    return raw[tile * TILESET_BYTES_PER_TILE + offset];
+    return raw[(tile * TILESET_BYTES_PER_TILE + offset) & (ZVB_TILESET_SIZE - 1)];
 }
 
 /** Get 4-bit colour index from tileset (2 pixels per byte). */
 static inline uint8_t tileset_4bit(const uint8_t* raw, int byte_idx)
 {
-    uint8_t byte = raw[byte_idx / 2];
+    uint8_t byte = raw[(byte_idx / 2) & (ZVB_TILESET_SIZE - 1)];
     return (byte_idx & 1) ? (byte & 0x0F) : (byte >> 4);
 }
 
@@ -304,7 +304,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
         if (sp->flags.bitmap.flip_y) sp_oy = sh - 1 - sp_oy;
 
         int tile_num = sp->flags.bitmap.tile_number;
-        if (sp->flags.bitmap.tileset_idx && !color_4bit)
+        if (sp->flags.bitmap.tileset_idx && color_4bit)
             tile_num += 256;
 
         int start_x = sx;
