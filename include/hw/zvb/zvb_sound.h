@@ -58,11 +58,13 @@ typedef struct {
     uint8_t wave;
     uint8_t duty;
     uint8_t voice_volume;
-    bool  noise;
     bool  hold;
-    /* Internal values, unrelated to the registers */
-    float volume;
+    /* SoundVoice.v latches changes until the waveform can safely restart. */
+    uint16_t frequency, max_state;
+    uint8_t wave_latch, duty_latch;
+    bool need_reload, decrementing;
     unsigned int phase;
+    atomic_int output;
 } zvb_voice_t;
 
 
@@ -102,6 +104,7 @@ typedef struct {
     float              right_volume;
     bool               enabled;
     uint16_t           sample_clock_counter;
+    uint16_t           lfsr;
     /* Host playback queue, separate from the emulated hardware FIFO. */
     atomic_flag        output_lock;
     int16_t            output_samples[SAMPLE_OUTPUT_SIZE];
