@@ -33,6 +33,11 @@ void vtimer_init(void)
     s_ns    = 0;
 }
 
+uint64_t vtimer_now_ns(void)
+{
+    return s_ns;
+}
+
 
 void vtimer_init_node(vtimer_node_t* node,
                       void (*callback)(void*),

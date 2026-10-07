@@ -99,12 +99,45 @@ Raster comparisons use physical VGA pixels in all modes, with horizontal
 operands in units of eight pixels. Execution models two 50 MHz FPGA clocks per
 pixel, preserves changes within a line, and restarts the PC at frame origin.
 CPU/RPU bus ordering remains limited by instruction-boundary timer dispatch;
-FPGA video pipeline latency and bus arbitration are not modeled. RPU interrupt
-state is implemented, but the board's general-purpose interrupt connection to
-the CPU is not implemented.
+FPGA video pipeline latency and bus arbitration are not modeled.
 
-Run the headless instruction, memory mapping, framebuffer and timing checks with
-`meson test -C build --print-errorlogs` in a software-renderer build.
+### Timer, interrupts and VRAM window (software renderer)
+
+I/O bank 6, also available at board-relative memory `0x20c0`–`0x20df`,
+implements the 50 MHz timer. Registers 1/2 set the divider, 3/4 the reload
+value, and 5/6 the counter. Write low then high; all pairs share byte latches.
+Read low before high. Control register 0 has start/restart (bit 7), auto-reload
+(6), decrement (5), interrupt enable (4), and load-reload-value (0).
+Clearing bit 7 does not stop the timer. Reaching zero sets register 7 bit 0;
+write one to clear it. Auto-reload occurs on the following timer tick.
+
+Horizontal raster reads at `0x92`/`0x93` and vertical reads at `0x90`/`0x91`
+latch the high byte when the low byte is read. Video status `0x9d` enables
+horizontal and vertical blank interrupts in bits 2 and 3. Blank edges latch
+regardless of enable; `0x9e` bits 0/1 read these latches and clear on writing
+one. Bit 2 reports the combined general-purpose interrupt. PIO B5 receives
+the active-low horizontal/audio/RPU/timer interrupt; B6 receives vertical
+blank. Program the PIO interrupt mode, mask and vector as on hardware.
+Audio FIFO consumption and empty interrupts run independently of host audio.
+The active-low PIO B5/B6 connections are documented in the
+[PIO system port](https://zeal8bit.com/docs/en/pio/) and
+[video connector](https://zeal8bit.com/docs/en/video_port/) chapters;
+ZVB's [bus pinout](https://zeal8bit.com/docs/zvb/en/overview/) identifies
+INT1 as general-purpose and INT0 as vertical blank.
+
+`0x9f` reports enabled external sources. Neither the supplied FPGA snapshot
+nor the public documentation specifies their status-bit order, so the current
+assignments remain provisional: audio bit 0, RPU bit 1, timer bit 2.
+The published [video configuration](https://zeal8bit.com/docs/zvb/en/video_configuration/)
+chapter describes a different interrupt register layout (`0x9f` as interrupt
+clear). For registers explicitly defined by the supplied 1.0.0 RTL, this
+emulator follows that RTL (`0x9e` write-one-to-clear, `0x9f` external status).
+
+`0x8f` relocates the complete 128 KiB board window to `(value & 31) << 17`
+and reads back the selected bank. CPU and DMA accesses follow the window;
+underlying RAM/ROM mappings reappear when it moves. RPU LOAD addresses remain
+board-relative. Reset restores bank 8 (`0x100000`) and retains VRAM contents.
+Local regression checks remain ignored under `tests/`; Meson has no test targets.
 
 ### Clean
 

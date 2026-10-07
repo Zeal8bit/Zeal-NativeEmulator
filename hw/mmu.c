@@ -27,8 +27,20 @@ static uint8_t mmu_read(device_t* dev, uint32_t addr)
 static void mmu_resolve_vpage(mmu_t* mmu, int idx)
 {
     const int phys_page = mmu->pages[idx];
-    mmu->vpages[idx].dev       = mmu->mem_mapping[phys_page].dev;
-    mmu->vpages[idx].base_phys = mmu->mem_mapping[phys_page].page_from * (uint32_t)MEM_SPACE_ALIGN;
+    const map_entry_t entry = mmu_resolve_mem_entry(mmu, phys_page * (uint32_t)MEM_SPACE_ALIGN);
+    mmu->vpages[idx].dev       = entry.dev;
+    mmu->vpages[idx].base_phys = entry.page_from * (uint32_t)MEM_SPACE_ALIGN;
+}
+
+bool mmu_map_mem_overlay(mmu_t* mmu, uint32_t region_start, device_t* dev)
+{
+    if (!mmu || !dev || dev->mem_region.size <= 0 || region_start >= MEM_SPACE_SIZE ||
+        (uint32_t)dev->mem_region.size > MEM_SPACE_SIZE - region_start ||
+        (region_start % MEM_SPACE_ALIGN) || (dev->mem_region.size % MEM_SPACE_ALIGN))
+        return false;
+    mmu->mem_overlay = (map_entry_t){ .dev = dev, .page_from = region_start / MEM_SPACE_ALIGN };
+    for (int i = 0; i < MMU_PAGES_COUNT; i++) mmu_resolve_vpage(mmu, i);
+    return true;
 }
 
 

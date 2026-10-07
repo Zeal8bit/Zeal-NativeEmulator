@@ -11,6 +11,7 @@ zvb_sources = files([
     'zvb_crc32.c',
     'zvb_dma.c',
     'zvb_rpu.c',
+    'zvb_timer.c',
     'zvb_sound.c'
 ])
 

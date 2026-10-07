@@ -19,10 +19,8 @@
 /* Two channels left and right */
 #define SOUND_CHANNELS      2
 #define SAMPLES_PER_FRAME   (735)
-/* Since we cannot control the number of frames the audio callback
- * will request from us, we must make sure that the FIFO bigger than
- * audio callaback's `frames` parameter. */
-#define SAMPLE_FIFO_SIZE    (1024)
+#define SAMPLE_FIFO_SIZE    (256)
+#define SAMPLE_OUTPUT_SIZE  (4096)
 
 // Waveform types
 #define WAVE_SQUARE   0
@@ -77,10 +75,15 @@ typedef struct {
     /* FIFO-related */
     int fifo_head;
     int fifo_tail;
-    atomic_int fifo_bytes;
+    bool fifo_empty;
     uint8_t fifo[SAMPLE_FIFO_SIZE];
     /* Baudrate divider counter, used to know when to go to the next sample in the FIFO */
     int baud_count;
+    bool int_pending;
+    uint8_t state, ram_output;
+    uint16_t sample_output;
+    /* CPU clock owns the FIFO; the host audio thread only reads this sample. */
+    atomic_int output;
 } zvb_sample_table_t;
 
 
@@ -98,6 +101,11 @@ typedef struct {
     float              left_volume;
     float              right_volume;
     bool               enabled;
+    uint16_t           sample_clock_counter;
+    /* Host playback queue, separate from the emulated hardware FIFO. */
+    atomic_flag        output_lock;
+    int16_t            output_samples[SAMPLE_OUTPUT_SIZE];
+    unsigned           output_head, output_tail, output_count;
 } zvb_sound_t;
 
 
@@ -128,6 +136,11 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port);
  * @param value Value of the register
  */
 void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
+
+/* One FPGA master clock; FIFO-empty interrupts are independent of host audio. */
+void zvb_sound_clock(zvb_sound_t* sound);
+static inline bool zvb_sound_interrupt(const zvb_sound_t* sound)
+{ return (sound->sample_table.config & 8) && sound->sample_table.int_pending; }
 
 
 /**

@@ -51,6 +51,8 @@ typedef struct {
     /* Device registration tables (set once during init) */
     map_entry_t io_mapping[IO_MAPPING_SIZE];
     map_entry_t mem_mapping[MEM_MAPPING_SIZE];
+    /* Movable memory window takes priority without destroying underlying RAM/ROM. */
+    map_entry_t mem_overlay;
 
     struct {
         uint8_t (*read_byte)(void*, uint16_t);
@@ -74,6 +76,15 @@ int mmu_init(mmu_t* mmu);
  * @brief Get the physical address out of a virtual address
  */
 int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr);
+
+static inline map_entry_t mmu_resolve_mem_entry(const mmu_t* mmu, uint32_t phys_addr)
+{
+    const uint32_t base = (uint32_t)mmu->mem_overlay.page_from * MEM_SPACE_ALIGN;
+    if (mmu->mem_overlay.dev && phys_addr >= base &&
+        phys_addr - base < (uint32_t)mmu->mem_overlay.dev->mem_region.size)
+        return mmu->mem_overlay;
+    return mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+}
 
 
 /**
@@ -110,10 +121,9 @@ static inline void mmu_virt_write_byte(mmu_t* mmu, uint16_t virt_addr, uint8_t d
 static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return 0;
-    const int page = phys_addr / MEM_SPACE_ALIGN;
-    const map_entry_t* entry = &mmu->mem_mapping[page];
-    if (!entry->dev) return 0;
-    return entry->dev->mem_region.read(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN);
+    const map_entry_t entry = mmu_resolve_mem_entry(mmu, phys_addr);
+    if (!entry.dev) return 0;
+    return entry.dev->mem_region.read(entry.dev, phys_addr - (uint32_t)entry.page_from * MEM_SPACE_ALIGN);
 }
 
 
@@ -123,10 +133,9 @@ static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t data)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return;
-    const int page = phys_addr / MEM_SPACE_ALIGN;
-    const map_entry_t* entry = &mmu->mem_mapping[page];
-    if (!entry->dev) return;
-    entry->dev->mem_region.write(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN, data);
+    const map_entry_t entry = mmu_resolve_mem_entry(mmu, phys_addr);
+    if (!entry.dev) return;
+    entry.dev->mem_region.write(entry.dev, phys_addr - (uint32_t)entry.page_from * MEM_SPACE_ALIGN, data);
 }
 
 
@@ -166,6 +175,10 @@ void mmu_register_io_device(mmu_t* mmu, int region_start, device_t* dev);
  */
 void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev);
 
+/* Set/move the overlay and refresh all cached CPU pages. Returns false for
+ * an invalid range; underlying mappings are retained when the window moves. */
+bool mmu_map_mem_overlay(mmu_t* mmu, uint32_t region_start, device_t* dev);
+
 
 /**
  * @brief Read len bytes from consecutive virtual addresses into buf.
@@ -186,5 +199,3 @@ void mmu_phys_read_array(const mmu_t* mmu, uint32_t phys_addr, uint8_t* buf, uin
  * @brief Write len bytes from buf to consecutive physical addresses.
  */
 void mmu_phys_write_array(mmu_t* mmu, uint32_t phys_addr, const uint8_t* buf, uint16_t len);
-
-

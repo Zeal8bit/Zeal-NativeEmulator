@@ -39,6 +39,9 @@ typedef struct vtimer_node {
  */
 void vtimer_init(void);
 
+/* Current emulated time, for peripheral counters between scheduled events. */
+uint64_t vtimer_now_ns(void);
+
 
 /**
  * @brief Initialize a timer node with its callback and userdata.

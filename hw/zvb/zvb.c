@@ -73,6 +73,34 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr);
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data);
 static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uint8_t data);
 
+static uint8_t zvb_external_interrupts(const zvb_t* zvb)
+{
+    return (zvb_sound_interrupt(&zvb->sound) ? ZVB_EXT_INT_SOUND : 0) |
+           (zvb_rpu_interrupt(&zvb->rpu) ? ZVB_EXT_INT_RPU : 0) |
+           (zvb_timer_interrupt(&zvb->peri_timer) ? ZVB_EXT_INT_TIMER : 0);
+}
+
+static bool zvb_gp_interrupt(const zvb_t* zvb)
+{
+    return zvb_external_interrupts(zvb) || (zvb->status.h_int_ena && (zvb->blank_latches & 1));
+}
+
+static void zvb_update_interrupts(void* userdata)
+{
+    zvb_t* zvb = userdata;
+    if (!zvb->pio) return;
+    pio_set_b_pin(zvb->pio, ZVB_PIO_VBLANK_PIN,
+                  !(zvb->status.v_int_ena && (zvb->blank_latches & 2)));
+    pio_set_b_pin(zvb->pio, ZVB_PIO_GP_PIN, !zvb_gp_interrupt(zvb));
+}
+
+static void zvb_relocate(zvb_t* zvb, uint8_t data)
+{
+    const uint8_t bank = data & 31;
+    if (mmu_map_mem_overlay(zvb->mmu, (uint32_t)bank << 17, DEVICE(zvb)))
+        zvb->phys_bank = bank;
+}
+
 static uint8_t zvb_peripheral_read(zvb_t* zvb, uint8_t bank, uint32_t addr)
 {
     switch (bank) {
@@ -82,6 +110,7 @@ static uint8_t zvb_peripheral_read(zvb_t* zvb, uint8_t bank, uint32_t addr)
         case ZVB_IO_MAPPING_SOUND: return zvb_sound_read(&zvb->sound, addr);
         case ZVB_IO_MAPPING_DMA: return zvb_dma_read(&zvb->dma, addr);
         case ZVB_IO_MAPPING_RPU: return zvb_rpu_read(&zvb->rpu, addr);
+        case ZVB_IO_MAPPING_TIMER: return zvb_timer_read(&zvb->peri_timer, addr);
         default: return 0;
     }
 }
@@ -91,7 +120,7 @@ static uint8_t zvb_peripheral_read(zvb_t* zvb, uint8_t bank, uint32_t addr)
 static int zvb_mem_io_address(uint32_t addr)
 {
     if (IN_RANGE(0x1fe0U, 0x2000U, addr)) return addr - 0x1fe0;
-    if (IN_RANGE(0x2000U, 0x20c0U, addr)) return ZVB_IO_BANK_START + (addr & 15);
+    if (IN_RANGE(0x2000U, 0x20e0U, addr)) return ZVB_IO_BANK_START + (addr & 15);
     return -1;
 }
 
@@ -168,6 +197,17 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
             zvb->ctrl.vpos_latch = (zvb->current_scanline >> 8);
             return (zvb->current_scanline >> 0) & 0xff;
         case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
+        case ZVB_IO_CONFIG_HPOS_LOW: {
+            unsigned hpos = zvb->current_hpos;
+#if ZVB_BLITTER_SOFTWARE
+            /* Raster dispatch covers eight pixels; reads include the intervening
+             * 40 ns pixel clocks up to the current instruction boundary. */
+            hpos += (vtimer_now_ns() - (zvb->timer.deadline - 320)) / 40;
+#endif
+            zvb->ctrl.hpos_latch = (hpos >> 8) & 7;
+            return hpos & 255;
+        }
+        case ZVB_IO_CONFIG_HPOS_HIGH:       return zvb->ctrl.hpos_latch;
 
         case ZVB_IO_CONFIG_L0_SCR_Y_LOW:    return (zvb->ctrl.l0_scroll_y >> 0) & 0xff;
         case ZVB_IO_CONFIG_L0_SCR_Y_HIGH:   return (zvb->ctrl.l0_scroll_y >> 8) & 0xff;
@@ -181,6 +221,9 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 
         case ZVB_IO_CONFIG_MODE_REG:        return zvb->mode;
         case ZVB_IO_CONFIG_STATUS_REG:      return zvb->status.raw;
+        case ZVB_IO_CONFIG_INT_STATUS_REG:
+            return zvb->blank_latches | (zvb_gp_interrupt(zvb) << 2);
+        case ZVB_IO_CONFIG_EXT_STATUS_REG: return zvb_external_interrupts(zvb);
         default:
             log_err_printf("[ZVB][CTRL] Unknwon register %x\n", addr);
             break;
@@ -206,6 +249,7 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
     } else if (addr == ZVB_IO_BANK_REG) {
         return zvb->io_bank;
     } else if (addr == ZVB_MEM_START_REG) {
+        return zvb->phys_bank;
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         return zvb_io_read_control(zvb, subaddr);
@@ -251,6 +295,13 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             break;
         case ZVB_IO_CONFIG_STATUS_REG:
             zvb->status.vid_ena = status.vid_ena;
+            zvb->status.h_int_ena = status.h_int_ena;
+            zvb->status.v_int_ena = status.v_int_ena;
+            zvb_update_interrupts(zvb);
+            break;
+        case ZVB_IO_CONFIG_INT_STATUS_REG:
+            zvb->blank_latches &= ~(value & 3);
+            zvb_update_interrupts(zvb);
             break;
         default:
             log_err_printf("[ZVB][CTRL] Unsupported write register %x\n", addr);
@@ -281,9 +332,13 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
             zvb_rpu_write(&zvb->rpu, subaddr, data);
             if (zvb_rpu_active(&zvb->rpu)) zvb->raster_rendering = true;
             break;
+        case ZVB_IO_MAPPING_TIMER:
+            zvb_timer_write(&zvb->peri_timer, subaddr, data);
+            break;
         default:
             break;
     }
+    zvb_update_interrupts(zvb);
 }
 
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
@@ -293,9 +348,9 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
     } else if (addr == ZVB_IO_BANK_REG) {
-        zvb->io_bank = data;
+        zvb->io_bank = data & 63;
     } else if (addr == ZVB_MEM_START_REG) {
-        log_err_printf("[ZVB][WARNING] zvb memory mapping register is not supported\n");
+        zvb_relocate(zvb, data);
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         zvb_io_write_control(zvb, subaddr, data);
@@ -325,7 +380,7 @@ static void zvb_fsm_next(void* userdata);
 
 int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
 {
-    if (dev == NULL || config == NULL) {
+    if (dev == NULL || config == NULL || mmu == NULL) {
         return 1;
     }
 
@@ -338,6 +393,8 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
     dev->rendering_enabled = rendering_enabled;
+    dev->mmu = mmu;
+    dev->pio = config->pio;
 
     zvb_palette_init(&dev->palette, rendering_enabled);
     zvb_font_init(&dev->font, rendering_enabled);
@@ -350,6 +407,8 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, mmu);
     zvb_rpu_init(&dev->rpu);
+    zvb_timer_init(&dev->peri_timer, zvb_update_interrupts, dev);
+    zvb_relocate(dev, 8);
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
@@ -377,6 +436,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
 
     /* Enable the screen by default */
     dev->status.vid_ena = 1;
+    zvb_update_interrupts(dev);
     dev->need_render = false;
     return 0;
 }
@@ -390,6 +450,27 @@ static void zvb_reset(device_t* dev)
     zvb_sound_reset(&zvb->sound);
     zvb_dma_reset(&zvb->dma);
     zvb_rpu_reset(&zvb->rpu);
+    zvb_timer_reset(&zvb->peri_timer);
+    zvb->mode = MODE_DEFAULT;
+    memset(&zvb->ctrl, 0, sizeof(zvb->ctrl));
+    zvb->status.raw = 0x80;
+    zvb->blank_latches = zvb->io_bank = 0;
+    zvb_relocate(zvb, 8);
+    vtimer_cancel(&zvb->timer);
+    zvb->current_scanline = zvb->current_hpos = zvb->raster_rendered_x = 0;
+    zvb->state = STATE_RENDERING;
+    zvb->need_render = false;
+    zvb->raster_rendering = false;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    zvb->raster_rendering = true;
+#endif
+#if ZVB_BLITTER_SOFTWARE
+    zvb->blitter.raster_frame = false;
+    vtimer_schedule_ns(&zvb->timer, 320);
+#else
+    vtimer_schedule_tstates(&zvb->timer, s_tstates_remaining[STATE_RENDERING]);
+#endif
+    zvb_update_interrupts(zvb);
 }
 
 
@@ -569,7 +650,9 @@ static void zvb_software_raster_next(zvb_t* zvb)
     for (int x = start; x < start + 8; x++) {
         span.x = x;
         zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
+        zvb_sound_clock(&zvb->sound);
         zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
+        zvb_sound_clock(&zvb->sound);
     }
     if (start + 8 == 640) zvb_raster_flush(&span, 640);
     zvb->raster_rendered_x = span.rendered;
@@ -577,6 +660,7 @@ static void zvb_software_raster_next(zvb_t* zvb)
     if (zvb->current_hpos == 640) {
         zvb->state = STATE_HBLANK;
         zvb->status.h_blank = 1;
+        zvb->blank_latches |= 1;
     } else if (zvb->current_hpos == 800) {
         zvb->current_hpos = 0;
         zvb->raster_rendered_x = 0;
@@ -586,6 +670,7 @@ static void zvb_software_raster_next(zvb_t* zvb)
         if (zvb->current_scanline == 480) {
             zvb->need_render = true;
             zvb->status.v_blank = 1;
+            zvb->blank_latches |= 2;
             /* Cursor blinking follows FPGA vblank even when presentation is
              * skipped, rendering is headless, or the board is in graphics mode. */
             zvb_text_info_t info;
@@ -599,6 +684,7 @@ static void zvb_software_raster_next(zvb_t* zvb)
 #endif
         }
     }
+    zvb_update_interrupts(zvb);
     /* Rearm from the prior deadline to retain the 25 MHz raster rate even
      * when a CPU instruction overruns more than one eight-pixel interval. */
     const uint64_t deadline = zvb->timer.deadline + 320;
@@ -642,6 +728,9 @@ static void zvb_fsm_next(void* userdata)
 
 void zvb_deinit(zvb_t* zvb)
 {
+    vtimer_cancel(&zvb->timer);
+    vtimer_cancel(&zvb->peri_timer.event);
+    zvb_sound_deinit(&zvb->sound);
     if (!zvb->rendering_enabled) {
         return;
     }
