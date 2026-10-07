@@ -329,7 +329,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
 
             int final_idx;
             if (color_4bit) {
-                final_idx = sp->flags.bitmap.palette + color_idx;
+                final_idx = (sp->flags.bitmap.palette << 4) | color_idx;
             } else {
                 final_idx = color_idx;
             }
