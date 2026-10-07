@@ -85,6 +85,15 @@ void zvb_crc32_write(zvb_crc32_t* crc32, uint16_t subaddr, uint8_t data)
             update(crc32, data);
             break;
 
+        case 4: case 5: case 6: case 7: {
+            /* The RTL exposes the complemented accumulator for both reads
+             * and writes, allowing a program to restore a partial checksum. */
+            const unsigned shift = (subaddr - 4) * 8;
+            crc32->sum = (crc32->sum & ~(UINT32_C(0xff) << shift)) |
+                         ((uint32_t)(uint8_t)~data << shift);
+            break;
+        }
+
         default:
             break;
     }
