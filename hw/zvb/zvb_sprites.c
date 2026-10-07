@@ -77,7 +77,7 @@ void zvb_sprites_init(zvb_sprites_t* sprites, bool rendering_enabled)
 int zvb_sprites_get_visible_sprites(zvb_sprites_t* sprites, int scanline, uint8_t sprites_idx[ZVB_SPRITES_COUNT])
 {
     int count = 0;
-    for (int idx = 0; idx < ZVB_SPRITES_COUNT; idx++) {
+    for (int idx = 0; idx < ZVB_SPRITES_COUNT && count < ZVB_SPRITES_PER_LINE; idx++) {
         int sy = (int)sprites->data[idx].y - 16;
         int sh = sprites->data[idx].extra_flags.bitmap.height_32 ? 32 : 16;
         if (scanline >= sy && scanline < sy + sh)
@@ -110,4 +110,3 @@ uint8_t zvb_sprites_read(zvb_sprites_t* sprites, uint32_t addr)
     uint8_t* raw_data = (uint8_t*) sprites->data;
     return raw_data[addr];
 }
-

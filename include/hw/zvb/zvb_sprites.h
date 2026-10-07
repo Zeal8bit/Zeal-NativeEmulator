@@ -16,6 +16,7 @@
  * @brief Number of sprites in the system
  */
 #define ZVB_SPRITES_COUNT   (128)
+#define ZVB_SPRITES_PER_LINE (40)
 
 
 /**
