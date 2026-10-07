@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define SPI_RAM_LEN     8
 #define SPI_VERSION     0
@@ -89,6 +90,8 @@ typedef struct {
     uint8_t         reply[1024];
     int             reply_idx;
     int             reply_len;
+    uint8_t         command[6];
+    unsigned        command_index, write_index;
 } zvb_tf_t;
 
 
@@ -104,6 +107,9 @@ typedef struct {
     /* When 1, the TF chip select line is asserted */
     uint8_t         tf_cs;
     zvb_tf_t        tf;
+    bool            busy, sclk;
+    uint8_t         period_counter, transfer_index, bit_index;
+    uint8_t         incoming, outgoing, mosi;
 } zvb_spi_t;
 
 
@@ -126,6 +132,9 @@ void zvb_spi_reset(zvb_spi_t* spi);
  * @param data Byte to write
  */
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
+
+/* One 50 MHz FPGA master clock, independent of host/card I/O latency. */
+void zvb_spi_clock(zvb_spi_t* spi);
 
 
 /**

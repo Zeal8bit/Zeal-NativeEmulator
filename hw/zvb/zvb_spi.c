@@ -35,7 +35,7 @@
 #define TF_BLK_DUMMY_BYTES  3
 
 static void zvb_tf_deassert(zvb_spi_t* spi);
-static void zvb_tf_start(zvb_spi_t* spi);
+static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data);
 
 void zvb_spi_init(zvb_spi_t* spi)
 {
@@ -51,6 +51,10 @@ void zvb_spi_reset(zvb_spi_t* spi)
     spi->ram_wr.idx = 0;
     spi->ram_len = 0;
     spi->tf_cs = 0;
+    spi->busy = spi->sclk = false;
+    spi->period_counter = spi->transfer_index = 0;
+    spi->tf.command_index = spi->tf.write_index = 0;
+    spi->tf.reply_idx = spi->tf.reply_len = 0;
     /* Reset TF card */
     spi->tf.state = TF_IDLE;
 }
@@ -101,9 +105,14 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
                 spi->clk_div = 10;
                 spi->ram_len = 0;
                 spi->tf_cs = 0;
+                spi->busy = spi->sclk = false;
+                spi->period_counter = spi->transfer_index = 0;
                 zvb_tf_deassert(spi);
-            } else if (ctrl.start && spi->tf_cs == 1) {
-                zvb_tf_start(spi);
+            } else if (ctrl.start && spi->ram_len) {
+                spi->busy = true;
+                spi->transfer_index = 0;
+                spi->bit_index = 7;
+                spi->mosi = spi->ram_wr.data[0] >> 7;
             }
             break;
         case SPI_REG_CLK_DIV:
@@ -143,8 +152,7 @@ uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr)
         case SPI_REG_VERSION:
             return SPI_VERSION;
         case SPI_REG_CTRL:
-            /* Always return the state as IDLE (0) */
-            return 0;
+            return spi->busy;
         case SPI_REG_CLK_DIV:
             return spi->clk_div;
         case SPI_REG_RAM_LEN:
@@ -183,22 +191,21 @@ typedef union {
 
 static void zvb_tf_deassert(zvb_spi_t* spi)
 {
-    /* Make sure the TF Card has been initialized at least once */
-    if (spi->tf.state == TF_READ_BLOCK || spi->tf.state == TF_WRITE_BLOCK_SEND_RESP) {
-        /* Make sure the block read (or write) processed a whole block. `reply_idx` points to the next byte to read! */
-        if (spi->tf.state == TF_READ_BLOCK && spi->tf.reply_idx - TF_BLK_DUMMY_BYTES != TF_BLK_SIZE){
-            log_err_printf("[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
-                    spi->tf.reply_idx - TF_BLK_DUMMY_BYTES, TF_BLK_SIZE);
-        }
-        spi->tf.state = TF_IDLE;
-    }
+    zvb_tf_t* tf = &spi->tf;
+    tf->command_index = tf->write_index = 0;
+    tf->reply_idx = tf->reply_len = 0;
+    if (tf->state != TF_CMD55_RECEIVED) tf->state = TF_IDLE;
 }
 
 
 static uint8_t zvb_tf_next_byte(zvb_tf_t* tf)
 {
     if (tf->reply_idx < tf->reply_len) {
-        return tf->reply[tf->reply_idx++];
+        const uint8_t data = tf->reply[tf->reply_idx++];
+        if (tf->reply_idx == tf->reply_len &&
+            (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP))
+            tf->state = TF_IDLE;
+        return data;
     }
 
     /* Dummy byte */
@@ -371,137 +378,70 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
 }
 
 
-static void zvb_tf_start_write(zvb_spi_t* spi)
+/* The card is a byte-stream endpoint; commands may span hardware transfers. */
+static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
 {
-    const int length = spi->ram_len;
-    int i = 0;
-
-    if (spi->tf.state == TF_WRITE_BLOCK_WAIT_TOK) {
-        /* Look for the data token */
-        for (i = 0; i < length; i++) {
-            if (spi->ram_wr.data[i] == TF_DATA_TOKEN) {
-                spi->tf.reply_idx = 0;
-                spi->tf.state = TF_WRITE_BLOCK;
-                /* Make i point to the first data byte */
-                i++;
-                break;
-            }
+    zvb_tf_t* tf = &spi->tf;
+    if (!spi->tf_cs || !tf->img) return;
+    if (tf->state == TF_WRITE_BLOCK_WAIT_TOK) {
+        if (data == TF_DATA_TOKEN) {
+            tf->state = TF_WRITE_BLOCK;
+            tf->write_index = 0;
         }
+        return;
     }
-
-    if (spi->tf.state == TF_WRITE_BLOCK) {
-        /* In total, we need to receive 512 bytes of data and 2 CRC bytes */
-        for (; i < length && spi->tf.reply_idx < TF_BLK_SIZE + 2; i++) {
-            spi->tf.reply[spi->tf.reply_idx++] = spi->ram_wr.data[i];
+    if (tf->state == TF_WRITE_BLOCK) {
+        tf->reply[tf->write_index++] = data;
+        if (tf->write_index == TF_BLK_SIZE + 2) {
+            const size_t written = fwrite(tf->reply, 1, TF_BLK_SIZE, tf->img);
+            tf->reply[0] = written == TF_BLK_SIZE ? 0x05 : 0x0d;
+            tf->reply[1] = 0x00;
+            tf->reply[2] = 0xff;
+            tf->reply_idx = 0;
+            tf->reply_len = 3;
+            tf->state = TF_WRITE_BLOCK_SEND_RESP;
         }
-
-        if (spi->tf.reply_idx == TF_BLK_SIZE + 2) {
-            /* Finished receiving the block data, write it to the file, the file has already been seeked */
-#if 0
-            log_printf("[TF] Writing data: \n");
-            for (int i = 0; i < TF_BLK_SIZE; i++) {
-                log_printf("%x, ", spi->tf.reply[i]);
-            }
-            log_printf("\n");
-#endif
-            int wr = fwrite(spi->tf.reply, 1, TF_BLK_SIZE, spi->tf.img);
-            if (wr < TF_BLK_SIZE) {
-                log_err_printf("[TF] Warning could only write %d/%d bytes from the image file\n", wr, TF_BLK_SIZE);
-            }
-            spi->tf.state = TF_WRITE_BLOCK_SEND_RESP;
-            spi->tf.reply_idx = 0;
-        }
+        return;
     }
-
-    if (spi->tf.state == TF_WRITE_BLOCK_SEND_RESP) {
-        /* The index i points to the response index we need to write */
-        if (spi->tf.reply_idx == 0 && i < length) {
-            /* Data response */
-            spi->ram_rd.data[i++] = 0x5;
-            spi->tf.reply_idx++;
-        }
-        if (spi->tf.reply_idx == 1 && i < length) {
-            /* Busy flag */
-            spi->ram_rd.data[i++] = 0x00;
-            spi->tf.reply_idx++;
-        }
-        if (spi->tf.reply_idx >= 2 && i < length) {
-            /* End */
-            memset(spi->ram_rd.data + i, 0xFF, length - i);
-        }
+    if (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP) return;
+    if (!tf->command_index && (data & 0xc0) != 0x40) return;
+    tf->command[tf->command_index++] = data;
+    if (tf->command_index == sizeof(tf->command)) {
+        const uint32_t param = ((uint32_t)tf->command[1] << 24) |
+                               ((uint32_t)tf->command[2] << 16) |
+                               ((uint32_t)tf->command[3] << 8) | tf->command[4];
+        tf->command_index = 0;
+        zvb_tf_process_command(spi, tf->command[0] & 0x3f, param);
     }
 }
 
-
-static void zvb_tf_start(zvb_spi_t* spi)
+void zvb_spi_clock(zvb_spi_t* spi)
 {
-    int i;
-    const int length = spi->ram_len;
-    /* If we don't have any TF card mounted, abort, fill the response with 0xFF */
-    if (spi->tf.img == NULL) {
-        memset(spi->ram_rd.data, 0xFF, length);
+    if (!spi->busy) return;
+    if (spi->period_counter != spi->clk_div - 1) {
+        spi->period_counter++;
         return;
     }
-
-    /* Look for the command in the array */\
-    if (length > SPI_RAM_LEN) {
-        log_err_printf("[TF] ERROR: length is bigger than HW array\n");
-        return;
-    }
-
-#if 0
-    log_printf("[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
-            spi->ram_wr.data[0],
-            spi->ram_wr.data[1],
-            spi->ram_wr.data[2],
-            spi->ram_wr.data[3],
-            spi->ram_wr.data[4],
-            spi->ram_wr.data[5],
-            spi->ram_wr.data[6],
-            spi->ram_wr.data[7],
-            length);
-#endif
-
-    /* Special case for the WRITE state */
-    if (zvb_tf_is_write(spi->tf.state)) {
-        zvb_tf_start_write(spi);
-        return;
-    }
-
-    for (i = 0; i < length; i++) {
-        /* Fill the OUT array at the same time */
-        spi->ram_rd.data[i] = zvb_tf_next_byte(&spi->tf);
-        /* Highest bits must be 0b01xx */
-        if ((spi->ram_wr.data[i] >> 6) == 0b01) {
-            break;
+    spi->period_counter = 0;
+    if (!spi->sclk) {
+        /* Capture MISO on rising edges, including wrapping eight-byte RAM. */
+        if (spi->bit_index == 7) {
+            spi->incoming = spi->tf_cs && spi->tf.img ? zvb_tf_next_byte(&spi->tf) : 0xff;
+            spi->outgoing = 0;
         }
+        const unsigned mask = 1u << spi->bit_index;
+        uint8_t* input = &spi->ram_rd.data[spi->transfer_index & 7];
+        *input = (*input & ~mask) | (spi->incoming & mask);
+        spi->outgoing |= spi->mosi << spi->bit_index;
+        if (!spi->bit_index) {
+            zvb_tf_receive_byte(spi, spi->outgoing);
+            spi->transfer_index = (spi->transfer_index + 1) & 15;
+        }
+        spi->bit_index = (spi->bit_index - 1) & 7;
+    } else {
+        /* Advance MOSI on falling edges, or finish after the last byte. */
+        if (spi->transfer_index == spi->ram_len) spi->busy = false;
+        else spi->mosi = (spi->ram_wr.data[spi->transfer_index & 7] >> spi->bit_index) & 1;
     }
-
-    /* Reached the end of the array, didn't find a command, ignore */
-    if (i == length) {
-        return;
-    }
-
-    /* Parameters must be bundled with the command */
-    if (i + 5 >= spi->ram_len) {
-        log_err_printf("[TF] Parameters must be provided with the command\n");
-        return;
-    }
-
-    /* Else, we found a command, extract it */
-    uint32_t command = spi->ram_wr.data[i] & (TF_CMD_MASK - 1);
-    uint32_t param = spi->ram_wr.data[i + 1] << 24 |
-                     spi->ram_wr.data[i + 2] << 16 |
-                     spi->ram_wr.data[i + 3] << 8 |
-                     spi->ram_wr.data[i + 4] << 0;
-    /* Ignore CRC for now */
-    uint8_t crc = spi->ram_wr.data[i + 5];
-    (void) crc;
-    i += 6;
-    /* Process the commands and continue filling the FIFO */
-    zvb_tf_process_command(spi, command, param);
-    for (; i < length; i++) {
-        /* Fill the OUT array at the same time */
-        spi->ram_rd.data[i] = zvb_tf_next_byte(&spi->tf);
-    }
+    spi->sclk = !spi->sclk;
 }

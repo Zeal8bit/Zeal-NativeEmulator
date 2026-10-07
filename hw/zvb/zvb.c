@@ -651,8 +651,10 @@ static void zvb_software_raster_next(zvb_t* zvb)
         span.x = x;
         zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
         zvb_sound_clock(&zvb->sound);
+        zvb_spi_clock(&zvb->spi);
         zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
         zvb_sound_clock(&zvb->sound);
+        zvb_spi_clock(&zvb->spi);
     }
     if (start + 8 == 640) zvb_raster_flush(&span, 640);
     zvb->raster_rendered_x = span.rendered;
