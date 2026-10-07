@@ -25,6 +25,8 @@
 #define TILE_H      16
 #define TILESET_BYTES_PER_TILE  256
 #define SPRITE_COUNT            ZVB_SPRITES_COUNT
+#define SPRITE_OPAQUE           1u
+#define SPRITE_BEHIND_FG        2u
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -272,7 +274,7 @@ void zvb_blitter_prepare_render_gfx_mode(zvb_t* zvb)
 }
 
 static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
-                                         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
+                                         uint16_t* sprites_scanline, uint8_t* sprites_flags,
                                          const uint16_t* pal_rgb)
 {
     const zvb_sprite_t* sprites = zvb->sprites.data;
@@ -284,7 +286,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
     int scr_w = mode_320 ? 320 : 640;
 
     memset(sprites_scanline, 0, scr_w * sizeof(uint16_t));
-    memset(sprites_behind_fg, 0, scr_w);
+    memset(sprites_flags, 0, scr_w);
 
     /* Get the list of visible sprites for this scanline */
     uint8_t visible_sprites[ZVB_SPRITES_COUNT];
@@ -335,14 +337,15 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
             }
 
             sprites_scanline[px] = pal_rgb[final_idx & 0xFF];
-            sprites_behind_fg[px] = sp->flags.bitmap.behind_fg ? 1 : 0;
+            sprites_flags[px] = SPRITE_OPAQUE |
+                (sp->flags.bitmap.behind_fg ? SPRITE_BEHIND_FG : 0);
         }
     }
 }
 
 
 static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
-        uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
+        uint16_t* sprites_scanline, uint8_t* sprites_flags,
         const uint16_t* pal_rgb, int start, int end, int output_y, int scale)
 {
     uint16_t* fb            = zvb->blitter.framebuffer;
@@ -357,8 +360,6 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
     int l0_py = (py + scroll_y) % 640;
     int l0_ty = l0_py / TILE_H;
     int l0_oy = l0_py % TILE_H;
-
-    (void)sprites_behind_fg;    /* Unused in 4-bit (behind_fg needs opaque layer1) */
 
     for (int px = first; px < limit; ) {
         int l0_px  = (px + scroll_x) % 1280;
@@ -384,7 +385,7 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
             uint16_t pixel_rgb = pal_rgb[color_idx];
 
             uint16_t sp = sprites_scanline[px];
-            if (sp != 0) pixel_rgb = sp;
+            if (sprites_flags[px] & SPRITE_OPAQUE) pixel_rgb = sp;
 
             for (int sx = 0; sx < scale; sx++) {
                 const int x = px * scale + sx;
@@ -395,7 +396,7 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
 }
 
 static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
-        uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
+        uint16_t* sprites_scanline, uint8_t* sprites_flags,
         const uint16_t* pal_rgb, int start, int end, int output_y, int scale)
 {
     uint16_t* fb            = zvb->blitter.framebuffer;
@@ -453,7 +454,8 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
             }
 
             uint16_t sp = sprites_scanline[px];
-            if (sp != 0 && !(opaque && sprites_behind_fg[px]))
+            if ((sprites_flags[px] & SPRITE_OPAQUE) &&
+                !(opaque && (sprites_flags[px] & SPRITE_BEHIND_FG)))
                 pixel_rgb = sp;
 
             for (int sx = 0; sx < scale; sx++) {
