@@ -71,8 +71,6 @@ typedef struct {
 typedef struct {
     zvb_sprite_t    data[ZVB_SPRITES_COUNT];
     int             wr_latch;
-    /* Sorted list of sprite indices by Y (ascending), used by software blitter */
-    uint8_t         y_sorted[ZVB_SPRITES_COUNT];
 #if ZVB_BLITTER_SHADER
     zvb_fsprite_t   fdata[ZVB_SPRITES_COUNT];
     /* Make rendering faster by using an Image and a Texture for both layers */
