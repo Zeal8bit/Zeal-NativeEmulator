@@ -139,7 +139,7 @@ void zvb_spi_reset(zvb_spi_t* spi);
  */
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
 
-/* One 50 MHz FPGA master clock, independent of host/card I/O latency. */
+/* One 50 MHz master clock, independent of host/card I/O latency. */
 void zvb_spi_clock(zvb_spi_t* spi);
 
 

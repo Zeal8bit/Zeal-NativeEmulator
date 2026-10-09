@@ -23,9 +23,8 @@
 #define ZVB_MEM_PERIPHERALS_END          (0x20e0U)
 #define ZVB_MEM_PERIPHERAL_SLOT_SIZE     (32)
 #define ZVB_REGISTER_MASK                (15)
-#define ZVB_PHYS_BANK_MASK               (31)
-#define ZVB_PHYS_BANK_SHIFT              (17)
 #define ZVB_DEFAULT_PHYS_BANK            (8)
+#define ZVB_MEM_CONFIG_BANK              (-1)
 #define ZVB_IO_BANK_MASK                 (63)
 #define ZVB_HBLANK_LATCH                 (1)
 #define ZVB_VBLANK_LATCH                 (2)
@@ -128,14 +127,6 @@ static void zvb_update_interrupts(void* userdata)
     pio_set_b_pin(zvb->pio, ZVB_PIO_GP_PIN, !zvb_gp_interrupt(zvb));
 }
 
-static void zvb_relocate(zvb_t* zvb, uint8_t data)
-{
-    const uint8_t bank = data & ZVB_PHYS_BANK_MASK;
-    if (mmu_map_mem_overlay(zvb->mmu, (uint32_t)bank << ZVB_PHYS_BANK_SHIFT, DEVICE(zvb))) {
-        zvb->phys_bank = bank;
-    }
-}
-
 static uint8_t zvb_peripheral_read(zvb_t* zvb, uint8_t bank, uint32_t addr)
 {
     switch (bank) {
@@ -158,15 +149,16 @@ static uint8_t zvb_peripheral_read(zvb_t* zvb, uint8_t bank, uint32_t addr)
     }
 }
 
-/* FPGA memory aliases: config at 1fe0/1ff0, peripherals in 32-byte slots.
- * Modules decode only the low four address bits. */
-static inline int zvb_mem_io_address(uint32_t addr)
+/* Decode configuration aliases and banked peripheral slots in one place. */
+static inline int zvb_mem_io_address(uint32_t addr, int* bank)
 {
     if (IN_RANGE(ZVB_MEM_CONFIG_START, ZVB_MEM_PERIPHERALS_START, addr)) {
+        *bank = ZVB_MEM_CONFIG_BANK;
         return addr - ZVB_MEM_CONFIG_START;
     }
     if (IN_RANGE(ZVB_MEM_PERIPHERALS_START, ZVB_MEM_PERIPHERALS_END, addr)) {
-        return ZVB_IO_BANK_START + (addr & ZVB_REGISTER_MASK);
+        *bank = (addr - ZVB_MEM_PERIPHERALS_START) / ZVB_MEM_PERIPHERAL_SLOT_SIZE;
+        return addr & ZVB_REGISTER_MASK;
     }
     return -1;
 }
@@ -188,10 +180,11 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 #if ZVB_BLITTER_SOFTWARE
     zvb_sync_clocks(zvb, vtimer_now_ns());
 #endif
-    const int io_addr = zvb_mem_io_address(addr);
+    int bank;
+    const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
-        if (addr >= ZVB_MEM_PERIPHERALS_START) {
-            return zvb_peripheral_read(zvb, (addr - ZVB_MEM_PERIPHERALS_START) / ZVB_MEM_PERIPHERAL_SLOT_SIZE, addr & ZVB_REGISTER_MASK);
+        if (bank != ZVB_MEM_CONFIG_BANK) {
+            return zvb_peripheral_read(zvb, bank, io_addr);
         }
         return zvb_io_read(dev, io_addr);
     }
@@ -219,10 +212,11 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 #if ZVB_BLITTER_SOFTWARE
     zvb_sync_clocks(zvb, vtimer_now_ns());
 #endif
-    const int io_addr = zvb_mem_io_address(addr);
+    int bank;
+    const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
-        if (addr >= ZVB_MEM_PERIPHERALS_START) {
-            zvb_peripheral_write(zvb, (addr - ZVB_MEM_PERIPHERALS_START) / ZVB_MEM_PERIPHERAL_SLOT_SIZE, addr & ZVB_REGISTER_MASK, data);
+        if (bank != ZVB_MEM_CONFIG_BANK) {
+            zvb_peripheral_write(zvb, bank, io_addr, data);
         } else {
             zvb_io_write(dev, io_addr, data);
         }
@@ -307,7 +301,7 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
     } else if (addr == ZVB_IO_BANK_REG) {
         return zvb->io_bank;
     } else if (addr == ZVB_MEM_START_REG) {
-        return zvb->phys_bank;
+        return ZVB_DEFAULT_PHYS_BANK;
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         return zvb_io_read_control(zvb, subaddr);
@@ -420,7 +414,8 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if (addr == ZVB_IO_BANK_REG) {
         zvb->io_bank = data & ZVB_IO_BANK_MASK;
     } else if (addr == ZVB_MEM_START_REG) {
-        zvb_relocate(zvb, data);
+        /* Zeal uses fixed VRAM at 1 MiB; relocation writes are ignored. */
+        return;
     } else if (addr >= ZVB_IO_CONF_START && addr < ZVB_IO_CONF_END) {
         const uint32_t subaddr = addr - ZVB_IO_CONF_START;
         zvb_io_write_control(zvb, subaddr, data);
@@ -463,7 +458,6 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
     dev->rendering_enabled = rendering_enabled;
-    dev->mmu = mmu;
     dev->pio = config->pio;
 
     zvb_palette_init(&dev->palette, rendering_enabled);
@@ -478,7 +472,6 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     zvb_dma_init(&dev->dma, mmu, !config->dma_disabled);
     zvb_rpu_init(&dev->rpu);
     zvb_timer_init(&dev->peri_timer, zvb_update_interrupts, dev);
-    zvb_relocate(dev, ZVB_DEFAULT_PHYS_BANK);
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
@@ -531,7 +524,6 @@ static void zvb_reset(device_t* dev)
     zvb->screen_enabled = false;
     zvb->io_bank = 0;
     zvb->blank_latches = 0;
-    zvb_relocate(zvb, ZVB_DEFAULT_PHYS_BANK);
     vtimer_cancel(&zvb->timer);
     zvb->current_hpos = 0;
     zvb->current_scanline = 0;

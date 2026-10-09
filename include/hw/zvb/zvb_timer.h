@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include "utils/vtimer.h"
 
-/* ZealTimer.v: shared byte latches and a 50 MHz divided 16-bit counter. */
 #define TIMER_REG_CTRL                   (0)
 #define TIMER_REG_DIV_LOW                (1)
 #define TIMER_REG_DIV_HIGH               (2)

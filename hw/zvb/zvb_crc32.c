@@ -94,7 +94,7 @@ void zvb_crc32_write(zvb_crc32_t* crc32, uint16_t subaddr, uint8_t data)
         case CRC32_REG_SUM_BYTE1:
         case CRC32_REG_SUM_BYTE2:
         case CRC32_REG_SUM_HIGH: {
-            /* The RTL exposes the complemented accumulator for both reads
+            /* Expose the complemented accumulator for both reads
              * and writes, allowing a program to restore a partial checksum. */
             const uint32_t shift = (subaddr - CRC32_REG_SUM_LOW) * 8;
             crc32->sum = (crc32->sum & ~(UINT32_C(0xff) << shift)) |

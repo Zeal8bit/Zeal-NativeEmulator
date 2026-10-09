@@ -50,7 +50,7 @@ typedef struct {
     uint8_t duty;
     uint8_t voice_volume;
     bool  hold;
-    /* SoundVoice.v latches changes until the waveform can safely restart. */
+    /* Latch changes until the waveform can safely restart. */
     uint16_t frequency;
     uint16_t max_state;
     uint8_t wave_latch;
@@ -142,7 +142,7 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port);
  */
 void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
 
-/* One FPGA master clock; FIFO-empty interrupts are independent of host audio. */
+/* One master clock; FIFO-empty interrupts are independent of host audio. */
 void zvb_sound_clock(zvb_sound_t* sound);
 /* Clocks until the next FIFO interrupt opportunity, or zero when inactive. */
 uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound);

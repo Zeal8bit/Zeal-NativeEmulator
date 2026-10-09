@@ -78,7 +78,7 @@ bool show_fps = false;
 static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 {
     const int phys_addr      = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
-    const map_entry_t entry  = mmu_resolve_mem_entry(&machine->cpu.mmu, phys_addr);
+    const map_entry_t entry  = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
     device_t* device         = entry.dev;
     const int start_addr     = entry.page_from * MMU_PAGE_SIZE;
 
@@ -329,6 +329,7 @@ int zeal_init(zeal_t* machine)
     };
     err = zvb_init(&machine->zvb, &zvb_config, mmu);
     CHECK_ERR(err);
+    mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
     if (!machine->headless) {
         SetMasterVolume(config.audio.volume / 100.0f);
         if (config.audio.volume != 100) {

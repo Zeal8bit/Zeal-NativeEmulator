@@ -181,8 +181,7 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
                 log_err_printf("[DEBUGGER] MMU value cannot exceed total memory space\n");
                 return false;
             }
-            const device_t* mapped_dev = mmu_resolve_mem_entry(&machine->cpu.mmu,
-                                                             value * MMU_PAGE_SIZE).dev;
+            const device_t* mapped_dev = machine->cpu.mmu.mem_mapping[value].dev;
             if (mapped_dev != NULL) {
                 mmu->entries[i].device = mapped_dev->name;
             }

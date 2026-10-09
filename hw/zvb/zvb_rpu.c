@@ -27,7 +27,7 @@ enum { IDLE, FETCH, EXECUTE };
 
 void zvb_rpu_reset(zvb_rpu_t* rpu)
 {
-    /* FPGA reset retains program RAM; CTRL reset also retains the masks. */
+    /* Board reset retains program RAM; CTRL reset also retains the masks. */
     rpu->instruction = 0;
     rpu->upload_data = 0;
     rpu->pc = 0;

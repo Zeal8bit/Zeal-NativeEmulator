@@ -120,7 +120,7 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
                 text->cursor_save = previous_cursor;
                 text->wait_for_next_char_save = previous_wait;
             }
-            /* In the RTL this flag is set-only until reset. Enabling it also
+            /* This flag remains set until reset. Enabling it also
              * brings a cursor awaiting wrap back onto the last column. */
             if ((value & TEXT_CTRL_AUTO_SCROLL_X) != 0) {
                 text->flags.auto_scroll_x = 1;

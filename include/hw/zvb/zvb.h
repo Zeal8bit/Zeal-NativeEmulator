@@ -41,6 +41,7 @@
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480
+#define ZVB_PHYS_ADDR_BASE  (0x100000U)
 
 /**
  * @brief Width and height for the debug textures, account for the grid of 1px
@@ -92,8 +93,8 @@
 #define ZVB_IO_MAPPING_RPU      5
 #define ZVB_IO_MAPPING_TIMER    6
 
-/* External-source ordering is provisional: neither the supplied RTL nor the
- * public ZVB docs specifies the ext_int_st source order. */
+/* External-source ordering is provisional; public documentation does not
+ * specify the ext_int_st source order. */
 #define ZVB_EXT_INT_SOUND (1u << 0)
 #define ZVB_EXT_INT_RPU   (1u << 1)
 #define ZVB_EXT_INT_TIMER (1u << 2)
@@ -196,9 +197,7 @@ typedef struct {
     bool             screen_enabled; /* VGA enable latched during vertical blank */
     uint8_t          io_bank;
     uint8_t          scratch[4];
-    uint8_t          phys_bank;
     uint8_t          blank_latches;
-    mmu_t*           mmu;
     pio_t*           pio;
 
     /* Raster FSM */

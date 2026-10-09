@@ -91,7 +91,7 @@ typedef struct {
     bool    cursor_shown;
 } zvb_text_t;
 
-/* ZealTilemap wraps the linear cursor address in its 80x40 backing map,
+/* Wrap the linear cursor address in its 80x40 backing map,
  * independently of the visible text resolution. */
 static inline uint32_t zvb_text_cursor_address(const zvb_text_t* text)
 {

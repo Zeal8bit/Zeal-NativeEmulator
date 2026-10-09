@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* ZealRasterProcessingUnit.v: 256 little-endian, 24-bit instructions. */
+/* Program RAM holds 256 little-endian, 24-bit instructions. */
 #define RPU_REG_CTRL                     (0)
 #define RPU_REG_UPLOAD_ADDR              (1)
 #define RPU_REG_UPLOAD_DATA              (2)
@@ -29,7 +29,7 @@ void zvb_rpu_init(zvb_rpu_t* rpu);
 void zvb_rpu_reset(zvb_rpu_t* rpu);
 uint8_t zvb_rpu_read(const zvb_rpu_t* rpu, uint32_t address);
 void zvb_rpu_write(zvb_rpu_t* rpu, uint32_t address, uint8_t data);
-/* One 50 MHz FPGA clock. LOAD uses the board's existing memory decoder. */
+/* One 50 MHz master clock. LOAD uses the board's existing memory decoder. */
 void zvb_rpu_clock(zvb_rpu_t* rpu, uint16_t hpos, uint16_t vpos,
                    zvb_rpu_load_fn load, void* userdata);
 static inline bool zvb_rpu_active(const zvb_rpu_t* rpu)

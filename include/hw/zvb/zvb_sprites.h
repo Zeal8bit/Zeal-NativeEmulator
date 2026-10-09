@@ -16,6 +16,8 @@
  * @brief Number of sprites in the system
  */
 #define ZVB_SPRITES_COUNT   (128)
+/* Emulator approximation of a variable rendering budget. Hardware capacity
+ * depends on sprite order and coverage, rather than a fixed sprite count. */
 #define ZVB_SPRITES_PER_LINE (40)
 
 

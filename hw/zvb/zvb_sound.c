@@ -113,10 +113,10 @@ void zvb_sound_reset(zvb_sound_t* sound)
         voice->decrementing = false;
         voice->need_reload = false;
         voice->hold = false;
-        /* Frequency/waveform write latches are retained on RTL reset. */
+        /* Reset retains the frequency/waveform write latches. */
         atomic_store_explicit(&voice->output, 0, memory_order_relaxed);
     }
-    /* WaveTable.v resets equal pointers with empty=false (full). */
+    /* Reset starts with equal FIFO pointers and a full FIFO. */
     sound->sample_table.fifo_empty = false;
     sound->sample_table.baud_count = 0;
     sound->sample_table.is_signed  = false;
@@ -154,7 +154,7 @@ void zvb_sound_deinit(zvb_sound_t* sound)
     g_sound = NULL;
 }
 
-/* Integer scaling matches the RTL's separate truncating shifts. */
+/* Apply each truncating shift before summing the scaled values. */
 static uint16_t scale_volume(uint16_t value, uint32_t volume)
 {
     const uint32_t factor = (volume & 3) + 1;
@@ -170,7 +170,7 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
     if (output != atomic_load_explicit(&voice->output, memory_order_relaxed)) {
         atomic_store_explicit(&voice->output, output, memory_order_relaxed);
     }
-    /* SoundVoice.v has two output pipeline registers, both updated each clock. */
+    /* Update both voice output pipeline stages each clock. */
     voice->max_state = voice->wave == WAVE_SQUARE ?
                        (voice->phase >= ((uint32_t)voice->duty << 13) ? SOUND_PCM_MAX : 0) :
                        (voice->phase & SOUND_PHASE_OVERFLOW ? SOUND_PCM_MAX : voice->phase);
@@ -223,7 +223,7 @@ static uint16_t mix_mean(const zvb_sound_t* sound, uint32_t routes)
 
 static void mixer_clock(zvb_sound_t* sound)
 {
-    /* ZealSound.v captures sums one clock after samples_ready, and applies
+    /* Capture sums one clock after samples_ready, and apply
      * master volume on the following clock. Read old voice pipeline outputs. */
     if (sound->mix_state == 1) {
         sound->mean_left = mix_mean(sound, sound->left_voices);

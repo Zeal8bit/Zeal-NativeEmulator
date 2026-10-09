@@ -15,7 +15,7 @@
 #define TIMER_DECREMENT_SHIFT            (5)
 #define TIMER_INT_ENABLE_SHIFT           (4)
 
-#define FPGA_CLOCK_NS 20u
+#define TIMER_CLOCK_NS 20u
 
 static uint32_t ticks_to_zero(const zvb_timer_t* timer, uint16_t value)
 {
@@ -35,8 +35,8 @@ static void timer_notify(zvb_timer_t* timer, bool previous_irq)
 static void timer_sync(zvb_timer_t* timer, uint64_t now)
 {
     const bool previous_irq = zvb_timer_interrupt(timer);
-    const uint64_t clocks = (now - timer->clock_time) / FPGA_CLOCK_NS;
-    timer->clock_time += clocks * FPGA_CLOCK_NS;
+    const uint64_t clocks = (now - timer->clock_time) / TIMER_CLOCK_NS;
+    timer->clock_time += clocks * TIMER_CLOCK_NS;
     if (!timer->enabled || !clocks) {
         return;
     }
@@ -65,7 +65,7 @@ static void timer_sync(zvb_timer_t* timer, uint64_t now)
         }
     }
     if (timer->auto_reload) {
-        /* RTL reloads on the tick AFTER reaching zero. Skip complete cycles
+        /* Reload on the tick after reaching zero. Skip complete cycles
          * arithmetically instead of scheduling every 50 MHz clock. */
         const uint32_t cycle = timer->reload ? ticks_to_zero(timer, timer->reload) + 1u : 1u;
         if (timer->reload && ticks >= cycle) {
@@ -88,7 +88,7 @@ static void timer_schedule(zvb_timer_t* timer)
     uint32_t ticks;
     if (!timer->counter && timer->auto_reload) {
         if (!timer->reload) {
-            return; /* Reloading zero never sets the RTL IRQ. */
+            return; /* Reloading zero never sets the interrupt. */
         }
         ticks = 1u + ticks_to_zero(timer, timer->reload);
     } else {
@@ -97,7 +97,7 @@ static void timer_schedule(zvb_timer_t* timer)
     const uint32_t first = timer->clock_counter >= timer->divider ? 1u :
                            timer->divider - timer->clock_counter + 1u;
     const uint64_t clocks = first + (uint64_t)(ticks - 1u) * ((uint32_t)timer->divider + 1u);
-    vtimer_schedule_at_ns(&timer->event, timer->clock_time + clocks * FPGA_CLOCK_NS);
+    vtimer_schedule_at_ns(&timer->event, timer->clock_time + clocks * TIMER_CLOCK_NS);
 }
 
 static void timer_event(void* userdata)
@@ -127,8 +127,8 @@ void zvb_timer_reset(zvb_timer_t* timer)
     timer->int_enabled = false;
     timer->decrement = false;
     timer->enabled = false;
-    /* RTL reset retains accumulator, auto-reload and byte latches. */
-    timer->clock_time = vtimer_now_ns() / FPGA_CLOCK_NS * FPGA_CLOCK_NS;
+    /* Reset retains the accumulator, auto-reload setting and byte latches. */
+    timer->clock_time = vtimer_now_ns() / TIMER_CLOCK_NS * TIMER_CLOCK_NS;
     timer_notify(timer, previous_irq);
 }
 
@@ -166,7 +166,7 @@ void zvb_timer_write(zvb_timer_t* timer, uint32_t address, uint8_t data)
     const uint16_t word = ((uint16_t)data << 8) | timer->write_latch;
     switch (address & TIMER_REGISTER_MASK) {
         case TIMER_REG_CTRL:
-            /* Bit 7 starts/restarts the divider; clearing it does not stop RTL. */
+            /* Bit 7 starts/restarts the divider; clearing it does not stop the timer. */
             if (data & TIMER_CTRL_ENABLE) {
                 timer->enabled = true;
                 timer->clock_counter = 0;

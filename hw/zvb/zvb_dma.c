@@ -55,7 +55,7 @@ static void dma_advance(void* userdata)
     switch (dma->state) {
         case DMA_REQUEST:
             /* Initial ACK is accepted at the triggering instruction boundary.
-             * Chained requests take one additional FPGA clock. */
+             * Chained requests take one additional master clock. */
             dma->descriptor_index = 0;
             dma->state = DMA_DESCRIPTOR;
             dma_schedule(dma, read_clocks);
@@ -90,8 +90,8 @@ static void dma_advance(void* userdata)
                     dma->remaining |= (uint16_t)value << 8;
                     break;
                 case DMA_DESC_FLAGS: {
-                    /* The RTL skips padding and, for zero length, tests the
-                     * previous flags register before its nonblocking update. */
+                    /* Skip descriptor padding; zero-length descriptors use
+                     * the previously latched flags. */
                     const uint8_t previous_flags = dma->flags;
                     dma->flags = value;
                     dma->desc_addr = (dma->desc_addr + DMA_DESC_PADDING) & DMA_ADDRESS_MASK;
