@@ -91,7 +91,8 @@ typedef struct {
     int             reply_idx;
     int             reply_len;
     uint8_t         command[6];
-    unsigned        command_index, write_index;
+    unsigned command_index;
+    unsigned write_index;
 } zvb_tf_t;
 
 
@@ -107,9 +108,14 @@ typedef struct {
     /* When 1, the TF chip select line is asserted */
     uint8_t         tf_cs;
     zvb_tf_t        tf;
-    bool            busy, sclk;
-    uint8_t         period_counter, transfer_index, bit_index;
-    uint8_t         incoming, outgoing, mosi;
+    bool busy;
+    bool sclk;
+    uint8_t period_counter;
+    uint8_t transfer_index;
+    uint8_t bit_index;
+    uint8_t incoming;
+    uint8_t outgoing;
+    uint8_t mosi;
 } zvb_spi_t;
 
 

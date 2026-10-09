@@ -12,6 +12,21 @@
 #include "hw/zvb/zvb_spi.h"
 #include "utils/log.h"
 
+#define SPI_RESET_CLK_DIV                (10)
+#define SPI_LAST_BIT                     (7)
+#define SPI_TRANSFER_INDEX_MASK          (15)
+#define TF_COMMAND_PREFIX_MASK           (0xc0)
+#define TF_COMMAND_PREFIX                (0x40)
+#define TF_COMMAND_INDEX_MASK            (0x3f)
+#define TF_CRC_BYTES                     (2)
+#define TF_CRC16_HIGH_BIT                (0x8000)
+#define TF_CRC16_POLYNOMIAL              (0x1021)
+#define TF_WRITE_ACCEPTED                (0x05)
+#define TF_WRITE_ERROR                   (0x0d)
+#define TF_BUSY_BYTE                     (0x00)
+#define TF_IDLE_BYTE                     (0xff)
+#define TF_WRITE_REPLY_LEN               (3)
+
 #define DEBUG_CMD       0
 #define DEBUG_WRITE     0
 
@@ -52,10 +67,14 @@ void zvb_spi_reset(zvb_spi_t* spi)
     spi->ram_wr.idx = 0;
     spi->ram_len = 0;
     spi->tf_cs = 0;
-    spi->busy = spi->sclk = false;
-    spi->period_counter = spi->transfer_index = 0;
-    spi->tf.command_index = spi->tf.write_index = 0;
-    spi->tf.reply_idx = spi->tf.reply_len = 0;
+    spi->sclk = false;
+    spi->busy = false;
+    spi->transfer_index = 0;
+    spi->period_counter = 0;
+    spi->tf.write_index = 0;
+    spi->tf.command_index = 0;
+    spi->tf.reply_len = 0;
+    spi->tf.reply_idx = 0;
     /* Reset TF card */
     spi->tf.state = TF_IDLE;
 }
@@ -83,7 +102,9 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
         fclose(image);
         return 1;
     }
-    if (spi->tf.img) fclose(spi->tf.img);
+    if (spi->tf.img) {
+        fclose(spi->tf.img);
+    }
     spi->tf.img = image;
     spi->tf.img_size = (size_t)size;
     zvb_tf_deassert(spi);
@@ -112,17 +133,19 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
             }
 
             if (ctrl.reset) {
-                spi->clk_div = 10;
+                spi->clk_div = SPI_RESET_CLK_DIV;
                 spi->ram_len = 0;
                 spi->tf_cs = 0;
-                spi->busy = spi->sclk = false;
-                spi->period_counter = spi->transfer_index = 0;
+                spi->sclk = false;
+                spi->busy = false;
+                spi->transfer_index = 0;
+                spi->period_counter = 0;
                 zvb_tf_deassert(spi);
             } else if (ctrl.start && spi->ram_len) {
                 spi->busy = true;
                 spi->transfer_index = 0;
-                spi->bit_index = 7;
-                spi->mosi = spi->ram_wr.data[0] >> 7;
+                spi->bit_index = SPI_LAST_BIT;
+                spi->mosi = spi->ram_wr.data[0] >> SPI_LAST_BIT;
             }
             break;
         case SPI_REG_CLK_DIV:
@@ -202,9 +225,13 @@ typedef union {
 static void zvb_tf_deassert(zvb_spi_t* spi)
 {
     zvb_tf_t* tf = &spi->tf;
-    tf->command_index = tf->write_index = 0;
-    tf->reply_idx = tf->reply_len = 0;
-    if (tf->state != TF_CMD55_RECEIVED) tf->state = TF_IDLE;
+    tf->write_index = 0;
+    tf->command_index = 0;
+    tf->reply_len = 0;
+    tf->reply_idx = 0;
+    if (tf->state != TF_CMD55_RECEIVED) {
+        tf->state = TF_IDLE;
+    }
 }
 
 
@@ -213,8 +240,9 @@ static uint8_t zvb_tf_next_byte(zvb_tf_t* tf)
     if (tf->reply_idx < tf->reply_len) {
         const uint8_t data = tf->reply[tf->reply_idx++];
         if (tf->reply_idx == tf->reply_len &&
-            (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP))
+            (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP)) {
             tf->state = TF_IDLE;
+        }
         return data;
     }
 
@@ -235,8 +263,9 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
 {
     /* Validate a complete sector before multiplying; never wrap a large
      * guest address or extend the host image with an out-of-range write. */
-    if (!tf->img || (uint64_t)sector >= tf->img_size / TF_BLK_SIZE)
+    if (!tf->img || (uint64_t)sector >= tf->img_size / TF_BLK_SIZE) {
         return false;
+    }
     const uint64_t offset = (uint64_t)sector * TF_BLK_SIZE;
     return offset <= LONG_MAX && fseek(tf->img, (long)offset, SEEK_SET) == 0;
 }
@@ -244,10 +273,11 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
 static uint16_t zvb_tf_data_crc(const uint8_t* data)
 {
     uint16_t crc = 0;
-    for (unsigned i = 0; i < TF_BLK_SIZE; i++) {
+    for (uint32_t i = 0; i < TF_BLK_SIZE; i++) {
         crc ^= (uint16_t)data[i] << 8;
-        for (unsigned bit = 0; bit < 8; bit++)
-            crc = (crc << 1) ^ (crc & 0x8000 ? 0x1021 : 0);
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            crc = (crc << 1) ^ (crc & TF_CRC16_HIGH_BIT ? TF_CRC16_POLYNOMIAL : 0);
+        }
     }
     return crc;
 }
@@ -332,7 +362,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 tf->reply[TF_BLK_DUMMY_BYTES + TF_BLK_SIZE] = crc >> 8;
                 tf->reply[TF_BLK_DUMMY_BYTES + TF_BLK_SIZE + 1] = crc;
                 tf->reply_idx = 0;
-                tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES + 2;
+                tf->reply_len = TF_BLK_SIZE + TF_BLK_DUMMY_BYTES + TF_CRC_BYTES;
             }
             break;
         case TF_WRITE_BLK:
@@ -402,7 +432,9 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
 static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
 {
     zvb_tf_t* tf = &spi->tf;
-    if (!spi->tf_cs || !tf->img) return;
+    if (!spi->tf_cs || !tf->img) {
+        return;
+    }
     if (tf->state == TF_WRITE_BLOCK_WAIT_TOK) {
         if (data == TF_DATA_TOKEN) {
             tf->state = TF_WRITE_BLOCK;
@@ -412,32 +444,38 @@ static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
     }
     if (tf->state == TF_WRITE_BLOCK) {
         tf->reply[tf->write_index++] = data;
-        if (tf->write_index == TF_BLK_SIZE + 2) {
+        if (tf->write_index == TF_BLK_SIZE + TF_CRC_BYTES) {
             const size_t written = fwrite(tf->reply, 1, TF_BLK_SIZE, tf->img);
-            tf->reply[0] = written == TF_BLK_SIZE ? 0x05 : 0x0d;
-            tf->reply[1] = 0x00;
-            tf->reply[2] = 0xff;
+            tf->reply[0] = written == TF_BLK_SIZE ? TF_WRITE_ACCEPTED : TF_WRITE_ERROR;
+            tf->reply[1] = TF_BUSY_BYTE;
+            tf->reply[2] = TF_IDLE_BYTE;
             tf->reply_idx = 0;
-            tf->reply_len = 3;
+            tf->reply_len = TF_WRITE_REPLY_LEN;
             tf->state = TF_WRITE_BLOCK_SEND_RESP;
         }
         return;
     }
-    if (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP) return;
-    if (!tf->command_index && (data & 0xc0) != 0x40) return;
+    if (tf->state == TF_READ_BLOCK || tf->state == TF_WRITE_BLOCK_SEND_RESP) {
+        return;
+    }
+    if (!tf->command_index && (data & TF_COMMAND_PREFIX_MASK) != TF_COMMAND_PREFIX) {
+        return;
+    }
     tf->command[tf->command_index++] = data;
     if (tf->command_index == sizeof(tf->command)) {
         const uint32_t param = ((uint32_t)tf->command[1] << 24) |
                                ((uint32_t)tf->command[2] << 16) |
                                ((uint32_t)tf->command[3] << 8) | tf->command[4];
         tf->command_index = 0;
-        zvb_tf_process_command(spi, tf->command[0] & 0x3f, param);
+        zvb_tf_process_command(spi, tf->command[0] & TF_COMMAND_INDEX_MASK, param);
     }
 }
 
 void zvb_spi_clock(zvb_spi_t* spi)
 {
-    if (!spi->busy) return;
+    if (!spi->busy) {
+        return;
+    }
     if (spi->period_counter != spi->clk_div - 1) {
         spi->period_counter++;
         return;
@@ -445,23 +483,26 @@ void zvb_spi_clock(zvb_spi_t* spi)
     spi->period_counter = 0;
     if (!spi->sclk) {
         /* Capture MISO on rising edges, including wrapping eight-byte RAM. */
-        if (spi->bit_index == 7) {
-            spi->incoming = spi->tf_cs && spi->tf.img ? zvb_tf_next_byte(&spi->tf) : 0xff;
+        if (spi->bit_index == SPI_LAST_BIT) {
+            spi->incoming = spi->tf_cs && spi->tf.img ? zvb_tf_next_byte(&spi->tf) : TF_IDLE_BYTE;
             spi->outgoing = 0;
         }
-        const unsigned mask = 1u << spi->bit_index;
-        uint8_t* input = &spi->ram_rd.data[spi->transfer_index & 7];
+        const uint32_t mask = 1u << spi->bit_index;
+        uint8_t* input = &spi->ram_rd.data[spi->transfer_index & (SPI_RAM_LEN - 1)];
         *input = (*input & ~mask) | (spi->incoming & mask);
         spi->outgoing |= spi->mosi << spi->bit_index;
         if (!spi->bit_index) {
             zvb_tf_receive_byte(spi, spi->outgoing);
-            spi->transfer_index = (spi->transfer_index + 1) & 15;
+            spi->transfer_index = (spi->transfer_index + 1) & SPI_TRANSFER_INDEX_MASK;
         }
-        spi->bit_index = (spi->bit_index - 1) & 7;
+        spi->bit_index = (spi->bit_index - 1) & SPI_LAST_BIT;
     } else {
         /* Advance MOSI on falling edges, or finish after the last byte. */
-        if (spi->transfer_index == spi->ram_len) spi->busy = false;
-        else spi->mosi = (spi->ram_wr.data[spi->transfer_index & 7] >> spi->bit_index) & 1;
+        if (spi->transfer_index == spi->ram_len) {
+            spi->busy = false;
+        } else {
+            spi->mosi = (spi->ram_wr.data[spi->transfer_index & (SPI_RAM_LEN - 1)] >> spi->bit_index) & 1;
+        }
     }
     spi->sclk = !spi->sclk;
 }

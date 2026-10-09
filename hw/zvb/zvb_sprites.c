@@ -80,8 +80,9 @@ int zvb_sprites_get_visible_sprites(zvb_sprites_t* sprites, int scanline, uint8_
     for (int idx = 0; idx < ZVB_SPRITES_COUNT && count < ZVB_SPRITES_PER_LINE; idx++) {
         int sy = (int)sprites->data[idx].y - 16;
         int sh = sprites->data[idx].extra_flags.bitmap.height_32 ? 32 : 16;
-        if (scanline >= sy && scanline < sy + sh)
+        if (scanline >= sy && scanline < sy + sh) {
             sprites_idx[count++] = idx;
+        }
     }
     return count;
 }

@@ -12,6 +12,20 @@
 #include <stdbool.h>
 #include "hw/zvb/zvb_sound.h"
 
+#define SOUND_NOISE_SEED                 (0x8898)
+#define SOUND_VOICE_MUTE                 (0x80)
+#define SOUND_PHASE_MASK                 (0x1ffff)
+#define SOUND_PHASE_OVERFLOW             (0x10000)
+#define SOUND_CHANNEL_MUTE_LEFT          (0x40)
+#define SOUND_CHANNEL_MUTE_RIGHT         (0x80)
+#define SOUND_CHANNEL_MUTE_BOTH          (0xc0)
+#define SOUND_SAMPLE_ROUTE               (0x80)
+#define SOUND_SAMPLE_READY_CLOCK         (1132)
+#define SOUND_MIX_CAPTURE_CLOCK          (1133)
+#define SOUND_SAMPLE_PERIOD_CLOCKS       (1134)
+#define SOUND_PCM_ZERO                   (32768)
+#define SOUND_PCM_MAX                    (65535)
+
 #define BIT(i)  (1 << (i))
 #ifndef MAX
 #define MAX(a,b)    ((a) > (b) ? (a) : (b))
@@ -32,13 +46,14 @@ static inline bool voice_held(zvb_sound_t* sound, int i)
     return (sound->hold_voices & BIT(i)) != 0;
 }
 
-static void audio_callback(void *buffer, unsigned int frames);
+static void audio_callback(void *buffer, uint32_t frames);
 
 static zvb_sound_t* g_sound;
 
 static void output_lock(zvb_sound_t* sound)
 {
-    while (atomic_flag_test_and_set_explicit(&sound->output_lock, memory_order_acquire)) {}
+    while (atomic_flag_test_and_set_explicit(&sound->output_lock, memory_order_acquire)) {
+    }
 }
 
 static void output_unlock(zvb_sound_t* sound)
@@ -53,9 +68,11 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
     sound->enabled = enabled;
     sound->sample_table.baud_count = 0;
     atomic_init(&sound->sample_table.output, 0);
-    for (int i = 0; i < VOICE_COUNT; i++) atomic_init(&sound->voices[i].output, 0);
-    sound->lfsr = 0x8898;
-    sound->master_volume = 0xc0;
+    for (int i = 0; i < VOICE_COUNT; i++) {
+        atomic_init(&sound->voices[i].output, 0);
+    }
+    sound->lfsr = SOUND_NOISE_SEED;
+    sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
     atomic_flag_clear(&sound->output_lock);
 
     if (!enabled) {
@@ -86,9 +103,14 @@ void zvb_sound_reset(zvb_sound_t* sound)
     /* Voices registers */
     for (int i = 0; i < VOICE_COUNT; i++) {
         zvb_voice_t* voice = &sound->voices[i];
-        voice->wave = voice->duty = voice->voice_volume = 0;
-        voice->frequency = voice->phase = 0;
-        voice->hold = voice->need_reload = voice->decrementing = false;
+        voice->voice_volume = 0;
+        voice->duty = 0;
+        voice->wave = 0;
+        voice->phase = 0;
+        voice->frequency = 0;
+        voice->decrementing = false;
+        voice->need_reload = false;
+        voice->hold = false;
         /* Frequency/waveform write latches are retained on RTL reset. */
         atomic_store_explicit(&voice->output, 0, memory_order_relaxed);
     }
@@ -105,10 +127,12 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->sample_table.int_pending = false;
     sound->sample_table.state = 0;
     sound->sample_clock_counter = 0;
-    sound->lfsr = 0x8898;
+    sound->lfsr = SOUND_NOISE_SEED;
     atomic_store(&sound->sample_table.output, 0);
     output_lock(sound);
-    sound->output_head = sound->output_tail = sound->output_count = 0;
+    sound->output_count = 0;
+    sound->output_tail = 0;
+    sound->output_head = 0;
     sound->output_last = (zvb_pcm_frame_t){0};
     sound->mix_state = 0;
     output_unlock(sound);
@@ -129,9 +153,9 @@ void zvb_sound_deinit(zvb_sound_t* sound)
 }
 
 /* Integer scaling matches the RTL's separate truncating shifts. */
-static uint16_t scale_volume(uint16_t value, unsigned volume)
+static uint16_t scale_volume(uint16_t value, uint32_t volume)
 {
-    const unsigned factor = (volume & 3) + 1;
+    const uint32_t factor = (volume & 3) + 1;
     return ((factor & 4) ? value : 0) +
            ((factor & 2) ? value >> 1 : 0) +
            ((factor & 1) ? value >> 2 : 0);
@@ -139,49 +163,60 @@ static uint16_t scale_volume(uint16_t value, unsigned volume)
 
 static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
 {
-    const uint16_t output = (voice->voice_volume & 0x80) ? 0 :
+    const uint16_t output = (voice->voice_volume & SOUND_VOICE_MUTE) ? 0 :
                             scale_volume(voice->max_state, voice->voice_volume);
-    if (output != atomic_load_explicit(&voice->output, memory_order_relaxed))
+    if (output != atomic_load_explicit(&voice->output, memory_order_relaxed)) {
         atomic_store_explicit(&voice->output, output, memory_order_relaxed);
+    }
     /* SoundVoice.v has two output pipeline registers, both updated each clock. */
     voice->max_state = voice->wave == WAVE_SQUARE ?
-                       (voice->phase >= ((unsigned)voice->duty << 13) ? 65535 : 0) :
-                       (voice->phase & 0x10000 ? 65535 : voice->phase);
-    if (!sample_clock || voice->hold) return;
-    const unsigned previous_phase = voice->phase;
-    const unsigned next = (previous_phase + voice->frequency) & 0x1ffff;
-    const unsigned triangle = (previous_phase +
-        (voice->decrementing ? -(int)voice->frequency * 2 : voice->frequency * 2)) & 0x1ffff;
+                       (voice->phase >= ((uint32_t)voice->duty << 13) ? SOUND_PCM_MAX : 0) :
+                       (voice->phase & SOUND_PHASE_OVERFLOW ? SOUND_PCM_MAX : voice->phase);
+    if (!sample_clock || voice->hold) {
+        return;
+    }
+    const uint32_t previous_phase = voice->phase;
+    const uint32_t next = (previous_phase + voice->frequency) & SOUND_PHASE_MASK;
+    const uint32_t triangle = (previous_phase +
+        (voice->decrementing ? -(int)voice->frequency * 2 : voice->frequency * 2)) & SOUND_PHASE_MASK;
     switch (voice->wave) {
-        case WAVE_SQUARE: case WAVE_SAWTOOTH:
-            voice->phase = next & 0x10000 ? voice->frequency : next;
+        case WAVE_SQUARE:
+        case WAVE_SAWTOOTH:
+            voice->phase = next & SOUND_PHASE_OVERFLOW ? voice->frequency : next;
             break;
         case WAVE_TRIANGLE:
-            if ((!voice->decrementing && (previous_phase & 0x10000)) ||
-                (voice->decrementing && !triangle))
+            if ((!voice->decrementing && (previous_phase & SOUND_PHASE_OVERFLOW)) ||
+                (voice->decrementing && !triangle)) {
                 voice->decrementing = !voice->decrementing;
+            }
             voice->phase = triangle;
             break;
-        case WAVE_NOISE: voice->phase = lfsr; break;
+        case WAVE_NOISE:
+            voice->phase = lfsr;
+            break;
     }
-    if (voice->need_reload && ((voice->voice_volume & 0x80) ||
+    if (voice->need_reload && ((voice->voice_volume & SOUND_VOICE_MUTE) ||
         voice->wave == WAVE_NOISE || !previous_phase ||
-        ((next & 0x10000) && (voice->wave == WAVE_SQUARE || voice->wave == WAVE_SAWTOOTH)) ||
+        ((next & SOUND_PHASE_OVERFLOW) && (voice->wave == WAVE_SQUARE || voice->wave == WAVE_SAWTOOTH)) ||
         (!triangle && voice->wave == WAVE_TRIANGLE))) {
         voice->frequency = ((uint16_t)voice->freq_high << 8) | voice->freq_low;
         voice->wave = voice->wave_latch;
         voice->duty = voice->duty_latch;
         voice->phase = 0;
-        voice->decrementing = voice->need_reload = false;
+        voice->need_reload = false;
+        voice->decrementing = false;
     }
 }
 
-static uint16_t mix_mean(const zvb_sound_t* sound, unsigned routes)
+static uint16_t mix_mean(const zvb_sound_t* sound, uint32_t routes)
 {
-    unsigned sum = routes & 0x80 ? atomic_load_explicit(&sound->sample_table.output, memory_order_relaxed) : 0;
-    for (int i = 0; i < VOICE_COUNT; i++)
-        if (routes & (1u << i)) sum += atomic_load_explicit(&sound->voices[i].output, memory_order_relaxed);
-    return sum & (1u << 18) ? 65535 : sum >> 2;
+    uint32_t sum = routes & SOUND_SAMPLE_ROUTE ? atomic_load_explicit(&sound->sample_table.output, memory_order_relaxed) : 0;
+    for (int i = 0; i < VOICE_COUNT; i++) {
+        if (routes & (1u << i)) {
+            sum += atomic_load_explicit(&sound->voices[i].output, memory_order_relaxed);
+        }
+    }
+    return sum & (1u << 18) ? SOUND_PCM_MAX : sum >> 2;
 }
 
 static void mixer_clock(zvb_sound_t* sound)
@@ -193,10 +228,10 @@ static void mixer_clock(zvb_sound_t* sound)
         sound->mean_right = mix_mean(sound, sound->right_voices);
         sound->mix_state = 2;
     } else if (sound->mix_state == 2) {
-        const unsigned volume = sound->master_volume;
-        const uint16_t left = volume & 0x40 ? 0 : scale_volume(sound->mean_left, volume);
-        const uint16_t right = volume & 0x80 ? 0 : scale_volume(sound->mean_right, volume >> 2);
-        const zvb_pcm_frame_t frame = { .left = (int)left - 32768, .right = (int)right - 32768 };
+        const uint32_t volume = sound->master_volume;
+        const uint16_t left = volume & SOUND_CHANNEL_MUTE_LEFT ? 0 : scale_volume(sound->mean_left, volume);
+        const uint16_t right = volume & SOUND_CHANNEL_MUTE_RIGHT ? 0 : scale_volume(sound->mean_right, volume >> 2);
+        const zvb_pcm_frame_t frame = { .left = (int)left - SOUND_PCM_ZERO, .right = (int)right - SOUND_PCM_ZERO };
         output_lock(sound);
         sound->output_last = frame;
         if (sound->enabled && sound->output_count < SAMPLE_OUTPUT_SIZE) {
@@ -207,7 +242,9 @@ static void mixer_clock(zvb_sound_t* sound)
         output_unlock(sound);
         sound->mix_state = 0;
     }
-    if (sound->sample_clock_counter == 1133) sound->mix_state = 1;
+    if (sound->sample_clock_counter == SOUND_MIX_CAPTURE_CLOCK) {
+        sound->mix_state = 1;
+    }
 }
 
 /**
@@ -220,12 +257,14 @@ void zvb_sound_clock(zvb_sound_t* sound)
     const uint8_t state = tbl->state;
     const uint8_t ram_output = tbl->ram_output;
     tbl->ram_output = tbl->fifo[tbl->fifo_tail];
-    const bool sample_clock = sound->sample_clock_counter == 1132;
-    for (int i = 0; i < VOICE_COUNT; i++) voice_clock(&sound->voices[i], sample_clock, sound->lfsr);
+    const bool sample_clock = sound->sample_clock_counter == SOUND_SAMPLE_READY_CLOCK;
+    for (int i = 0; i < VOICE_COUNT; i++) {
+        voice_clock(&sound->voices[i], sample_clock, sound->lfsr);
+    }
     const uint16_t feedback = (sound->lfsr ^ (sound->lfsr >> 2) ^
                                (sound->lfsr >> 3) ^ (sound->lfsr >> 5)) & 1;
     sound->lfsr = (sound->lfsr >> 1) | (feedback << 15);
-    sound->sample_clock_counter = (sound->sample_clock_counter + 1) % 1134;
+    sound->sample_clock_counter = (sound->sample_clock_counter + 1) % SOUND_SAMPLE_PERIOD_CLOCKS;
     if (sample_clock && !tbl->hold) {
         if (tbl->baud_count >= tbl->divider) {
             tbl->baud_count = 0;
@@ -247,19 +286,24 @@ void zvb_sound_clock(zvb_sound_t* sound)
         case 2:
             tbl->sample_output = (tbl->sample_output & 255) |
                 ((uint16_t)(tbl->is_u8 ? tbl->sample_output & 255 : ram_output) << 8);
-            if (!tbl->is_u8) tbl->fifo_tail = (tbl->fifo_tail + 1) % SAMPLE_FIFO_SIZE;
+            if (!tbl->is_u8) {
+                tbl->fifo_tail = (tbl->fifo_tail + 1) % SAMPLE_FIFO_SIZE;
+            }
             tbl->state = 3;
             break;
         case 3: {
             tbl->fifo_empty = tbl->fifo_tail == tbl->fifo_head && !(tbl->config & 2);
-            if (tbl->fifo_empty) tbl->int_pending = true;
+            if (tbl->fifo_empty) {
+                tbl->int_pending = true;
+            }
             const uint16_t sample = tbl->sample_output +
                 (tbl->is_signed && !tbl->is_u8 ? 0x8000 : 0);
             atomic_store(&tbl->output, sample);
             tbl->state = 0;
             break;
         }
-        default: break;
+        default:
+            break;
     }
 }
 
@@ -270,7 +314,7 @@ static void audio_callback(void* rbuf, unsigned int frames)
     /* The host only consumes complete frames; all registers and synthesis
      * belong to the emulation thread. */
     output_lock(g_sound);
-    for (unsigned int i = 0; i < frames; i++) {
+    for (uint32_t i = 0; i < frames; i++) {
         zvb_pcm_frame_t sample = g_sound->output_last;
         if (g_sound->output_count) {
             sample = g_sound->output_samples[g_sound->output_tail];
@@ -306,7 +350,9 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port) {
             }
             break;
         case 3:
-            if (sample_table_enabled(sound)) return tbl->int_pending;
+            if (sample_table_enabled(sound)) {
+                return tbl->int_pending;
+            }
             break;
         case REG_MST_LEFT:  return sound->left_voices;
         case REG_MST_RIGHT: return sound->right_voices;
@@ -372,7 +418,9 @@ void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value) {
             break;
 
         case REG_VOICE_VOL:
-            if (sample_table_enabled(sound) && (value & 1)) tbl->int_pending = false;
+            if (sample_table_enabled(sound) && (value & 1)) {
+                tbl->int_pending = false;
+            }
             for (int i = 0; i < VOICE_COUNT; i++) {
                 if (voice_enabled(sound, i)) {
                     sound->voices[i].voice_volume = value;

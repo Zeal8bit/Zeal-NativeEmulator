@@ -81,8 +81,9 @@ static inline map_entry_t mmu_resolve_mem_entry(const mmu_t* mmu, uint32_t phys_
 {
     const uint32_t base = (uint32_t)mmu->mem_overlay.page_from * MEM_SPACE_ALIGN;
     if (mmu->mem_overlay.dev && phys_addr >= base &&
-        phys_addr - base < (uint32_t)mmu->mem_overlay.dev->mem_region.size)
+        phys_addr - base < (uint32_t)mmu->mem_overlay.dev->mem_region.size) {
         return mmu->mem_overlay;
+    }
     return mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
 }
 
@@ -122,7 +123,9 @@ static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 {
     if (phys_addr >= MEM_SPACE_SIZE) return 0;
     const map_entry_t entry = mmu_resolve_mem_entry(mmu, phys_addr);
-    if (!entry.dev) return 0;
+    if (!entry.dev) {
+        return 0;
+    }
     return entry.dev->mem_region.read(entry.dev, phys_addr - (uint32_t)entry.page_from * MEM_SPACE_ALIGN);
 }
 
@@ -134,7 +137,9 @@ static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t d
 {
     if (phys_addr >= MEM_SPACE_SIZE) return;
     const map_entry_t entry = mmu_resolve_mem_entry(mmu, phys_addr);
-    if (!entry.dev) return;
+    if (!entry.dev) {
+        return;
+    }
     entry.dev->mem_region.write(entry.dev, phys_addr - (uint32_t)entry.page_from * MEM_SPACE_ALIGN, data);
 }
 

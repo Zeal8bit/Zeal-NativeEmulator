@@ -93,7 +93,9 @@ static void vtimer_tick_ns(uint64_t elapsed_ns)
     while (s_head != NULL && s_head->deadline <= s_ns) {
         vtimer_node_t* node = s_head;
         s_head = node->next;
-        if (node->callback != NULL) node->callback(node->userdata);
+        if (node->callback != NULL) {
+            node->callback(node->userdata);
+        }
     }
 }
 

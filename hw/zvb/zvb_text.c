@@ -12,6 +12,11 @@
 #include "hw/zvb/zvb_text.h"
 
 
+#define TEXT_CURSOR_Y_MASK        (0x3f)
+#define TEXT_CURSOR_X_MASK        (0x7f)
+#define TEXT_CTRL_AUTO_SCROLL_X   (0x20)
+#define TEXT_CURSOR_TIME_ALWAYS   (0xff)
+
 static void print_and_increment(zvb_text_t* text, uint8_t value, zvb_tilemap_t* tilemap);
 static void cursor_next_line(zvb_text_t* text);
 
@@ -66,23 +71,24 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
             break;
 
         case TEXT_REG_CURSOR_Y:
-            if ((value & 0x3f) < text->visible_lines)
-                text->cursor_pos.y = value & 0x3f;
+            if ((value & TEXT_CURSOR_Y_MASK) < text->visible_lines) {
+                text->cursor_pos.y = value & TEXT_CURSOR_Y_MASK;
+            }
             break;
 
         case TEXT_REG_CURSOR_X:
-            if ((value & 0x7f) < text->visible_columns) {
-                text->cursor_pos.x = value & 0x7f;
+            if ((value & TEXT_CURSOR_X_MASK) < text->visible_columns) {
+                text->cursor_pos.x = value & TEXT_CURSOR_X_MASK;
                 text->wait_for_next_char = false;
             }
             break;
 
         case TEXT_REG_SCROLL_Y:
-            text->scroll.y = (value & 0x3f) % TEXT_MAXIMUM_LINES;
+            text->scroll.y = (value & TEXT_CURSOR_Y_MASK) % TEXT_MAXIMUM_LINES;
             break;
 
         case TEXT_REG_SCROLL_X:
-            text->scroll.x = (value & 0x7f) % TEXT_MAXIMUM_COLUMNS;
+            text->scroll.x = (value & TEXT_CURSOR_X_MASK) % TEXT_MAXIMUM_COLUMNS;
             break;
 
         case TEXT_REG_COLOR:
@@ -116,10 +122,10 @@ void zvb_text_write(zvb_text_t* text, uint32_t addr, uint8_t value, zvb_tilemap_
             }
             /* In the RTL this flag is set-only until reset. Enabling it also
              * brings a cursor awaiting wrap back onto the last column. */
-            if ((value & 0x20) != 0) {
+            if ((value & TEXT_CTRL_AUTO_SCROLL_X) != 0) {
                 text->flags.auto_scroll_x = 1;
                 if (previous_wait) {
-                    text->cursor_pos.x = (previous_cursor.x - 1) & 0x7f;
+                    text->cursor_pos.x = (previous_cursor.x - 1) & TEXT_CURSOR_X_MASK;
                     text->wait_for_next_char = false;
                 }
             }
@@ -171,8 +177,8 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
     }
 
     /* Check if we have to blink the cursor */
-    if (text->cursor_time == 0 || text->cursor_time == 0xff) {
-        text->cursor_shown = text->cursor_time == 0xff;
+    if (text->cursor_time == 0 || text->cursor_time == TEXT_CURSOR_TIME_ALWAYS) {
+        text->cursor_shown = text->cursor_time == TEXT_CURSOR_TIME_ALWAYS;
         text->frame_counter = 0;
     } else if (text->frame_counter >= text->cursor_time - 1) {
         text->cursor_shown = !text->cursor_shown;
@@ -186,7 +192,9 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info)
 
 bool zvb_text_get_info(const zvb_text_t* text, zvb_text_info_t* info)
 {
-    if (text == NULL || info == NULL) return false;
+    if (text == NULL || info == NULL) {
+        return false;
+    }
     *info = (zvb_text_info_t) {
         .pos   = { text->cursor_pos.x, text->cursor_pos.y },
         .color = { (text->cursor_color >> 4) & 0xf,
@@ -218,7 +226,7 @@ static void print_and_increment(zvb_text_t* text, uint8_t value, zvb_tilemap_t* 
     zvb_tilemap_write(tilemap, 1, index, text->color);
 
     /* Increment the cursor position */
-    text->cursor_pos.x = (text->cursor_pos.x + 1) & 0x7f;
+    text->cursor_pos.x = (text->cursor_pos.x + 1) & TEXT_CURSOR_X_MASK;
     if (text->cursor_pos.x == text->visible_columns) {
         /* Check if we have to scroll in X */
         if (text->flags.auto_scroll_x) {
@@ -238,7 +246,7 @@ static void print_and_increment(zvb_text_t* text, uint8_t value, zvb_tilemap_t* 
 static void cursor_next_line(zvb_text_t* text)
 {
     text->cursor_pos.x = 0;
-    text->cursor_pos.y = (text->cursor_pos.y + 1) & 0x3f;
+    text->cursor_pos.y = (text->cursor_pos.y + 1) & TEXT_CURSOR_Y_MASK;
 
     /* Check if Y reached the bottom of the visible screen */
     if (text->cursor_pos.y == text->visible_lines) {

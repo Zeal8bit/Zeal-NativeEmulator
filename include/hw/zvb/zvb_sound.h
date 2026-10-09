@@ -51,9 +51,12 @@ typedef struct {
     uint8_t voice_volume;
     bool  hold;
     /* SoundVoice.v latches changes until the waveform can safely restart. */
-    uint16_t frequency, max_state;
-    uint8_t wave_latch, duty_latch;
-    bool need_reload, decrementing;
+    uint16_t frequency;
+    uint16_t max_state;
+    uint8_t wave_latch;
+    uint8_t duty_latch;
+    bool need_reload;
+    bool decrementing;
     unsigned int phase;
     atomic_int output;
 } zvb_voice_t;
@@ -73,14 +76,16 @@ typedef struct {
     /* Baudrate divider counter, used to know when to go to the next sample in the FIFO */
     int baud_count;
     bool int_pending;
-    uint8_t state, ram_output;
+    uint8_t state;
+    uint8_t ram_output;
     uint16_t sample_output;
     /* CPU clock owns the FIFO; the host audio thread only reads this sample. */
     atomic_int output;
 } zvb_sample_table_t;
 
 typedef struct {
-    int16_t left, right;
+    int16_t left;
+    int16_t right;
 } zvb_pcm_frame_t;
 
 typedef struct {
@@ -97,12 +102,15 @@ typedef struct {
     uint16_t           sample_clock_counter;
     uint16_t           lfsr;
     uint8_t            mix_state;
-    uint16_t           mean_left, mean_right;
+    uint16_t mean_left;
+    uint16_t mean_right;
     /* Host playback queue, separate from the emulated hardware FIFO. */
     atomic_flag        output_lock;
     zvb_pcm_frame_t    output_samples[SAMPLE_OUTPUT_SIZE];
     zvb_pcm_frame_t    output_last;
-    unsigned           output_head, output_tail, output_count;
+    uint32_t output_head;
+    uint32_t output_tail;
+    uint32_t output_count;
 } zvb_sound_t;
 
 
@@ -137,7 +145,10 @@ void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
 /* One FPGA master clock; FIFO-empty interrupts are independent of host audio. */
 void zvb_sound_clock(zvb_sound_t* sound);
 static inline bool zvb_sound_interrupt(const zvb_sound_t* sound)
-{ return (sound->sample_table.config & 8) && sound->sample_table.int_pending; }
+
+{
+    return (sound->sample_table.config & 8) && sound->sample_table.int_pending;
+}
 
 
 /**

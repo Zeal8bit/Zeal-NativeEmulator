@@ -12,6 +12,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BITMAP_256_WIDTH                 (256)
+#define BITMAP_256_BORDER                (32)
+#define BITMAP_256_END                   (288)
+#define BITMAP_320_BORDER                (20)
+#define BITMAP_320_END                   (220)
+#define LOWRES_WIDTH                     (320)
+#define LOWRES_HEIGHT                    (240)
+#define BITMAP_BORDER_ADDR               (0xffff)
+#define TEXT_COLOR_MASK                  (15)
+#define TEXT_COLOR_SHIFT                 (4)
+#define SPRITE_PALETTE_SHIFT             (4)
+
 #define FB_WIDTH    ZVB_MAX_RES_WIDTH
 #define FB_HEIGHT   ZVB_MAX_RES_HEIGHT
 #define FB_BYTES    (FB_WIDTH * FB_HEIGHT * 2)   /* RGB565 */
@@ -158,10 +170,10 @@ static void render_text_span(zvb_t* zvb, int y, int start, int end)
         uint8_t attr = zvb->layers.raw_layer1[index];
         if (cursor_shown && (uint32_t)index == cursor_address) {
             tile = info.charidx;
-            attr = (info.color[0] << 4) | info.color[1];
+            attr = (info.color[0] << TEXT_COLOR_SHIFT) | info.color[1];
         }
         const int on = font_bit(zvb->font.raw_font, tile, py % CHAR_H, px % CHAR_W);
-        put_pixel(zvb->blitter.framebuffer, x, y, pal[on ? attr & 15 : attr >> 4]);
+        put_pixel(zvb->blitter.framebuffer, x, y, pal[on ? attr & TEXT_COLOR_MASK : attr >> TEXT_COLOR_SHIFT]);
     }
 }
 
@@ -178,7 +190,9 @@ static void present_frame(zvb_t* zvb)
 void zvb_blitter_render_text_mode(zvb_t* zvb)
 {
     if (!zvb->blitter.raster_frame) {
-        for (int y = 0; y < FB_HEIGHT; y++) render_text_span(zvb, y, 0, FB_WIDTH);
+        for (int y = 0; y < FB_HEIGHT; y++) {
+            render_text_span(zvb, y, 0, FB_WIDTH);
+        }
     }
     present_frame(zvb);
 }
@@ -246,11 +260,13 @@ static void render_bitmap_span(zvb_t* zvb, int y, int start, int end)
     const int py = y / 2;
     for (int x = start; x < end; x++) {
         const int px = x / 2;
-        uint8_t index = vram[0xffff];
+        uint8_t index = vram[BITMAP_BORDER_ADDR];
         if (zvb->mode == MODE_BITMAP_256) {
-            if (px >= 32 && px < 288) index = vram[py * 256 + px - 32];
-        } else if (py >= 20 && py < 220) {
-            index = vram[(py - 20) * 320 + px];
+            if (px >= BITMAP_256_BORDER && px < BITMAP_256_END) {
+                index = vram[py * BITMAP_256_WIDTH + px - BITMAP_256_BORDER];
+            }
+        } else if (py >= BITMAP_320_BORDER && py < BITMAP_320_END) {
+            index = vram[(py - BITMAP_320_BORDER) * LOWRES_WIDTH + px];
         }
         put_pixel(zvb->blitter.framebuffer, x, y, pal[index]);
     }
@@ -259,7 +275,9 @@ static void render_bitmap_span(zvb_t* zvb, int y, int start, int end)
 void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
 {
     if (!zvb->blitter.raster_frame) {
-        for (int y = 0; y < FB_HEIGHT; y++) render_bitmap_span(zvb, y, 0, FB_WIDTH);
+        for (int y = 0; y < FB_HEIGHT; y++) {
+            render_bitmap_span(zvb, y, 0, FB_WIDTH);
+        }
     }
     zvb_blitter_scale_render(zvb);
 }
@@ -306,8 +324,9 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
         if (sp->flags.bitmap.flip_y) sp_oy = sh - 1 - sp_oy;
 
         int tile_num = sp->flags.bitmap.tile_number;
-        if (sp->flags.bitmap.tileset_idx && color_4bit)
+        if (sp->flags.bitmap.tileset_idx && color_4bit) {
             tile_num += 256;
+        }
 
         int start_x = sx;
         int end_x = sx + TILE_W;
@@ -331,7 +350,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
 
             int final_idx;
             if (color_4bit) {
-                final_idx = (sp->flags.bitmap.palette << 4) | color_idx;
+                final_idx = (sp->flags.bitmap.palette << SPRITE_PALETTE_SHIFT) | color_idx;
             } else {
                 final_idx = color_idx;
             }
@@ -366,7 +385,9 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
         int l0_tx  = l0_px / TILE_W;
         int l0_ox  = l0_px % TILE_W;
         int burst  = TILE_W - l0_ox;
-        if (px + burst > limit) burst = limit - px;
+        if (px + burst > limit) {
+            burst = limit - px;
+        }
 
         uint8_t l0_tile = layer0[l0_tx + l0_ty * COLS];
         int attr        = layer1[l0_tx + l0_ty * COLS];
@@ -385,11 +406,15 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
             uint16_t pixel_rgb = pal_rgb[color_idx];
 
             uint16_t sp = sprites_scanline[px];
-            if (sprites_flags[px] & SPRITE_OPAQUE) pixel_rgb = sp;
+            if (sprites_flags[px] & SPRITE_OPAQUE) {
+                pixel_rgb = sp;
+            }
 
             for (int sx = 0; sx < scale; sx++) {
                 const int x = px * scale + sx;
-                if (x >= start && x < end) put_pixel(fb, x, output_y, pixel_rgb);
+                if (x >= start && x < end) {
+                    put_pixel(fb, x, output_y, pixel_rgb);
+                }
             }
         }
     }
@@ -455,12 +480,15 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
 
             uint16_t sp = sprites_scanline[px];
             if ((sprites_flags[px] & SPRITE_OPAQUE) &&
-                !(opaque && (sprites_flags[px] & SPRITE_BEHIND_FG)))
+                !(opaque && (sprites_flags[px] & SPRITE_BEHIND_FG))) {
                 pixel_rgb = sp;
+            }
 
             for (int sx = 0; sx < scale; sx++) {
                 const int x = px * scale + sx;
-                if (x >= start && x < end) put_pixel(fb, x, output_y, pixel_rgb);
+                if (x >= start && x < end) {
+                    put_pixel(fb, x, output_y, pixel_rgb);
+                }
             }
         }
     }
@@ -469,7 +497,9 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
 
 void zvb_blitter_render_span(zvb_t* zvb, int scanline, int start, int end)
 {
-    if (start >= end || !zvb->blitter.framebuffer) return;
+    if (start >= end || !zvb->blitter.framebuffer) {
+        return;
+    }
     zvb->blitter.raster_frame = true;
     if (!zvb->screen_enabled) {
         memset(zvb->blitter.framebuffer + scanline * FB_WIDTH + start, 0,
@@ -487,18 +517,21 @@ void zvb_blitter_render_span(zvb_t* zvb, int scanline, int start, int end)
         const bool lowres = zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT;
         const int py = lowres ? scanline / 2 : scanline;
         zvb_blitter_sprites_scanline(zvb, py, sprites, behind, pal);
-        if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT)
+        if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
             render_gfx_4bit_scanline(zvb, py, sprites, behind, pal,
                                     start, end, scanline, lowres ? 2 : 1);
-        else
+        } else {
             render_gfx_8bit_scanline(zvb, py, sprites, behind, pal,
                                     start, end, scanline, lowres ? 2 : 1);
+        }
     }
 }
 
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
-    if (zvb->raster_rendering) zvb_blitter_render_span(zvb, scanline, 0, FB_WIDTH);
+    if (zvb->raster_rendering) {
+        zvb_blitter_render_span(zvb, scanline, 0, FB_WIDTH);
+    }
 }
 
 void zvb_blitter_render_gfx_mode(zvb_t* zvb)
@@ -508,14 +541,15 @@ void zvb_blitter_render_gfx_mode(zvb_t* zvb)
         uint8_t behind[FB_WIDTH];
         const uint16_t* pal = zvb_get_palette(zvb);
         const bool lowres = zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT;
-        const int width = lowres ? 320 : 640;
-        const int height = lowres ? 240 : 480;
+        const int width = lowres ? LOWRES_WIDTH : FB_WIDTH;
+        const int height = lowres ? LOWRES_HEIGHT : FB_HEIGHT;
         for (int y = 0; y < height; y++) {
             zvb_blitter_sprites_scanline(zvb, y, sprites, behind, pal);
-            if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT)
+            if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
                 render_gfx_4bit_scanline(zvb, y, sprites, behind, pal, 0, width, y, 1);
-            else
+            } else {
                 render_gfx_8bit_scanline(zvb, y, sprites, behind, pal, 0, width, y, 1);
+            }
         }
     }
     zvb_blitter_scale_render(zvb);
