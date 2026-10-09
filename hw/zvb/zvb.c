@@ -747,9 +747,6 @@ static void zvb_sync_clocks(zvb_t* zvb, uint64_t target_ns)
             zvb_rpu_clock(&zvb->rpu, hpos, zvb->current_scanline, zvb_rpu_load, zvb);
         }
         zvb_sound_clock(&zvb->sound);
-        if (zvb->spi.busy) {
-            zvb_spi_clock(&zvb->spi);
-        }
         zvb->clock_ns += ZVB_MASTER_CLOCK_NS;
     }
     zvb->clock_syncing = false;
@@ -842,6 +839,7 @@ static void zvb_fsm_next(void* userdata)
 void zvb_deinit(zvb_t* zvb)
 {
     vtimer_cancel(&zvb->timer);
+    vtimer_cancel(&zvb->spi.event);
     vtimer_cancel(&zvb->peri_timer.event);
 #if ZVB_BLITTER_SOFTWARE
     vtimer_cancel(&zvb->sound_event);

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "utils/vtimer.h"
 
 #define SPI_RAM_LEN     8
 #define SPI_VERSION     0
@@ -91,8 +92,8 @@ typedef struct {
     int             reply_idx;
     int             reply_len;
     uint8_t         command[6];
-    unsigned command_index;
-    unsigned write_index;
+    uint32_t        command_index;
+    uint32_t        write_index;
 } zvb_tf_t;
 
 
@@ -108,14 +109,11 @@ typedef struct {
     /* When 1, the TF chip select line is asserted */
     uint8_t         tf_cs;
     zvb_tf_t        tf;
-    bool busy;
-    bool sclk;
-    uint8_t period_counter;
-    uint8_t transfer_index;
-    uint8_t bit_index;
-    uint8_t incoming;
-    uint8_t outgoing;
-    uint8_t mosi;
+    bool            busy;
+    uint8_t         transfer_index;
+    uint8_t         transfer_len;
+    uint8_t         outgoing;
+    vtimer_node_t   event;
 } zvb_spi_t;
 
 
@@ -138,10 +136,6 @@ void zvb_spi_reset(zvb_spi_t* spi);
  * @param data Byte to write
  */
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
-
-/* One 50 MHz master clock, independent of host/card I/O latency. */
-void zvb_spi_clock(zvb_spi_t* spi);
-
 
 /**
  * @brief Function to call when a read occurs on the SPI I/O controller.
