@@ -23,6 +23,8 @@
 #define SOUND_SAMPLE_READY_CLOCK         (1132)
 #define SOUND_MIX_CAPTURE_CLOCK          (1133)
 #define SOUND_SAMPLE_PERIOD_CLOCKS       (1134)
+#define SOUND_FIFO_IRQ_ENABLE            (8)
+#define SOUND_FIFO_PIPELINE_END          (4)
 #define SOUND_PCM_ZERO                   (32768)
 #define SOUND_PCM_MAX                    (65535)
 
@@ -305,6 +307,24 @@ void zvb_sound_clock(zvb_sound_t* sound)
         default:
             break;
     }
+}
+
+
+uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound)
+{
+    const zvb_sample_table_t* table = &sound->sample_table;
+    if (!(table->config & SOUND_FIFO_IRQ_ENABLE) || table->int_pending) {
+        return 0;
+    }
+    if (table->state != 0) {
+        return SOUND_FIFO_PIPELINE_END - table->state;
+    }
+    if (table->hold) {
+        return 0;
+    }
+    return (SOUND_SAMPLE_READY_CLOCK + SOUND_SAMPLE_PERIOD_CLOCKS -
+            sound->sample_clock_counter) % SOUND_SAMPLE_PERIOD_CLOCKS +
+            SOUND_FIFO_PIPELINE_END;
 }
 
 

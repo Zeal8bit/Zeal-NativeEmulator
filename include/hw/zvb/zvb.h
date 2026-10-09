@@ -156,6 +156,9 @@ typedef struct {
 
 typedef struct {
     bool rendering_enabled;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool scanline_disabled;
+#endif
     bool dma_disabled; /* Missing BUSREQ/BUSACK wiring; other ZVB features remain active */
     pio_t* pio;
 } zvb_config_t;
@@ -203,8 +206,16 @@ typedef struct {
     vtimer_node_t    timer;
     int              current_scanline;
     int              current_hpos;
-    int              raster_rendered_x;
-    bool             raster_rendering;
+#if ZVB_BLITTER_SOFTWARE
+    vtimer_node_t    sound_event;
+    uint64_t         line_start_ns;
+    uint64_t         clock_ns;
+    bool             clock_syncing;
+#endif
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool             scanline_requested;
+    bool             scanline_rendering;
+#endif
     bool             need_render;
     bool             rendering_enabled;
 } zvb_t;
@@ -263,6 +274,13 @@ void zvb_profile_frame(double elapsed_seconds);
  * @brief Used for debugging purpose to show the current rendering when the CPU is stopped
  */
 void zvb_force_render(zvb_t* zvb);
+
+
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+/* Runtime requests take effect at the next frame boundary. */
+void zvb_set_scanline_rendering(zvb_t* zvb, bool enabled);
+bool zvb_scanline_rendering_requested(const zvb_t* zvb);
+#endif
 
 
 /**

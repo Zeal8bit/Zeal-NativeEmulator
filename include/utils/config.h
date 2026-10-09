@@ -65,6 +65,9 @@ typedef struct {
     uint8_t verbose;
     bool no_reset;
     bool no_dma;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool no_scanline_rendering;
+#endif
 #if CONFIG_PROFILE_RENDER
     bool profile;
 #endif

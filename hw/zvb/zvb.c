@@ -34,8 +34,9 @@
 #define ZVB_SCROLL_X_HIGH_MASK           (7)
 #define ZVB_SCROLL_Y_WRAP                (640)
 #define ZVB_SCROLL_X_WRAP                (1280)
-#define ZVB_RASTER_PIXELS_PER_TICK       (8)
-#define ZVB_RASTER_TICK_NS               (320)
+#define ZVB_MASTER_CLOCK_NS             (20)
+#define ZVB_VISIBLE_LINE_NS             (ZVB_MAX_RES_WIDTH * ZVB_PIXEL_NS)
+#define ZVB_HBLANK_NS                   ((ZVB_TOTAL_PIXELS_PER_LINE - ZVB_MAX_RES_WIDTH) * ZVB_PIXEL_NS)
 #define ZVB_PIXEL_NS                     (40)
 #define ZVB_TOTAL_PIXELS_PER_LINE        (800)
 #define ZVB_TOTAL_SCANLINES              (524)
@@ -97,6 +98,12 @@ static void zvb_reset(device_t* dev);
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr);
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data);
 static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uint8_t data);
+
+#if ZVB_BLITTER_SOFTWARE
+static void zvb_sync_clocks(zvb_t* zvb, uint64_t target_ns);
+static void zvb_schedule_sound(zvb_t* zvb);
+static void zvb_sound_next(void* userdata);
+#endif
 
 static uint8_t zvb_external_interrupts(const zvb_t* zvb)
 {
@@ -178,6 +185,9 @@ static const long s_tstates_remaining[STATE_COUNT] = {
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
+#if ZVB_BLITTER_SOFTWARE
+    zvb_sync_clocks(zvb, vtimer_now_ns());
+#endif
     const int io_addr = zvb_mem_io_address(addr);
     if (io_addr >= 0) {
         if (addr >= ZVB_MEM_PERIPHERALS_START) {
@@ -206,6 +216,9 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
+#if ZVB_BLITTER_SOFTWARE
+    zvb_sync_clocks(zvb, vtimer_now_ns());
+#endif
     const int io_addr = zvb_mem_io_address(addr);
     if (io_addr >= 0) {
         if (addr >= ZVB_MEM_PERIPHERALS_START) {
@@ -242,9 +255,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
         case ZVB_IO_CONFIG_HPOS_LOW: {
             uint32_t hpos = zvb->current_hpos;
 #if ZVB_BLITTER_SOFTWARE
-            /* Raster dispatch covers eight pixels; reads include the intervening
-             * 40 ns pixel clocks up to the current instruction boundary. */
-            hpos += (vtimer_now_ns() - (zvb->timer.deadline - ZVB_RASTER_TICK_NS)) / ZVB_PIXEL_NS;
+            hpos = (vtimer_now_ns() - zvb->line_start_ns) / ZVB_PIXEL_NS;
 #endif
             zvb->ctrl.hpos_latch = (hpos >> 8) & ZVB_HPOS_HIGH_MASK;
             return hpos & ZVB_HPOS_LOW_MASK;
@@ -280,6 +291,9 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
+#if ZVB_BLITTER_SOFTWARE
+    zvb_sync_clocks(zvb, vtimer_now_ns());
+#endif
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
@@ -339,6 +353,11 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             break;
         case ZVB_IO_CONFIG_STATUS_REG:
             zvb->status.vid_ena = status.vid_ena;
+#if ZVB_BLITTER_SOFTWARE
+            if (zvb->status.v_blank) {
+                zvb->screen_enabled = status.vid_ena;
+            }
+#endif
             zvb->status.h_int_ena = status.h_int_ena;
             zvb->status.v_int_ena = status.v_int_ena;
             zvb_update_interrupts(zvb);
@@ -374,9 +393,6 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
             break;
         case ZVB_IO_MAPPING_RPU:
             zvb_rpu_write(&zvb->rpu, subaddr, data);
-            if (zvb_rpu_active(&zvb->rpu)) {
-                zvb->raster_rendering = true;
-            }
             break;
         case ZVB_IO_MAPPING_TIMER:
             zvb_timer_write(&zvb->peri_timer, subaddr, data);
@@ -384,12 +400,20 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
         default:
             break;
     }
+#if ZVB_BLITTER_SOFTWARE
+    if (!zvb->clock_syncing) {
+        zvb_schedule_sound(zvb);
+    }
+#endif
     zvb_update_interrupts(zvb);
 }
 
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
+#if ZVB_BLITTER_SOFTWARE
+    zvb_sync_clocks(zvb, vtimer_now_ns());
+#endif
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
@@ -473,9 +497,13 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     vtimer_init_node(&dev->timer, zvb_fsm_next, dev);
 #if ZVB_BLITTER_SOFTWARE
 #if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
-    dev->raster_rendering = true;
+    dev->scanline_requested = !config->scanline_disabled;
+    dev->scanline_rendering = dev->scanline_requested;
 #endif
-    vtimer_schedule_ns(&dev->timer, ZVB_RASTER_TICK_NS);
+    vtimer_init_node(&dev->sound_event, zvb_sound_next, dev);
+    dev->clock_ns = vtimer_now_ns();
+    dev->line_start_ns = dev->clock_ns;
+    vtimer_schedule_ns(&dev->timer, ZVB_VISIBLE_LINE_NS);
 #else
     vtimer_schedule_tstates(&dev->timer, s_tstates_remaining[dev->state]);
 #endif
@@ -505,18 +533,20 @@ static void zvb_reset(device_t* dev)
     zvb->blank_latches = 0;
     zvb_relocate(zvb, ZVB_DEFAULT_PHYS_BANK);
     vtimer_cancel(&zvb->timer);
-    zvb->raster_rendered_x = 0;
     zvb->current_hpos = 0;
     zvb->current_scanline = 0;
     zvb->state = STATE_RENDERING;
     zvb->need_render = false;
-    zvb->raster_rendering = false;
 #if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
-    zvb->raster_rendering = true;
+    zvb->scanline_rendering = zvb->scanline_requested;
+    zvb->blitter.raster_frame = false;
 #endif
 #if ZVB_BLITTER_SOFTWARE
-    zvb->blitter.raster_frame = false;
-    vtimer_schedule_ns(&zvb->timer, ZVB_RASTER_TICK_NS);
+    vtimer_cancel(&zvb->sound_event);
+    zvb->clock_ns = vtimer_now_ns();
+    zvb->line_start_ns = zvb->clock_ns;
+    zvb->clock_syncing = false;
+    vtimer_schedule_ns(&zvb->timer, ZVB_VISIBLE_LINE_NS);
 #else
     vtimer_schedule_tstates(&zvb->timer, s_tstates_remaining[STATE_RENDERING]);
 #endif
@@ -586,12 +616,14 @@ void zvb_render(zvb_t* zvb)
 #endif
 
 #if ZVB_BLITTER_SOFTWARE
-    if (zvb->blitter.raster_frame) {
-        zvb_blitter_render_gfx_mode(zvb);
-    } else if (zvb->screen_enabled) {
-#else
-    if (zvb->status.vid_ena) {
+    bool frame_ready = zvb->screen_enabled;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    frame_ready |= zvb->blitter.raster_frame;
 #endif
+#else
+    const bool frame_ready = zvb->status.vid_ena;
+#endif
+    if (frame_ready) {
         switch (zvb->mode) {
             case MODE_TEXT_640:
             case MODE_TEXT_320:
@@ -671,86 +703,113 @@ void zvb_force_render(zvb_t* zvb)
 }
 
 
-#if ZVB_BLITTER_SOFTWARE
-typedef struct {
-    zvb_t* zvb;
-    int x;
-    int rendered;
-} zvb_raster_span_t;
-
-static void zvb_raster_flush(zvb_raster_span_t* span, int end)
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+void zvb_set_scanline_rendering(zvb_t* zvb, bool enabled)
 {
-    zvb_t* zvb = span->zvb;
-    if (zvb->raster_rendering && zvb->rendering_enabled && zvb->current_scanline < ZVB_MAX_RES_HEIGHT) {
-        zvb_blitter_render_span(zvb, zvb->current_scanline, span->rendered, end);
-    }
-    span->rendered = end;
+    zvb->scanline_requested = enabled;
 }
 
+bool zvb_scanline_rendering_requested(const zvb_t* zvb)
+{
+    return zvb->scanline_requested;
+}
+#endif
+
+#if ZVB_BLITTER_SOFTWARE
 static void zvb_rpu_load(void* userdata, uint16_t address, uint8_t data)
 {
-    zvb_raster_span_t* span = userdata;
-    zvb_raster_flush(span, span->x < ZVB_MAX_RES_WIDTH ? span->x : ZVB_MAX_RES_WIDTH);
-    zvb_mem_write(DEVICE(span->zvb), address, data);
+    zvb_t* zvb = userdata;
+    zvb_mem_write(DEVICE(zvb), address, data);
+}
+
+static void zvb_schedule_sound(zvb_t* zvb)
+{
+    vtimer_cancel(&zvb->sound_event);
+    const uint32_t clocks = zvb_sound_clocks_until_interrupt(&zvb->sound);
+    if (clocks != 0) {
+        vtimer_schedule_at_ns(&zvb->sound_event,
+                             zvb->clock_ns + clocks * ZVB_MASTER_CLOCK_NS);
+    }
+}
+
+static void zvb_sound_next(void* userdata)
+{
+    zvb_t* zvb = userdata;
+    zvb_sync_clocks(zvb, zvb->sound_event.deadline);
+}
+
+/* Advance clocked peripherals between observable bus accesses and line events.
+ * The next line deadline bounds execution, including looping RPU programs. */
+static void zvb_sync_clocks(zvb_t* zvb, uint64_t target_ns)
+{
+    if (zvb->clock_syncing) {
+        return;
+    }
+    if (target_ns > zvb->timer.deadline) {
+        target_ns = zvb->timer.deadline;
+    }
+    zvb->clock_syncing = true;
+    while (zvb->clock_ns + ZVB_MASTER_CLOCK_NS <= target_ns) {
+        const uint16_t hpos = (zvb->clock_ns - zvb->line_start_ns) / ZVB_PIXEL_NS;
+        if (zvb_rpu_active(&zvb->rpu)) {
+            zvb_rpu_clock(&zvb->rpu, hpos, zvb->current_scanline, zvb_rpu_load, zvb);
+        }
+        zvb_sound_clock(&zvb->sound);
+        if (zvb->spi.busy) {
+            zvb_spi_clock(&zvb->spi);
+        }
+        zvb->clock_ns += ZVB_MASTER_CLOCK_NS;
+    }
+    zvb->clock_syncing = false;
+    zvb_schedule_sound(zvb);
+    zvb_update_interrupts(zvb);
 }
 
 static void zvb_software_raster_next(zvb_t* zvb)
 {
-    const int start = zvb->current_hpos;
-    zvb_raster_span_t span = { .zvb = zvb, .x = start, .rendered = zvb->raster_rendered_x };
-    /* Eight VGA pixels, two 50 MHz FPGA clocks per pixel. CPU bus events
-     * remain quantized by the emulator's instruction-boundary timer dispatch. */
-    for (int x = start; x < start + ZVB_RASTER_PIXELS_PER_TICK; x++) {
-        span.x = x;
-        /* ZealVGARendering samples video_enable throughout vertical blank,
-         * retaining it for the entire following visible frame. */
-        if (zvb->current_scanline >= ZVB_MAX_RES_HEIGHT) {
-            zvb->screen_enabled = zvb->status.vid_ena;
+    const uint64_t deadline = zvb->timer.deadline;
+    zvb_sync_clocks(zvb, deadline);
+    if (zvb->state == STATE_RENDERING) {
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+        if (zvb->rendering_enabled && zvb->current_scanline < ZVB_MAX_RES_HEIGHT) {
+            zvb_blitter_render_scanline(zvb, zvb->current_scanline);
         }
-        zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
-        zvb_sound_clock(&zvb->sound);
-        zvb_spi_clock(&zvb->spi);
-        zvb_rpu_clock(&zvb->rpu, x, zvb->current_scanline, zvb_rpu_load, &span);
-        zvb_sound_clock(&zvb->sound);
-        zvb_spi_clock(&zvb->spi);
-    }
-    if (start + ZVB_RASTER_PIXELS_PER_TICK == ZVB_MAX_RES_WIDTH) {
-        zvb_raster_flush(&span, ZVB_MAX_RES_WIDTH);
-    }
-    zvb->raster_rendered_x = span.rendered;
-    zvb->current_hpos += ZVB_RASTER_PIXELS_PER_TICK;
-    if (zvb->current_hpos == ZVB_MAX_RES_WIDTH) {
+#endif
+        zvb->current_hpos = ZVB_MAX_RES_WIDTH;
         zvb->state = STATE_HBLANK;
         zvb->status.h_blank = 1;
         zvb->blank_latches |= ZVB_HBLANK_LATCH;
-    } else if (zvb->current_hpos == ZVB_TOTAL_PIXELS_PER_LINE) {
+        vtimer_schedule_at_ns(&zvb->timer, deadline + ZVB_HBLANK_NS);
+    } else {
         zvb->current_hpos = 0;
-        zvb->raster_rendered_x = 0;
         zvb->current_scanline++;
+        zvb->line_start_ns = deadline;
         zvb->state = STATE_RENDERING;
         zvb->status.h_blank = 0;
         if (zvb->current_scanline == ZVB_MAX_RES_HEIGHT) {
             zvb->need_render = true;
             zvb->status.v_blank = 1;
             zvb->blank_latches |= ZVB_VBLANK_LATCH;
-            /* Cursor blinking follows FPGA vblank even when presentation is
-             * skipped, rendering is headless, or the board is in graphics mode. */
             zvb_text_info_t info;
             zvb_text_update(&zvb->text, &info);
         } else if (zvb->current_scanline >= ZVB_TOTAL_SCANLINES) {
             zvb->current_scanline = 0;
             zvb->status.v_blank = 0;
-            zvb->raster_rendering = zvb_rpu_active(&zvb->rpu);
 #if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
-            zvb->raster_rendering = true;
+            if (zvb->scanline_rendering != zvb->scanline_requested) {
+                zvb->scanline_rendering = zvb->scanline_requested;
+                zvb->blitter.raster_frame = false;
+            }
 #endif
         }
+        vtimer_schedule_at_ns(&zvb->timer, deadline + ZVB_VISIBLE_LINE_NS);
+    }
+    /* Video enable is sampled in vertical blank and held for the visible frame;
+     * reading the requested vid_ena directly would permit mid-frame changes. */
+    if (zvb->status.v_blank) {
+        zvb->screen_enabled = zvb->status.vid_ena;
     }
     zvb_update_interrupts(zvb);
-    /* Rearm from the prior deadline to retain the 25 MHz raster rate even
-     * when a CPU instruction overruns more than one eight-pixel interval. */
-    const uint64_t deadline = zvb->timer.deadline + ZVB_RASTER_TICK_NS;
-    vtimer_schedule_at_ns(&zvb->timer, deadline);
 }
 #endif
 
@@ -792,6 +851,9 @@ void zvb_deinit(zvb_t* zvb)
 {
     vtimer_cancel(&zvb->timer);
     vtimer_cancel(&zvb->peri_timer.event);
+#if ZVB_BLITTER_SOFTWARE
+    vtimer_cancel(&zvb->sound_event);
+#endif
     zvb_sound_deinit(&zvb->sound);
     if (!zvb->rendering_enabled) {
         return;

@@ -126,6 +126,9 @@ int usage(const char* progname)
     log_printf("  -o, --console                      Read control commands from stdin (implies headless)\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
     log_printf("      --no-dma                       Disconnect ZVB DMA bus handshake wiring\n");
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    log_printf("      --no-scanline-rendering         Render whole frames instead of scanlines\n");
+#endif
 #if CONFIG_PROFILE_RENDER
     log_printf("      --profile                      Log aggregated render profiling data\n");
 #endif
@@ -180,6 +183,9 @@ int parse_command_args(int argc, char* argv[])
 {
     enum {
         OPT_NO_DMA = 256,
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+        OPT_NO_SCANLINE_RENDERING,
+#endif
 #if CONFIG_PROFILE_RENDER
         OPT_PROFILE,
 #endif
@@ -202,6 +208,9 @@ int parse_command_args(int argc, char* argv[])
         {  "console",       no_argument, 0, 'o'},
         { "no-reset",       no_argument, 0, 'q'},
         {   "no-dma",       no_argument, 0, OPT_NO_DMA},
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+        { "no-scanline-rendering", no_argument, 0, OPT_NO_SCANLINE_RENDERING},
+#endif
 #if CONFIG_PROFILE_RENDER
         {  "profile",       no_argument, 0, OPT_PROFILE},
 #endif
@@ -290,6 +299,11 @@ int parse_command_args(int argc, char* argv[])
             case OPT_NO_DMA:
                 config.arguments.no_dma = true;
                 break;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+            case OPT_NO_SCANLINE_RENDERING:
+                config.arguments.no_scanline_rendering = true;
+                break;
+#endif
 #if CONFIG_PROFILE_RENDER
             case OPT_PROFILE:
                 config.arguments.profile = true;

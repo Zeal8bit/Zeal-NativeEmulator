@@ -322,6 +322,9 @@ int zeal_init(zeal_t* machine)
     const zvb_config_t zvb_config = {
         .rendering_enabled = !machine->headless,
         .dma_disabled = config.arguments.no_dma,
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+        .scanline_disabled = config.arguments.no_scanline_rendering,
+#endif
         .pio = &machine->pio,
     };
     err = zvb_init(&machine->zvb, &zvb_config, mmu);

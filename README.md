@@ -86,9 +86,15 @@ meson setup build -Dblitter_software=true
 ```
 
 The software renderer draws pixels on the CPU and uses Raylib to display them.
-It supports RPU effects. Set `-Dblitter_software_scanline_rendering=true` to
-render each scanline instead of a whole frame; RPU programs enable raster
-rendering automatically when needed.
+Scanline rendering is compiled in and enabled by default. Use
+`--no-scanline-rendering` or the debugger's Video → Scanline rendering checkbox
+to render whole frames instead. Debugger changes take effect on the next frame
+and survive emulated resets. Whole-frame rendering approximates per-line RPU
+effects; RPU programs do not override this choice.
+
+Set `-Dblitter_software_scanline_rendering=false` to compile out scanline
+capture and its command-line/debugger controls. Raylib handles display scaling;
+the CPU renders native-resolution rows.
 
 The shader renderer (`-Dblitter_software=false`) is deprecated and does not
 support RPU effects. It remains the default build setting for now, so select
@@ -142,6 +148,7 @@ Options:
   -n, --headless [<tstates>]    Run without GUI (no window/input/rendering)
   -o, --console                 Read control commands from stdin (implies headless)
       --no-dma                  Disconnect ZVB DMA bus handshake wiring
+      --no-scanline-rendering    Use whole-frame rendering (when compiled in)
   -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
   -h, --help                    Show this help message
 
