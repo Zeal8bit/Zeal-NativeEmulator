@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /**
  * @brief A node in the timer linked list. Returned by schedule functions as a handle
@@ -41,6 +42,9 @@ void vtimer_init(void);
 
 /* Current emulated time, for peripheral counters between scheduled events. */
 uint64_t vtimer_now_ns(void);
+
+/* Next timer or current stall-budget boundary; UINT64_MAX when neither exists. */
+uint64_t vtimer_next_deadline_ns(void);
 
 
 /**
@@ -113,6 +117,10 @@ void vtimer_tick(uint64_t elapsed_tstates);
  * itself. Ordinary instruction-boundary timing remains in vtimer_tick().
  */
 void vtimer_stall(uint64_t elapsed_tstates);
+
+/* Yield while the bus is held, stopping at release or the caller's budget.
+ * Returns elapsed whole T-states, rounding release to the next CPU boundary. */
+uint64_t vtimer_stall_bus(uint64_t max_tstates, const bool* bus_requested);
 
 
 /**

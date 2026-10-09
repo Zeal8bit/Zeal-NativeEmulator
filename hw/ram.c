@@ -33,6 +33,12 @@ static void ram_write(device_t* dev, uint32_t addr, uint8_t data) {
 }
 
 
+static bool ram_dma_batchable(device_t* dev, uint32_t addr)
+{
+    const ram_t* ram = (ram_t*)dev;
+    return addr < ram->size;
+}
+
 int ram_init(ram_t *r) {
     if(r == NULL) {
         return 1;
@@ -50,5 +56,6 @@ int ram_init(ram_t *r) {
 #endif
 
     device_init_mem(DEVICE(r), "ram_dev", ram_read, ram_write, r->size);
+    r->parent.mem_region.dma_batchable = ram_dma_batchable;
     return 0;
 }

@@ -78,7 +78,7 @@ typedef struct {
     };
     /* Clock divider for all the transfers */
     zvb_dma_clk_t      clk;
-    /* Bus state, advanced at 50 MHz deadlines by the virtual timer. */
+    /* Bus state; ordinary memory transfers are batched between timer events. */
     vtimer_node_t timer;
     enum { DMA_IDLE, DMA_REQUEST, DMA_DESCRIPTOR, DMA_READ, DMA_WRITE,
            DMA_RELEASE } state;
@@ -88,6 +88,7 @@ typedef struct {
     uint32_t rd_addr;
     uint32_t wr_addr;
     uint16_t remaining;
+    uint16_t batch_remaining;
     /* MMU for physical memory access */
     mmu_t* mmu;
     bool bus_connected; /* Physical handshake wiring, retained across reset */

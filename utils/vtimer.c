@@ -21,6 +21,7 @@ static vtimer_node_t* s_head;
 
 /** Monotonically increasing time in nanoseconds. */
 static uint64_t s_ns;
+static uint64_t s_stall_deadline;
 
 
 /* -------------------------------------------------------------------------- */
@@ -31,11 +32,18 @@ void vtimer_init(void)
 {
     s_head  = NULL;
     s_ns    = 0;
+    s_stall_deadline = UINT64_MAX;
 }
 
 uint64_t vtimer_now_ns(void)
 {
     return s_ns;
+}
+
+uint64_t vtimer_next_deadline_ns(void)
+{
+    const uint64_t deadline = s_head != NULL ? s_head->deadline : UINT64_MAX;
+    return deadline < s_stall_deadline ? deadline : s_stall_deadline;
 }
 
 
@@ -106,14 +114,35 @@ void vtimer_tick(uint64_t elapsed_tstates)
 }
 
 
-void vtimer_stall(uint64_t elapsed_tstates)
+static uint64_t vtimer_stall_until(uint64_t elapsed_tstates, const bool* bus_requested)
 {
     /* Dispatch DMA's 20 ns bus events and peripherals in deadline order. */
-    const uint64_t target = s_ns + elapsed_tstates * (1000000000UL / CPUFREQ);
-    while (s_head != NULL && s_head->deadline <= target) {
+    const uint64_t start = s_ns;
+    const uint64_t tstate_ns = 1000000000UL / CPUFREQ;
+    uint64_t target = start + elapsed_tstates * tstate_ns;
+    s_stall_deadline = target;
+    while (s_head != NULL && s_head->deadline <= target &&
+           (bus_requested == NULL || *bus_requested)) {
         vtimer_tick_ns(s_head->deadline - s_ns);
     }
+    if (bus_requested != NULL && !*bus_requested) {
+        const uint64_t elapsed = s_ns - start;
+        target = start + (elapsed / tstate_ns + (elapsed % tstate_ns != 0)) * tstate_ns;
+        s_stall_deadline = target;
+    }
     vtimer_tick_ns(target - s_ns);
+    s_stall_deadline = UINT64_MAX;
+    return (s_ns - start) / tstate_ns;
+}
+
+void vtimer_stall(uint64_t elapsed_tstates)
+{
+    vtimer_stall_until(elapsed_tstates, NULL);
+}
+
+uint64_t vtimer_stall_bus(uint64_t max_tstates, const bool* bus_requested)
+{
+    return vtimer_stall_until(max_tstates, bus_requested);
 }
 
 

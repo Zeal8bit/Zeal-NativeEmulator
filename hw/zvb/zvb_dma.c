@@ -28,6 +28,7 @@
 
 #define DMA_CLOCK_NS 20UL
 #define DMA_ADDRESS_MASK (MEM_SPACE_SIZE - 1u)
+#define DMA_BATCH_NS (32000UL)
 
 static void dma_schedule(zvb_dma_t* dma, uint32_t clocks)
 {
@@ -43,6 +44,42 @@ static inline uint32_t dma_next_address(uint32_t address, uint32_t operation)
         address--;
     }
     return address & DMA_ADDRESS_MASK;
+}
+
+static bool dma_memory_batchable(const mmu_t* mmu, uint32_t address)
+{
+    const map_entry_t* entry = &mmu->mem_mapping[address / MEM_SPACE_ALIGN];
+    const device_t* dev = entry->dev;
+    return dev != NULL && dev->mem_region.dma_batchable != NULL &&
+           dev->mem_region.dma_batchable(entry->dev, address - entry->page_from * MEM_SPACE_ALIGN);
+}
+
+static void dma_schedule_writes(zvb_dma_t* dma, uint32_t read_clocks, uint32_t write_clocks)
+{
+    dma->batch_remaining = 1;
+    if (!dma_memory_batchable(dma->mmu, dma->wr_addr) || !dma_memory_batchable(dma->mmu, dma->rd_addr)) {
+        dma_schedule(dma, write_clocks);
+        return;
+    }
+    uint32_t source = dma->rd_addr;
+    uint32_t destination = dma->wr_addr;
+    uint64_t deadline = vtimer_now_ns() + write_clocks * DMA_CLOCK_NS;
+    const uint64_t next_event = vtimer_next_deadline_ns();
+    const uint64_t batch_end = vtimer_now_ns() + DMA_BATCH_NS;
+    const uint64_t limit = next_event < batch_end ? next_event : batch_end;
+    const uint32_t byte_ns = (read_clocks + write_clocks) * DMA_CLOCK_NS;
+    while (dma->batch_remaining < dma->remaining && deadline + byte_ns < limit) {
+        source = dma_next_address(source, (dma->flags >> DMA_READ_OPERATION_SHIFT) & DMA_OPERATION_MASK);
+        destination = dma_next_address(destination, (dma->flags >> DMA_WRITE_OPERATION_SHIFT) & DMA_OPERATION_MASK);
+        if (!dma_memory_batchable(dma->mmu, destination) || !dma_memory_batchable(dma->mmu, source)) {
+            break;
+        }
+        dma->batch_remaining++;
+        deadline += byte_ns;
+    }
+    /* Additional bytes stay strictly before the next observer; individual
+     * transfers retain the timer queue's equal-deadline ordering. */
+    vtimer_schedule_at_ns(&dma->timer, deadline);
 }
 
 
@@ -90,13 +127,10 @@ static void dma_advance(void* userdata)
                     dma->remaining |= (uint16_t)value << 8;
                     break;
                 case DMA_DESC_FLAGS: {
-                    /* Skip descriptor padding; zero-length descriptors use
-                     * the previously latched flags. */
-                    const uint8_t previous_flags = dma->flags;
                     dma->flags = value;
                     dma->desc_addr = (dma->desc_addr + DMA_DESC_PADDING) & DMA_ADDRESS_MASK;
                     if (dma->remaining == 0) {
-                        dma->state = (previous_flags & DMA_LAST_FLAG) ? DMA_RELEASE : DMA_REQUEST;
+                        dma->state = (dma->flags & DMA_LAST_FLAG) ? DMA_RELEASE : DMA_REQUEST;
                         dma_schedule(dma, 1);
                     } else {
                         dma->state = DMA_READ;
@@ -112,14 +146,24 @@ static void dma_advance(void* userdata)
         case DMA_READ:
             dma->data = mmu_phys_read_byte(dma->mmu, dma->rd_addr);
             dma->state = DMA_WRITE;
-            dma_schedule(dma, write_clocks);
+            dma_schedule_writes(dma, read_clocks, write_clocks);
             break;
 
         case DMA_WRITE:
-            mmu_phys_write_byte(dma->mmu, dma->wr_addr, dma->data);
-            dma->rd_addr = dma_next_address(dma->rd_addr, (dma->flags >> DMA_READ_OPERATION_SHIFT) & DMA_OPERATION_MASK);
-            dma->wr_addr = dma_next_address(dma->wr_addr, (dma->flags >> DMA_WRITE_OPERATION_SHIFT) & DMA_OPERATION_MASK);
-            if (--dma->remaining == 0) {
+            do {
+                mmu_phys_write_byte(dma->mmu, dma->wr_addr, dma->data);
+                if (dma->state != DMA_WRITE) {
+                    return;
+                }
+                dma->rd_addr = dma_next_address(dma->rd_addr, (dma->flags >> DMA_READ_OPERATION_SHIFT) & DMA_OPERATION_MASK);
+                dma->wr_addr = dma_next_address(dma->wr_addr, (dma->flags >> DMA_WRITE_OPERATION_SHIFT) & DMA_OPERATION_MASK);
+                dma->remaining--;
+                dma->batch_remaining--;
+                if (dma->batch_remaining != 0) {
+                    dma->data = mmu_phys_read_byte(dma->mmu, dma->rd_addr);
+                }
+            } while (dma->batch_remaining != 0);
+            if (dma->remaining == 0) {
                 dma->state = (dma->flags & DMA_LAST_FLAG) ? DMA_RELEASE : DMA_REQUEST;
                 dma_schedule(dma, 1);
             } else {
@@ -156,6 +200,7 @@ void zvb_dma_reset(zvb_dma_t* dma)
     dma->state = DMA_IDLE;
     dma->mmu->bus_requested = false;
     dma->remaining = 0;
+    dma->batch_remaining = 0;
     dma->wr_addr = 0;
     dma->rd_addr = 0;
     /* CLK_DIV reset value in ZVB 1.0.0; descriptor address is unchanged. */

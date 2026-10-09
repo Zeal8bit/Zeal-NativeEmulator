@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #define DEVICE(dev) &((dev)->parent)
 
 typedef struct device_t device_t;
@@ -18,6 +21,8 @@ typedef struct {
     uint8_t (*read)(device_t* dev, uint32_t addr);
     uint8_t (*debug_read)(device_t* dev, uint32_t addr); /* Same as read but valid for write-only areas */
     void (*write)(device_t* dev, uint32_t addr, uint8_t data);
+    /* True only for memory accesses that may be deferred between timer events. */
+    bool (*dma_batchable)(device_t* dev, uint32_t addr);
     int size;
     uint8_t upper_addr;
 } region_t;

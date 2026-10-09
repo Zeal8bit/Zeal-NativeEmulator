@@ -52,7 +52,8 @@ void z80_reset(z80* const z);
 int z80_instruction_size(z80* const z);
 unsigned long z80_run_for(z80* const z, unsigned long tstates);
 /* Advances peripherals and accepts interrupts after bus release. While DMA
- * holds the bus, returns after one T-state without executing an opcode. */
+ * holds the bus, advances events within a bounded interval without
+ * executing an opcode. */
 unsigned long z80_step(z80* const z);
 void z80_debug_output(z80* const z);
 void z80_get_debug_output(z80* const z, char* s);

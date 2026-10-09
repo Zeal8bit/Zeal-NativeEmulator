@@ -174,6 +174,21 @@ static const long s_tstates_remaining[STATE_COUNT] = {
 #endif
 
 
+static bool zvb_mem_dma_batchable(device_t* dev, uint32_t addr)
+{
+    const zvb_t* zvb = (zvb_t*)dev;
+    /* Active raster programs can observe VRAM between scanline events. */
+    if (zvb_rpu_active(&zvb->rpu)) {
+        return false;
+    }
+    return addr < LAYER0_ADDR_END ||
+           IN_RANGE(LAYER1_ADDR_START, LAYER1_ADDR_END, addr) ||
+           IN_RANGE(PALETTE_ADDR_START, PALETTE_ADDR_END, addr) ||
+           IN_RANGE(SPRITES_ADDR_START, SPRITES_ADDR_END, addr) ||
+           IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr) ||
+           IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr);
+}
+
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
@@ -454,6 +469,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
     /* Initialize the structure and register it on both the memory and I/O buses */
     memset(dev, 0, sizeof(zvb_t));
     device_init_mem(DEVICE(dev), "zvb_dev", zvb_mem_read, zvb_mem_write, ZVB_MEM_SIZE);
+    dev->parent.mem_region.dma_batchable = zvb_mem_dma_batchable;
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
     dev->mode = MODE_DEFAULT;
@@ -840,6 +856,7 @@ void zvb_deinit(zvb_t* zvb)
 {
     vtimer_cancel(&zvb->timer);
     vtimer_cancel(&zvb->spi.event);
+    zvb_dma_reset(&zvb->dma);
     vtimer_cancel(&zvb->peri_timer.event);
 #if ZVB_BLITTER_SOFTWARE
     vtimer_cancel(&zvb->sound_event);

@@ -16,6 +16,8 @@
 #include "hw/z80.h"
 #include "utils/vtimer.h"
 
+#define Z80_BUS_STALL_TSTATES (320UL)
+
 // MARK: timings
 static const uint8_t op_size[256] = {
     1,  3,  1,  1,  1,  1,  2,  1,  1,  1,  1,  1,  1,  1,  2,  1,  2,  3,  1,  1,  1,  1,  2,  1,  2,  1,  1,  1,  1,
@@ -903,13 +905,12 @@ int z80_instruction_size(z80* const z)
 }
 
 
-// Execute an instruction, or yield one T-state while DMA owns the bus.
-unsigned long z80_step(z80* const z)
+/* Execute an instruction, or yield a bounded interval while DMA owns the bus. */
+static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
 {
     const unsigned long cycles = z->cyc;
     if (z->mmu.bus_requested) {
-        z->cyc++;
-        vtimer_stall(1);
+        z->cyc += vtimer_stall_bus(stall_limit, &z->mmu.bus_requested);
     } else {
         if (z->halted) {
             exec_opcode(z, 0x00);
@@ -930,12 +931,18 @@ unsigned long z80_step(z80* const z)
     return z->cyc - cycles;
 }
 
+unsigned long z80_step(z80* const z)
+{
+    return z80_step_bounded(z, Z80_BUS_STALL_TSTATES);
+}
 
 unsigned long z80_run_for(z80* const z, unsigned long tstates)
 {
     unsigned long cycles = 0;
     while (cycles < tstates) {
-        cycles += z80_step(z);
+        const unsigned long remaining = tstates - cycles;
+        const unsigned long limit = remaining < Z80_BUS_STALL_TSTATES ? remaining : Z80_BUS_STALL_TSTATES;
+        cycles += z80_step_bounded(z, limit);
     }
     return cycles;
 }
