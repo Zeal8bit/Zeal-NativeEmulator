@@ -227,6 +227,7 @@ static int zeal_shell_ensure(zeal_t* machine)
     return 0;
 }
 #endif // CONFIG_FLTK_UI
+#endif // CONFIG_ENABLE_DEBUGGER
 
 int zeal_init(zeal_t* machine)
 {
@@ -443,6 +444,32 @@ static void zeal_step(zeal_t* machine)
 }
 
 
+/**
+ * @brief Put the rendered frame on screen.
+ *
+ * The software blitter keeps its frame in CPU memory, so hand that to the host
+ * directly. A GPU blitter has no such buffer and is drawn from its texture instead;
+ * only builds that keep Raylib compile that branch.
+ */
+static void zeal_present_frame(zeal_t* machine, float x, float y, float w, float h)
+{
+    int width = 0, height = 0, pitch = 0;
+    bool rgb565 = false;
+    const void* pixels = zvb_output_pixels(&machine->zvb, &width, &height, &pitch, &rgb565);
+    if (pixels != NULL) {
+        zeal_host_present(pixels, width, height, pitch,
+                          rgb565 ? ZEAL_HOST_RGB565 : ZEAL_HOST_RGBA8888,
+                          (zeal_host_rect_t){x, y, w, h});
+        return;
+    }
+#if ZVB_BLITTER_SHADER
+    DrawTexturePro(zvb_output_texture(&machine->zvb),
+                   (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
+                   (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0.0f, WHITE);
+#endif
+}
+
+#if CONFIG_ENABLE_DEBUGGER
 int zeal_debug_enable(zeal_t* machine)
 {
     if (machine->headless) {
@@ -497,31 +524,6 @@ void zeal_debug_toggle(dbg_t *dbg)
 /**
  * Returns 1 if rendered, 0 else
  */
-/**
- * @brief Put the rendered frame on screen.
- *
- * The software blitter keeps its frame in CPU memory, so hand that to the host
- * directly. A GPU blitter has no such buffer and is drawn from its texture instead;
- * only builds that keep Raylib compile that branch.
- */
-static void zeal_present_frame(zeal_t* machine, float x, float y, float w, float h)
-{
-    int width = 0, height = 0, pitch = 0;
-    bool rgb565 = false;
-    const void* pixels = zvb_output_pixels(&machine->zvb, &width, &height, &pitch, &rgb565);
-    if (pixels != NULL) {
-        zeal_host_present(pixels, width, height, pitch,
-                          rgb565 ? ZEAL_HOST_RGB565 : ZEAL_HOST_RGBA8888,
-                          (zeal_host_rect_t){x, y, w, h});
-        return;
-    }
-#if ZVB_BLITTER_SHADER
-    DrawTexturePro(zvb_output_texture(&machine->zvb),
-                   (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
-                   (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0.0f, WHITE);
-#endif
-}
-
 static int zeal_dbg_mode_display(zeal_t* machine)
 {
 #if CONFIG_PROFILE_RENDER

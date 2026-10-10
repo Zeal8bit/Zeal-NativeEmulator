@@ -289,7 +289,10 @@ void dbg_ui_t::save()
         f.w = w->w();
         f.h = w->h();
     }
-    if (!workspace.save(directory + "/fltk-workspace.ini")) {
+    // While the debugger is off the live tree only holds the video, so writing it out
+    // would throw away the panel arrangement the user expects back next launch.
+    const zeal_ui::Workspace &persisted = debug_workspace_saved ? debug_workspace : workspace;
+    if (!persisted.save(directory + "/fltk-workspace.ini")) {
         message = "Cannot save workspace";
         return;
     }
