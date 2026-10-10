@@ -11,6 +11,7 @@
 #include "app/console/console_keys.h"
 #include "hw/keyboard.h"
 #include "platform/display.h"
+#include "platform/input.h"
 #include "utils/helpers.h"
 #include "utils/log.h"
 
@@ -22,72 +23,72 @@ typedef struct {
 /* Named keys. Single letters (A-Z) and digits (0-9) are handled directly. */
 static const console_key_t CONSOLE_KEYS[] = {
     /* Cursor / navigation */
-    { "UP",          DISPLAY_KEY_UP          },
-    { "DOWN",        DISPLAY_KEY_DOWN        },
-    { "LEFT",        DISPLAY_KEY_LEFT        },
-    { "RIGHT",       DISPLAY_KEY_RIGHT       },
-    { "HOME",        DISPLAY_KEY_HOME        },
-    { "END",         DISPLAY_KEY_END         },
-    { "PAGE_UP",     DISPLAY_KEY_PAGE_UP     },
-    { "PAGE_DOWN",   DISPLAY_KEY_PAGE_DOWN   },
-    { "INSERT",      DISPLAY_KEY_INSERT      },
-    { "DELETE",      DISPLAY_KEY_DELETE      },
+    { "UP",          INPUT_KEY_UP          },
+    { "DOWN",        INPUT_KEY_DOWN        },
+    { "LEFT",        INPUT_KEY_LEFT        },
+    { "RIGHT",       INPUT_KEY_RIGHT       },
+    { "HOME",        INPUT_KEY_HOME        },
+    { "END",         INPUT_KEY_END         },
+    { "PAGE_UP",     INPUT_KEY_PAGE_UP     },
+    { "PAGE_DOWN",   INPUT_KEY_PAGE_DOWN   },
+    { "INSERT",      INPUT_KEY_INSERT      },
+    { "DELETE",      INPUT_KEY_DELETE      },
     /* Editing / control */
-    { "ENTER",       DISPLAY_KEY_ENTER       },
-    { "ESC",         DISPLAY_KEY_ESCAPE      },
-    { "ESCAPE",      DISPLAY_KEY_ESCAPE      },
-    { "SPACE",       DISPLAY_KEY_SPACE       },
-    { "BACKSPACE",   DISPLAY_KEY_BACKSPACE   },
-    { "TAB",         DISPLAY_KEY_TAB         },
-    { "CAPS_LOCK",   DISPLAY_KEY_CAPS_LOCK   },
+    { "ENTER",       INPUT_KEY_ENTER       },
+    { "ESC",         INPUT_KEY_ESCAPE      },
+    { "ESCAPE",      INPUT_KEY_ESCAPE      },
+    { "SPACE",       INPUT_KEY_SPACE       },
+    { "BACKSPACE",   INPUT_KEY_BACKSPACE   },
+    { "TAB",         INPUT_KEY_TAB         },
+    { "CAPS_LOCK",   INPUT_KEY_CAPS_LOCK   },
     /* Modifiers */
-    { "SHIFT",       DISPLAY_KEY_LEFT_SHIFT    },
-    { "CTRL",        DISPLAY_KEY_LEFT_CONTROL  },
-    { "ALT",         DISPLAY_KEY_LEFT_ALT      },
-    { "RIGHT_SHIFT", DISPLAY_KEY_RIGHT_SHIFT   },
-    { "RIGHT_CTRL",  DISPLAY_KEY_RIGHT_CONTROL },
-    { "RIGHT_ALT",   DISPLAY_KEY_RIGHT_ALT     },
+    { "SHIFT",       INPUT_KEY_LEFT_SHIFT    },
+    { "CTRL",        INPUT_KEY_LEFT_CONTROL  },
+    { "ALT",         INPUT_KEY_LEFT_ALT      },
+    { "RIGHT_SHIFT", INPUT_KEY_RIGHT_SHIFT   },
+    { "RIGHT_CTRL",  INPUT_KEY_RIGHT_CONTROL },
+    { "RIGHT_ALT",   INPUT_KEY_RIGHT_ALT     },
     /* Function keys */
-    { "F1",  DISPLAY_KEY_F1  },
-    { "F2",  DISPLAY_KEY_F2  },
-    { "F3",  DISPLAY_KEY_F3  },
-    { "F4",  DISPLAY_KEY_F4  },
-    { "F5",  DISPLAY_KEY_F5  },
-    { "F6",  DISPLAY_KEY_F6  },
-    { "F7",  DISPLAY_KEY_F7  },
-    { "F8",  DISPLAY_KEY_F8  },
-    { "F9",  DISPLAY_KEY_F9  },
-    { "F10", DISPLAY_KEY_F10 },
-    { "F11", DISPLAY_KEY_F11 },
-    { "F12", DISPLAY_KEY_F12 },
+    { "F1",  INPUT_KEY_F1  },
+    { "F2",  INPUT_KEY_F2  },
+    { "F3",  INPUT_KEY_F3  },
+    { "F4",  INPUT_KEY_F4  },
+    { "F5",  INPUT_KEY_F5  },
+    { "F6",  INPUT_KEY_F6  },
+    { "F7",  INPUT_KEY_F7  },
+    { "F8",  INPUT_KEY_F8  },
+    { "F9",  INPUT_KEY_F9  },
+    { "F10", INPUT_KEY_F10 },
+    { "F11", INPUT_KEY_F11 },
+    { "F12", INPUT_KEY_F12 },
     /* Punctuation */
-    { "MINUS",         DISPLAY_KEY_MINUS         },
-    { "EQUAL",         DISPLAY_KEY_EQUAL         },
-    { "COMMA",         DISPLAY_KEY_COMMA         },
-    { "PERIOD",        DISPLAY_KEY_PERIOD        },
-    { "SLASH",         DISPLAY_KEY_SLASH         },
-    { "SEMICOLON",     DISPLAY_KEY_SEMICOLON     },
-    { "APOSTROPHE",    DISPLAY_KEY_APOSTROPHE    },
-    { "GRAVE",         DISPLAY_KEY_GRAVE         },
-    { "LEFT_BRACKET",  DISPLAY_KEY_LEFT_BRACKET  },
-    { "RIGHT_BRACKET", DISPLAY_KEY_RIGHT_BRACKET },
-    { "BACKSLASH",     DISPLAY_KEY_BACKSLASH     },
+    { "MINUS",         INPUT_KEY_MINUS         },
+    { "EQUAL",         INPUT_KEY_EQUAL         },
+    { "COMMA",         INPUT_KEY_COMMA         },
+    { "PERIOD",        INPUT_KEY_PERIOD        },
+    { "SLASH",         INPUT_KEY_SLASH         },
+    { "SEMICOLON",     INPUT_KEY_SEMICOLON     },
+    { "APOSTROPHE",    INPUT_KEY_APOSTROPHE    },
+    { "GRAVE",         INPUT_KEY_GRAVE         },
+    { "LEFT_BRACKET",  INPUT_KEY_LEFT_BRACKET  },
+    { "RIGHT_BRACKET", INPUT_KEY_RIGHT_BRACKET },
+    { "BACKSLASH",     INPUT_KEY_BACKSLASH     },
     /* Keypad */
-    { "KP_0", DISPLAY_KEY_KP_0 },
-    { "KP_1", DISPLAY_KEY_KP_1 },
-    { "KP_2", DISPLAY_KEY_KP_2 },
-    { "KP_3", DISPLAY_KEY_KP_3 },
-    { "KP_4", DISPLAY_KEY_KP_4 },
-    { "KP_5", DISPLAY_KEY_KP_5 },
-    { "KP_6", DISPLAY_KEY_KP_6 },
-    { "KP_7", DISPLAY_KEY_KP_7 },
-    { "KP_8", DISPLAY_KEY_KP_8 },
-    { "KP_9", DISPLAY_KEY_KP_9 },
-    { "KP_ADD",      DISPLAY_KEY_KP_ADD      },
-    { "KP_SUBTRACT", DISPLAY_KEY_KP_SUBTRACT },
-    { "KP_MULTIPLY", DISPLAY_KEY_KP_MULTIPLY },
-    { "KP_DIVIDE",   DISPLAY_KEY_KP_DIVIDE   },
-    { "KP_DECIMAL",  DISPLAY_KEY_KP_DECIMAL  },
+    { "KP_0", INPUT_KEY_KP_0 },
+    { "KP_1", INPUT_KEY_KP_1 },
+    { "KP_2", INPUT_KEY_KP_2 },
+    { "KP_3", INPUT_KEY_KP_3 },
+    { "KP_4", INPUT_KEY_KP_4 },
+    { "KP_5", INPUT_KEY_KP_5 },
+    { "KP_6", INPUT_KEY_KP_6 },
+    { "KP_7", INPUT_KEY_KP_7 },
+    { "KP_8", INPUT_KEY_KP_8 },
+    { "KP_9", INPUT_KEY_KP_9 },
+    { "KP_ADD",      INPUT_KEY_KP_ADD      },
+    { "KP_SUBTRACT", INPUT_KEY_KP_SUBTRACT },
+    { "KP_MULTIPLY", INPUT_KEY_KP_MULTIPLY },
+    { "KP_DIVIDE",   INPUT_KEY_KP_DIVIDE   },
+    { "KP_DECIMAL",  INPUT_KEY_KP_DECIMAL  },
 };
 
 
@@ -101,10 +102,10 @@ static int console_parse_key(const char* name)
     if (name[0] != '\0' && name[1] == '\0') {
         const char c = (char)toupper((unsigned char)name[0]);
         if (c >= 'A' && c <= 'Z') {
-            return DISPLAY_KEY_A + (c - 'A');
+            return INPUT_KEY_A + (c - 'A');
         }
         if (c >= '0' && c <= '9') {
-            return DISPLAY_KEY_ZERO + (c - '0');
+            return INPUT_KEY_ZERO + (c - '0');
         }
     }
 

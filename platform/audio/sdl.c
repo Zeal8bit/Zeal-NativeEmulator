@@ -83,7 +83,6 @@ void audio_close(void)
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
-bool audio_ready(void) { return open; }
 
 void audio_set_volume(float volume)
 {

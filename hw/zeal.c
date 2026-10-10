@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include "hw/zeal.h"
 #include "platform/display.h"
+#include "platform/input.h"
 #include "platform/audio.h"
 #include "app/console/console.h"
 #include "utils/log.h"
@@ -61,7 +62,7 @@ static void host_keyboard_check_cb(void* userdata);
  * @brief Array used to key tracked of the key states on the host. This array will help simulate
  * key press, release and repeat.
  */
-static kb_keys_t HOST_KEYS[DISPLAY_KEY_COUNT];
+static kb_keys_t HOST_KEYS[INPUT_KEY_COUNT];
 
 
 #ifdef PLATFORM_WEB
@@ -103,9 +104,9 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 static int key_can_repeat(int code)
 {
     const int modifiers[] = {
-        DISPLAY_KEY_LEFT_SHIFT,  DISPLAY_KEY_LEFT_CONTROL,  DISPLAY_KEY_LEFT_ALT,  DISPLAY_KEY_LEFT_SUPER,
-        DISPLAY_KEY_RIGHT_SHIFT, DISPLAY_KEY_RIGHT_CONTROL, DISPLAY_KEY_RIGHT_ALT, DISPLAY_KEY_RIGHT_SUPER,
-        DISPLAY_KEY_CAPS_LOCK,   DISPLAY_KEY_NUM_LOCK
+        INPUT_KEY_LEFT_SHIFT,  INPUT_KEY_LEFT_CONTROL,  INPUT_KEY_LEFT_ALT,  INPUT_KEY_LEFT_SUPER,
+        INPUT_KEY_RIGHT_SHIFT, INPUT_KEY_RIGHT_CONTROL, INPUT_KEY_RIGHT_ALT, INPUT_KEY_RIGHT_SUPER,
+        INPUT_KEY_CAPS_LOCK,   INPUT_KEY_NUM_LOCK
     };
 
     for (unsigned int i = 0; i < DIM(modifiers); i++) {
@@ -121,9 +122,9 @@ static void zeal_read_keyboard_reset(zeal_t* machine)
 {
     (void) machine;
     /* Drop any key presses the host queued while we were not looking. */
-    while(display_key_pressed()) {}
+    while(input_key_pressed()) {}
 
-    for (int i = 0; i < DISPLAY_KEY_COUNT; i++) {
+    for (int i = 0; i < INPUT_KEY_COUNT; i++) {
         HOST_KEYS[i].duration = 0;
         HOST_KEYS[i].state = KEY_NOT_PRESSED;
     }
@@ -139,21 +140,21 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
     const int repeat_delay = us_to_tstates(50000);
 
     // look for newly pressed keys
-    while((keyCode = display_key_pressed())) {
+    while((keyCode = input_key_pressed())) {
         HOST_KEYS[keyCode].state = KEY_PRESSED;
         HOST_KEYS[keyCode].duration = 0;
         key_pressed(&machine->keyboard, keyCode);
     }
 
     // look for newly released keys
-    for(keyCode = 0; keyCode < DISPLAY_KEY_COUNT; keyCode++) {
+    for(keyCode = 0; keyCode < INPUT_KEY_COUNT; keyCode++) {
         kb_keys_t* key = &HOST_KEYS[keyCode];
 
         if(key->state == KEY_NOT_PRESSED) {
             continue;
         }
 
-        if(display_key_up(keyCode)) {
+        if(input_key_up(keyCode)) {
             key->state = KEY_NOT_PRESSED;
             /* No need to clear the duration, it's done when the key is pressed */
             key_released(&machine->keyboard, keyCode);

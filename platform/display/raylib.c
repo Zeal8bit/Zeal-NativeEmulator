@@ -18,116 +18,117 @@
 #include <string.h>
 #include "raylib.h"
 #include "utils/paths.h"
+#include "platform/input.h"
 #include "platform/display.h"
 
 /* Raylib key codes are not dense, so the translation is a table rather than arithmetic. */
-static const int raylib_keys[DISPLAY_KEY_COUNT] = {
-    [DISPLAY_KEY_NONE] = 0,
-    [DISPLAY_KEY_ESCAPE] = KEY_ESCAPE,
-    [DISPLAY_KEY_ENTER] = KEY_ENTER,
-    [DISPLAY_KEY_TAB] = KEY_TAB,
-    [DISPLAY_KEY_BACKSPACE] = KEY_BACKSPACE,
-    [DISPLAY_KEY_INSERT] = KEY_INSERT,
-    [DISPLAY_KEY_DELETE] = KEY_DELETE,
-    [DISPLAY_KEY_RIGHT] = KEY_RIGHT,
-    [DISPLAY_KEY_LEFT] = KEY_LEFT,
-    [DISPLAY_KEY_DOWN] = KEY_DOWN,
-    [DISPLAY_KEY_UP] = KEY_UP,
-    [DISPLAY_KEY_PAGE_UP] = KEY_PAGE_UP,
-    [DISPLAY_KEY_PAGE_DOWN] = KEY_PAGE_DOWN,
-    [DISPLAY_KEY_HOME] = KEY_HOME,
-    [DISPLAY_KEY_END] = KEY_END,
-    [DISPLAY_KEY_CAPS_LOCK] = KEY_CAPS_LOCK,
-    [DISPLAY_KEY_SCROLL_LOCK] = KEY_SCROLL_LOCK,
-    [DISPLAY_KEY_NUM_LOCK] = KEY_NUM_LOCK,
-    [DISPLAY_KEY_PRINT_SCREEN] = KEY_PRINT_SCREEN,
-    [DISPLAY_KEY_PAUSE] = KEY_PAUSE,
-    [DISPLAY_KEY_F1] = KEY_F1,
-    [DISPLAY_KEY_F2] = KEY_F2,
-    [DISPLAY_KEY_F3] = KEY_F3,
-    [DISPLAY_KEY_F4] = KEY_F4,
-    [DISPLAY_KEY_F5] = KEY_F5,
-    [DISPLAY_KEY_F6] = KEY_F6,
-    [DISPLAY_KEY_F7] = KEY_F7,
-    [DISPLAY_KEY_F8] = KEY_F8,
-    [DISPLAY_KEY_F9] = KEY_F9,
-    [DISPLAY_KEY_F10] = KEY_F10,
-    [DISPLAY_KEY_F11] = KEY_F11,
-    [DISPLAY_KEY_F12] = KEY_F12,
-    [DISPLAY_KEY_LEFT_SHIFT] = KEY_LEFT_SHIFT,
-    [DISPLAY_KEY_LEFT_CONTROL] = KEY_LEFT_CONTROL,
-    [DISPLAY_KEY_LEFT_ALT] = KEY_LEFT_ALT,
-    [DISPLAY_KEY_LEFT_SUPER] = KEY_LEFT_SUPER,
-    [DISPLAY_KEY_RIGHT_SHIFT] = KEY_RIGHT_SHIFT,
-    [DISPLAY_KEY_RIGHT_CONTROL] = KEY_RIGHT_CONTROL,
-    [DISPLAY_KEY_RIGHT_ALT] = KEY_RIGHT_ALT,
-    [DISPLAY_KEY_RIGHT_SUPER] = KEY_RIGHT_SUPER,
-    [DISPLAY_KEY_KB_MENU] = KEY_KB_MENU,
-    [DISPLAY_KEY_LEFT_BRACKET] = KEY_LEFT_BRACKET,
-    [DISPLAY_KEY_RIGHT_BRACKET] = KEY_RIGHT_BRACKET,
-    [DISPLAY_KEY_BACKSLASH] = KEY_BACKSLASH,
-    [DISPLAY_KEY_SEMICOLON] = KEY_SEMICOLON,
-    [DISPLAY_KEY_APOSTROPHE] = KEY_APOSTROPHE,
-    [DISPLAY_KEY_MINUS] = KEY_MINUS,
-    [DISPLAY_KEY_EQUAL] = KEY_EQUAL,
-    [DISPLAY_KEY_GRAVE] = KEY_GRAVE,
-    [DISPLAY_KEY_COMMA] = KEY_COMMA,
-    [DISPLAY_KEY_PERIOD] = KEY_PERIOD,
-    [DISPLAY_KEY_SLASH] = KEY_SLASH,
-    [DISPLAY_KEY_SPACE] = KEY_SPACE,
-    [DISPLAY_KEY_ZERO] = KEY_ZERO,
-    [DISPLAY_KEY_ONE] = KEY_ONE,
-    [DISPLAY_KEY_TWO] = KEY_TWO,
-    [DISPLAY_KEY_THREE] = KEY_THREE,
-    [DISPLAY_KEY_FOUR] = KEY_FOUR,
-    [DISPLAY_KEY_FIVE] = KEY_FIVE,
-    [DISPLAY_KEY_SIX] = KEY_SIX,
-    [DISPLAY_KEY_SEVEN] = KEY_SEVEN,
-    [DISPLAY_KEY_EIGHT] = KEY_EIGHT,
-    [DISPLAY_KEY_NINE] = KEY_NINE,
-    [DISPLAY_KEY_A] = KEY_A,
-    [DISPLAY_KEY_B] = KEY_B,
-    [DISPLAY_KEY_C] = KEY_C,
-    [DISPLAY_KEY_D] = KEY_D,
-    [DISPLAY_KEY_E] = KEY_E,
-    [DISPLAY_KEY_F] = KEY_F,
-    [DISPLAY_KEY_G] = KEY_G,
-    [DISPLAY_KEY_H] = KEY_H,
-    [DISPLAY_KEY_I] = KEY_I,
-    [DISPLAY_KEY_J] = KEY_J,
-    [DISPLAY_KEY_K] = KEY_K,
-    [DISPLAY_KEY_L] = KEY_L,
-    [DISPLAY_KEY_M] = KEY_M,
-    [DISPLAY_KEY_N] = KEY_N,
-    [DISPLAY_KEY_O] = KEY_O,
-    [DISPLAY_KEY_P] = KEY_P,
-    [DISPLAY_KEY_Q] = KEY_Q,
-    [DISPLAY_KEY_R] = KEY_R,
-    [DISPLAY_KEY_S] = KEY_S,
-    [DISPLAY_KEY_T] = KEY_T,
-    [DISPLAY_KEY_U] = KEY_U,
-    [DISPLAY_KEY_V] = KEY_V,
-    [DISPLAY_KEY_W] = KEY_W,
-    [DISPLAY_KEY_X] = KEY_X,
-    [DISPLAY_KEY_Y] = KEY_Y,
-    [DISPLAY_KEY_Z] = KEY_Z,
-    [DISPLAY_KEY_KP_0] = KEY_KP_0,
-    [DISPLAY_KEY_KP_1] = KEY_KP_1,
-    [DISPLAY_KEY_KP_2] = KEY_KP_2,
-    [DISPLAY_KEY_KP_3] = KEY_KP_3,
-    [DISPLAY_KEY_KP_4] = KEY_KP_4,
-    [DISPLAY_KEY_KP_5] = KEY_KP_5,
-    [DISPLAY_KEY_KP_6] = KEY_KP_6,
-    [DISPLAY_KEY_KP_7] = KEY_KP_7,
-    [DISPLAY_KEY_KP_8] = KEY_KP_8,
-    [DISPLAY_KEY_KP_9] = KEY_KP_9,
-    [DISPLAY_KEY_KP_DECIMAL] = KEY_KP_DECIMAL,
-    [DISPLAY_KEY_KP_DIVIDE] = KEY_KP_DIVIDE,
-    [DISPLAY_KEY_KP_MULTIPLY] = KEY_KP_MULTIPLY,
-    [DISPLAY_KEY_KP_SUBTRACT] = KEY_KP_SUBTRACT,
-    [DISPLAY_KEY_KP_ADD] = KEY_KP_ADD,
-    [DISPLAY_KEY_KP_ENTER] = KEY_KP_ENTER,
-    [DISPLAY_KEY_KP_EQUAL] = KEY_KP_EQUAL,
+static const int raylib_keys[INPUT_KEY_COUNT] = {
+    [INPUT_KEY_NONE] = 0,
+    [INPUT_KEY_ESCAPE] = KEY_ESCAPE,
+    [INPUT_KEY_ENTER] = KEY_ENTER,
+    [INPUT_KEY_TAB] = KEY_TAB,
+    [INPUT_KEY_BACKSPACE] = KEY_BACKSPACE,
+    [INPUT_KEY_INSERT] = KEY_INSERT,
+    [INPUT_KEY_DELETE] = KEY_DELETE,
+    [INPUT_KEY_RIGHT] = KEY_RIGHT,
+    [INPUT_KEY_LEFT] = KEY_LEFT,
+    [INPUT_KEY_DOWN] = KEY_DOWN,
+    [INPUT_KEY_UP] = KEY_UP,
+    [INPUT_KEY_PAGE_UP] = KEY_PAGE_UP,
+    [INPUT_KEY_PAGE_DOWN] = KEY_PAGE_DOWN,
+    [INPUT_KEY_HOME] = KEY_HOME,
+    [INPUT_KEY_END] = KEY_END,
+    [INPUT_KEY_CAPS_LOCK] = KEY_CAPS_LOCK,
+    [INPUT_KEY_SCROLL_LOCK] = KEY_SCROLL_LOCK,
+    [INPUT_KEY_NUM_LOCK] = KEY_NUM_LOCK,
+    [INPUT_KEY_PRINT_SCREEN] = KEY_PRINT_SCREEN,
+    [INPUT_KEY_PAUSE] = KEY_PAUSE,
+    [INPUT_KEY_F1] = KEY_F1,
+    [INPUT_KEY_F2] = KEY_F2,
+    [INPUT_KEY_F3] = KEY_F3,
+    [INPUT_KEY_F4] = KEY_F4,
+    [INPUT_KEY_F5] = KEY_F5,
+    [INPUT_KEY_F6] = KEY_F6,
+    [INPUT_KEY_F7] = KEY_F7,
+    [INPUT_KEY_F8] = KEY_F8,
+    [INPUT_KEY_F9] = KEY_F9,
+    [INPUT_KEY_F10] = KEY_F10,
+    [INPUT_KEY_F11] = KEY_F11,
+    [INPUT_KEY_F12] = KEY_F12,
+    [INPUT_KEY_LEFT_SHIFT] = KEY_LEFT_SHIFT,
+    [INPUT_KEY_LEFT_CONTROL] = KEY_LEFT_CONTROL,
+    [INPUT_KEY_LEFT_ALT] = KEY_LEFT_ALT,
+    [INPUT_KEY_LEFT_SUPER] = KEY_LEFT_SUPER,
+    [INPUT_KEY_RIGHT_SHIFT] = KEY_RIGHT_SHIFT,
+    [INPUT_KEY_RIGHT_CONTROL] = KEY_RIGHT_CONTROL,
+    [INPUT_KEY_RIGHT_ALT] = KEY_RIGHT_ALT,
+    [INPUT_KEY_RIGHT_SUPER] = KEY_RIGHT_SUPER,
+    [INPUT_KEY_KB_MENU] = KEY_KB_MENU,
+    [INPUT_KEY_LEFT_BRACKET] = KEY_LEFT_BRACKET,
+    [INPUT_KEY_RIGHT_BRACKET] = KEY_RIGHT_BRACKET,
+    [INPUT_KEY_BACKSLASH] = KEY_BACKSLASH,
+    [INPUT_KEY_SEMICOLON] = KEY_SEMICOLON,
+    [INPUT_KEY_APOSTROPHE] = KEY_APOSTROPHE,
+    [INPUT_KEY_MINUS] = KEY_MINUS,
+    [INPUT_KEY_EQUAL] = KEY_EQUAL,
+    [INPUT_KEY_GRAVE] = KEY_GRAVE,
+    [INPUT_KEY_COMMA] = KEY_COMMA,
+    [INPUT_KEY_PERIOD] = KEY_PERIOD,
+    [INPUT_KEY_SLASH] = KEY_SLASH,
+    [INPUT_KEY_SPACE] = KEY_SPACE,
+    [INPUT_KEY_ZERO] = KEY_ZERO,
+    [INPUT_KEY_ONE] = KEY_ONE,
+    [INPUT_KEY_TWO] = KEY_TWO,
+    [INPUT_KEY_THREE] = KEY_THREE,
+    [INPUT_KEY_FOUR] = KEY_FOUR,
+    [INPUT_KEY_FIVE] = KEY_FIVE,
+    [INPUT_KEY_SIX] = KEY_SIX,
+    [INPUT_KEY_SEVEN] = KEY_SEVEN,
+    [INPUT_KEY_EIGHT] = KEY_EIGHT,
+    [INPUT_KEY_NINE] = KEY_NINE,
+    [INPUT_KEY_A] = KEY_A,
+    [INPUT_KEY_B] = KEY_B,
+    [INPUT_KEY_C] = KEY_C,
+    [INPUT_KEY_D] = KEY_D,
+    [INPUT_KEY_E] = KEY_E,
+    [INPUT_KEY_F] = KEY_F,
+    [INPUT_KEY_G] = KEY_G,
+    [INPUT_KEY_H] = KEY_H,
+    [INPUT_KEY_I] = KEY_I,
+    [INPUT_KEY_J] = KEY_J,
+    [INPUT_KEY_K] = KEY_K,
+    [INPUT_KEY_L] = KEY_L,
+    [INPUT_KEY_M] = KEY_M,
+    [INPUT_KEY_N] = KEY_N,
+    [INPUT_KEY_O] = KEY_O,
+    [INPUT_KEY_P] = KEY_P,
+    [INPUT_KEY_Q] = KEY_Q,
+    [INPUT_KEY_R] = KEY_R,
+    [INPUT_KEY_S] = KEY_S,
+    [INPUT_KEY_T] = KEY_T,
+    [INPUT_KEY_U] = KEY_U,
+    [INPUT_KEY_V] = KEY_V,
+    [INPUT_KEY_W] = KEY_W,
+    [INPUT_KEY_X] = KEY_X,
+    [INPUT_KEY_Y] = KEY_Y,
+    [INPUT_KEY_Z] = KEY_Z,
+    [INPUT_KEY_KP_0] = KEY_KP_0,
+    [INPUT_KEY_KP_1] = KEY_KP_1,
+    [INPUT_KEY_KP_2] = KEY_KP_2,
+    [INPUT_KEY_KP_3] = KEY_KP_3,
+    [INPUT_KEY_KP_4] = KEY_KP_4,
+    [INPUT_KEY_KP_5] = KEY_KP_5,
+    [INPUT_KEY_KP_6] = KEY_KP_6,
+    [INPUT_KEY_KP_7] = KEY_KP_7,
+    [INPUT_KEY_KP_8] = KEY_KP_8,
+    [INPUT_KEY_KP_9] = KEY_KP_9,
+    [INPUT_KEY_KP_DECIMAL] = KEY_KP_DECIMAL,
+    [INPUT_KEY_KP_DIVIDE] = KEY_KP_DIVIDE,
+    [INPUT_KEY_KP_MULTIPLY] = KEY_KP_MULTIPLY,
+    [INPUT_KEY_KP_SUBTRACT] = KEY_KP_SUBTRACT,
+    [INPUT_KEY_KP_ADD] = KEY_KP_ADD,
+    [INPUT_KEY_KP_ENTER] = KEY_KP_ENTER,
+    [INPUT_KEY_KP_EQUAL] = KEY_KP_EQUAL,
 };
 
 /* Present buffers are uploaded into one reusable texture. */
@@ -331,58 +332,56 @@ bool display_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 
 double display_time(void) { return GetTime(); }
 void display_wait(double seconds) { WaitTime(seconds); }
 
-int display_key_pressed(void)
+int input_key_pressed(void)
 {
     int key = GetKeyPressed();
     if (key == 0) {
-        return DISPLAY_KEY_NONE;
+        return INPUT_KEY_NONE;
     }
-    for (int i = 1; i < DISPLAY_KEY_COUNT; i++) {
+    for (int i = 1; i < INPUT_KEY_COUNT; i++) {
         if (raylib_keys[i] == key) {
             return i;
         }
     }
-    return DISPLAY_KEY_NONE;
+    return INPUT_KEY_NONE;
 }
 
-bool display_key_down(int key)
+bool input_key_down(int key)
 {
-    return key > 0 && key < DISPLAY_KEY_COUNT && IsKeyDown(raylib_keys[key]);
+    return key > 0 && key < INPUT_KEY_COUNT && IsKeyDown(raylib_keys[key]);
 }
 
-bool display_key_up(int key)
+bool input_key_up(int key)
 {
-    return key <= 0 || key >= DISPLAY_KEY_COUNT || IsKeyUp(raylib_keys[key]);
+    return key <= 0 || key >= INPUT_KEY_COUNT || IsKeyUp(raylib_keys[key]);
 }
 
-bool display_mouse_down(int button)
+bool input_mouse_down(int button)
 {
     return IsMouseButtonDown(button);
 }
 
-display_vec2_t display_mouse_position(void)
+input_point_t input_mouse_position(void)
 {
-    Vector2 position = GetMousePosition();
-    return (display_vec2_t){position.x, position.y};
+    /* Raylib tracks whole pixels, so the cast is exact. */
+    const Vector2 position = GetMousePosition();
+    return (input_point_t){(int)position.x, (int)position.y};
 }
 
-void display_mouse_delta(float* dx, float* dy)
+input_delta_t input_mouse_delta(void)
 {
-    Vector2 delta = GetMouseDelta();
-    if (dx) {
-        *dx = delta.x;
-    }
-    if (dy) {
-        *dy = delta.y;
-    }
+    /* Raylib tracks whole pixels, so the casts are exact. */
+    const Vector2 delta = GetMouseDelta();
+    return (input_delta_t){(int)delta.x, (int)delta.y};
 }
 
-float display_mouse_wheel(void)
+int input_mouse_wheel(void)
 {
-    return GetMouseWheelMove();
+    /* Raylib reports whole notches and is already up-positive, matching the seam. */
+    return (int)GetMouseWheelMove();
 }
 
-void display_mouse_capture(bool capture)
+void input_mouse_capture(bool capture)
 {
     if (capture) {
         DisableCursor();

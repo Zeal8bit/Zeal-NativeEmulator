@@ -10,6 +10,7 @@
  * Audio and controllers have their own seams: see include/platform/audio.h and
  * include/platform/controller.h.
  */
+#include "platform/input.h"
 #include "platform/display.h"
 #include "ui/fltk/input.h"
 #include "utils/paths.h"
@@ -40,14 +41,14 @@ double g_start_time = 0;
 display_color_t g_background{0, 0, 0, 255};
 
 /* Keys currently held, indexed by seam code. */
-bool g_key_down[DISPLAY_KEY_COUNT] = {};
+bool g_key_down[INPUT_KEY_COUNT] = {};
 /* Keys pressed since the last poll, in press order. */
 std::vector<int> g_key_queue;
 
-bool g_mouse_down[DISPLAY_MOUSE_BUTTON_COUNT] = {};
-display_vec2_t g_mouse_position{0, 0};
-float g_mouse_dx = 0, g_mouse_dy = 0;
-float g_mouse_wheel = 0;
+bool g_mouse_down[INPUT_MOUSE_BUTTON_COUNT] = {};
+input_point_t g_mouse_position{0, 0};
+int g_mouse_dx = 0, g_mouse_dy = 0;
+int g_mouse_wheel = 0;
 bool g_mouse_captured = false;
 
 double now_seconds()
@@ -125,7 +126,7 @@ class HostWindow : public Fl_Double_Window
         case FL_KEYDOWN:
         case FL_KEYUP: {
             const unsigned key = fltk_key_to_display(Fl::event_key());
-            if (key == DISPLAY_KEY_NONE)
+            if (key == INPUT_KEY_NONE)
                 break;
             if (event == FL_KEYDOWN) {
                 /* FLTK repeats FL_KEYDOWN while a key is held; the emulator does its own
@@ -141,22 +142,23 @@ class HostWindow : public Fl_Double_Window
         case FL_PUSH:
         case FL_RELEASE: {
             const int button = Fl::event_button();
-            if (button < 1 || button > DISPLAY_MOUSE_BUTTON_COUNT)
+            if (button < 1 || button > INPUT_MOUSE_BUTTON_COUNT)
                 break;
             g_mouse_down[button - 1] = (event == FL_PUSH);
-            g_mouse_position = {(float)Fl::event_x(), (float)Fl::event_y()};
+            g_mouse_position = {Fl::event_x(), Fl::event_y()};
             return 1;
         }
         case FL_MOVE:
         case FL_DRAG: {
-            const display_vec2_t next{(float)Fl::event_x(), (float)Fl::event_y()};
+            const input_point_t next{Fl::event_x(), Fl::event_y()};
             g_mouse_dx += next.x - g_mouse_position.x;
             g_mouse_dy += next.y - g_mouse_position.y;
             g_mouse_position = next;
             return 1;
         }
         case FL_MOUSEWHEEL:
-            g_mouse_wheel += (float)Fl::event_dy();
+            /* FLTK documents event_dy() as down-positive; the seam is up-positive. */
+            g_mouse_wheel -= Fl::event_dy();
             return 1;
         case FL_ENTER:
         case FL_LEAVE:
@@ -426,47 +428,45 @@ void display_wait(double seconds)
 /*  Input                                                              */
 /* ------------------------------------------------------------------ */
 
-int display_key_pressed(void)
+int input_key_pressed(void)
 {
     if (g_key_queue.empty())
-        return DISPLAY_KEY_NONE;
+        return INPUT_KEY_NONE;
     const int key = g_key_queue.front();
     g_key_queue.erase(g_key_queue.begin());
     return key;
 }
 
-bool display_key_down(int key)
+bool input_key_down(int key)
 {
-    return key > 0 && key < DISPLAY_KEY_COUNT && g_key_down[key];
+    return key > 0 && key < INPUT_KEY_COUNT && g_key_down[key];
 }
 
-bool display_key_up(int key) { return !display_key_down(key); }
+bool input_key_up(int key) { return !input_key_down(key); }
 
-bool display_mouse_down(int button)
+bool input_mouse_down(int button)
 {
-    return button >= 0 && button < DISPLAY_MOUSE_BUTTON_COUNT && g_mouse_down[button];
+    return button >= 0 && button < INPUT_MOUSE_BUTTON_COUNT && g_mouse_down[button];
 }
 
-display_vec2_t display_mouse_position(void) { return g_mouse_position; }
+input_point_t input_mouse_position(void) { return g_mouse_position; }
 
-void display_mouse_delta(float *dx, float *dy)
+input_delta_t input_mouse_delta(void)
 {
-    if (dx)
-        *dx = g_mouse_dx;
-    if (dy)
-        *dy = g_mouse_dy;
+    const input_delta_t delta{g_mouse_dx, g_mouse_dy};
     /* Reset per frame, matching a polled delta rather than a consuming read. */
     g_mouse_dx = g_mouse_dy = 0;
+    return delta;
 }
 
-float display_mouse_wheel(void)
+int input_mouse_wheel(void)
 {
-    const float wheel = g_mouse_wheel;
+    const int wheel = g_mouse_wheel;
     g_mouse_wheel = 0;
     return wheel;
 }
 
-void display_mouse_capture(bool capture)
+void input_mouse_capture(bool capture)
 {
     if (capture == g_mouse_captured)
         return;

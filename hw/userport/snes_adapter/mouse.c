@@ -3,13 +3,14 @@
 #include <stdio.h>
 
 #include "platform/display.h"
+#include "platform/input.h"
 #include "hw/zeal.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes_adapter/mouse.h"
 #include "hw/zvb/zvb.h"
 #include "utils/notif.h"
 
-static display_vec2_t snes_mouse_window_scale(float delta_scale)
+static void snes_mouse_window_scale(float delta_scale, float *scale_x, float *scale_y)
 {
     const int screen_w = display_width();
     const int screen_h = display_height();
@@ -26,10 +27,8 @@ static display_vec2_t snes_mouse_window_scale(float delta_scale)
         draw_w = (int)(screen_h * texture_ratio);
     }
 
-    return (display_vec2_t) {
-        .x = ((float)ZVB_MAX_RES_WIDTH / draw_w) * delta_scale,
-        .y = ((float)ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale,
-    };
+    *scale_x = ((float)ZVB_MAX_RES_WIDTH / draw_w) * delta_scale;
+    *scale_y = ((float)ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale;
 }
 
 static uint8_t snes_mouse_magnitude(float value)
@@ -45,7 +44,7 @@ static uint8_t snes_mouse_magnitude(float value)
 
 static bool snes_mouse_cursor_in_rect(display_rect_t bounds)
 {
-    display_vec2_t position = display_mouse_position();
+    input_point_t position = input_mouse_position();
 
     return position.x >= bounds.x &&
         position.y >= bounds.y &&
@@ -62,14 +61,14 @@ static display_rect_t snes_mouse_active_bounds(snes_mouse_t* mouse)
 static void snes_mouse_capture(snes_mouse_t* mouse)
 {
     mouse->captured = true;
-    display_mouse_capture(true);
+    input_mouse_capture(true);
     printf("[SNES] Mouse captured\n");
 }
 
 static void snes_mouse_release(snes_mouse_t* mouse)
 {
     mouse->captured = false;
-    display_mouse_capture(false);
+    input_mouse_capture(false);
     printf("[SNES] Mouse released\n");
 }
 
@@ -112,7 +111,7 @@ void snes_mouse_update(snes_mouse_t* mouse)
 #if CONFIG_ENABLE_DEBUGGER
     if(mouse->machine && mouse->machine->dbg_frontend_visible) return;
 #endif
-    bool capture_button_down = display_mouse_down(DISPLAY_MOUSE_MIDDLE);
+    bool capture_button_down = input_mouse_down(INPUT_MOUSE_MIDDLE);
 
     if (!mouse->attached) {
         if (mouse->captured) {
@@ -134,8 +133,8 @@ void snes_mouse_update(snes_mouse_t* mouse)
 
     bool active = mouse->captured || cursor_in_bounds;
     if (active) {
-        float wheel = display_mouse_wheel();
-        if (wheel != 0.0f) {
+        const int wheel = input_mouse_wheel();
+        if (wheel != 0) {
             mouse->delta_scale += wheel * SNES_MOUSE_DELTA_SCALE_STEP;
             if (mouse->delta_scale < SNES_MOUSE_DELTA_SCALE_MIN) {
                 mouse->delta_scale = SNES_MOUSE_DELTA_SCALE_MIN;
@@ -150,24 +149,29 @@ void snes_mouse_update(snes_mouse_t* mouse)
 uint32_t snes_mouse_latch(snes_mouse_t* mouse)
 {
     uint32_t bits = 0xFFFFFFFF;
-    display_vec2_t delta;
+    input_delta_t delta;
     bool active,left,right;
 #if CONFIG_ENABLE_DEBUGGER
     zeal_t* machine=mouse->machine;
     if(machine && machine->dbg_frontend_visible) {
-        delta=(display_vec2_t){machine->frontend_mouse_dx*mouse->delta_scale,machine->frontend_mouse_dy*mouse->delta_scale};
+        delta.dx=(int)roundf(machine->frontend_mouse_dx*mouse->delta_scale);
+        delta.dy=(int)roundf(machine->frontend_mouse_dy*mouse->delta_scale);
         machine->frontend_mouse_dx=machine->frontend_mouse_dy=0;
         active=debugger_ui_main_view_focused(machine->dbg_ui);
         left=(machine->frontend_mouse_buttons&1)!=0;right=(machine->frontend_mouse_buttons&2)!=0;
     } else
 #endif
     {
-        display_mouse_delta(&delta.x, &delta.y);
+        delta=input_mouse_delta();
         active=mouse->captured||snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
-        display_vec2_t scale=snes_mouse_window_scale(mouse->delta_scale);delta.x*=scale.x;delta.y*=scale.y;
-        left=display_mouse_down(DISPLAY_MOUSE_LEFT);right=display_mouse_down(DISPLAY_MOUSE_RIGHT);
+        /* The scale is fractional, so round back to the whole pixels the SNES mouse reports. */
+        float scale_x, scale_y;
+        snes_mouse_window_scale(mouse->delta_scale, &scale_x, &scale_y);
+        delta.dx=(int)roundf(delta.dx*scale_x);
+        delta.dy=(int)roundf(delta.dy*scale_y);
+        left=input_mouse_down(INPUT_MOUSE_LEFT);right=input_mouse_down(INPUT_MOUSE_RIGHT);
     }
-    if(!active)delta=(display_vec2_t){0,0};
+    if(!active)delta=(input_delta_t){0,0};
     snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_RIGHT,active&&right);
     snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_LEFT,active&&left);
 
@@ -175,15 +179,15 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse)
     snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_SPEED_MSB, (SNES_MOUSE_DEFAULT_SPEED >> 1) & 0x01);
     snes_mouse_set_bit(&bits, SNES_MOUSE_SERIAL_SIGNATURE, true);
 
-    uint8_t y_mag = snes_mouse_magnitude(delta.y);
-    uint8_t x_mag = snes_mouse_magnitude(delta.x);
+    uint8_t y_mag = snes_mouse_magnitude(delta.dy);
+    uint8_t x_mag = snes_mouse_magnitude(delta.dx);
 
-    snes_mouse_set_bit(&bits, SNES_MOUSE_Y_SIGN_BIT, delta.y < 0.0f);
+    snes_mouse_set_bit(&bits, SNES_MOUSE_Y_SIGN_BIT, delta.dy < 0);
     for (uint8_t bit = 0; bit < 7; bit++) {
         snes_mouse_set_bit(&bits, SNES_MOUSE_Y_MAG_SHIFT + bit, (y_mag >> (6 - bit)) & 0x01);
     }
 
-    snes_mouse_set_bit(&bits, SNES_MOUSE_X_SIGN_BIT, delta.x < 0.0f);
+    snes_mouse_set_bit(&bits, SNES_MOUSE_X_SIGN_BIT, delta.dx < 0);
     for (uint8_t bit = 0; bit < 7; bit++) {
         snes_mouse_set_bit(&bits, SNES_MOUSE_X_MAG_SHIFT + bit, (x_mag >> (6 - bit)) & 0x01);
     }

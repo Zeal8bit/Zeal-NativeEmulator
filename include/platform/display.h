@@ -13,6 +13,9 @@
  * a windowing library. The desktop build links platform/display/fltk.cpp; the web build
  * links platform/display/raylib.c.
  *
+ * The same backend also implements the keyboard and pointer seam, which lives in
+ * include/platform/input.h.
+ *
  * The one design decision worth stating: pixels cross this seam as a plain CPU buffer,
  * never as a GPU texture. The video blitter already renders into memory (see
  * ZVB_BLITTER_SOFTWARE), so a backend only has to put that buffer on screen, and the
@@ -43,11 +46,6 @@ typedef struct {
 typedef struct {
     float x;
     float y;
-} display_vec2_t;
-
-typedef struct {
-    float x;
-    float y;
     float width;
     float height;
 } display_rect_t;
@@ -72,129 +70,6 @@ typedef struct {
     bool resizable;
 } display_config_t;
 
-/**
- * @brief Keys the emulator and the debugger act on.
- *
- * Backends translate their native key codes into these, so no key constant from a
- * windowing library reaches the core. DISPLAY_KEY_NONE means "no key".
- */
-typedef enum {
-    DISPLAY_KEY_NONE = 0,
-    DISPLAY_KEY_ESCAPE = 1,
-    DISPLAY_KEY_ENTER,
-    DISPLAY_KEY_TAB,
-    DISPLAY_KEY_BACKSPACE,
-    DISPLAY_KEY_INSERT,
-    DISPLAY_KEY_DELETE,
-    DISPLAY_KEY_RIGHT,
-    DISPLAY_KEY_LEFT,
-    DISPLAY_KEY_DOWN,
-    DISPLAY_KEY_UP,
-    DISPLAY_KEY_PAGE_UP,
-    DISPLAY_KEY_PAGE_DOWN,
-    DISPLAY_KEY_HOME,
-    DISPLAY_KEY_END,
-    DISPLAY_KEY_CAPS_LOCK,
-    DISPLAY_KEY_SCROLL_LOCK,
-    DISPLAY_KEY_NUM_LOCK,
-    DISPLAY_KEY_PRINT_SCREEN,
-    DISPLAY_KEY_PAUSE,
-    DISPLAY_KEY_F1,
-    DISPLAY_KEY_F2,
-    DISPLAY_KEY_F3,
-    DISPLAY_KEY_F4,
-    DISPLAY_KEY_F5,
-    DISPLAY_KEY_F6,
-    DISPLAY_KEY_F7,
-    DISPLAY_KEY_F8,
-    DISPLAY_KEY_F9,
-    DISPLAY_KEY_F10,
-    DISPLAY_KEY_F11,
-    DISPLAY_KEY_F12,
-    DISPLAY_KEY_LEFT_SHIFT,
-    DISPLAY_KEY_LEFT_CONTROL,
-    DISPLAY_KEY_LEFT_ALT,
-    DISPLAY_KEY_LEFT_SUPER,
-    DISPLAY_KEY_RIGHT_SHIFT,
-    DISPLAY_KEY_RIGHT_CONTROL,
-    DISPLAY_KEY_RIGHT_ALT,
-    DISPLAY_KEY_RIGHT_SUPER,
-    DISPLAY_KEY_KB_MENU,
-    DISPLAY_KEY_LEFT_BRACKET,
-    DISPLAY_KEY_RIGHT_BRACKET,
-    DISPLAY_KEY_BACKSLASH,
-    DISPLAY_KEY_SEMICOLON,
-    DISPLAY_KEY_APOSTROPHE,
-    DISPLAY_KEY_MINUS,
-    DISPLAY_KEY_EQUAL,
-    DISPLAY_KEY_GRAVE,
-    DISPLAY_KEY_COMMA,
-    DISPLAY_KEY_PERIOD,
-    DISPLAY_KEY_SLASH,
-    DISPLAY_KEY_SPACE,
-    DISPLAY_KEY_ZERO,
-    DISPLAY_KEY_ONE,
-    DISPLAY_KEY_TWO,
-    DISPLAY_KEY_THREE,
-    DISPLAY_KEY_FOUR,
-    DISPLAY_KEY_FIVE,
-    DISPLAY_KEY_SIX,
-    DISPLAY_KEY_SEVEN,
-    DISPLAY_KEY_EIGHT,
-    DISPLAY_KEY_NINE,
-    DISPLAY_KEY_A,
-    DISPLAY_KEY_B,
-    DISPLAY_KEY_C,
-    DISPLAY_KEY_D,
-    DISPLAY_KEY_E,
-    DISPLAY_KEY_F,
-    DISPLAY_KEY_G,
-    DISPLAY_KEY_H,
-    DISPLAY_KEY_I,
-    DISPLAY_KEY_J,
-    DISPLAY_KEY_K,
-    DISPLAY_KEY_L,
-    DISPLAY_KEY_M,
-    DISPLAY_KEY_N,
-    DISPLAY_KEY_O,
-    DISPLAY_KEY_P,
-    DISPLAY_KEY_Q,
-    DISPLAY_KEY_R,
-    DISPLAY_KEY_S,
-    DISPLAY_KEY_T,
-    DISPLAY_KEY_U,
-    DISPLAY_KEY_V,
-    DISPLAY_KEY_W,
-    DISPLAY_KEY_X,
-    DISPLAY_KEY_Y,
-    DISPLAY_KEY_Z,
-    DISPLAY_KEY_KP_0,
-    DISPLAY_KEY_KP_1,
-    DISPLAY_KEY_KP_2,
-    DISPLAY_KEY_KP_3,
-    DISPLAY_KEY_KP_4,
-    DISPLAY_KEY_KP_5,
-    DISPLAY_KEY_KP_6,
-    DISPLAY_KEY_KP_7,
-    DISPLAY_KEY_KP_8,
-    DISPLAY_KEY_KP_9,
-    DISPLAY_KEY_KP_DECIMAL,
-    DISPLAY_KEY_KP_DIVIDE,
-    DISPLAY_KEY_KP_MULTIPLY,
-    DISPLAY_KEY_KP_SUBTRACT,
-    DISPLAY_KEY_KP_ADD,
-    DISPLAY_KEY_KP_ENTER,
-    DISPLAY_KEY_KP_EQUAL,
-    DISPLAY_KEY_COUNT
-} display_key_t;
-
-typedef enum {
-    DISPLAY_MOUSE_LEFT = 0,
-    DISPLAY_MOUSE_RIGHT,
-    DISPLAY_MOUSE_MIDDLE,
-    DISPLAY_MOUSE_BUTTON_COUNT
-} display_mouse_t;
-
 /* ------------------------------------------------------------------ */
 /* Lifecycle                                                           */
 /* ------------------------------------------------------------------ */
@@ -218,7 +93,7 @@ bool display_should_close(void);
 /**
  * @brief Run one iteration of the backend's event loop.
  *
- * Only meaningful between frames; the loop itself is display_run().
+ * Only meaningful between frames
  */
 void display_poll(void);
 
@@ -314,40 +189,6 @@ double display_time(void);
  * @brief Sleep for the given number of seconds.
  */
 void display_wait(double seconds);
-
-/* ------------------------------------------------------------------ */
-/* Input                                                               */
-/* ------------------------------------------------------------------ */
-
-/**
- * @brief Pop the oldest key pressed since the last call, or DISPLAY_KEY_NONE.
- */
-int display_key_pressed(void);
-
-bool display_key_down(int key);
-bool display_key_up(int key);
-
-bool display_mouse_down(int button);
-
-/**
- * @brief Pointer position within the window, in pixels.
- */
-display_vec2_t display_mouse_position(void);
-
-/**
- * @brief Mouse movement since the previous frame, in pixels.
- */
-void display_mouse_delta(float *dx, float *dy);
-
-/**
- * @brief Wheel movement since the previous frame.
- */
-float display_mouse_wheel(void);
-
-/**
- * @brief Grab or release the pointer and hide or show its cursor.
- */
-void display_mouse_capture(bool capture);
 
 #ifdef __cplusplus
 }

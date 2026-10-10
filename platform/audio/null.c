@@ -26,7 +26,6 @@ bool audio_open(int sample_rate, int channels, audio_callback_t callback)
 
 void audio_close(void) {}
 
-bool audio_ready(void) { return false; }
 
 void audio_set_volume(float volume)
 {

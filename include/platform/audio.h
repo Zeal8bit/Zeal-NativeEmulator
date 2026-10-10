@@ -54,11 +54,6 @@ bool audio_open(int sample_rate, int channels, audio_callback_t callback);
 void audio_close(void);
 
 /**
- * @brief True while the device is open and pulling samples.
- */
-bool audio_ready(void);
-
-/**
  * @brief Set the output volume, clamped to 0.0 (silent) through 1.0 (full scale).
  */
 void audio_set_volume(float volume);

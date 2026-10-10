@@ -1,5 +1,6 @@
 #include "debugger/api.h"
 #include "platform/display.h"
+#include "platform/input.h"
 #include "ui/fltk/dock.h"
 #include "ui/fltk/input.h"
 #include "ui/fltk/theme.h"
@@ -10,20 +11,20 @@
 int main()
 {
     /* The frontend speaks the platform seam's key codes, not any windowing library's. */
-    assert(fltk_key_to_display('a') == DISPLAY_KEY_A);
-    assert(fltk_key_to_display('Z') == DISPLAY_KEY_Z);
-    assert(fltk_key_to_display('7') == DISPLAY_KEY_SEVEN);
-    assert(fltk_key_to_display(';') == DISPLAY_KEY_SEMICOLON);
-    assert(fltk_key_to_display(' ') == DISPLAY_KEY_SPACE);
-    assert(fltk_key_to_display(FL_F + 11) == DISPLAY_KEY_F11);
-    assert(fltk_key_to_display(FL_Shift_R) == DISPLAY_KEY_RIGHT_SHIFT);
-    assert(fltk_key_to_display(FL_KP_Enter) == DISPLAY_KEY_KP_ENTER);
-    assert(fltk_key_to_display(0x123456) == DISPLAY_KEY_NONE);
+    assert(fltk_key_to_display('a') == INPUT_KEY_A);
+    assert(fltk_key_to_display('Z') == INPUT_KEY_Z);
+    assert(fltk_key_to_display('7') == INPUT_KEY_SEVEN);
+    assert(fltk_key_to_display(';') == INPUT_KEY_SEMICOLON);
+    assert(fltk_key_to_display(' ') == INPUT_KEY_SPACE);
+    assert(fltk_key_to_display(FL_F + 11) == INPUT_KEY_F11);
+    assert(fltk_key_to_display(FL_Shift_R) == INPUT_KEY_RIGHT_SHIFT);
+    assert(fltk_key_to_display(FL_KP_Enter) == INPUT_KEY_KP_ENTER);
+    assert(fltk_key_to_display(0x123456) == INPUT_KEY_NONE);
     /* Every key the frontend can produce must be a real seam code, and the ones the
      * emulator acts on must not collide with "no key". */
     for (int k = 0; k < 0x110000; k += 7) {
         unsigned mapped = fltk_key_to_display(k);
-        assert(mapped == DISPLAY_KEY_NONE || mapped < DISPLAY_KEY_COUNT);
+        assert(mapped == INPUT_KEY_NONE || mapped < INPUT_KEY_COUNT);
     }
     using namespace zeal_ui;
     Workspace w;

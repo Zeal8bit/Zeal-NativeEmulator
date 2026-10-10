@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include "platform/display.h"
+#include "platform/input.h"
 #include "platform/audio.h"
 #include "utils/config.h"
 #include "debugger/frontend.h"
@@ -21,7 +22,7 @@ typedef struct {
     bool pressed; // TODO: support key repeat?
     bool shifted;
     const char *label;
-    display_key_t key;
+    input_key_t key;
     debugger_callback_t callback;
 } debugger_key_t;
 
@@ -132,7 +133,7 @@ static void debugger_scale_down(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->a
 #if CONFIG_FLTK_UI
 static debugger_key_t debugger_key_toggle = {
     .label = "Toggle Debugger",
-    .key = DISPLAY_KEY_F1,
+    .key = INPUT_KEY_F1,
     .callback = zeal_debug_toggle,
     .pressed = false,
     .shifted = false
@@ -141,25 +142,25 @@ static debugger_key_t debugger_key_toggle = {
 #endif
 
 static debugger_key_t main_keys[] = {
-    { .label = "Scale Up", .key = DISPLAY_KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = DISPLAY_KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
-    { .label = "Volume Up", .key = DISPLAY_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
-    { .label = "Volume Down", .key = DISPLAY_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
-    { .label = "Reset", .key = DISPLAY_KEY_BACKSPACE, .callback = main_reset, .pressed = false, .shifted = true },
+    { .label = "Scale Up", .key = INPUT_KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
+    { .label = "Scale Down", .key = INPUT_KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
+    { .label = "Volume Up", .key = INPUT_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
+    { .label = "Volume Down", .key = INPUT_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
+    { .label = "Reset", .key = INPUT_KEY_BACKSPACE, .callback = main_reset, .pressed = false, .shifted = true },
 };
 
 static debugger_key_t debugger_keys[] = {
-    // { .label = "Toggle Debugger", .key = DISPLAY_KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
-    { .label = "Pause", .key = DISPLAY_KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
-    { .label = "Continue", .key = DISPLAY_KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
-    { .label = "Step Over", .key = DISPLAY_KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
-    { .label = "Step", .key = DISPLAY_KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
-    { .label = "Toggle Breakpoint", .key = DISPLAY_KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
-    { .label = "Reset", .key = DISPLAY_KEY_BACKSPACE, .callback = debugger_reset, .pressed = false, .shifted = true },
-    { .label = "Scale Up", .key = DISPLAY_KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = DISPLAY_KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
-    { .label = "Volume Up", .key = DISPLAY_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
-    { .label = "Volume Down", .key = DISPLAY_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
+    // { .label = "Toggle Debugger", .key = INPUT_KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
+    { .label = "Pause", .key = INPUT_KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
+    { .label = "Continue", .key = INPUT_KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
+    { .label = "Step Over", .key = INPUT_KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
+    { .label = "Step", .key = INPUT_KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
+    { .label = "Toggle Breakpoint", .key = INPUT_KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
+    { .label = "Reset", .key = INPUT_KEY_BACKSPACE, .callback = debugger_reset, .pressed = false, .shifted = true },
+    { .label = "Scale Up", .key = INPUT_KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
+    { .label = "Scale Down", .key = INPUT_KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
+    { .label = "Volume Up", .key = INPUT_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
+    { .label = "Volume Down", .key = INPUT_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
 };
 
 bool zeal_ui_input(zeal_t* machine)
@@ -173,23 +174,23 @@ bool zeal_ui_input(zeal_t* machine)
     // Debugger UI requires Ctrl + {KEY}
 #ifdef __APPLE__
     // MacOS has too many default bindings for Ctrl + F* keys
-    bool meta = display_key_down(DISPLAY_KEY_LEFT_SUPER) || display_key_down(DISPLAY_KEY_RIGHT_SUPER);
+    bool meta = input_key_down(INPUT_KEY_LEFT_SUPER) || input_key_down(INPUT_KEY_RIGHT_SUPER);
 #else
-    bool meta = display_key_down(DISPLAY_KEY_LEFT_CONTROL) || display_key_down(DISPLAY_KEY_RIGHT_CONTROL);
+    bool meta = input_key_down(INPUT_KEY_LEFT_CONTROL) || input_key_down(INPUT_KEY_RIGHT_CONTROL);
 #endif
 
     if(!meta) {
         return handled; /// all zeal ui keystrokes require meta?
     }
 
-    bool shift = (display_key_down(DISPLAY_KEY_LEFT_SHIFT) || display_key_down(DISPLAY_KEY_RIGHT_SHIFT));
+    bool shift = (input_key_down(INPUT_KEY_LEFT_SHIFT) || input_key_down(INPUT_KEY_RIGHT_SHIFT));
 
     debugger_key_t *opt;
     bool pressed = false;
 #if CONFIG_FLTK_UI
     // toggle between main view and debugger view
     opt = &debugger_key_toggle;
-    pressed = display_key_down(opt->key);
+    pressed = input_key_down(opt->key);
     handled = handled || (pressed);
     if(meta && !opt->pressed && pressed) {
         zeal_debug_toggle(&machine->dbg);
@@ -213,7 +214,7 @@ bool zeal_ui_input(zeal_t* machine)
     for(int i = 0; i < keys_size; i++) {
         opt = &keys[i];
         bool shifted = (opt->shifted == shift);
-        pressed = display_key_down(opt->key);
+        pressed = input_key_down(opt->key);
         handled = handled || (pressed && shifted);
         if(shifted && !opt->pressed && pressed) {
             opt->callback(&machine->dbg);

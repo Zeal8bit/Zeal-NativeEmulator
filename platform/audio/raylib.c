@@ -55,7 +55,6 @@ void audio_close(void)
     CloseAudioDevice();
 }
 
-bool audio_ready(void) { return open; }
 
 void audio_set_volume(float volume)
 {
