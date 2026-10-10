@@ -788,7 +788,7 @@ class MainWindow : public Fl_Double_Window
         // the menu bar before the window sees them, so they are not swallowed here.
         if (!ui->debugging && (event == FL_KEYDOWN || event == FL_KEYUP || event == FL_SHORTCUT) &&
             !Fl::event_state(FL_COMMAND)) {
-            unsigned key = fltk_key_to_host(Fl::event_key());
+            unsigned key = fltk_key_to_display(Fl::event_key());
             if (key) {
                 ui->host.key(ui->host.debugger, key, event != FL_KEYUP);
                 return 1;

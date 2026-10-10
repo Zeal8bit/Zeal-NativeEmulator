@@ -59,7 +59,7 @@ bool VideoCanvas::on_key(int event)
 {
     if (!ui->passthrough && Fl::event_state(FL_COMMAND))
         return false;
-    unsigned key = fltk_key_to_host(Fl::event_key());
+    unsigned key = fltk_key_to_display(Fl::event_key());
     if (!key)
         return false;
     ui->host.key(ui->host.debugger, key, event != FL_KEYUP);

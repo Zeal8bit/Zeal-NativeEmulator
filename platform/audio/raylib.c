@@ -5,15 +5,15 @@
  */
 
 /**
- * @file zeal_audio_raylib.c
+ * @file raylib.c
  * @brief Raylib implementation of the audio seam, used by the WebAssembly build.
  */
 #include "raylib.h"
 #include <stddef.h>
-#include "host/zeal_audio.h"
+#include "platform/audio.h"
 
 static AudioStream stream;
-static zeal_audio_callback_t producer;
+static audio_callback_t producer;
 static bool open;
 static float current_volume = 1.0f;
 
@@ -25,7 +25,7 @@ static void trampoline(void *buffer, unsigned int frames)
     }
 }
 
-bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callback)
+bool audio_open(int sample_rate, int channels, audio_callback_t callback)
 {
     if (callback == NULL) {
         return false;
@@ -40,11 +40,11 @@ bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callba
     SetAudioStreamCallback(stream, trampoline);
     PlayAudioStream(stream);
     open = true;
-    zeal_audio_set_volume(current_volume);
+    audio_set_volume(current_volume);
     return true;
 }
 
-void zeal_audio_close(void)
+void audio_close(void)
 {
     if (open) {
         StopAudioStream(stream);
@@ -55,9 +55,9 @@ void zeal_audio_close(void)
     CloseAudioDevice();
 }
 
-bool zeal_audio_ready(void) { return open; }
+bool audio_ready(void) { return open; }
 
-void zeal_audio_set_volume(float volume)
+void audio_set_volume(float volume)
 {
     if (volume < 0.0f) {
         volume = 0.0f;
@@ -69,4 +69,4 @@ void zeal_audio_set_volume(float volume)
     SetMasterVolume(volume);
 }
 
-float zeal_audio_volume(void) { return current_volume; }
+float audio_volume(void) { return current_volume; }

@@ -17,7 +17,7 @@
 #include "raylib.h"
 #endif
 #include "hw/zvb/zvb.h"
-#include "host/zeal_host.h"
+#include "platform/display.h"
 #include "hw/zvb/default_font.h"
 #include "hw/zvb/blitter/blitter.h"
 
@@ -412,7 +412,7 @@ void zvb_render(zvb_t* zvb)
     zvb->need_render = false;
 
 #if CONFIG_PROFILE_RENDER
-    const double profile_start = zeal_host_time();
+    const double profile_start = display_time();
 #endif
 
     if (zvb->status.vid_ena) {
@@ -436,7 +436,7 @@ void zvb_render(zvb_t* zvb)
     }
 
 #if CONFIG_PROFILE_RENDER
-    const double elapsed = zeal_host_time() - profile_start;
+    const double elapsed = display_time() - profile_start;
     s_render_profile.zvb_total += elapsed;
     if (elapsed > s_render_profile.zvb_max) {
         s_render_profile.zvb_max = elapsed;
@@ -452,7 +452,7 @@ void zvb_profile_frame(double elapsed_seconds)
         return;
     }
 
-    const double now = zeal_host_time();
+    const double now = display_time();
     if (s_render_profile.window_start == 0.0) {
         s_render_profile.window_start = now;
     }

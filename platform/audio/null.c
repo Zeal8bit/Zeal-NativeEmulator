@@ -5,18 +5,18 @@
  */
 
 /**
- * @file zeal_audio_null.c
+ * @file null.c
  * @brief Silent audio seam, for builds with no sound device.
  *
  * Selecting this backend lets the emulator build and run without any audio library;
  * it simply never produces sound.
  */
 #include <stddef.h>
-#include "host/zeal_audio.h"
+#include "platform/audio.h"
 
 static float current_volume = 1.0f;
 
-bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callback)
+bool audio_open(int sample_rate, int channels, audio_callback_t callback)
 {
     (void)sample_rate;
     (void)channels;
@@ -24,11 +24,11 @@ bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callba
     return false;
 }
 
-void zeal_audio_close(void) {}
+void audio_close(void) {}
 
-bool zeal_audio_ready(void) { return false; }
+bool audio_ready(void) { return false; }
 
-void zeal_audio_set_volume(float volume)
+void audio_set_volume(float volume)
 {
     if (volume < 0.0f) {
         volume = 0.0f;
@@ -39,4 +39,4 @@ void zeal_audio_set_volume(float volume)
     current_volume = volume;
 }
 
-float zeal_audio_volume(void) { return current_volume; }
+float audio_volume(void) { return current_volume; }

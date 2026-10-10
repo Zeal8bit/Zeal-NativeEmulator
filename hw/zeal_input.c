@@ -8,8 +8,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
-#include "host/zeal_host.h"
-#include "host/zeal_audio.h"
+#include "platform/display.h"
+#include "platform/audio.h"
 #include "utils/config.h"
 #include "debugger/frontend.h"
 #include "hw/zeal.h"
@@ -21,7 +21,7 @@ typedef struct {
     bool pressed; // TODO: support key repeat?
     bool shifted;
     const char *label;
-    zeal_host_key_t key;
+    display_key_t key;
     debugger_callback_t callback;
 } debugger_key_t;
 
@@ -60,10 +60,10 @@ static void main_scale_down(dbg_t *dbg)
 
 static void scale_window(float step)
 {
-    const float scale = zeal_scale_quantize_tenths((float) zeal_host_width() / ZVB_MAX_RES_WIDTH, step);
+    const float scale = zeal_scale_quantize_tenths((float) display_width() / ZVB_MAX_RES_WIDTH, step);
     const int width = (int) lroundf(ZVB_MAX_RES_WIDTH * scale);
     const int height = (int) lroundf(ZVB_MAX_RES_HEIGHT * scale);
-    zeal_host_resize(width, height);
+    display_resize(width, height);
     notif_show("Scale: x%.1f", scale);
 }
 
@@ -94,26 +94,26 @@ static void main_scale_down(dbg_t *dbg)
 static void main_volume_up(dbg_t *dbg)
 {
     (void)dbg; // unreferenced
-    float volume = zeal_audio_volume();
+    float volume = audio_volume();
     if (volume <= 0.9f) {
-        zeal_audio_set_volume(volume + 0.1f);
+        audio_set_volume(volume + 0.1f);
     } else {
-        zeal_audio_set_volume(1.0f);
+        audio_set_volume(1.0f);
     }
-    volume = zeal_audio_volume();
+    volume = audio_volume();
     config.audio.volume = (int) ((volume * 100.0f) + 0.5f);
     notif_show("Volume: %d%%", (int) ((volume * 100.0f) + 0.5f));
 }
 
 static void main_volume_down(dbg_t *dbg){
     (void)dbg; // unreferenced
-    float volume = zeal_audio_volume();
+    float volume = audio_volume();
     if (volume >= 0.1f) {
-        zeal_audio_set_volume(volume - 0.1f);
+        audio_set_volume(volume - 0.1f);
     } else {
-        zeal_audio_set_volume(0.0f);
+        audio_set_volume(0.0f);
     }
-    volume = zeal_audio_volume();
+    volume = audio_volume();
     config.audio.volume = (int) ((volume * 100.0f) + 0.5f);
     notif_show("Volume: %d%%", (int) ((volume * 100.0f) + 0.5f));
 }
@@ -132,7 +132,7 @@ static void debugger_scale_down(dbg_t* dbg) { debugger_ui_scale(((zeal_t*)dbg->a
 #if CONFIG_FLTK_UI
 static debugger_key_t debugger_key_toggle = {
     .label = "Toggle Debugger",
-    .key = ZEAL_HOST_KEY_F1,
+    .key = DISPLAY_KEY_F1,
     .callback = zeal_debug_toggle,
     .pressed = false,
     .shifted = false
@@ -141,25 +141,25 @@ static debugger_key_t debugger_key_toggle = {
 #endif
 
 static debugger_key_t main_keys[] = {
-    { .label = "Scale Up", .key = ZEAL_HOST_KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = ZEAL_HOST_KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
-    { .label = "Volume Up", .key = ZEAL_HOST_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
-    { .label = "Volume Down", .key = ZEAL_HOST_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
-    { .label = "Reset", .key = ZEAL_HOST_KEY_BACKSPACE, .callback = main_reset, .pressed = false, .shifted = true },
+    { .label = "Scale Up", .key = DISPLAY_KEY_EQUAL, .callback = main_scale_up, .pressed = false, .shifted = true },
+    { .label = "Scale Down", .key = DISPLAY_KEY_MINUS, .callback = main_scale_down, .pressed = false, .shifted = true },
+    { .label = "Volume Up", .key = DISPLAY_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
+    { .label = "Volume Down", .key = DISPLAY_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
+    { .label = "Reset", .key = DISPLAY_KEY_BACKSPACE, .callback = main_reset, .pressed = false, .shifted = true },
 };
 
 static debugger_key_t debugger_keys[] = {
-    // { .label = "Toggle Debugger", .key = ZEAL_HOST_KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
-    { .label = "Pause", .key = ZEAL_HOST_KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
-    { .label = "Continue", .key = ZEAL_HOST_KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
-    { .label = "Step Over", .key = ZEAL_HOST_KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
-    { .label = "Step", .key = ZEAL_HOST_KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
-    { .label = "Toggle Breakpoint", .key = ZEAL_HOST_KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
-    { .label = "Reset", .key = ZEAL_HOST_KEY_BACKSPACE, .callback = debugger_reset, .pressed = false, .shifted = true },
-    { .label = "Scale Up", .key = ZEAL_HOST_KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
-    { .label = "Scale Down", .key = ZEAL_HOST_KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
-    { .label = "Volume Up", .key = ZEAL_HOST_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
-    { .label = "Volume Down", .key = ZEAL_HOST_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
+    // { .label = "Toggle Debugger", .key = DISPLAY_KEY_F1, .callback = zeal_debug_toggle, .pressed = false, .shifted = false },
+    { .label = "Pause", .key = DISPLAY_KEY_F6, .callback = debugger_pause, .pressed = false, .shifted = false },
+    { .label = "Continue", .key = DISPLAY_KEY_F5, .callback = debugger_continue, .pressed = false, .shifted = false },
+    { .label = "Step Over", .key = DISPLAY_KEY_F10, .callback = debugger_step_over, .pressed = false, .shifted = false },
+    { .label = "Step", .key = DISPLAY_KEY_F11, .callback = debugger_step, .pressed = false, .shifted = false },
+    { .label = "Toggle Breakpoint", .key = DISPLAY_KEY_F9, .callback = debugger_breakpoint, .pressed = false, .shifted = false },
+    { .label = "Reset", .key = DISPLAY_KEY_BACKSPACE, .callback = debugger_reset, .pressed = false, .shifted = true },
+    { .label = "Scale Up", .key = DISPLAY_KEY_EQUAL, .callback = debugger_scale_up, .pressed = false, .shifted = true },
+    { .label = "Scale Down", .key = DISPLAY_KEY_MINUS, .callback = debugger_scale_down, .pressed = false, .shifted = true },
+    { .label = "Volume Up", .key = DISPLAY_KEY_ZERO, .callback = main_volume_up, .pressed = false, .shifted = true },
+    { .label = "Volume Down", .key = DISPLAY_KEY_NINE, .callback = main_volume_down, .pressed = false, .shifted = true },
 };
 
 bool zeal_ui_input(zeal_t* machine)
@@ -173,23 +173,23 @@ bool zeal_ui_input(zeal_t* machine)
     // Debugger UI requires Ctrl + {KEY}
 #ifdef __APPLE__
     // MacOS has too many default bindings for Ctrl + F* keys
-    bool meta = zeal_host_key_down(ZEAL_HOST_KEY_LEFT_SUPER) || zeal_host_key_down(ZEAL_HOST_KEY_RIGHT_SUPER);
+    bool meta = display_key_down(DISPLAY_KEY_LEFT_SUPER) || display_key_down(DISPLAY_KEY_RIGHT_SUPER);
 #else
-    bool meta = zeal_host_key_down(ZEAL_HOST_KEY_LEFT_CONTROL) || zeal_host_key_down(ZEAL_HOST_KEY_RIGHT_CONTROL);
+    bool meta = display_key_down(DISPLAY_KEY_LEFT_CONTROL) || display_key_down(DISPLAY_KEY_RIGHT_CONTROL);
 #endif
 
     if(!meta) {
         return handled; /// all zeal ui keystrokes require meta?
     }
 
-    bool shift = (zeal_host_key_down(ZEAL_HOST_KEY_LEFT_SHIFT) || zeal_host_key_down(ZEAL_HOST_KEY_RIGHT_SHIFT));
+    bool shift = (display_key_down(DISPLAY_KEY_LEFT_SHIFT) || display_key_down(DISPLAY_KEY_RIGHT_SHIFT));
 
     debugger_key_t *opt;
     bool pressed = false;
 #if CONFIG_FLTK_UI
     // toggle between main view and debugger view
     opt = &debugger_key_toggle;
-    pressed = zeal_host_key_down(opt->key);
+    pressed = display_key_down(opt->key);
     handled = handled || (pressed);
     if(meta && !opt->pressed && pressed) {
         zeal_debug_toggle(&machine->dbg);
@@ -213,7 +213,7 @@ bool zeal_ui_input(zeal_t* machine)
     for(int i = 0; i < keys_size; i++) {
         opt = &keys[i];
         bool shifted = (opt->shifted == shift);
-        pressed = zeal_host_key_down(opt->key);
+        pressed = display_key_down(opt->key);
         handled = handled || (pressed && shifted);
         if(shifted && !opt->pressed && pressed) {
             opt->callback(&machine->dbg);

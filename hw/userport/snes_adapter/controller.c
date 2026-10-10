@@ -5,7 +5,7 @@
 
 #include "utils/paths.h"
 #include "utils/helpers.h"
-#include "host/zeal_controller.h"
+#include "platform/controller.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes_adapter/controller.h"
 
@@ -70,7 +70,7 @@ void snes_controller_load_mappings(void)
         const size_t read = fread(text, 1, (size_t)size, file);
         text[read] = '\0';
         if (read > 0) {
-            zeal_controller_set_mappings(text);
+            controller_set_mappings(text);
             printf("[SNES] Loaded custom gamepad mappings from %s\n", path);
         }
         free(text);
@@ -80,12 +80,12 @@ void snes_controller_load_mappings(void)
 
 bool snes_controller_available(uint8_t index)
 {
-    return zeal_controller_available(index);
+    return controller_available(index);
 }
 
 const char* snes_controller_name(uint8_t index)
 {
-    return zeal_controller_name(index);
+    return controller_name(index);
 }
 
 uint16_t snes_controller_latch(snes_controller_t* ctrl)
@@ -93,43 +93,43 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
     int index = ctrl->index;
     uint16_t bits = 0xFFFF;  // no buttons pressed (active low)
 
-    if (zeal_controller_available(index)) {
+    if (controller_available(index)) {
         if (!ctrl->attached) {
             printf("[SNES] \"%s\" is now available\n", snes_controller_name(index));
             ctrl->attached = true;
         }
 
         // ABXY
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_DOWN))  bits &= ~(1 << SNES_BTN_B);  // B
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_LEFT))  bits &= ~(1 << SNES_BTN_Y);  // Y
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_A);  // A
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_UP))    bits &= ~(1 << SNES_BTN_X);  // X
+        if (controller_button_down(index, CONTROLLER_BUTTON_FACE_DOWN))  bits &= ~(1 << SNES_BTN_B);  // B
+        if (controller_button_down(index, CONTROLLER_BUTTON_FACE_LEFT))  bits &= ~(1 << SNES_BTN_Y);  // Y
+        if (controller_button_down(index, CONTROLLER_BUTTON_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_A);  // A
+        if (controller_button_down(index, CONTROLLER_BUTTON_FACE_UP))    bits &= ~(1 << SNES_BTN_X);  // X
 
         // D-Pad (buttons)
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_UP))    bits &= ~(1 << SNES_BTN_UP);    // Up
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);  // Down
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_LEFT))  bits &= ~(1 << SNES_BTN_LEFT);  // Left
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_RIGHT)) bits &= ~(1 << SNES_BTN_RIGHT); // Right
+        if (controller_button_down(index, CONTROLLER_BUTTON_DPAD_UP))    bits &= ~(1 << SNES_BTN_UP);    // Up
+        if (controller_button_down(index, CONTROLLER_BUTTON_DPAD_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);  // Down
+        if (controller_button_down(index, CONTROLLER_BUTTON_DPAD_LEFT))  bits &= ~(1 << SNES_BTN_LEFT);  // Left
+        if (controller_button_down(index, CONTROLLER_BUTTON_DPAD_RIGHT)) bits &= ~(1 << SNES_BTN_RIGHT); // Right
 
         // Left thumbstick as D-Pad
-        float stick_x = zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_LEFT_X);
-        float stick_y = zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_LEFT_Y);
+        float stick_x = controller_axis(index, CONTROLLER_AXIS_LEFT_X);
+        float stick_y = controller_axis(index, CONTROLLER_AXIS_LEFT_Y);
         if (stick_y < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_UP);    // Up
         if (stick_y >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_DOWN);  // Down
         if (stick_x < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_LEFT);  // Left
         if (stick_x >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_RIGHT); // Right
 
         // Select/Start
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SELECT)) bits &= ~(1 << SNES_BTN_SELECT);  // Select
-        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_START))  bits &= ~(1 << SNES_BTN_START);   // Start
+        if (controller_button_down(index, CONTROLLER_BUTTON_SELECT)) bits &= ~(1 << SNES_BTN_SELECT);  // Select
+        if (controller_button_down(index, CONTROLLER_BUTTON_START))  bits &= ~(1 << SNES_BTN_START);   // Start
 
         // L/R
-        bool left_trigger = zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SHOULDER_LEFT) ||
-            zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_TRIGGER_LEFT) ||
-            zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_TRIGGER_LEFT) > SNES_TRIGGER_DEADZONE;
-        bool right_trigger = zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SHOULDER_RIGHT) ||
-            zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_TRIGGER_RIGHT) ||
-            zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_TRIGGER_RIGHT) > SNES_TRIGGER_DEADZONE;
+        bool left_trigger = controller_button_down(index, CONTROLLER_BUTTON_SHOULDER_LEFT) ||
+            controller_button_down(index, CONTROLLER_BUTTON_TRIGGER_LEFT) ||
+            controller_axis(index, CONTROLLER_AXIS_TRIGGER_LEFT) > SNES_TRIGGER_DEADZONE;
+        bool right_trigger = controller_button_down(index, CONTROLLER_BUTTON_SHOULDER_RIGHT) ||
+            controller_button_down(index, CONTROLLER_BUTTON_TRIGGER_RIGHT) ||
+            controller_axis(index, CONTROLLER_AXIS_TRIGGER_RIGHT) > SNES_TRIGGER_DEADZONE;
         if (left_trigger)  bits &= ~(1 << SNES_BTN_L);  // L
         if (right_trigger) bits &= ~(1 << SNES_BTN_R);  // R
     } else {

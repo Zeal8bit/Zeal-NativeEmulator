@@ -42,13 +42,13 @@ fltk_sources = files(
     'panels/vram.cpp',
 )
 
-# The desktop host backend needs FLTK's compile flags, so it is built here
-# rather than with the other host sources. It rasterizes the bundled CP437 font
-# with FreeType.
-host_fltk_deps = []
+# The FLTK display backend is selected in platform/meson.build, which reaches it
+# through platform_fltk_sources so this layer never includes platform/ by path.
+# It is built here because it needs FLTK's compile flags, and it rasterizes the
+# bundled CP437 font with FreeType.
 if software_blitter
-    fltk_sources += files('../../host/zeal_host_fltk.cpp')
-    host_fltk_deps += dependency('freetype2')
+    fltk_sources += platform_fltk_sources
+    platform_fltk_deps += dependency('freetype2')
 endif
 
 if get_option('fltk_test_hooks')

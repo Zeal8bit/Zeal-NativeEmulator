@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "hw/zeal.h"
-#include "host/zeal_host.h"
+#include "platform/display.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,7 +9,7 @@ void debugger_capture_video(dbg_t *dbg)
     zeal_t *m = dbg->arg;
     if (m->headless)
         return;
-    double started = zeal_host_time();
+    double started = display_time();
     int width = 0, height = 0, pitch = 0;
     bool rgb565 = false;
     const void *source = zvb_output_pixels(&m->zvb, &width, &height, &pitch, &rgb565);
@@ -64,7 +64,7 @@ void debugger_capture_video(dbg_t *dbg)
     }
     dbg->video_info =
         (dbg_image_info_t){width, height, width * 4, dbg->video_info.generation + 1};
-    uint64_t elapsed = (uint64_t)((zeal_host_time() - started) * 1e9);
+    uint64_t elapsed = (uint64_t)((display_time() - started) * 1e9);
     dbg->render_stats.frames++;
     dbg->render_stats.total_copy_ns += elapsed;
     if (elapsed > dbg->render_stats.max_copy_ns)

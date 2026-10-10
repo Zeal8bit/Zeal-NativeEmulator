@@ -5,7 +5,7 @@
  */
 
 /**
- * @file zeal_audio_sdl.c
+ * @file sdl.c
  * @brief SDL2 implementation of the audio seam, used by desktop builds.
  *
  * SDL owns the device and calls back for samples; volume is applied here because the
@@ -13,10 +13,10 @@
  */
 #include <SDL.h>
 #include <stddef.h>
-#include "host/zeal_audio.h"
+#include "platform/audio.h"
 
 static SDL_AudioDeviceID device;
-static zeal_audio_callback_t producer;
+static audio_callback_t producer;
 static int channel_count = 2;
 static bool open;
 static float current_volume = 1.0f;
@@ -45,7 +45,7 @@ static void sdl_audio_callback(void *userdata, Uint8 *stream, int len)
     apply_volume(stream, len);
 }
 
-bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callback)
+bool audio_open(int sample_rate, int channels, audio_callback_t callback)
 {
     if (callback == NULL || channels <= 0) {
         return false;
@@ -73,7 +73,7 @@ bool zeal_audio_open(int sample_rate, int channels, zeal_audio_callback_t callba
     return true;
 }
 
-void zeal_audio_close(void)
+void audio_close(void)
 {
     if (open) {
         SDL_CloseAudioDevice(device);
@@ -83,9 +83,9 @@ void zeal_audio_close(void)
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
-bool zeal_audio_ready(void) { return open; }
+bool audio_ready(void) { return open; }
 
-void zeal_audio_set_volume(float volume)
+void audio_set_volume(float volume)
 {
     if (volume < 0.0f) {
         volume = 0.0f;
@@ -96,4 +96,4 @@ void zeal_audio_set_volume(float volume)
     current_volume = volume;
 }
 
-float zeal_audio_volume(void) { return current_volume; }
+float audio_volume(void) { return current_volume; }

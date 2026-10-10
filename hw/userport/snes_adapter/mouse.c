@@ -2,17 +2,17 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "host/zeal_host.h"
+#include "platform/display.h"
 #include "hw/zeal.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes_adapter/mouse.h"
 #include "hw/zvb/zvb.h"
 #include "utils/notif.h"
 
-static zeal_host_vec2_t snes_mouse_window_scale(float delta_scale)
+static display_vec2_t snes_mouse_window_scale(float delta_scale)
 {
-    const int screen_w = zeal_host_width();
-    const int screen_h = zeal_host_height();
+    const int screen_w = display_width();
+    const int screen_h = display_height();
     const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
     const float screen_ratio = (float)screen_w / screen_h;
     int draw_w = ZVB_MAX_RES_WIDTH;
@@ -26,7 +26,7 @@ static zeal_host_vec2_t snes_mouse_window_scale(float delta_scale)
         draw_w = (int)(screen_h * texture_ratio);
     }
 
-    return (zeal_host_vec2_t) {
+    return (display_vec2_t) {
         .x = ((float)ZVB_MAX_RES_WIDTH / draw_w) * delta_scale,
         .y = ((float)ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale,
     };
@@ -43,9 +43,9 @@ static uint8_t snes_mouse_magnitude(float value)
     return (uint8_t)magnitude;
 }
 
-static bool snes_mouse_cursor_in_rect(zeal_host_rect_t bounds)
+static bool snes_mouse_cursor_in_rect(display_rect_t bounds)
 {
-    zeal_host_vec2_t position = zeal_host_mouse_position();
+    display_vec2_t position = display_mouse_position();
 
     return position.x >= bounds.x &&
         position.y >= bounds.y &&
@@ -53,23 +53,23 @@ static bool snes_mouse_cursor_in_rect(zeal_host_rect_t bounds)
         position.y < bounds.y + bounds.height;
 }
 
-static zeal_host_rect_t snes_mouse_active_bounds(snes_mouse_t* mouse)
+static display_rect_t snes_mouse_active_bounds(snes_mouse_t* mouse)
 {
     (void)mouse;
-    return (zeal_host_rect_t) { 0, 0, (float)zeal_host_width(), (float)zeal_host_height() };
+    return (display_rect_t) { 0, 0, (float)display_width(), (float)display_height() };
 }
 
 static void snes_mouse_capture(snes_mouse_t* mouse)
 {
     mouse->captured = true;
-    zeal_host_mouse_capture(true);
+    display_mouse_capture(true);
     printf("[SNES] Mouse captured\n");
 }
 
 static void snes_mouse_release(snes_mouse_t* mouse)
 {
     mouse->captured = false;
-    zeal_host_mouse_capture(false);
+    display_mouse_capture(false);
     printf("[SNES] Mouse released\n");
 }
 
@@ -112,7 +112,7 @@ void snes_mouse_update(snes_mouse_t* mouse)
 #if CONFIG_ENABLE_DEBUGGER
     if(mouse->machine && mouse->machine->dbg_frontend_visible) return;
 #endif
-    bool capture_button_down = zeal_host_mouse_down(ZEAL_HOST_MOUSE_MIDDLE);
+    bool capture_button_down = display_mouse_down(DISPLAY_MOUSE_MIDDLE);
 
     if (!mouse->attached) {
         if (mouse->captured) {
@@ -126,7 +126,7 @@ void snes_mouse_update(snes_mouse_t* mouse)
     if (capture_button_down && !mouse->capture_button_down) {
         if (mouse->captured) {
             snes_mouse_release(mouse);
-        } else if (zeal_host_focused() && cursor_in_bounds) {
+        } else if (display_focused() && cursor_in_bounds) {
             snes_mouse_capture(mouse);
         }
     }
@@ -134,7 +134,7 @@ void snes_mouse_update(snes_mouse_t* mouse)
 
     bool active = mouse->captured || cursor_in_bounds;
     if (active) {
-        float wheel = zeal_host_mouse_wheel();
+        float wheel = display_mouse_wheel();
         if (wheel != 0.0f) {
             mouse->delta_scale += wheel * SNES_MOUSE_DELTA_SCALE_STEP;
             if (mouse->delta_scale < SNES_MOUSE_DELTA_SCALE_MIN) {
@@ -150,24 +150,24 @@ void snes_mouse_update(snes_mouse_t* mouse)
 uint32_t snes_mouse_latch(snes_mouse_t* mouse)
 {
     uint32_t bits = 0xFFFFFFFF;
-    zeal_host_vec2_t delta;
+    display_vec2_t delta;
     bool active,left,right;
 #if CONFIG_ENABLE_DEBUGGER
     zeal_t* machine=mouse->machine;
     if(machine && machine->dbg_frontend_visible) {
-        delta=(zeal_host_vec2_t){machine->frontend_mouse_dx*mouse->delta_scale,machine->frontend_mouse_dy*mouse->delta_scale};
+        delta=(display_vec2_t){machine->frontend_mouse_dx*mouse->delta_scale,machine->frontend_mouse_dy*mouse->delta_scale};
         machine->frontend_mouse_dx=machine->frontend_mouse_dy=0;
         active=debugger_ui_main_view_focused(machine->dbg_ui);
         left=(machine->frontend_mouse_buttons&1)!=0;right=(machine->frontend_mouse_buttons&2)!=0;
     } else
 #endif
     {
-        zeal_host_mouse_delta(&delta.x, &delta.y);
+        display_mouse_delta(&delta.x, &delta.y);
         active=mouse->captured||snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
-        zeal_host_vec2_t scale=snes_mouse_window_scale(mouse->delta_scale);delta.x*=scale.x;delta.y*=scale.y;
-        left=zeal_host_mouse_down(ZEAL_HOST_MOUSE_LEFT);right=zeal_host_mouse_down(ZEAL_HOST_MOUSE_RIGHT);
+        display_vec2_t scale=snes_mouse_window_scale(mouse->delta_scale);delta.x*=scale.x;delta.y*=scale.y;
+        left=display_mouse_down(DISPLAY_MOUSE_LEFT);right=display_mouse_down(DISPLAY_MOUSE_RIGHT);
     }
-    if(!active)delta=(zeal_host_vec2_t){0,0};
+    if(!active)delta=(display_vec2_t){0,0};
     snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_RIGHT,active&&right);
     snes_mouse_set_bit(&bits,SNES_MOUSE_SERIAL_LEFT,active&&left);
 

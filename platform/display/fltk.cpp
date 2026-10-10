@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @file zeal_host_fltk.cpp
- * @brief FLTK implementation of the host seam.
+ * @file fltk.cpp
+ * @brief FLTK implementation of the platform seam.
  *
- * The desktop build links this one; WebAssembly links host/zeal_host_raylib.c. It owns
+ * The desktop build links this one; WebAssembly links platform/display/raylib.c. It owns
  * the emulator window and turns FLTK events into the seam's key and pointer state, so
  * the emulator core never sees a windowing library.
  *
- * Audio and controllers have their own seams: see include/host/zeal_audio.h and
- * include/host/zeal_controller.h.
+ * Audio and controllers have their own seams: see include/platform/audio.h and
+ * include/platform/controller.h.
  */
-#include "host/zeal_host.h"
+#include "platform/display.h"
 #include "ui/fltk/input.h"
 #include "utils/paths.h"
 #include <FL/Fl.H>
@@ -37,15 +37,15 @@ bool g_should_close = false;
 bool g_shown = false;
 int g_target_fps = 0;
 double g_start_time = 0;
-zeal_host_color_t g_background{0, 0, 0, 255};
+display_color_t g_background{0, 0, 0, 255};
 
 /* Keys currently held, indexed by seam code. */
-bool g_key_down[ZEAL_HOST_KEY_COUNT] = {};
+bool g_key_down[DISPLAY_KEY_COUNT] = {};
 /* Keys pressed since the last poll, in press order. */
 std::vector<int> g_key_queue;
 
-bool g_mouse_down[ZEAL_HOST_MOUSE_BUTTON_COUNT] = {};
-zeal_host_vec2_t g_mouse_position{0, 0};
+bool g_mouse_down[DISPLAY_MOUSE_BUTTON_COUNT] = {};
+display_vec2_t g_mouse_position{0, 0};
 float g_mouse_dx = 0, g_mouse_dy = 0;
 float g_mouse_wheel = 0;
 bool g_mouse_captured = false;
@@ -74,7 +74,7 @@ class ScreenWidget : public Fl_Widget
     int frame_height = 0;
     int frame_pitch = 0;
     bool frame_rgb565 = true;
-    zeal_host_rect_t dest{0, 0, 0, 0};
+    display_rect_t dest{0, 0, 0, 0};
 
     ScreenWidget(int x, int y, int w, int h) : Fl_Widget(x, y, w, h) {}
 
@@ -124,8 +124,8 @@ class HostWindow : public Fl_Double_Window
         switch (event) {
         case FL_KEYDOWN:
         case FL_KEYUP: {
-            const unsigned key = fltk_key_to_host(Fl::event_key());
-            if (key == ZEAL_HOST_KEY_NONE)
+            const unsigned key = fltk_key_to_display(Fl::event_key());
+            if (key == DISPLAY_KEY_NONE)
                 break;
             if (event == FL_KEYDOWN) {
                 /* FLTK repeats FL_KEYDOWN while a key is held; the emulator does its own
@@ -141,7 +141,7 @@ class HostWindow : public Fl_Double_Window
         case FL_PUSH:
         case FL_RELEASE: {
             const int button = Fl::event_button();
-            if (button < 1 || button > ZEAL_HOST_MOUSE_BUTTON_COUNT)
+            if (button < 1 || button > DISPLAY_MOUSE_BUTTON_COUNT)
                 break;
             g_mouse_down[button - 1] = (event == FL_PUSH);
             g_mouse_position = {(float)Fl::event_x(), (float)Fl::event_y()};
@@ -149,7 +149,7 @@ class HostWindow : public Fl_Double_Window
         }
         case FL_MOVE:
         case FL_DRAG: {
-            const zeal_host_vec2_t next{(float)Fl::event_x(), (float)Fl::event_y()};
+            const display_vec2_t next{(float)Fl::event_x(), (float)Fl::event_y()};
             g_mouse_dx += next.x - g_mouse_position.x;
             g_mouse_dy += next.y - g_mouse_position.y;
             g_mouse_position = next;
@@ -181,7 +181,7 @@ void on_window_close(Fl_Widget *, void *) { g_should_close = true; }
 /*  Lifecycle                                                          */
 /* ------------------------------------------------------------------ */
 
-bool zeal_host_init(const zeal_host_config_t *config)
+bool display_init(const display_config_t *config)
 {
     if (config == nullptr)
         return false;
@@ -202,20 +202,20 @@ bool zeal_host_init(const zeal_host_config_t *config)
     return true;
 }
 
-void zeal_host_shutdown(void)
+void display_shutdown(void)
 {
     delete g_window;
     g_window = nullptr;
     g_screen = nullptr;
 }
 
-bool zeal_host_should_close(void) { return g_should_close; }
+bool display_should_close(void) { return g_should_close; }
 
 /* ------------------------------------------------------------------ */
 /*  Main loop                                                          */
 /* ------------------------------------------------------------------ */
 
-/* Set while zeal_host_run() owns the loop. */
+/* Set while display_run() owns the loop. */
 bool (*g_tick)(void *) = nullptr;
 void *g_tick_user = nullptr;
 
@@ -229,7 +229,7 @@ void run_tick(void *)
 {
     if (g_should_close || g_tick == nullptr || !g_tick(g_tick_user)) {
         /* Fl::run() returns once there is no window left to watch, so every window has
-         * to go: the debugger shell is not the one this host created. */
+         * to go: the debugger shell is not the one this backend created. */
         Fl::hide_all_windows();
         return;
     }
@@ -238,7 +238,7 @@ void run_tick(void *)
     Fl::repeat_timeout(frame_interval(), run_tick);
 }
 
-void zeal_host_run(bool (*tick)(void *user), void *user)
+void display_run(bool (*tick)(void *user), void *user)
 {
     g_tick = tick;
     g_tick_user = user;
@@ -249,7 +249,7 @@ void zeal_host_run(bool (*tick)(void *user), void *user)
     g_tick_user = nullptr;
 }
 
-void zeal_host_poll(void)
+void display_poll(void)
 {
     Fl::check();
 }
@@ -258,16 +258,16 @@ void zeal_host_poll(void)
 /*  Window                                                             */
 /* ------------------------------------------------------------------ */
 
-int zeal_host_width(void) { return g_window ? g_window->w() : 0; }
-int zeal_host_height(void) { return g_window ? g_window->h() : 0; }
+int display_width(void) { return g_window ? g_window->w() : 0; }
+int display_height(void) { return g_window ? g_window->h() : 0; }
 
-void zeal_host_resize(int width, int height)
+void display_resize(int width, int height)
 {
     if (g_window)
         g_window->size(width, height);
 }
 
-void zeal_host_show(bool visible)
+void display_show(bool visible)
 {
     if (!g_window)
         return;
@@ -278,15 +278,15 @@ void zeal_host_show(bool visible)
     g_shown = visible;
 }
 
-void zeal_host_focus(void)
+void display_focus(void)
 {
     if (g_window)
         g_window->take_focus();
 }
 
-bool zeal_host_focused(void) { return g_window && g_window->shown() && Fl::focus() != nullptr; }
+bool display_focused(void) { return g_window && g_window->shown() && Fl::focus() != nullptr; }
 
-void zeal_host_frame_rate(int fps)
+void display_frame_rate(int fps)
 {
     g_target_fps = fps;
 }
@@ -295,23 +295,23 @@ void zeal_host_frame_rate(int fps)
 /*  Frame                                                              */
 /* ------------------------------------------------------------------ */
 
-void zeal_host_frame_begin(void)
+void display_frame_begin(void)
 {
     if (g_screen)
         g_screen->frame = nullptr;
 }
 
-void zeal_host_frame_end(void)
+void display_frame_end(void)
 {
     if (g_screen)
         g_screen->redraw();
     Fl::flush();
 }
 
-void zeal_host_clear(zeal_host_color_t color) { g_background = color; }
+void display_clear(display_color_t color) { g_background = color; }
 
-void zeal_host_present(const void *pixels, int width, int height, int pitch,
-                       zeal_host_format_t format, zeal_host_rect_t dest)
+void display_present(const void *pixels, int width, int height, int pitch,
+                       display_format_t format, display_rect_t dest)
 {
     if (g_screen == nullptr)
         return;
@@ -319,12 +319,12 @@ void zeal_host_present(const void *pixels, int width, int height, int pitch,
     g_screen->frame_width = width;
     g_screen->frame_height = height;
     g_screen->frame_pitch = pitch;
-    g_screen->frame_rgb565 = (format == ZEAL_HOST_RGB565);
+    g_screen->frame_rgb565 = (format == DISPLAY_RGB565);
     g_screen->dest = dest;
     /* Nothing repaints until the frame ends, so the buffer stays valid while drawn. */
 }
 
-void zeal_host_text(int x, int y, const char *text, int size, zeal_host_color_t color)
+void display_text(int x, int y, const char *text, int size, display_color_t color)
 {
     if (text == nullptr || g_window == nullptr)
         return;
@@ -335,7 +335,7 @@ void zeal_host_text(int x, int y, const char *text, int size, zeal_host_color_t 
     fl_pop_clip();
 }
 
-int zeal_host_text_width(const char *text, int size)
+int display_text_width(const char *text, int size)
 {
     if (text == nullptr)
         return 0;
@@ -343,12 +343,12 @@ int zeal_host_text_width(const char *text, int size)
     return (int)fl_width(text);
 }
 
-void zeal_host_fps(int x, int y)
+void display_fps(int x, int y)
 {
     static double last = 0;
     static int frames = 0;
     static double shown = 0;
-    const double now = zeal_host_time();
+    const double now = display_time();
     frames++;
     if (now - last >= 0.5) {
         shown = frames / (now - last);
@@ -357,14 +357,14 @@ void zeal_host_fps(int x, int y)
     }
     char text[32];
     std::snprintf(text, sizeof(text), "%d FPS", (int)(shown + 0.5));
-    zeal_host_text(x, y, text, 20, (zeal_host_color_t){0, 228, 48, 255});
+    display_text(x, y, text, 20, (display_color_t){0, 228, 48, 255});
 }
 
 /* ------------------------------------------------------------------ */
 /*  Font atlas                                                         */
 /* ------------------------------------------------------------------ */
 
-bool zeal_host_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16])
+bool display_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16])
 {
     char path[PATH_MAX];
     get_install_dir_file(path, "assets/fonts/BigBlue_Terminal_437TT.TTF");
@@ -414,9 +414,9 @@ bool zeal_host_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 
 /*  Time                                                               */
 /* ------------------------------------------------------------------ */
 
-double zeal_host_time(void) { return now_seconds() - g_start_time; }
+double display_time(void) { return now_seconds() - g_start_time; }
 
-void zeal_host_wait(double seconds)
+void display_wait(double seconds)
 {
     if (seconds > 0)
         Fl::wait(seconds);
@@ -426,30 +426,30 @@ void zeal_host_wait(double seconds)
 /*  Input                                                              */
 /* ------------------------------------------------------------------ */
 
-int zeal_host_key_pressed(void)
+int display_key_pressed(void)
 {
     if (g_key_queue.empty())
-        return ZEAL_HOST_KEY_NONE;
+        return DISPLAY_KEY_NONE;
     const int key = g_key_queue.front();
     g_key_queue.erase(g_key_queue.begin());
     return key;
 }
 
-bool zeal_host_key_down(int key)
+bool display_key_down(int key)
 {
-    return key > 0 && key < ZEAL_HOST_KEY_COUNT && g_key_down[key];
+    return key > 0 && key < DISPLAY_KEY_COUNT && g_key_down[key];
 }
 
-bool zeal_host_key_up(int key) { return !zeal_host_key_down(key); }
+bool display_key_up(int key) { return !display_key_down(key); }
 
-bool zeal_host_mouse_down(int button)
+bool display_mouse_down(int button)
 {
-    return button >= 0 && button < ZEAL_HOST_MOUSE_BUTTON_COUNT && g_mouse_down[button];
+    return button >= 0 && button < DISPLAY_MOUSE_BUTTON_COUNT && g_mouse_down[button];
 }
 
-zeal_host_vec2_t zeal_host_mouse_position(void) { return g_mouse_position; }
+display_vec2_t display_mouse_position(void) { return g_mouse_position; }
 
-void zeal_host_mouse_delta(float *dx, float *dy)
+void display_mouse_delta(float *dx, float *dy)
 {
     if (dx)
         *dx = g_mouse_dx;
@@ -459,14 +459,14 @@ void zeal_host_mouse_delta(float *dx, float *dy)
     g_mouse_dx = g_mouse_dy = 0;
 }
 
-float zeal_host_mouse_wheel(void)
+float display_mouse_wheel(void)
 {
     const float wheel = g_mouse_wheel;
     g_mouse_wheel = 0;
     return wheel;
 }
 
-void zeal_host_mouse_capture(bool capture)
+void display_mouse_capture(bool capture)
 {
     if (capture == g_mouse_captured)
         return;

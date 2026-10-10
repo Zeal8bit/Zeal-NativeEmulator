@@ -12,7 +12,7 @@
 
 #include "raylib.h"
 #include "utils/config.h"
-#include "host/zeal_host.h"
+#include "platform/display.h"
 
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
@@ -424,11 +424,11 @@ void config_window_update(bool dbg_enabled) {
 #if ZVB_BLITTER_SOFTWARE
     /* The desktop host owns the window; remember the size it ended up with. */
     if (dbg_enabled) {
-        config.debugger.width = zeal_host_width();
-        config.debugger.height = zeal_host_height();
+        config.debugger.width = display_width();
+        config.debugger.height = display_height();
     } else {
-        config.window.width = zeal_host_width();
-        config.window.height = zeal_host_height();
+        config.window.width = display_width();
+        config.window.height = display_height();
     }
     return;
 #else
@@ -472,7 +472,7 @@ bool config_keyboard_passthru(bool dbg_enabled) {
 
 void config_window_set(bool dbg_enabled) {
 #if ZVB_BLITTER_SOFTWARE && !defined(PLATFORM_WEB)
-    /* The desktop host creates and sizes its own window; see zeal_host_init(). */
+    /* The desktop host creates and sizes its own window; see display_init(). */
     (void)dbg_enabled;
     return;
 #endif

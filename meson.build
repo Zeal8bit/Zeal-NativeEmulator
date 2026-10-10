@@ -62,7 +62,7 @@ endif
 
 # List all the subdirectories that contain source code
 sources = []
-subdir('host')
+subdir('platform')
 subdir('hw')
 subdir('app')
 subdir('utils')
@@ -147,12 +147,12 @@ ui_objects = []
 ui_link_dependencies = []
 if fltk_ui
     ui_library = static_library('zeal-fltk-ui', fltk_sources, build_by_default: false,
-        include_directories: ['include'], dependencies: [fltk_dep] + host_fltk_deps, override_options: ['cpp_std=c++17'])
+        include_directories: ['include'], dependencies: [fltk_dep] + platform_fltk_deps, override_options: ['cpp_std=c++17'])
     ui_objects = ui_library.extract_all_objects(recursive: true)
     ui_link_dependencies += fltk_dep.partial_dependency(link_args: true, links: true)
     # Library-only dependencies of the UI library must reach the link too, since the
     # executable links the extracted objects rather than the archive.
-    ui_link_dependencies += host_fltk_deps
+    ui_link_dependencies += platform_fltk_deps
 endif
 
 # Compiler and build targets
@@ -160,7 +160,7 @@ exec = executable(
     OUTPUT_BIN,
     sources, files('hw/main.c'),
     include_directories: ['include', '.'],
-    dependencies: dependencies + ui_link_dependencies + host_deps,
+    dependencies: dependencies + ui_link_dependencies + platform_deps,
     objects: ui_objects,
     link_language: fltk_ui ? 'cpp' : 'c',
     link_args: linker_args + ['-lraylib', '-lm'] + (raylib_lib_dir != '' ? ['-L' + raylib_lib_dir] : []),
@@ -254,6 +254,6 @@ endif
 
 if get_option('enable_debugger') and not fltk_ui and not is_web
     machine_test = executable('debugger-machine-test', sources, 'tests/debugger_machine.c',
-        include_directories: ['include', '.'], dependencies: dependencies, link_args: linker_args)
+        include_directories: ['include', '.'], dependencies: dependencies + platform_deps, link_args: linker_args)
     test('debugger-machine', machine_test, env: ['ZEAL_CONFIG_DIR=' + meson.project_build_root() / 'test-config'])
 endif

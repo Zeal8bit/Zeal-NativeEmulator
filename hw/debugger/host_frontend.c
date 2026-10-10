@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "host_frontend.h"
-#include "host/zeal_host.h"
+#include "platform/display.h"
 #include "hw/userport/snes_adapter/controller.h"
 #include "hw/zeal.h"
 #include "utils/notif.h"
 #include "utils/paths.h"
 #include <math.h>
 #include <string.h>
-#include "host/zeal_audio.h"
+#include "platform/audio.h"
 
 static void host_action(dbg_t *dbg, dbg_host_action_t op, int32_t a, int32_t b)
 {
@@ -32,7 +32,7 @@ static void host_action(dbg_t *dbg, dbg_host_action_t op, int32_t a, int32_t b)
         break;
     case UI_VOLUME:
         config.audio.volume = a < 0 ? 0 : a > 100 ? 100 : a;
-        zeal_audio_set_volume(config.audio.volume / 100.0f);
+        audio_set_volume(config.audio.volume / 100.0f);
         break;
     case UI_PASSTHROUGH:
         config.debugger.keyboard_passthru = a != 0;
@@ -112,8 +112,8 @@ static void host_snes_state(dbg_t *dbg, dbg_snes_state_t *out)
 static int host_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16])
 {
     /* Rasterizing the CP437 font is a host capability: FLTK uses FreeType, the
-     * WebAssembly host uses Raylib. See include/host/zeal_host.h. */
-    return zeal_host_font_atlas(codepoints, alpha) ? 1 : 0;
+     * WebAssembly host uses Raylib. See include/platform/display.h. */
+    return display_font_atlas(codepoints, alpha) ? 1 : 0;
 }
 
 void debugger_host_frontend_args(dbg_t *dbg, dbg_ui_init_args_t *args)
