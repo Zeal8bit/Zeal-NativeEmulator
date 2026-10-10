@@ -29,6 +29,10 @@
 #define SOUND_PCM_MAX                    (65535)
 #define SOUND_NOISE_BITS                 (16)
 #define SOUND_NOISE_JUMP_BITS            (11)
+#define SOUND_NOISE_NIBBLE_BITS          (4)
+#define SOUND_NOISE_NIBBLE_COUNT         (SOUND_NOISE_BITS / SOUND_NOISE_NIBBLE_BITS)
+#define SOUND_NOISE_NIBBLE_VALUES        (1u << SOUND_NOISE_NIBBLE_BITS)
+#define SOUND_NOISE_NIBBLE_MASK          (SOUND_NOISE_NIBBLE_VALUES - 1u)
 #define SOUND_VOICE_PIPELINE_CLOCKS      (2)
 
 _Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
@@ -58,8 +62,8 @@ static void audio_callback(void *buffer, uint32_t frames);
 
 static zvb_sound_t* g_sound;
 
-/* Linear noise-state transforms for skips shorter than one sample period. */
-static uint16_t noise_jump[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_BITS];
+/* Nibble lookups preserve exact linear noise transforms between samples. */
+static uint16_t noise_nibbles[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_NIBBLE_COUNT][SOUND_NOISE_NIBBLE_VALUES];
 
 static uint16_t noise_clock(uint16_t state)
 {
@@ -82,6 +86,7 @@ static uint16_t noise_transform(uint16_t state, const uint16_t* transform)
 
 static void noise_jump_init(void)
 {
+    uint16_t noise_jump[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_BITS];
     for (unsigned bit = 0; bit < SOUND_NOISE_BITS; bit++) {
         noise_jump[0][bit] = noise_clock(1u << bit);
     }
@@ -91,13 +96,24 @@ static void noise_jump_init(void)
                                                    noise_jump[power - 1]);
         }
     }
+    for (uint32_t power = 0; power < SOUND_NOISE_JUMP_BITS; power++) {
+        for (uint32_t chunk = 0; chunk < SOUND_NOISE_NIBBLE_COUNT; chunk++) {
+            for (uint32_t value = 0; value < SOUND_NOISE_NIBBLE_VALUES; value++) {
+                noise_nibbles[power][chunk][value] =
+                    noise_transform(value << (chunk * SOUND_NOISE_NIBBLE_BITS), noise_jump[power]);
+            }
+        }
+    }
 }
 
 static uint16_t noise_advance(uint16_t state, uint32_t clocks)
 {
     for (unsigned power = 0; clocks != 0; power++) {
         if (clocks & 1) {
-            state = noise_transform(state, noise_jump[power]);
+            state = noise_nibbles[power][0][state & SOUND_NOISE_NIBBLE_MASK] ^
+                    noise_nibbles[power][1][(state >> SOUND_NOISE_NIBBLE_BITS) & SOUND_NOISE_NIBBLE_MASK] ^
+                    noise_nibbles[power][2][(state >> (2 * SOUND_NOISE_NIBBLE_BITS)) & SOUND_NOISE_NIBBLE_MASK] ^
+                    noise_nibbles[power][3][state >> (3 * SOUND_NOISE_NIBBLE_BITS)];
         }
         clocks >>= 1;
     }
@@ -127,6 +143,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
         atomic_init(&sound->voices[i].output, 0);
     }
     sound->lfsr = SOUND_NOISE_SEED;
+    sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
     noise_jump_init();
     sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
     atomic_flag_clear(&sound->output_lock);
@@ -184,6 +201,7 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->sample_table.state = 0;
     sound->sample_clock_counter = 0;
     sound->lfsr = SOUND_NOISE_SEED;
+    sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
     atomic_store(&sound->sample_table.output, 0);
     output_lock(sound);
     sound->output_count = 0;
@@ -317,6 +335,11 @@ void zvb_sound_clock(zvb_sound_t* sound)
     for (int i = 0; i < VOICE_COUNT; i++) {
         voice_clock(&sound->voices[i], sample_clock, sound->lfsr);
     }
+    if (sample_clock) {
+        sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
+    } else if (sound->settle_clocks != 0) {
+        sound->settle_clocks--;
+    }
     sound->lfsr = noise_clock(sound->lfsr);
     sound->sample_clock_counter = (sound->sample_clock_counter + 1) % SOUND_SAMPLE_PERIOD_CLOCKS;
     if (sample_clock && !tbl->hold) {
@@ -367,12 +390,10 @@ void zvb_sound_clock(zvb_sound_t* sound)
 void zvb_sound_advance(zvb_sound_t* sound, uint32_t clocks)
 {
     while (clocks != 0) {
-        for (unsigned i = 0; i < SOUND_VOICE_PIPELINE_CLOCKS && clocks != 0; i++) {
+        if (sound->settle_clocks != 0 || sound->sample_table.state != 0 ||
+            sound->mix_state != 0 || sound->sample_clock_counter >= SOUND_SAMPLE_READY_CLOCK) {
             zvb_sound_clock(sound);
             clocks--;
-        }
-        if (sound->sample_table.state != 0 || sound->mix_state != 0 ||
-            sound->sample_clock_counter >= SOUND_SAMPLE_READY_CLOCK) {
             continue;
         }
         uint32_t skip = SOUND_SAMPLE_READY_CLOCK - sound->sample_clock_counter;
@@ -462,10 +483,12 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port) {
 }
 
 
-void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value) {
+void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value)
+{
     if (!sound) {
         return;
     }
+    sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
     zvb_sample_table_t* tbl = &sound->sample_table;
 
     switch (port) {

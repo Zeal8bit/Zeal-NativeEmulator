@@ -102,6 +102,8 @@ typedef struct {
     uint16_t           sample_clock_counter;
     uint16_t           lfsr;
     uint8_t            mix_state;
+    /* Exact clocks still needed after writes or sample events. */
+    uint8_t            settle_clocks;
     uint16_t mean_left;
     uint16_t mean_right;
     /* Host playback queue, separate from the emulated hardware FIFO. */
