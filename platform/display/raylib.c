@@ -137,6 +137,16 @@ static bool present_texture_ready;
 static int present_texture_width;
 static int present_texture_height;
 
+/*
+ * Scanline staging. Raylib can only replace a whole texture, so lines arriving one at
+ * a time are accumulated here and uploaded together in display_frame_end(). A backend
+ * driving real scanline hardware would forward each line instead and keep no buffer.
+ */
+static uint16_t* scanline_stage;
+static size_t scanline_stage_pixels;
+static int scanline_stage_width;
+static int scanline_stage_height;
+
 static bool raylib_init_window(const display_config_t* config)
 {
     SetTraceLogLevel(LOG_WARNING);
@@ -171,6 +181,11 @@ void display_shutdown(void)
         UnloadTexture(present_texture);
         present_texture_ready = false;
     }
+    free(scanline_stage);
+    scanline_stage = NULL;
+    scanline_stage_pixels = 0;
+    scanline_stage_width = 0;
+    scanline_stage_height = 0;
     CloseWindow();
 }
 
@@ -210,10 +225,42 @@ bool display_focused(void) { return IsWindowFocused(); }
 void display_frame_rate(int fps) { SetTargetFPS(fps); }
 
 void display_frame_begin(void) { BeginDrawing(); }
-void display_frame_end(void) { EndDrawing(); }
+void display_frame_end(void)
+{
+    if (scanline_stage_width > 0 && scanline_stage_height > 0) {
+        display_present(scanline_stage, scanline_stage_width, scanline_stage_height,
+                        scanline_stage_width * (int)sizeof(uint16_t), DISPLAY_RGB565,
+                        (display_rect_t){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()});
+    }
+    EndDrawing();
+}
 void display_clear(display_color_t color)
 {
     ClearBackground((Color){color.r, color.g, color.b, color.a});
+}
+
+void display_scanline(int y, const void *pixels, int width, int pitch, display_format_t format)
+{
+    if (pixels == NULL || width <= 0 || y < 0 || format != DISPLAY_RGB565) {
+        return;
+    }
+    /* The staging buffer width is whatever the first line claimed; the blitter always
+     * emits the full active width, so lines agree. */
+    const size_t needed = (size_t)width * (size_t)(y + 1);
+    if (scanline_stage == NULL || scanline_stage_pixels < needed || scanline_stage_width != width) {
+        uint16_t *grown = (uint16_t*)realloc(scanline_stage, needed * sizeof(uint16_t));
+        if (grown == NULL) {
+            return;
+        }
+        scanline_stage = grown;
+        scanline_stage_pixels = needed;
+        scanline_stage_width = width;
+    }
+    memcpy(&scanline_stage[(size_t)y * width], pixels, (size_t)width * sizeof(uint16_t));
+    (void)pitch;
+    if (y + 1 > scanline_stage_height) {
+        scanline_stage_height = y + 1;
+    }
 }
 
 void display_present(const void* pixels, int width, int height, int pitch, display_format_t format,

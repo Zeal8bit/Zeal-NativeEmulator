@@ -8,6 +8,7 @@
 /* Software blitter: renders all video modes on CPU */
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/blitter/software.h"
+#include "platform/display.h"
 #include "utils/log.h"
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,17 @@
 #define TILE_H      16
 #define TILESET_BYTES_PER_TILE  256
 #define SPRITE_COUNT            ZVB_SPRITES_COUNT
+
+/*
+ * Scanline mode renders one output line into this buffer and hands it straight to the
+ * display, so the blitter never owns a frame buffer. Only the frame-at-a-time path
+ * allocates a full frame.
+ */
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+static uint16_t s_line[FB_WIDTH];
+/* Scratch for one virtual line before horizontal expansion (320-wide modes). */
+static uint16_t s_row[FB_WIDTH];
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -107,12 +119,27 @@ void zvb_blitter_deinit(zvb_t* zvb)
 /*  TEXT MODE                                                          */
 /* ================================================================== */
 
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+/*
+ * Text state for the current frame. zvb_text_update() advances the cursor blink
+ * counter, so it must run once per frame: the frame-at-a-time renderer calls it from
+ * its single pass, while scanline mode has to sample it here and reuse the result for
+ * every line.
+ */
+static zvb_text_info_t s_text_info;
+#endif
+
 void zvb_blitter_prepare_render_text_mode(zvb_t* zvb)
 {
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    zvb_text_update(&zvb->text, &s_text_info);
+#else
     (void)zvb;
-    /* Nothing to prepare — we read raw arrays directly. */
+    /* Nothing to prepare: the frame renderer samples the text state itself. */
+#endif
 }
 
+#if !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
 void zvb_blitter_render_text_mode(zvb_t* zvb)
 {
     zvb_blitter_t* bl = &zvb->blitter;
@@ -179,10 +206,84 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
 
 }
 
+#endif /* !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
+
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+/**
+ * @brief Render one output line of text mode into @p line.
+ *
+ * Same scan conversion as zvb_blitter_render_text_mode(), restricted to the character
+ * rows that touch @p y. 640-wide text maps one character pixel to one output pixel;
+ * 320-wide text is doubled along both axes, so a virtual row covers two output lines.
+ */
+static void text_scanline(zvb_t* zvb, int y, uint16_t* line)
+{
+    const uint8_t* layer0  = zvb->layers.raw_layer0;
+    const uint8_t* layer1  = zvb->layers.raw_layer1;
+    const uint8_t* font    = zvb->font.raw_font;
+    const uint16_t* pal_rgb = zvb_get_palette(zvb);
+    const bool mode_320 = (zvb->mode == MODE_TEXT_320);
+    const int scale = mode_320 ? 2 : 1;
+
+    const int vrow = y / scale;                 /* virtual character pixel row */
+    const int out_y = y % scale;                /* which output line of that row */
+    const int cy = vrow % CHAR_H;               /* scanline within the glyph */
+    const int row = vrow / CHAR_H;              /* character row */
+
+    if (cy >= CHAR_H || row >= ROWS) {
+        return;
+    }
+
+    /* Sampled once per frame in prepare_render_text_mode(). */
+    const zvb_text_info_t info = s_text_info;
+    const int cur_x = info.pos[0];
+    const int cur_y = info.pos[1];
+    const int cur_bg = info.color[0];
+    const int cur_fg = info.color[1];
+    const int cur_ch = info.charidx;
+    const int scroll_x = info.scroll[0];
+    const int scroll_y = info.scroll[1];
+
+    const int eff_row = (row + scroll_y) % ROWS;
+
+    for (int col = 0; col < COLS; col++) {
+        const int eff_col = (col + scroll_x) % COLS;
+
+        uint8_t tile = layer0[eff_col + eff_row * COLS];
+        uint8_t attr = layer1[eff_col + eff_row * COLS];
+        uint8_t fg_idx = attr & 0x0F;
+        uint8_t bg_idx = (attr >> 4) & 0x0F;
+
+        /* Cursor override */
+        if (col == cur_x && row == cur_y) {
+            tile   = (uint8_t)(cur_ch & 0xFF);
+            bg_idx = (uint8_t)(cur_bg & 0x0F);
+            fg_idx = (uint8_t)(cur_fg & 0x0F);
+        }
+
+        const uint16_t fg_rgb = pal_rgb[fg_idx];
+        const uint16_t bg_rgb = pal_rgb[bg_idx];
+
+        for (int cx = 0; cx < CHAR_W; cx++) {
+            const uint16_t color = font_bit(font, tile, cy, cx) ? fg_rgb : bg_rgb;
+            const int out_x = col * CHAR_W + cx;
+            if (scale == 2) {
+                line[out_x * 2]     = color;
+                line[out_x * 2 + 1] = color;
+            } else {
+                line[out_x] = color;
+            }
+        }
+    }
+    (void)out_y;
+}
+#endif
+
 /* ================================================================== */
 /*  BITMAP MODE                                                        */
 /* ================================================================== */
 
+#if !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
 static void zvb_blitter_scale_render(zvb_t* zvb)
 {
     const bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
@@ -201,6 +302,8 @@ static void zvb_blitter_scale_render(zvb_t* zvb)
         }
     }
 }
+#endif /* !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
+
 
 
 void zvb_blitter_prepare_render_bitmap_mode(zvb_t* zvb)
@@ -214,9 +317,8 @@ static inline void bitmap_put_pixel(uint16_t* fb, int x, int y, uint16_t color)
     put_pixel(fb, 2 * x + 1, y, color);
 }
 
-static void zvb_blitter_render_bitmap_scanline(zvb_t* zvb, int scanline)
+static void zvb_blitter_render_bitmap_scanline(zvb_t* zvb, uint16_t* fb, int scanline)
 {
-    uint16_t* fb = zvb->blitter.framebuffer;
     const uint8_t* vram = zvb->tileset.raw;
     const uint16_t* pal_rgb = zvb_get_palette(zvb);
     const uint8_t border_idx = vram[0xFFFF];
@@ -263,11 +365,22 @@ void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
 {
 #if !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
     for (int y = 0; y < FB_HEIGHT; y++) {
-        zvb_blitter_render_bitmap_scanline(zvb, y);
+        zvb_blitter_render_bitmap_scanline(zvb, zvb->blitter.framebuffer, y);
     }
-#endif
     zvb_blitter_scale_render(zvb);
+#else
+    /* Scanline mode renders each line as the raster reaches it. */
+    (void)zvb;
+#endif
 }
+
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+void zvb_blitter_render_text_mode(zvb_t* zvb)
+{
+    /* Scanline mode renders each line as the raster reaches it. */
+    (void)zvb;
+}
+#endif
 
 /* ================================================================== */
 /*  GFX MODE                                                           */
@@ -348,11 +461,10 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
 }
 
 
-static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
+static void render_gfx_4bit_scanline(zvb_t* zvb, uint16_t* fb, int py,
         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
         const uint16_t* pal_rgb)
 {
-    uint16_t* fb            = zvb->blitter.framebuffer;
     const uint8_t* layer0   = zvb->layers.raw_layer0;
     const uint8_t* layer1   = zvb->layers.raw_layer1;
     const uint8_t* tileset  = zvb->tileset.raw;
@@ -397,11 +509,10 @@ static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
     }
 }
 
-static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
+static void render_gfx_8bit_scanline(zvb_t* zvb, uint16_t* fb, int py,
         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
         const uint16_t* pal_rgb)
 {
-    uint16_t* fb            = zvb->blitter.framebuffer;
     const uint8_t* layer0   = zvb->layers.raw_layer0;
     const uint8_t* layer1   = zvb->layers.raw_layer1;
     const uint8_t* tileset  = zvb->tileset.raw;
@@ -468,35 +579,56 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
 
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
-    uint16_t* pal_rgb = zvb_get_palette(zvb);
+    uint16_t* line = s_line;
+    const bool mode_320 = (zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT);
+    const int scale = mode_320 ? 2 : 1;
 
-    if (zvb->mode < MODE_GFX_640_8BIT) {
-        /* Text / Bitmap modes */
-        if (zvb_is_text_mode(zvb)) return; /* TODO: text scanline */
-        zvb_blitter_render_bitmap_scanline(zvb, scanline);
-        return;
-    }
+    memset(line, 0, sizeof(s_line));
+    memset(s_row, 0, sizeof(s_row));
 
-    uint16_t  sprites_scanline[FB_WIDTH];
-    uint8_t   sprites_behind_fg[FB_WIDTH];
-
-    /* In case we are in 320x240 mode, we need to divide the scanline by 2 */
-    if (zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT) {
-        scanline /= 2;
-    }
-
-    zvb_blitter_sprites_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
-
-    if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
-        render_gfx_4bit_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
+    if (zvb_is_text_mode(zvb)) {
+        text_scanline(zvb, scanline, line);
+    } else if (zvb->mode == MODE_BITMAP_256 || zvb->mode == MODE_BITMAP_320) {
+        /* Bitmap scan conversion already emits doubled pixels at full width. */
+        zvb_blitter_render_bitmap_scanline(zvb, line, 0);
     } else {
-        render_gfx_8bit_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
+        uint16_t* pal_rgb = zvb_get_palette(zvb);
+        uint16_t sprites_scanline[FB_WIDTH];
+        uint8_t  sprites_behind_fg[FB_WIDTH];
+        const int vrow = scanline / scale;
+
+        zvb_blitter_sprites_scanline(zvb, vrow, sprites_scanline, sprites_behind_fg, pal_rgb);
+
+        /* Render the virtual row at its own width, then expand it across the full line so
+         * both output lines of a doubled row carry the same pixels. */
+        if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
+            render_gfx_4bit_scanline(zvb, s_row, 0, sprites_scanline, sprites_behind_fg, pal_rgb);
+        } else {
+            render_gfx_8bit_scanline(zvb, s_row, 0, sprites_scanline, sprites_behind_fg, pal_rgb);
+        }
+
+        if (mode_320) {
+            for (int x = 0; x < 320; x++) {
+                line[x * 2]     = s_row[x];
+                line[x * 2 + 1] = s_row[x];
+            }
+        } else {
+            memcpy(line, s_row, sizeof(uint16_t) * FB_WIDTH);
+        }
+    }
+
+    /* 320-wide modes cover two output lines; the second is emitted too, so the display
+     * only ever receives full-width frames. */
+    display_scanline(scanline, line, FB_WIDTH, FB_WIDTH * (int)sizeof(uint16_t), DISPLAY_RGB565);
+    if (scale == 2 && (scanline & 1) == 0) {
+        display_scanline(scanline + 1, line, FB_WIDTH, FB_WIDTH * (int)sizeof(uint16_t), DISPLAY_RGB565);
     }
 }
 
 void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 {
-    zvb_blitter_scale_render(zvb);
+    /* Scanline mode already pushed each line as the raster produced it. */
+    (void)zvb;
 }
 
 #else /* !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
@@ -515,7 +647,7 @@ static void render_gfx_4bit(zvb_t* zvb, uint16_t* sprites_scanline,
 
     for (int py = 0; py < scr_h; py++) {
         zvb_blitter_sprites_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-        render_gfx_4bit_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
+        render_gfx_4bit_scanline(zvb, zvb->blitter.framebuffer, py, sprites_scanline, sprites_behind_fg, pal_rgb);
     }
 }
 
@@ -526,7 +658,7 @@ static void render_gfx_8bit(zvb_t* zvb, uint16_t* sprites_scanline,
 
     for (int py = 0; py < scr_h; py++) {
         zvb_blitter_sprites_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-        render_gfx_8bit_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
+        render_gfx_8bit_scanline(zvb, zvb->blitter.framebuffer, py, sprites_scanline, sprites_behind_fg, pal_rgb);
     }
 }
 

@@ -146,9 +146,28 @@ void display_clear(display_color_t color);
  * @param pitch   Bytes per row.
  * @param dest    Where to draw it, in window pixels. The caller owns placement, so it
  *                can line other overlays up with the frame.
+ *
+ * Used by the frame-at-a-time path; the scanline path calls display_scanline() instead.
  */
 void display_present(const void *pixels, int width, int height, int pitch,
                        display_format_t format, display_rect_t dest);
+
+/**
+ * @brief Hand one finished scanline to the display, top to bottom.
+ *
+ * @param y       Output line index, 0 through the display height - 1.
+ * @param pixels  @p width pixels in @p format, valid only for the duration of the call.
+ * @param width   Pixel count, always the full active width of the video mode.
+ * @param pitch   Bytes per row.
+ *
+ * Called by the software blitter as the emulated raster reaches each line, so a line's
+ * buffer is owned by the caller and may be reused immediately. What the driver does
+ * with it is its own business: staging every line and uploading once per frame is what
+ * a GPU backend must do, while a backend driving a real scanline display can forward
+ * each call straight to its hardware and never keep a frame buffer.
+ */
+void display_scanline(int y, const void *pixels, int width, int pitch,
+                      display_format_t format);
 
 /**
  * @brief Draw a short string in the window, for on-screen notifications and the FPS

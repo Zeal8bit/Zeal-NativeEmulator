@@ -51,6 +51,15 @@ int g_mouse_dx = 0, g_mouse_dy = 0;
 int g_mouse_wheel = 0;
 bool g_mouse_captured = false;
 
+/*
+ * Scanline staging. FLTK draws from one image per repaint, so lines arriving one at a
+ * time are accumulated here and handed to the widget at frame end. A backend driving
+ * real scanline hardware would forward each line instead and keep no buffer.
+ */
+std::vector<uint16_t> g_scanline_stage;
+int g_scanline_width = 0;
+int g_scanline_height = 0;
+
 double now_seconds()
 {
     using namespace std::chrono;
@@ -188,6 +197,9 @@ bool display_init(const display_config_t *config)
     if (config == nullptr)
         return false;
     g_start_time = now_seconds();
+    g_scanline_stage.assign((size_t)config->width * (size_t)config->height, 0);
+    g_scanline_width = config->width;
+    g_scanline_height = 0;
     g_window = new HostWindow(config->width, config->height, config->title);
     if (config->resizable) {
         g_window->resizable(g_window);
@@ -209,6 +221,10 @@ void display_shutdown(void)
     delete g_window;
     g_window = nullptr;
     g_screen = nullptr;
+    g_scanline_stage.clear();
+    g_scanline_stage.shrink_to_fit();
+    g_scanline_width = 0;
+    g_scanline_height = 0;
 }
 
 bool display_should_close(void) { return g_should_close; }
@@ -299,18 +315,46 @@ void display_frame_rate(int fps)
 
 void display_frame_begin(void)
 {
+    g_scanline_height = 0;
     if (g_screen)
         g_screen->frame = nullptr;
 }
 
 void display_frame_end(void)
 {
+    /* Lines arriving through display_scanline() are staged; hand the widget the result
+     * for this frame. The frame-at-a-time path already called display_present(). */
+    if (g_scanline_height > 0 && g_window != nullptr) {
+        display_present(g_scanline_stage.data(), g_scanline_width, g_scanline_height,
+                        g_scanline_width * (int)sizeof(uint16_t), DISPLAY_RGB565,
+                        (display_rect_t){0, 0, (float)g_window->w(), (float)g_window->h()});
+    }
     if (g_screen)
         g_screen->redraw();
     Fl::flush();
 }
 
 void display_clear(display_color_t color) { g_background = color; }
+
+void display_scanline(int y, const void *pixels, int width, int pitch, display_format_t format)
+{
+    if (pixels == nullptr || width <= 0 || y < 0 || format != DISPLAY_RGB565) {
+        return;
+    }
+    /* Lines are the same width by construction; anything else would misplace rows. */
+    if (width != g_scanline_width) {
+        return;
+    }
+    if ((size_t)(y + 1) * (size_t)width > g_scanline_stage.size()) {
+        return;
+    }
+    memcpy(&g_scanline_stage[(size_t)y * (size_t)width], pixels,
+           (size_t)width * sizeof(uint16_t));
+    (void)pitch;
+    if (y + 1 > g_scanline_height) {
+        g_scanline_height = y + 1;
+    }
+}
 
 void display_present(const void *pixels, int width, int height, int pitch,
                        display_format_t format, display_rect_t dest)
