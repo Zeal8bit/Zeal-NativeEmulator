@@ -62,11 +62,17 @@ struct dbg_ui_t {
     std::array<Panel *, zeal_ui::PANEL_COUNT> panels{};
     std::map<int, Fl_Double_Window *> floating;
     zeal_ui::Workspace workspace;
+    // Layout to put back when the debugger is switched on again. While it is off, the
+    // debug panels are hidden and the video fills the window, so the dock tree is
+    // saved here instead of being thrown away.
+    zeal_ui::Workspace debug_workspace;
+    bool debug_workspace_saved = false;
     zeal_ui::Theme theme = zeal_ui::Theme::preset(false);
     GlyphFont glyph_font;
     std::string theme_name = "Dark", directory;
     Fl_Font ui_font = FL_HELVETICA, mono_font = FL_COURIER;
     bool shown = false, passthrough = false, upper = true, cp437 = false, rebuild = false;
+    bool debugging = true;
     bool separate_mode = false, menu_dirty = false;
     int scale = 1, volume = 100, drag = -1, drag_x = 0, drag_y = 0;
     double last_refresh = 0;
@@ -95,6 +101,7 @@ struct dbg_ui_t {
     void set_separate_windows(bool on);
     void detach_panel(int id);
     bool panel_open(int id) const;
+    void set_debugging(bool on);
     void refresh_snes();
     void layout();
     void changed_layout();

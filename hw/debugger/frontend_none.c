@@ -13,6 +13,11 @@ void debugger_ui_show(dbg_ui_t *u, bool b)
     (void)b;
 }
 void debugger_ui_poll(dbg_ui_t *u) { (void)u; }
+void debugger_ui_set_debugging(dbg_ui_t *u, bool on)
+{
+    (void)u;
+    (void)on;
+}
 void debugger_ui_refresh(dbg_ui_t *u) { (void)u; }
 bool debugger_ui_main_view_focused(const dbg_ui_t *u)
 {

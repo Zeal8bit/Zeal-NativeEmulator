@@ -167,11 +167,19 @@ void debugger_ui_smoke_tick(dbg_ui_t *u)
         pick("File/Debugger Off");
         phase++;
     } else if (phase == 12 && elapsed > 3.4) {
-        assert(!u->shown);
+        // Switching the debugger off keeps the shell on screen: only the debug panels
+        // go away, leaving the video filling the window.
+        assert(u->shown);
+        assert(u->panel_open(zeal_ui::PANEL_VIDEO));
+        assert(!u->panel_open(zeal_ui::PANEL_CPU));
+        assert(!u->panel_open(zeal_ui::PANEL_MEMORY));
         u->host.action(u->host.debugger, UI_ON, 0, 0);
         phase++;
     } else if (phase == 13 && elapsed > 3.6) {
         assert(u->shown);
+        // The layout the debugger had before it was switched off comes back.
+        assert(u->panel_open(zeal_ui::PANEL_CPU));
+        assert(u->panel_open(zeal_ui::PANEL_MEMORY));
         u->command(DBG_CONTINUE);
         phase++;
     } else if (phase == 14 && elapsed > 3.8) {

@@ -33,6 +33,12 @@ extern "C" void debugger_ui_show(dbg_ui_t *u, bool visible)
         u->show_window(visible);
 }
 
+extern "C" void debugger_ui_set_debugging(dbg_ui_t *u, bool on)
+{
+    if (u)
+        u->set_debugging(on);
+}
+
 extern "C" void debugger_ui_poll(dbg_ui_t *u)
 {
     if (!u)

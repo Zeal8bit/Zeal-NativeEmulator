@@ -154,6 +154,29 @@ void Workspace::show(int id)
     dock(id, -1, 0);
 }
 
+static std::unique_ptr<DockNode> copy_tree(const DockNode *node)
+{
+    if (!node)
+        return nullptr;
+    auto copy = std::make_unique<DockNode>();
+    copy->axis = node->axis;
+    copy->ratio = node->ratio;
+    copy->selected = node->selected;
+    copy->tabs = node->tabs;
+    copy->first = copy_tree(node->first.get());
+    copy->second = copy_tree(node->second.get());
+    return copy;
+}
+
+Workspace Workspace::clone() const
+{
+    Workspace copy;
+    copy.root = copy_tree(root.get());
+    copy.floating = floating;
+    copy.hidden = hidden;
+    return copy;
+}
+
 bool Workspace::save(const std::string &path) const
 {
     std::ofstream f(path + ".tmp");

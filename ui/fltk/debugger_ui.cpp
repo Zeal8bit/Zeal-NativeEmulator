@@ -3,6 +3,7 @@
 // windows, theming and layout. The C entry points in frontend.cpp drive this class.
 #include "ui/fltk/debugger_ui.h"
 #include "ui/fltk/cp437.h"
+#include "ui/fltk/input.h"
 #include "ui/fltk/panel.h"
 #include "ui/fltk/panels/breakpoints.h"
 #include "ui/fltk/panels/cpu.h"
@@ -487,6 +488,30 @@ bool dbg_ui_t::panel_open(int id) const
     return false;
 }
 
+void dbg_ui_t::set_debugging(bool on)
+{
+    if (debugging == on)
+        return;
+    debugging = on;
+    if (on) {
+        if (debug_workspace_saved) {
+            workspace = debug_workspace.clone();
+            debug_workspace_saved = false;
+        }
+    } else {
+        debug_workspace = workspace.clone();
+        debug_workspace_saved = true;
+        for (int id = 0; id < zeal_ui::PANEL_COUNT; id++)
+            if (id != zeal_ui::PANEL_VIDEO)
+                workspace.hide(id);
+        // The video is what the window is for while the debugger is off, so a hidden
+        // one has to come back even if the saved layout did not have it open.
+        if (!workspace.leaf(zeal_ui::PANEL_VIDEO))
+            workspace.show(zeal_ui::PANEL_VIDEO);
+    }
+    changed_layout();
+}
+
 void dbg_ui_t::detach_panel(int id)
 {
     int sx, sy, sw, sh;
@@ -667,6 +692,17 @@ class MainWindow : public Fl_Double_Window
             (event == FL_PUSH || event == FL_DRAG || event == FL_MOVE || event == FL_RELEASE ||
              event == FL_MOUSEWHEEL))
             return video->forward_input(event);
+        // With the debugger off this window is the only one the emulator has, so keys
+        // that no widget wanted belong to the guest. Menu accelerators are handled by
+        // the menu bar before the window sees them, so they are not swallowed here.
+        if (!ui->debugging && (event == FL_KEYDOWN || event == FL_KEYUP || event == FL_SHORTCUT) &&
+            !Fl::event_state(FL_COMMAND)) {
+            unsigned key = fltk_key_to_host(Fl::event_key());
+            if (key) {
+                ui->host.key(ui->host.debugger, key, event != FL_KEYUP);
+                return 1;
+            }
+        }
         return Fl_Double_Window::handle(event);
     }
 };

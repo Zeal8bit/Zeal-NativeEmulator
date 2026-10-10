@@ -42,6 +42,9 @@ typedef struct {
 int debugger_ui_init(dbg_ui_t **, const dbg_ui_init_args_t *);
 void debugger_ui_deinit(dbg_ui_t *);
 void debugger_ui_show(dbg_ui_t *, bool);
+// Switch the shell between the full debugger layout and the plain video view. The
+// window itself stays up either way.
+void debugger_ui_set_debugging(dbg_ui_t *, bool);
 void debugger_ui_poll(dbg_ui_t *);
 void debugger_ui_refresh(dbg_ui_t *);
 bool debugger_ui_main_view_focused(const dbg_ui_t *);

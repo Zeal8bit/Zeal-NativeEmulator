@@ -201,6 +201,33 @@ int zeal_reset(zeal_t* machine)
     return 0;
 }
 
+#if CONFIG_ENABLE_DEBUGGER
+#if CONFIG_FLTK_UI
+/**
+ * @brief Create the debugger shell if it does not exist yet.
+ *
+ * The FLTK build runs a single window: the shell is both the debugger and the
+ * emulator display, and it stays on screen whether or not the debugger is on.
+ */
+static int zeal_shell_ensure(zeal_t* machine)
+{
+    if (machine->dbg_ui != NULL) {
+        return 0;
+    }
+    dbg_ui_init_args_t args;
+    debugger_host_frontend_args(&machine->dbg, &args);
+    if (debugger_ui_init(&machine->dbg_ui, &args) != 0) {
+        return -1;
+    }
+    /* The shell replaces the host window rather than sitting next to it. */
+    zeal_host_show(false);
+    machine->dbg_frontend_visible = true;
+    machine->dbg_last_frame = zeal_host_time();
+    debugger_ui_show(machine->dbg_ui, true);
+    return 0;
+}
+#endif // CONFIG_FLTK_UI
+
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -357,6 +384,14 @@ int zeal_init(zeal_t* machine)
         /* Force the machine in RUNNING mode */
         machine->dbg_state = ST_RUNNING;
     }
+#if CONFIG_FLTK_UI
+    else if (!machine->headless) {
+        /* The shell is the desktop's only window, so it comes up with the debug panels
+         * hidden even when the emulator starts without the debugger. */
+        if (zeal_shell_ensure(machine) != 0) return -1;
+        debugger_ui_set_debugging(machine->dbg_ui, false);
+    }
+#endif // CONFIG_FLTK_UI
 #endif // CONFIG_ENABLE_DEBUGGER
 
     return 0;
@@ -408,7 +443,6 @@ static void zeal_step(zeal_t* machine)
 }
 
 
-#if CONFIG_ENABLE_DEBUGGER
 int zeal_debug_enable(zeal_t* machine)
 {
     if (machine->headless) {
@@ -422,30 +456,24 @@ int zeal_debug_enable(zeal_t* machine)
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
 #if CONFIG_FLTK_UI
-    if (!machine->dbg_ui) {
-        dbg_ui_init_args_t args;
-        debugger_host_frontend_args(&machine->dbg, &args);
-        if (debugger_ui_init(&machine->dbg_ui, &args) != 0) return -1;
-    }
-    zeal_host_show(false);
+    if (zeal_shell_ensure(machine) != 0) return -1;
     zeal_host_frame_rate(0);
-    machine->dbg_frontend_visible = true;
-    machine->dbg_last_frame = zeal_host_time();
-    debugger_ui_show(machine->dbg_ui, true);
+    debugger_ui_set_debugging(machine->dbg_ui, true);
 #endif
     return 0;
 }
 
 int zeal_debug_disable(zeal_t* machine)
 {
-    machine->dbg_frontend_visible = false;
-    debugger_ui_show(machine->dbg_ui, false);
     machine->dbg_enabled = false;
     machine->dbg_state = ST_RUNNING;
 #if CONFIG_FLTK_UI
-    zeal_host_show(true);
+    /* The shell keeps the window; only the debug panels go away, so the video fills
+     * it while the emulator runs. */
+    if (machine->dbg_ui != NULL) {
+        debugger_ui_set_debugging(machine->dbg_ui, false);
+    }
     zeal_host_frame_rate(60);
-    zeal_host_focus();
 #endif
     config_window_set(false);
     return 0;

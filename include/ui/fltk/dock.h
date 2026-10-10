@@ -27,6 +27,8 @@ struct Workspace {
     void detach(int panel, int x, int y);
     void hide(int panel);
     void show(int panel);
+    // Deep copy of the dock tree, so a layout can be set aside and put back later.
+    Workspace clone() const;
     bool save(const std::string &file) const;
     bool load(const std::string &file);
     DockNode *leaf(int panel) const;
