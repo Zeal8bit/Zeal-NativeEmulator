@@ -12,6 +12,29 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BITMAP_256_WIDTH                 (256)
+#define BITMAP_256_BORDER                (32)
+#define BITMAP_256_END                   (288)
+#define BITMAP_320_BORDER                (20)
+#define BITMAP_320_END                   (220)
+#define LOWRES_WIDTH                     (320)
+#define LOWRES_HEIGHT                    (240)
+#define BITMAP_BORDER_ADDR               (0xffff)
+#define TEXT_COLOR_MASK                  (15)
+#define TEXT_COLOR_SHIFT                 (4)
+#define SPRITE_PALETTE_SHIFT             (4)
+#define FONT_LEFT_PIXEL                  (0x80)
+#define LOWRES_SCALE                     (2)
+#define TILEMAP_PIXEL_WIDTH              (COLS * TILE_W)
+#define TILEMAP_PIXEL_HEIGHT             (ROWS * TILE_H)
+#define TILE_HIGH_BANK                   (256)
+#define TILE_ATTR_HIGH_BANK              (1)
+#define TILE_ATTR_FLIP_Y                 (4)
+#define TILE_ATTR_FLIP_X                 (8)
+#define TILE_ATTR_PALETTE                (0xf0)
+#define COLOR_INDEX_MASK                 (0xff)
+#define TILE_COLOR_MASK                  (0x0f)
+
 #define FB_WIDTH    ZVB_MAX_RES_WIDTH
 #define FB_HEIGHT   ZVB_MAX_RES_HEIGHT
 #define FB_BYTES    (FB_WIDTH * FB_HEIGHT * 2)   /* RGB565 */
@@ -25,6 +48,8 @@
 #define TILE_H      16
 #define TILESET_BYTES_PER_TILE  256
 #define SPRITE_COUNT            ZVB_SPRITES_COUNT
+#define SPRITE_OPAQUE           1u
+#define SPRITE_BEHIND_FG        2u
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -51,32 +76,17 @@ static uint16_t* zvb_get_palette(zvb_t* zvb)
 #endif
 
 
-/** Write an RGB565 pixel into the framebuffer. */
-static inline void put_pixel(uint16_t* fb, int x, int y, uint16_t rgb565)
-{
-    if ((unsigned)x >= FB_WIDTH || (unsigned)y >= FB_HEIGHT) return;
-    fb[y * FB_WIDTH + x] = rgb565;
-}
-
-/** Return 1 if font bitmap[char_idx][row] has bit col (0=leftmost) set. */
-static inline int font_bit(const uint8_t* raw_font, int char_idx,
-                           int row, int col)
-{
-    uint8_t byte = raw_font[char_idx * CHAR_H + row];
-    return (byte >> (7 - col)) & 1;
-}
-
 /** Get 8-bit colour index from tileset at tile * 256 + offset. */
 static inline uint8_t tileset_8bit(const uint8_t* raw, int tile, int offset)
 {
-    return raw[tile * TILESET_BYTES_PER_TILE + offset];
+    return raw[(tile * TILESET_BYTES_PER_TILE + offset) & (ZVB_TILESET_SIZE - 1)];
 }
 
 /** Get 4-bit colour index from tileset (2 pixels per byte). */
 static inline uint8_t tileset_4bit(const uint8_t* raw, int byte_idx)
 {
-    uint8_t byte = raw[byte_idx / 2];
-    return (byte_idx & 1) ? (byte & 0x0F) : (byte >> 4);
+    uint8_t byte = raw[(byte_idx / 2) & (ZVB_TILESET_SIZE - 1)];
+    return (byte_idx & 1) ? (byte & TILE_COLOR_MASK) : (byte >> 4);
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,187 +148,111 @@ void zvb_blitter_prepare_render_text_mode(zvb_t* zvb)
     /* Nothing to prepare — we read raw arrays directly. */
 }
 
-void zvb_blitter_render_text_mode(zvb_t* zvb)
+static bool low_resolution(const zvb_t* zvb)
 {
-    zvb_blitter_t* bl = &zvb->blitter;
-    uint16_t* fb = bl->framebuffer;
-    const uint8_t* layer0 = zvb->layers.raw_layer0;
-    const uint8_t* layer1 = zvb->layers.raw_layer1;
-    const uint8_t* font   = zvb->font.raw_font;
-    const uint16_t* pal_rgb = zvb_get_palette(zvb);
+    return zvb->mode == MODE_TEXT_320 || zvb_is_bitmap_mode(zvb) ||
+           zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT;
+}
 
-    bool mode_320 = (zvb->mode == MODE_TEXT_320);
-    int scale = mode_320 ? 2 : 1;
-
-    /* Cursor state */
+static void render_text_scanline(zvb_t* zvb, int y)
+{
+    uint16_t* output = zvb->blitter.framebuffer + y * FB_WIDTH;
+    const uint16_t* pal = zvb_get_palette(zvb);
+    const int columns = low_resolution(zvb) ? LOWRES_WIDTH / CHAR_W : COLS;
+    const int font_row = y % CHAR_H;
     zvb_text_info_t info;
-    zvb_text_update(&zvb->text, &info);
-    const int cur_x = info.pos[0];
-    const int cur_y = info.pos[1];
-    const int cur_bg = info.color[0];
-    const int cur_fg = info.color[1];
-    const int cur_ch = info.charidx;
-    const int scroll_x = info.scroll[0];
-    const int scroll_y = info.scroll[1];
-
-    for (int row = 0; row < ROWS; row++) {
-        for (int col = 0; col < COLS; col++) {
-
-            int eff_col = (col + scroll_x) % COLS;
-            int eff_row = (row + scroll_y) % ROWS;
-
-            uint8_t tile  = layer0[eff_col + eff_row * COLS];
-            uint8_t attr  = layer1[eff_col + eff_row * COLS];
-            uint8_t fg_idx = attr & 0x0F;
-            uint8_t bg_idx = (attr >> 4) & 0x0F;
-
-            /* Cursor override */
-            if (col == cur_x && row == cur_y) {
-                tile   = (uint8_t)(cur_ch & 0xFF);
-                bg_idx = (uint8_t)(cur_bg & 0x0F);
-                fg_idx = (uint8_t)(cur_fg & 0x0F);
-            }
-
-            uint16_t fg_rgb = pal_rgb[fg_idx];
-            uint16_t bg_rgb = pal_rgb[bg_idx];
-
-            for (int cy = 0; cy < CHAR_H; cy++) {
-                for (int cx = 0; cx < CHAR_W; cx++) {
-                    int on = font_bit(font, tile, cy, cx);
-                    uint16_t color = on ? fg_rgb : bg_rgb;
-                    int px = col * CHAR_W + cx;
-                    int py = row * CHAR_H + cy;
-                    if (scale == 2) {
-                        for (int sy = 0; sy < 2; sy++) {
-                            for (int sx = 0; sx < 2; sx++) {
-                                put_pixel(fb, px * 2 + sx, py * 2 + sy, color);
-                            }
-                        }
-                    } else {
-                        put_pixel(fb, px, py, color);
-                    }
-                }
-            }
+    const bool cursor_shown = zvb_text_get_info(&zvb->text, &info);
+    const uint32_t cursor_address = zvb_text_cursor_address(&zvb->text);
+    const int row_base = ((y / CHAR_H + info.scroll[1]) % ROWS) * COLS;
+    for (int col = 0; col < columns; col++) {
+        const int index = row_base + (col + info.scroll[0]) % COLS;
+        uint8_t tile = zvb->layers.raw_layer0[index];
+        uint8_t attr = zvb->layers.raw_layer1[index];
+        if (cursor_shown && (uint32_t)index == cursor_address) {
+            tile = info.charidx;
+            attr = (info.color[0] << TEXT_COLOR_SHIFT) | info.color[1];
+        }
+        const uint16_t foreground = pal[attr & TEXT_COLOR_MASK];
+        const uint16_t background = pal[attr >> TEXT_COLOR_SHIFT];
+        uint8_t bits = zvb->font.raw_font[tile * CHAR_H + font_row];
+        for (int x = 0; x < CHAR_W; x++) {
+            *output++ = (bits & FONT_LEFT_PIXEL) ? foreground : background;
+            bits <<= 1;
         }
     }
+}
 
+static void present_frame(zvb_t* zvb)
+{
+    zvb_blitter_t* bl = &zvb->blitter;
+    const bool lowres = low_resolution(zvb);
+    int width = lowres ? LOWRES_WIDTH : FB_WIDTH;
+    int height = lowres ? LOWRES_HEIGHT : FB_HEIGHT;
+#if ZVB_BLITTER_SOFTWARE_SCALING
+    /* Optional CPU fallback belongs to presentation, not row rendering. */
+    if (lowres) {
+        for (int y = LOWRES_HEIGHT - 1; y >= 0; y--) {
+            for (int x = LOWRES_WIDTH - 1; x >= 0; x--) {
+                const uint16_t pixel = bl->framebuffer[y * FB_WIDTH + x];
+                const int offset = y * LOWRES_SCALE * FB_WIDTH + x * LOWRES_SCALE;
+                bl->framebuffer[offset] = pixel;
+                bl->framebuffer[offset + 1] = pixel;
+                bl->framebuffer[offset + FB_WIDTH] = pixel;
+                bl->framebuffer[offset + FB_WIDTH + 1] = pixel;
+            }
+        }
+        width = FB_WIDTH;
+        height = FB_HEIGHT;
+    }
+#endif
     UpdateTexture(bl->output_texture, bl->framebuffer);
     BeginTextureMode(bl->main_texture);
-        DrawTextureRec(bl->output_texture, (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT }, (Vector2){ 0, 0 }, WHITE);
+        DrawTexturePro(bl->output_texture,
+            (Rectangle){ 0, 0, width, -height },
+            (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
+            (Vector2){ 0, 0 }, 0.0f, WHITE);
     EndTextureMode();
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bl->raster_frame = false;
+#endif
 }
 
 /* ================================================================== */
 /*  BITMAP MODE                                                        */
 /* ================================================================== */
 
-static void zvb_blitter_scale_render(zvb_t* zvb)
-{
-    bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
-
-#if ZVB_BLITTER_SOFTWARE_SCALING
-        if (scale2x) {
-            uint16_t* fb = zvb->blitter.framebuffer;
-            for (int y = 239; y >= 0; y--) {
-                for (int x = 319; x >= 0; x--) {
-                    uint16_t c = fb[y * FB_WIDTH + x];
-                    int dy = y * 2;
-                    int dx = x * 2;
-                    fb[(dy+1) * FB_WIDTH + (dx+1)] = c;
-                    fb[(dy+1) * FB_WIDTH + dx]     = c;
-                    fb[dy * FB_WIDTH     + (dx+1)] = c;
-                    fb[dy * FB_WIDTH     + dx]     = c;
-                }
-            }
-        }
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTextureRec(bl->output_texture,
-                (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT },
-                (Vector2){ 0, 0 }, WHITE);
-        EndTextureMode();
-#else
-        int src_w = scale2x ? 320 : 640;
-        int src_h = scale2x ? 240 : 480;
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTexturePro(bl->output_texture,
-                (Rectangle){ 0, 0, src_w, -src_h },
-                (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
-                (Vector2){ 0, 0 }, 0.0f, WHITE);
-        EndTextureMode();
-#endif
-}
-
-
 void zvb_blitter_prepare_render_bitmap_mode(zvb_t* zvb)
 {
     (void)zvb;
 }
 
-static inline void bitmap_put_pixel(uint16_t* fb, int x, int y, uint16_t color)
+static void render_bitmap_scanline(zvb_t* zvb, int y)
 {
-    put_pixel(fb, 2 * x, y, color);
-    put_pixel(fb, 2 * x + 1, y, color);
-}
-
-static void zvb_blitter_render_bitmap_scanline(zvb_t* zvb, int scanline)
-{
-    uint16_t* fb = zvb->blitter.framebuffer;
+    uint16_t* output = zvb->blitter.framebuffer + y * FB_WIDTH;
     const uint8_t* vram = zvb->tileset.raw;
-    const uint16_t* pal_rgb = zvb_get_palette(zvb);
-    const uint8_t border_idx = vram[0xFFFF];
-    const uint16_t border_rgb = pal_rgb[border_idx];
-    /* Bitmap modes on real hardware run in 320x240 resolution */
-    int virt_scanline = scanline / 2;
-
+    const uint16_t* pal = zvb_get_palette(zvb);
+    const uint16_t border = pal[vram[BITMAP_BORDER_ADDR]];
     if (zvb->mode == MODE_BITMAP_256) {
-        /* In 256x240 mode, we have a left and right border of 32 pixels (256 + 2*32 = 320px) */
-        const int border = 32;
-        for (int i = 0; i < border; i++) {
-            /* Left border */
-            bitmap_put_pixel(fb, i, scanline, border_rgb);
+        for (int x = 0; x < BITMAP_256_BORDER; x++) {
+            output[x] = border;
         }
-        for (int x = 0; x < 256; x++) {
-            const int by = virt_scanline;
-            uint16_t index = (uint16_t)(by * 256 + x);
-            uint16_t color = pal_rgb[vram[index]];
-            bitmap_put_pixel(fb, border + x, scanline, color);
+        const uint8_t* row = vram + y * BITMAP_256_WIDTH;
+        for (int x = 0; x < BITMAP_256_WIDTH; x++) {
+            output[BITMAP_256_BORDER + x] = pal[row[x]];
         }
-        for (int i = 0; i < border; i++) {
-            /* Right border */
-            bitmap_put_pixel(fb, border + 256 + i, scanline, border_rgb);
+        for (int x = BITMAP_256_END; x < LOWRES_WIDTH; x++) {
+            output[x] = border;
+        }
+    } else if (y >= BITMAP_320_BORDER && y < BITMAP_320_END) {
+        const uint8_t* row = vram + (y - BITMAP_320_BORDER) * LOWRES_WIDTH;
+        for (int x = 0; x < LOWRES_WIDTH; x++) {
+            output[x] = pal[row[x]];
         }
     } else {
-        /* In 320x200, we have a top and bottom border of 20 pixels (200 + 2*20 = 240px) */
-        const int border = 20;
-        if (virt_scanline < border || virt_scanline >= border + 200) {
-            for (int x = 0; x < FB_WIDTH / 2; x++) {
-                bitmap_put_pixel(fb, x, scanline, border_rgb);
-            }
-        } else {
-            for (int x = 0; x < FB_WIDTH / 2; x++) {
-                const int by = virt_scanline - border;
-                uint16_t index = (uint16_t)(by * 320 + x);
-                uint16_t color = pal_rgb[vram[index]];
-                bitmap_put_pixel(fb, x, scanline, color);
-            }
+        for (int x = 0; x < LOWRES_WIDTH; x++) {
+            output[x] = border;
         }
     }
-}
-
-void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
-{
-#if !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
-    for (int y = 0; y < FB_HEIGHT; y++) {
-        zvb_blitter_render_bitmap_scanline(zvb, y);
-    }
-#endif
-    zvb_blitter_scale_render(zvb);
 }
 
 /* ================================================================== */
@@ -331,7 +265,7 @@ void zvb_blitter_prepare_render_gfx_mode(zvb_t* zvb)
 }
 
 static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
-                                         uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
+                                         uint16_t* sprites_scanline, uint8_t* sprites_flags,
                                          const uint16_t* pal_rgb)
 {
     const zvb_sprite_t* sprites = zvb->sprites.data;
@@ -343,7 +277,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
     int scr_w = mode_320 ? 320 : 640;
 
     memset(sprites_scanline, 0, scr_w * sizeof(uint16_t));
-    memset(sprites_behind_fg, 0, scr_w);
+    memset(sprites_flags, 0, scr_w);
 
     /* Get the list of visible sprites for this scanline */
     uint8_t visible_sprites[ZVB_SPRITES_COUNT];
@@ -355,25 +289,35 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
 
         int sy = (int)sp->y - TILE_H;
         int sh = sp->extra_flags.bitmap.height_32 ? 32 : 16;
-        if (scanline >= sy + sh)
+        if (scanline >= sy + sh) {
             continue;
+        }
 
         int sx = (int)sp->x - TILE_W;
         int sp_oy = scanline - sy;
-        if (sp->flags.bitmap.flip_y) sp_oy = sh - 1 - sp_oy;
+        if (sp->flags.bitmap.flip_y) {
+            sp_oy = sh - 1 - sp_oy;
+        }
 
         int tile_num = sp->flags.bitmap.tile_number;
-        if (sp->flags.bitmap.tileset_idx && !color_4bit)
-            tile_num += 256;
+        if (sp->flags.bitmap.tileset_idx && color_4bit) {
+            tile_num += TILE_HIGH_BANK;
+        }
 
         int start_x = sx;
         int end_x = sx + TILE_W;
-        if (start_x < 0) start_x = 0;
-        if (end_x > scr_w) end_x = scr_w;
+        if (start_x < 0) {
+            start_x = 0;
+        }
+        if (end_x > scr_w) {
+            end_x = scr_w;
+        }
 
         for (int px = start_x; px < end_x; px++) {
             int sp_ox = px - sx;
-            if (sp->flags.bitmap.flip_x) sp_ox = (TILE_W - 1) - sp_ox;
+            if (sp->flags.bitmap.flip_x) {
+                sp_ox = (TILE_W - 1) - sp_ox;
+            }
 
             int byte_idx = tile_num * TILESET_BYTES_PER_TILE + sp_oy * TILE_W + sp_ox;
             uint8_t color_idx;
@@ -383,107 +327,115 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
                 color_idx = tileset_8bit(tileset, tile_num, sp_oy * TILE_W + sp_ox);
             }
 
-            if (color_idx == 0)
+            if (color_idx == 0) {
                 continue;
+            }
 
             int final_idx;
             if (color_4bit) {
-                final_idx = sp->flags.bitmap.palette + color_idx;
+                final_idx = (sp->flags.bitmap.palette << SPRITE_PALETTE_SHIFT) | color_idx;
             } else {
                 final_idx = color_idx;
             }
 
-            sprites_scanline[px] = pal_rgb[final_idx & 0xFF];
-            sprites_behind_fg[px] = sp->flags.bitmap.behind_fg ? 1 : 0;
+            sprites_scanline[px] = pal_rgb[final_idx & COLOR_INDEX_MASK];
+            sprites_flags[px] = SPRITE_OPAQUE |
+                (sp->flags.bitmap.behind_fg ? SPRITE_BEHIND_FG : 0);
         }
     }
 }
 
 
 static void render_gfx_4bit_scanline(zvb_t* zvb, int py,
-        uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
-        const uint16_t* pal_rgb)
+        uint16_t* sprites_scanline, uint8_t* sprites_flags,
+        const uint16_t* pal_rgb, int width)
 {
-    uint16_t* fb            = zvb->blitter.framebuffer;
+    uint16_t* output        = zvb->blitter.framebuffer + py * FB_WIDTH;
     const uint8_t* layer0   = zvb->layers.raw_layer0;
     const uint8_t* layer1   = zvb->layers.raw_layer1;
     const uint8_t* tileset  = zvb->tileset.raw;
-    int scr_w = (zvb->mode == MODE_GFX_320_4BIT) ? 320 : 640;
     int scroll_x = (int)zvb->ctrl.l0_scroll_x;
     int scroll_y = (int)zvb->ctrl.l0_scroll_y;
 
-    int l0_py = (py + scroll_y) % 640;
+    int l0_py = (py + scroll_y) % TILEMAP_PIXEL_HEIGHT;
     int l0_ty = l0_py / TILE_H;
     int l0_oy = l0_py % TILE_H;
 
-    (void)sprites_behind_fg;    /* Unused in 4-bit (behind_fg needs opaque layer1) */
-
-    for (int px = 0; px < scr_w; ) {
-        int l0_px  = (px + scroll_x) % 1280;
+    for (int px = 0; px < width; ) {
+        int l0_px  = (px + scroll_x) % TILEMAP_PIXEL_WIDTH;
         int l0_tx  = l0_px / TILE_W;
         int l0_ox  = l0_px % TILE_W;
         int burst  = TILE_W - l0_ox;
-        if (px + burst > scr_w) burst = scr_w - px;
+        if (px + burst > width) {
+            burst = width - px;
+        }
 
         uint8_t l0_tile = layer0[l0_tx + l0_ty * COLS];
         int attr        = layer1[l0_tx + l0_ty * COLS];
         int tile_idx    = l0_tile;
-        if (attr & 1) tile_idx += 256;
+        if (attr & TILE_ATTR_HIGH_BANK) {
+            tile_idx += TILE_HIGH_BANK;
+        }
 
-        int oy       = (attr & 4) ? (TILE_H - 1) - l0_oy : l0_oy;
+        int oy       = (attr & TILE_ATTR_FLIP_Y) ? (TILE_H - 1) - l0_oy : l0_oy;
         int row_base = tile_idx * TILESET_BYTES_PER_TILE + oy * TILE_W;
 
         for (int i = 0; i < burst; i++, px++) {
             int ox = l0_ox + i;
-            if (attr & 8) ox = (TILE_W - 1) - ox;
+            if (attr & TILE_ATTR_FLIP_X) {
+                ox = (TILE_W - 1) - ox;
+            }
 
             uint8_t nibble    = tileset_4bit(tileset, row_base + ox);
-            uint8_t color_idx = (uint8_t)((attr & 0xF0) + nibble);
+            uint8_t color_idx = (uint8_t)((attr & TILE_ATTR_PALETTE) + nibble);
             uint16_t pixel_rgb = pal_rgb[color_idx];
 
             uint16_t sp = sprites_scanline[px];
-            if (sp != 0) pixel_rgb = sp;
+            if (sprites_flags[px] & SPRITE_OPAQUE) {
+                pixel_rgb = sp;
+            }
 
-            put_pixel(fb, px, py, pixel_rgb);
+            output[px] = pixel_rgb;
         }
     }
 }
 
 static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
-        uint16_t* sprites_scanline, uint8_t* sprites_behind_fg,
-        const uint16_t* pal_rgb)
+        uint16_t* sprites_scanline, uint8_t* sprites_flags,
+        const uint16_t* pal_rgb, int width)
 {
-    uint16_t* fb            = zvb->blitter.framebuffer;
+    uint16_t* output        = zvb->blitter.framebuffer + py * FB_WIDTH;
     const uint8_t* layer0   = zvb->layers.raw_layer0;
     const uint8_t* layer1   = zvb->layers.raw_layer1;
     const uint8_t* tileset  = zvb->tileset.raw;
-    int scr_w = (zvb->mode == MODE_GFX_320_8BIT) ? 320 : 640;
     int scroll_l0_x = (int)zvb->ctrl.l0_scroll_x;
     int scroll_l0_y = (int)zvb->ctrl.l0_scroll_y;
     int scroll_l1_x = (int)zvb->ctrl.l1_scroll_x;
     int scroll_l1_y = (int)zvb->ctrl.l1_scroll_y;
 
-    int l0_py = (py + scroll_l0_y) % 640;
-    int l1_py = (py + scroll_l1_y) % 640;
+    int l0_py = (py + scroll_l0_y) % TILEMAP_PIXEL_HEIGHT;
+    int l1_py = (py + scroll_l1_y) % TILEMAP_PIXEL_HEIGHT;
     int l0_ty = l0_py / TILE_H;
     int l1_ty = l1_py / TILE_H;
     int l0_oy = l0_py % TILE_H;
     int l1_oy = l1_py % TILE_H;
 
-    for (int px = 0; px < scr_w; ) {
-        int l0_px  = (px + scroll_l0_x) % 1280;
+    for (int px = 0; px < width; ) {
+        int l0_px  = (px + scroll_l0_x) % TILEMAP_PIXEL_WIDTH;
         int l0_tx  = l0_px / TILE_W;
         int l0_ox  = l0_px % TILE_W;
         int burst  = TILE_W - l0_ox;
-        if (px + burst > scr_w) {
-            burst = scr_w - px;
+        if (px + burst > width) {
+            burst = width - px;
         }
 
-        int l1_px  = (px + scroll_l1_x) % 1280;
+        int l1_px  = (px + scroll_l1_x) % TILEMAP_PIXEL_WIDTH;
         int l1_tx  = l1_px / TILE_W;
         int l1_ox  = l1_px % TILE_W;
         int l1_rem = TILE_W - l1_ox;
-        if (l1_rem < burst) burst = l1_rem;
+        if (l1_rem < burst) {
+            burst = l1_rem;
+        }
 
         uint8_t l0_tile = layer0[l0_tx + l0_ty * COLS];
         uint8_t l1_tile = layer1[l1_tx + l1_ty * COLS];
@@ -507,96 +459,86 @@ static void render_gfx_8bit_scanline(zvb_t* zvb, int py,
             }
 
             uint16_t sp = sprites_scanline[px];
-            if (sp != 0 && !(opaque && sprites_behind_fg[px]))
+            if ((sprites_flags[px] & SPRITE_OPAQUE) &&
+                !(opaque && (sprites_flags[px] & SPRITE_BEHIND_FG))) {
                 pixel_rgb = sp;
+            }
 
-            put_pixel(fb, px, py, pixel_rgb);
+            output[px] = pixel_rgb;
         }
     }
 }
 
 
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+static void render_scanline(zvb_t* zvb, int y)
+{
+    if (zvb_is_text_mode(zvb)) {
+        render_text_scanline(zvb, y);
+    } else if (zvb_is_bitmap_mode(zvb)) {
+        render_bitmap_scanline(zvb, y);
+    } else {
+        uint16_t sprites[FB_WIDTH];
+        uint8_t flags[FB_WIDTH];
+        const uint16_t* pal = zvb_get_palette(zvb);
+        const int width = low_resolution(zvb) ? LOWRES_WIDTH : FB_WIDTH;
+        zvb_blitter_sprites_scanline(zvb, y, sprites, flags, pal);
+        if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
+            render_gfx_4bit_scanline(zvb, y, sprites, flags, pal, width);
+        } else {
+            render_gfx_8bit_scanline(zvb, y, sprites, flags, pal, width);
+        }
+    }
+}
 
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
-    uint16_t* pal_rgb = zvb_get_palette(zvb);
-
-    if (zvb->mode < MODE_GFX_640_8BIT) {
-        /* Text / Bitmap modes */
-        if (zvb_is_text_mode(zvb)) return; /* TODO: text scanline */
-        zvb_blitter_render_bitmap_scanline(zvb, scanline);
+    if (!zvb->scanline_rendering || !zvb->blitter.framebuffer ||
+        scanline < 0 || scanline >= FB_HEIGHT) {
         return;
     }
-
-    uint16_t  sprites_scanline[FB_WIDTH];
-    uint8_t   sprites_behind_fg[FB_WIDTH];
-
-    /* In case we are in 320x240 mode, we need to divide the scanline by 2 */
-    if (zvb->mode == MODE_GFX_320_4BIT || zvb->mode == MODE_GFX_320_8BIT) {
-        scanline /= 2;
+    const bool lowres = low_resolution(zvb);
+    /* Each low-resolution row is captured once, on its first display line. */
+    if (lowres && scanline % LOWRES_SCALE != 0) {
+        return;
     }
-
-    zvb_blitter_sprites_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
-
-    if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
-        render_gfx_4bit_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
+    const int y = lowres ? scanline / LOWRES_SCALE : scanline;
+    const int width = lowres ? LOWRES_WIDTH : FB_WIDTH;
+    zvb->blitter.raster_frame = true;
+    if (zvb->screen_enabled) {
+        render_scanline(zvb, y);
     } else {
-        render_gfx_8bit_scanline(zvb, scanline, sprites_scanline, sprites_behind_fg, pal_rgb);
+        memset(zvb->blitter.framebuffer + y * FB_WIDTH, 0, width * sizeof(uint16_t));
     }
+}
+#endif
+
+static void render_frame(zvb_t* zvb)
+{
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    if (!zvb->blitter.raster_frame) {
+#endif
+        const int height = low_resolution(zvb) ? LOWRES_HEIGHT : FB_HEIGHT;
+        for (int y = 0; y < height; y++) {
+            render_scanline(zvb, y);
+        }
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    }
+#endif
+    present_frame(zvb);
+}
+
+void zvb_blitter_render_text_mode(zvb_t* zvb)
+{
+    render_frame(zvb);
+}
+
+void zvb_blitter_render_bitmap_mode(zvb_t* zvb)
+{
+    render_frame(zvb);
 }
 
 void zvb_blitter_render_gfx_mode(zvb_t* zvb)
 {
-    zvb_blitter_scale_render(zvb);
+    render_frame(zvb);
 }
-
-#else /* !ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */
-
-void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
-{
-    /* Full-frame software rendering does not render during scanline ticks. */
-    (void)zvb;
-    (void)scanline;
-}
-
-static void render_gfx_4bit(zvb_t* zvb, uint16_t* sprites_scanline,
-                         uint8_t* sprites_behind_fg, const uint16_t* pal_rgb)
-{
-    int scr_h = (zvb->mode == MODE_GFX_320_4BIT) ? 240 : 480;
-
-    for (int py = 0; py < scr_h; py++) {
-        zvb_blitter_sprites_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-        render_gfx_4bit_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-    }
-}
-
-static void render_gfx_8bit(zvb_t* zvb, uint16_t* sprites_scanline,
-                         uint8_t* sprites_behind_fg, const uint16_t* pal_rgb)
-{
-    int scr_h = (zvb->mode == MODE_GFX_320_8BIT) ? 240 : 480;
-
-    for (int py = 0; py < scr_h; py++) {
-        zvb_blitter_sprites_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-        render_gfx_8bit_scanline(zvb, py, sprites_scanline, sprites_behind_fg, pal_rgb);
-    }
-}
-
-void zvb_blitter_render_gfx_mode(zvb_t* zvb)
-{
-    uint16_t sprites_scanline[FB_WIDTH];
-    uint8_t sprites_behind_fg[FB_WIDTH];
-
-    /* Pre-compute palette as RGB565 for fast lookup */
-    uint16_t* pal_rgb = zvb_get_palette(zvb);
-
-    if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
-        render_gfx_4bit(zvb, sprites_scanline, sprites_behind_fg, pal_rgb);
-    } else {
-        render_gfx_8bit(zvb, sprites_scanline, sprites_behind_fg, pal_rgb);
-    }
-
-    zvb_blitter_scale_render(zvb);
-}
-
-#endif /* ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING */

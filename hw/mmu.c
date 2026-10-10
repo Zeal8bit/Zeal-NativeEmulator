@@ -44,6 +44,7 @@ static void mmu_write(device_t* dev, uint32_t addr, uint8_t data)
 static void mmu_reset(device_t* dev)
 {
     mmu_t* mmu = (mmu_t*) dev;
+    mmu->bus_requested = false;
     /* On the real hardware, MMU reset only sets page 0 */
     mmu->pages[0] = 0;
     mmu_resolve_vpage(mmu, 0);

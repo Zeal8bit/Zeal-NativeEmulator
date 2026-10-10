@@ -5,6 +5,7 @@
  */
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include "raylib.h"
 
 /**
@@ -16,6 +17,9 @@
 typedef struct {
     /* RGB565 framebuffer, 640×480 = 614 400 bytes */
     uint16_t*     framebuffer;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool          raster_frame;
+#endif
     /* Raylib Image wrapping framebuffer for UpdateTexture */
     Image         fb_image;
     /* CPU-rendered texture (RGB565), uploaded from framebuffer each frame */

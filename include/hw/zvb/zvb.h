@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include "hw/device.h"
 #include "hw/mmu.h"
+#include "hw/pio.h"
 #include "utils/vtimer.h"
 #include "hw/zvb/zvb_font.h"
 #include "hw/zvb/zvb_palette.h"
@@ -20,6 +21,8 @@
 #include "hw/zvb/zvb_crc32.h"
 #include "hw/zvb/zvb_sound.h"
 #include "hw/zvb/zvb_dma.h"
+#include "hw/zvb/zvb_rpu.h"
+#include "hw/zvb/zvb_timer.h"
 #include "debugger/debugger_types.h"
 
 #if ZVB_BLITTER_SHADER
@@ -38,6 +41,7 @@
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480
+#define ZVB_PHYS_ADDR_BASE  (0x100000U)
 
 /**
  * @brief Width and height for the debug textures, account for the grid of 1px
@@ -72,6 +76,8 @@
     #define ZVB_IO_CONFIG_L1_SCR_X_HIGH 0x0b
     #define ZVB_IO_CONFIG_MODE_REG      0x0c
     #define ZVB_IO_CONFIG_STATUS_REG    0x0d
+    #define ZVB_IO_CONFIG_INT_STATUS_REG 0x0e
+    #define ZVB_IO_CONFIG_EXT_STATUS_REG 0x0f
 #define ZVB_IO_CONF_END     0x20
 #define ZVB_IO_BANK_START   0x20
 #define ZVB_IO_BANK_END     0x30
@@ -84,6 +90,18 @@
 #define ZVB_IO_MAPPING_CRC      2
 #define ZVB_IO_MAPPING_SOUND    3
 #define ZVB_IO_MAPPING_DMA      4
+#define ZVB_IO_MAPPING_RPU      5
+#define ZVB_IO_MAPPING_TIMER    6
+
+/* External-source ordering is provisional; public documentation does not
+ * specify the ext_int_st source order. */
+#define ZVB_EXT_INT_SOUND (1u << 0)
+#define ZVB_EXT_INT_RPU   (1u << 1)
+#define ZVB_EXT_INT_TIMER (1u << 2)
+/* Motherboard wiring: https://zeal8bit.com/docs/en/pio/#system-port
+ * ZVB INT1 uses the H-sync input; INT0 uses the V-sync input. */
+#define ZVB_PIO_GP_PIN      5
+#define ZVB_PIO_VBLANK_PIN  6
 
 
 /**
@@ -115,7 +133,9 @@ typedef union {
     struct {
         uint8_t h_blank : 1;
         uint8_t v_blank : 1;
-        uint8_t rsvd    : 5;
+        uint8_t h_int_ena : 1;
+        uint8_t v_int_ena : 1;
+        uint8_t rsvd    : 3;
         uint8_t vid_ena : 1;
     };
     uint8_t raw;
@@ -124,8 +144,9 @@ typedef union {
 
 typedef struct {
     uint8_t  vpos_latch;
-    uint8_t  l0_latch;
-    uint8_t  l1_latch;
+    uint8_t  hpos_latch;
+    uint8_t  scroll_x_latch;
+    uint8_t  scroll_y_latch;
     uint32_t l0_scroll_x;
     uint32_t l0_scroll_y;
     uint32_t l1_scroll_x;
@@ -136,6 +157,11 @@ typedef struct {
 
 typedef struct {
     bool rendering_enabled;
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool scanline_disabled;
+#endif
+    bool dma_disabled; /* Missing BUSREQ/BUSACK wiring; other ZVB features remain active */
+    pio_t* pio;
 } zvb_config_t;
 
 
@@ -154,6 +180,8 @@ typedef struct {
     zvb_crc32_t      peri_crc32;
     zvb_sound_t      sound;
     zvb_dma_t        dma;
+    zvb_rpu_t        rpu;
+    zvb_timer_t      peri_timer;
 
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
@@ -166,14 +194,27 @@ typedef struct {
     /* Internal values */
     zvb_status_t     status;
     zvb_ctrl_t       ctrl;
-    bool             screen_enabled;
+    bool             screen_enabled; /* VGA enable latched during vertical blank */
     uint8_t          io_bank;
     uint8_t          scratch[4];
+    uint8_t          blank_latches;
+    pio_t*           pio;
 
     /* Raster FSM */
     int              state; // Any of the STATE_* macros
     vtimer_node_t    timer;
     int              current_scanline;
+    int              current_hpos;
+#if ZVB_BLITTER_SOFTWARE
+    vtimer_node_t    sound_event;
+    uint64_t         line_start_ns;
+    uint64_t         clock_ns;
+    bool             clock_syncing;
+#endif
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+    bool             scanline_requested;
+    bool             scanline_rendering;
+#endif
     bool             need_render;
     bool             rendering_enabled;
 } zvb_t;
@@ -232,6 +273,13 @@ void zvb_profile_frame(double elapsed_seconds);
  * @brief Used for debugging purpose to show the current rendering when the CPU is stopped
  */
 void zvb_force_render(zvb_t* zvb);
+
+
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+/* Runtime requests take effect at the next frame boundary. */
+void zvb_set_scanline_rendering(zvb_t* zvb, bool enabled);
+bool zvb_scanline_rendering_requested(const zvb_t* zvb);
+#endif
 
 
 /**

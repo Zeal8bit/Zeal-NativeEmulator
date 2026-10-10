@@ -78,9 +78,9 @@ bool show_fps = false;
 static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 {
     const int phys_addr      = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
-    const map_entry_t* entry = &machine->cpu.mmu.mem_mapping[phys_addr / MMU_PAGE_SIZE];
-    device_t* device         = entry->dev;
-    const int start_addr     = entry->page_from * MMU_PAGE_SIZE;
+    const map_entry_t entry  = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+    device_t* device         = entry.dev;
+    const int start_addr     = entry.page_from * MMU_PAGE_SIZE;
 
     if (device) {
         return device->mem_region.debug_read ?
@@ -321,16 +321,21 @@ int zeal_init(zeal_t* machine)
     mmu_register_mem_device(mmu, 0x080000, &machine->ram.parent);
     const zvb_config_t zvb_config = {
         .rendering_enabled = !machine->headless,
+        .dma_disabled = config.arguments.no_dma,
+#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+        .scanline_disabled = config.arguments.no_scanline_rendering,
+#endif
+        .pio = &machine->pio,
     };
     err = zvb_init(&machine->zvb, &zvb_config, mmu);
     CHECK_ERR(err);
+    mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
     if (!machine->headless) {
         SetMasterVolume(config.audio.volume / 100.0f);
         if (config.audio.volume != 100) {
             notif_show("Volume: %d%%", config.audio.volume);
         }
     }
-    mmu_register_mem_device(mmu, 0x100000, &machine->zvb.parent);
 
     /* Register the devices in the I/O space */
     mmu_register_io_device(mmu, 0x10, &machine->semihost.parent);
@@ -390,15 +395,13 @@ static void host_keyboard_check_cb(void* userdata)
  */
 static void zeal_step(zeal_t* machine)
 {
-    const int elapsed_tstates = z80_step(&machine->cpu);
+    z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset! */
         log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
         zeal_exit(machine);
         return;
     }
-
-    vtimer_tick(elapsed_tstates);
 }
 
 
@@ -516,9 +519,7 @@ static int zeal_dbg_mode_run(zeal_t* machine)
             machine->dbg_state = ST_RUNNING;
         }
 
-        const int elapsed_tstates = z80_step(&machine->cpu);
-
-        vtimer_tick(elapsed_tstates);
+        z80_step(&machine->cpu);
 
         /* Check if we reached a breakpoint or if we have to do a single step */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -562,8 +563,7 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
             machine->dbg_state = ST_RUNNING;
         }
 
-        const int elapsed = z80_step(&machine->cpu);
-        vtimer_tick(elapsed);
+        z80_step(&machine->cpu);
 
         /* Stop on a single step or a breakpoint */
         if (machine->dbg_state == ST_REQ_STEP ||
@@ -598,9 +598,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
     /* Check the next event and run for that many ticks */
     // const uint64_t next_event = vtimer_next_event();
     // unsigned long ran_for = z80_run_for(&machine->cpu, next_event);
-    // vtimer_tick(ran_for);
 
-    const int elapsed_tstates = z80_step(&machine->cpu);
+    z80_step(&machine->cpu);
     if (config.arguments.no_reset && machine->cpu.pc == 0) {
         /* PC is back to 0, that's a software reset!
          * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
@@ -609,7 +608,6 @@ static int zeal_normal_mode_run(zeal_t* machine)
         zeal_exit(machine);
         return 2;
     }
-    vtimer_tick(elapsed_tstates);
 
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;

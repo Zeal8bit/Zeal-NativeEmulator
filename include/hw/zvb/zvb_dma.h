@@ -8,7 +8,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "hw/mmu.h"
+#include "utils/vtimer.h"
 
 
 /**
@@ -76,15 +78,27 @@ typedef struct {
     };
     /* Clock divider for all the transfers */
     zvb_dma_clk_t      clk;
+    /* Bus state; ordinary memory transfers are batched between timer events. */
+    vtimer_node_t timer;
+    enum { DMA_IDLE, DMA_REQUEST, DMA_DESCRIPTOR, DMA_READ, DMA_WRITE,
+           DMA_RELEASE } state;
+    uint8_t descriptor_index;
+    uint8_t flags;
+    uint8_t data;
+    uint32_t rd_addr;
+    uint32_t wr_addr;
+    uint16_t remaining;
+    uint16_t batch_remaining;
     /* MMU for physical memory access */
     mmu_t* mmu;
+    bool bus_connected; /* Physical handshake wiring, retained across reset */
 } zvb_dma_t;
 
 
 /**
- * @brief Initialize the DMA controller
+ * @brief Initialize the DMA controller with physical bus handshake connectivity.
  */
-void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu);
+void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu, bool bus_connected);
 
 
 /**

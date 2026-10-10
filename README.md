@@ -77,6 +77,29 @@ For example, if Raylib is not installed in the system's default path, you can pa
 meson setup build -Draylib_path=/path/to/your/raylib
 ```
 
+### Renderer options
+
+Use the software renderer for new builds:
+
+```sh
+meson setup build -Dblitter_software=true
+```
+
+The software renderer draws pixels on the CPU and uses Raylib to display them.
+Scanline rendering is compiled in and enabled by default. Use
+`--no-scanline-rendering` or the debugger's Video → Scanline rendering checkbox
+to render whole frames instead. Debugger changes take effect on the next frame
+and survive emulated resets. Whole-frame rendering approximates per-line RPU
+effects; RPU programs do not override this choice.
+
+Set `-Dblitter_software_scanline_rendering=false` to compile out scanline
+capture and its command-line/debugger controls. Raylib handles display scaling;
+the CPU renders native-resolution rows.
+
+The shader renderer (`-Dblitter_software=false`) is deprecated and does not
+support RPU effects. It remains the default build setting for now, so select
+the software renderer explicitly.
+
 ### Clean
 
 To clean the build, you can either use:
@@ -124,12 +147,18 @@ Options:
   -g, --debug                   * Enable debug mode
   -n, --headless [<tstates>]    Run without GUI (no window/input/rendering)
   -o, --console                 Read control commands from stdin (implies headless)
+      --no-dma                  Disconnect ZVB DMA bus handshake wiring
+      --no-scanline-rendering    Use whole-frame rendering (when compiled in)
   -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
   -h, --help                    Show this help message
 
 Example:
   build/zeal.elf --rom game.bin --map mem.map --debug
 ```
+
+Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
+features running. DMA is enabled by default. The option applies to the current
+run, survives emulated resets, and is not saved to `zeal.ini`.
 
 ## Headless Console
 

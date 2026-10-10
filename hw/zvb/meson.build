@@ -1,4 +1,4 @@
-sources += files([
+zvb_sources = files([
     'default_font.c',
     'zvb.c',
     'zvb_font.c',
@@ -10,19 +10,23 @@ sources += files([
     'zvb_tileset.c',
     'zvb_crc32.c',
     'zvb_dma.c',
+    'zvb_rpu.c',
+    'zvb_timer.c',
     'zvb_sound.c'
 ])
 
 if get_option('enable_debugger')
-    sources += files('debug.c')
+    zvb_sources += files('debug.c')
 endif
 
 if (get_option('blitter_software'))
-    sources += files([
+    zvb_sources += files([
         'blitter/software.c'
     ])
 else
-    sources += files([
+    zvb_sources += files([
         'blitter/shader.c'
     ])
 endif
+
+sources += zvb_sources

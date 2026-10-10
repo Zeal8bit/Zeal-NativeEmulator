@@ -86,9 +86,6 @@ if (get_option('blitter_software'))
     endif
 else
     add_project_arguments('-DZVB_BLITTER_SHADER=1', language: 'c')
-    if (get_option('blitter_software_scanline_rendering'))
-        warning('blitter_software_scanline_rendering requires blitter_software, ignoring')
-    endif
 endif
 
 zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')

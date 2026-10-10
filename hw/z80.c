@@ -14,6 +14,9 @@
 
 #include "utils/log.h"
 #include "hw/z80.h"
+#include "utils/vtimer.h"
+
+#define Z80_BUS_STALL_TSTATES (320UL)
 
 // MARK: timings
 static const uint8_t op_size[256] = {
@@ -827,6 +830,7 @@ void z80_init(z80* const z)
 void z80_reset(z80* const z)
 {
     z->cyc = 0;
+    z->mmu.bus_requested = false;
 
     z->pc      = 0;
     z->sp      = 0xFFFF;
@@ -901,27 +905,44 @@ int z80_instruction_size(z80* const z)
 }
 
 
-// executes the next instruction in memory + handles interrupts
-int z80_step(z80* const z)
+/* Execute an instruction, or yield a bounded interval while DMA owns the bus. */
+static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
 {
-    int cycles = z->cyc;
-    if (z->halted) {
-        exec_opcode(z, 0x00);
+    const unsigned long cycles = z->cyc;
+    if (z->mmu.bus_requested) {
+        z->cyc += vtimer_stall_bus(stall_limit, &z->mmu.bus_requested);
     } else {
-        const uint8_t opcode = nextb(z);
-        exec_opcode(z, opcode);
+        if (z->halted) {
+            exec_opcode(z, 0x00);
+        } else {
+            const uint8_t opcode = nextb(z);
+            exec_opcode(z, opcode);
+        }
+        vtimer_tick(z->cyc - cycles);
     }
 
-    process_interrupts(z);
+    /* Events during a bus hold must become pending before acceptance. Never
+     * execute another opcode or acknowledge an interrupt while DMA owns it. */
+    if (!z->mmu.bus_requested) {
+        const unsigned long before_interrupt = z->cyc;
+        process_interrupts(z);
+        vtimer_tick(z->cyc - before_interrupt);
+    }
     return z->cyc - cycles;
 }
 
+unsigned long z80_step(z80* const z)
+{
+    return z80_step_bounded(z, Z80_BUS_STALL_TSTATES);
+}
 
 unsigned long z80_run_for(z80* const z, unsigned long tstates)
 {
     unsigned long cycles = 0;
     while (cycles < tstates) {
-        cycles += z80_step(z);
+        const unsigned long remaining = tstates - cycles;
+        const unsigned long limit = remaining < Z80_BUS_STALL_TSTATES ? remaining : Z80_BUS_STALL_TSTATES;
+        cycles += z80_step_bounded(z, limit);
     }
     return cycles;
 }
