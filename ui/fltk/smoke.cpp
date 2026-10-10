@@ -71,6 +71,9 @@ void debugger_ui_smoke_tick(dbg_ui_t *u)
         }
         pick("View/Breakpoints"); // hidden by the seeded workspace
         assert(u->panel_open(2));
+        /* The CP437 atlas comes from the host (FreeType under FLTK, Raylib for the
+         * web build); a host that fails to rasterize would blank the memory column. */
+        assert(u->glyph_font.ready());
         const int original_x = u->window->x(), original_y = u->window->y();
         for (int screen = 0; screen < Fl::screen_count(); ++screen) {
             int x, y, width, height;

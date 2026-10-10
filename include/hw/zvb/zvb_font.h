@@ -9,8 +9,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "raylib.h"
 #include "hw/zvb/default_font.h"
+#if ZVB_BLITTER_SHADER
+#include "raylib.h"
+#endif
 
 /* Size of a character in the font, in bytes */
 #define ZVB_FONT_CHAR_SIZE      (12)

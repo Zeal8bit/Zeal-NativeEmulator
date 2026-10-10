@@ -42,6 +42,15 @@ fltk_sources = files(
     'panels/vram.cpp',
 )
 
+# The desktop host backend needs FLTK's compile flags, so it is built here
+# rather than with the other host sources. It rasterizes the bundled CP437 font
+# with FreeType.
+host_fltk_deps = []
+if software_blitter
+    fltk_sources += files('../../host/zeal_host_fltk.cpp')
+    host_fltk_deps += dependency('freetype2')
+endif
+
 if get_option('fltk_test_hooks')
     add_project_arguments('-DCONFIG_FLTK_TESTS=1', language: 'cpp')
     fltk_sources += files('smoke.cpp', '../../tests/fltk_popup_checks.cpp')

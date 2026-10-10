@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "host_frontend.h"
+#include "host/zeal_host.h"
 #include "hw/userport/snes_adapter/controller.h"
 #include "hw/zeal.h"
 #include "utils/notif.h"
 #include "utils/paths.h"
 #include <math.h>
 #include <string.h>
+#include "host/zeal_audio.h"
 
 static void host_action(dbg_t *dbg, dbg_host_action_t op, int32_t a, int32_t b)
 {
@@ -30,7 +32,7 @@ static void host_action(dbg_t *dbg, dbg_host_action_t op, int32_t a, int32_t b)
         break;
     case UI_VOLUME:
         config.audio.volume = a < 0 ? 0 : a > 100 ? 100 : a;
-        SetMasterVolume(config.audio.volume / 100.0f);
+        zeal_audio_set_volume(config.audio.volume / 100.0f);
         break;
     case UI_PASSTHROUGH:
         config.debugger.keyboard_passthru = a != 0;
@@ -109,41 +111,11 @@ static void host_snes_state(dbg_t *dbg, dbg_snes_state_t *out)
 
 static int host_font_atlas(const uint32_t codepoints[256], uint8_t alpha[256 * 8 * 16])
 {
-    char path[PATH_MAX];
-    get_install_dir_file(path, "assets/fonts/BigBlue_Terminal_437TT.TTF");
-    if (!FileExists(path))
-        snprintf(path, sizeof(path), "assets/fonts/BigBlue_Terminal_437TT.TTF");
-#ifdef ZEAL_ASSETS_DIR
-    if (!FileExists(path))
-        snprintf(path, sizeof(path), "%s/fonts/BigBlue_Terminal_437TT.TTF", ZEAL_ASSETS_DIR);
-#endif
-    int size = 0;
-    unsigned char *data = LoadFileData(path, &size);
-    if (!data)
-        return 0;
-    int codes[256];
-    for (unsigned i = 0; i < 256; i++)
-        codes[i] = (int)codepoints[i];
-    GlyphInfo *glyphs = LoadFontData(data, size, 16, codes, 256, FONT_BITMAP);
-    UnloadFileData(data);
-    if (!glyphs)
-        return 0;
-    memset(alpha, 0, 256 * 8 * 16);
-    for (unsigned i = 0; i < 256; i++) {
-        Image *image = &glyphs[i].image;
-        bool mask = image->format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
-        ImageFormat(image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-        for (int y = 0; y < image->height; y++)
-            for (int x = 0; x < image->width; x++) {
-                int dx = x + glyphs[i].offsetX, dy = y + glyphs[i].offsetY;
-                if (dx >= 0 && dx < 8 && dy >= 0 && dy < 16)
-                    alpha[i * 128 + dy * 8 + dx] =
-                        ((uint8_t *)image->data)[(y * image->width + x) * 4 + (mask ? 0 : 3)];
-            }
-    }
-    UnloadFontData(glyphs, 256);
-    return 1;
+    /* Rasterizing the CP437 font is a host capability: FLTK uses FreeType, the
+     * WebAssembly host uses Raylib. See include/host/zeal_host.h. */
+    return zeal_host_font_atlas(codepoints, alpha) ? 1 : 0;
 }
+
 void debugger_host_frontend_args(dbg_t *dbg, dbg_ui_init_args_t *args)
 {
     *args = (dbg_ui_init_args_t){.debugger = dbg,

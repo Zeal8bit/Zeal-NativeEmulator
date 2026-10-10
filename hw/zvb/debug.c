@@ -12,16 +12,16 @@
 #define CHAR_H 12
 #define TILE_W 16
 #define TILE_H 16
-#define GRID_COLOR      ((Color){ 166, 0, 0, 255 })
-#define SUBSCREEN_COLOR ((Color){ 0, 165, 0, 255 })
-#define GREY_LIGHT      ((Color){ 204, 204, 204, 255 })
-#define GREY_DARK       ((Color){ 127, 127, 127, 255 })
+#define GRID_COLOR      ((zvb_rgba_t){ 166, 0, 0, 255 })
+#define SUBSCREEN_COLOR ((zvb_rgba_t){ 0, 165, 0, 255 })
+#define GREY_LIGHT      ((zvb_rgba_t){ 204, 204, 204, 255 })
+#define GREY_DARK       ((zvb_rgba_t){ 127, 127, 127, 255 })
 
-static Color palette_color(const zvb_t* zvb, int index)
+static zvb_rgba_t palette_color(const zvb_t* zvb, int index)
 {
     const uint8_t* raw = &zvb->palette.raw_palette[index * 2];
     const uint16_t rgb = (uint16_t)raw[0] | ((uint16_t)raw[1] << 8);
-    return (Color) {
+    return (zvb_rgba_t) {
         (uint8_t)((((rgb >> 11) & 31) * 255) / 31),
         (uint8_t)((((rgb >> 5) & 63) * 255) / 63),
         (uint8_t)(((rgb & 31) * 255) / 31),
@@ -69,15 +69,15 @@ static dbg_grid_t debug_grid(dbg_vram_t view, bool gfx_mode)
 /* ------------------------------------------------------------------ */
 
 /* Write a single pixel in the image buffer directly. */
-static inline void img_put_pixel(Image* img, int x, int y, Color color)
+static inline void img_put_pixel(zvb_debug_image_t* img, int x, int y, zvb_rgba_t color)
 {
-    ((Color*)img->data)[y * img->width + x] = color;
+    ((zvb_rgba_t*)img->pixels)[y * img->width + x] = color;
 }
 
 /* Fill the whole image buffer with one color. */
-static inline void img_fill(Image* img, Color color)
+static inline void img_fill(zvb_debug_image_t* img, zvb_rgba_t color)
 {
-    Color* data = img->data;
+    zvb_rgba_t* data = img->pixels;
     const int count = img->width * img->height;
     for (int i = 0; i < count; i++) {
         data[i] = color;
@@ -85,11 +85,11 @@ static inline void img_fill(Image* img, Color color)
 }
 
 /* Fill a rectangle in the image buffer directly. */
-static inline void img_fill_rect(Image* img, int x, int y, int w, int h, Color color)
+static inline void img_fill_rect(zvb_debug_image_t* img, int x, int y, int w, int h, zvb_rgba_t color)
 {
-    Color* data = img->data;
+    zvb_rgba_t* data = img->pixels;
     for (int j = 0; j < h; j++) {
-        Color* row = &data[(y + j) * img->width + x];
+        zvb_rgba_t* row = &data[(y + j) * img->width + x];
         for (int i = 0; i < w; i++) {
             row[i] = color;
         }
@@ -99,14 +99,14 @@ static inline void img_fill_rect(Image* img, int x, int y, int w, int h, Color c
 /* Draw the 1px red grid. Views whose grid fills the whole texture (tileset/
  * palette/font, and the layers in graphics mode) also get the right/bottom
  * border line. */
-static void debug_draw_grid(Image* img, const dbg_grid_t* g, bool gfx_mode)
+static void debug_draw_grid(zvb_debug_image_t* img, const dbg_grid_t* g, bool gfx_mode)
 {
     const bool fills = !g->layer_view || gfx_mode;
     const int x_lines = fills ? g->columns : g->columns - 1;
     const int y_lines = fills ? g->rows : g->rows - 1;
     const int width = x_lines * g->cell_w + 1;
     const int height = y_lines * g->cell_h + 1;
-    Color* data = img->data;
+    zvb_rgba_t* data = img->pixels;
 
     for (int i = 0; i <= x_lines; i++) {
         const int x = i * g->cell_w;
@@ -124,9 +124,9 @@ static void debug_draw_grid(Image* img, const dbg_grid_t* g, bool gfx_mode)
 
 /* Graphics-mode layers: highlight the subscreen (320x240) boundaries, one
  * green line at every 20th/15th cell, like the former debug shader. */
-static void debug_draw_subscreens(Image* img, const dbg_grid_t* g)
+static void debug_draw_subscreens(zvb_debug_image_t* img, const dbg_grid_t* g)
 {
-    Color* data = img->data;
+    zvb_rgba_t* data = img->pixels;
     const int width = g->columns * g->cell_w + 1;
     const int height = g->rows * g->cell_h + 1;
 
@@ -150,10 +150,10 @@ static void debug_draw_subscreens(Image* img, const dbg_grid_t* g)
 
 static void render_palette(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_PALETTE];
+    zvb_debug_image_t* img = &zvb->debug_img[DBG_PALETTE];
     const dbg_grid_t g = debug_grid(DBG_PALETTE, false);
 
-    img_fill(img, BLANK);
+    img_fill(img, ZVB_RGBA_BLANK);
     debug_draw_grid(img, &g, false);
 
     for (int y = 0; y < g.rows; y++) {
@@ -162,7 +162,6 @@ static void render_palette(zvb_t* zvb)
                           TILE_W, TILE_H, palette_color(zvb, y * 16 + x));
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_PALETTE], img->data);
 }
 
 /* ------------------------------------------------------------------ */
@@ -171,10 +170,10 @@ static void render_palette(zvb_t* zvb)
 
 static void render_font(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_FONT];
+    zvb_debug_image_t* img = &zvb->debug_img[DBG_FONT];
     const dbg_grid_t g = debug_grid(DBG_FONT, false);
 
-    img_fill(img, BLACK);
+    img_fill(img, ZVB_RGBA_BLACK);
     debug_draw_grid(img, &g, false);
 
     for (int y = 0; y < g.rows; y++) {
@@ -188,14 +187,13 @@ static void render_font(zvb_t* zvb)
                 uint8_t bits = raw[cy];
                 for (int cx = 0; cx < CHAR_W; cx++) {
                     if (bits & 0x80) {
-                        img_put_pixel(img, px + cx, py + cy, WHITE);
+                        img_put_pixel(img, px + cx, py + cy, ZVB_RGBA_WHITE);
                     }
                     bits <<= 1;
                 }
             }
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_FONT], img->data);
 }
 
 /* ------------------------------------------------------------------ */
@@ -204,11 +202,11 @@ static void render_font(zvb_t* zvb)
 
 static void render_tileset(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_TILESET];
+    zvb_debug_image_t* img = &zvb->debug_img[DBG_TILESET];
     const dbg_grid_t g = debug_grid(DBG_TILESET, false);
     const bool color_4bit = zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT;
 
-    img_fill(img, BLANK);
+    img_fill(img, ZVB_RGBA_BLANK);
     debug_draw_grid(img, &g, false);
 
     for (int ty = 0; ty < g.rows; ty++) {
@@ -240,21 +238,20 @@ static void render_tileset(zvb_t* zvb)
             /* 8-bit mode, tile >= 256: leave the cell transparent */
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_TILESET], img->data);
 }
 
 /* ------------------------------------------------------------------ */
 /*  Layer 0 / Layer 1 (text or graphics mode)                          */
 /* ------------------------------------------------------------------ */
 
-static void render_layer_cell_gfx(zvb_t* zvb, Image* img, bool layer1, int index, int px, int py)
+static void render_layer_cell_gfx(zvb_t* zvb, zvb_debug_image_t* img, bool layer1, int index, int px, int py)
 {
     const int color_4bit = zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT;
     const uint8_t l0_idx = zvb->layers.raw_layer0[index];
 
     for (int yy = 0; yy < TILE_H; yy++) {
         for (int xx = 0; xx < TILE_W; xx++) {
-            Color color;
+            zvb_rgba_t color;
             if (color_4bit) {
                 /* 4-bit mode: layer1 is an attribute byte (bit0=+256 tiles,
                  * bit2=flip Y, bit3=flip X, high nibble=palette offset) */
@@ -285,12 +282,12 @@ static void render_layer_cell_gfx(zvb_t* zvb, Image* img, bool layer1, int index
     }
 }
 
-static void render_layer_cell_text(zvb_t* zvb, Image* img, bool layer1, int index, int px, int py)
+static void render_layer_cell_text(zvb_t* zvb, zvb_debug_image_t* img, bool layer1, int index, int px, int py)
 {
     /* Text mode: layers hold characters and their attributes */
     const uint8_t attr = zvb->layers.raw_layer1[index];
-    const Color fg = palette_color(zvb, attr & 0x0f);
-    const Color bg = palette_color(zvb, (attr >> 4) & 0x0f);
+    const zvb_rgba_t fg = palette_color(zvb, attr & 0x0f);
+    const zvb_rgba_t bg = palette_color(zvb, (attr >> 4) & 0x0f);
 
     if (layer1) {
         /* left half = background color, right half = foreground color */
@@ -305,7 +302,7 @@ static void render_layer_cell_text(zvb_t* zvb, Image* img, bool layer1, int inde
         for (int yy = 0; yy < CHAR_H; yy++) {
             uint8_t bits = raw[yy];
             for (int xx = 0; xx < CHAR_W; xx++) {
-                const Color c = (bits & 0x80) ? fg : bg;
+                const zvb_rgba_t c = (bits & 0x80) ? fg : bg;
                 img_put_pixel(img, px + xx, py + yy, c);
                 bits <<= 1;
             }
@@ -318,9 +315,9 @@ static void render_layer(zvb_t* zvb, bool layer1)
     const bool gfx_mode = zvb_is_gfx_mode(zvb);
     const dbg_vram_t view = layer1 ? DBG_TILEMAP_LAYER1 : DBG_TILEMAP_LAYER0;
     const dbg_grid_t g = debug_grid(view, gfx_mode);
-    Image* img = &zvb->debug_img[view];
+    zvb_debug_image_t* img = &zvb->debug_img[view];
 
-    img_fill(img, BLANK);
+    img_fill(img, ZVB_RGBA_BLANK);
     debug_draw_grid(img, &g, gfx_mode);
     if (gfx_mode) {
         debug_draw_subscreens(img, &g);
@@ -338,7 +335,6 @@ static void render_layer(zvb_t* zvb, bool layer1)
             }
         }
     }
-    UpdateTexture(zvb->debug_tex[view], img->data);
 }
 
 void zvb_render_debug_textures(zvb_t* zvb, dbg_vram_t view)

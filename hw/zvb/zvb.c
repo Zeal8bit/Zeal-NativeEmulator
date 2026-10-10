@@ -9,12 +9,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
-#include "raylib.h"
 #include "utils/log.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
 #include "hw/mmu.h"
+#if ZVB_BLITTER_SHADER
+#include "raylib.h"
+#endif
 #include "hw/zvb/zvb.h"
+#include "host/zeal_host.h"
 #include "hw/zvb/default_font.h"
 #include "hw/zvb/blitter/blitter.h"
 
@@ -264,14 +267,17 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 
 #if CONFIG_ENABLE_DEBUGGER
 /**
- * @brief Create the CPU Image and its GPU Texture for one VRAM debug view.
- * The image keeps its pixel buffer, which is filled by the CPU debug renderer
- * and uploaded to the texture with UpdateTexture().
+ * @brief Allocate the pixel buffer for one VRAM debug view.
+ *
+ * The CPU debug renderer fills it and the debugger reads it straight back, so no
+ * GPU texture is involved.
  */
-static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int height)
+static void zvb_debug_image_init(zvb_t* dev, dbg_vram_t view, int width, int height)
 {
-    dev->debug_img[view] = GenImageColor(width, height, BLANK);
-    dev->debug_tex[view] = LoadTextureFromImage(dev->debug_img[view]);
+    zvb_debug_image_t* image = &dev->debug_img[view];
+    image->pixels = (zvb_rgba_t*)calloc((size_t)width * height, sizeof(zvb_rgba_t));
+    image->width = width;
+    image->height = height;
 }
 #endif
 
@@ -308,12 +314,12 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu)
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER0, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER1, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        zvb_debug_image_init(dev, DBG_TILEMAP_LAYER0, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
+        zvb_debug_image_init(dev, DBG_TILEMAP_LAYER1, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
         /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-        zvb_debug_tex_init(dev, DBG_TILESET, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-        zvb_debug_tex_init(dev, DBG_PALETTE, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-        zvb_debug_tex_init(dev, DBG_FONT,    SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
+        zvb_debug_image_init(dev, DBG_TILESET, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
+        zvb_debug_image_init(dev, DBG_PALETTE, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
+        zvb_debug_image_init(dev, DBG_FONT,    SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
 #endif
         zvb_blitter_init(dev);
     }
@@ -345,9 +351,17 @@ static void zvb_reset(device_t* dev)
  */
 static void zvb_render_disabled_mode(zvb_t* zvb)
 {
+#if ZVB_BLITTER_SOFTWARE
+    /* The screen is off: blank the framebuffer the host presents. */
+    if (zvb->blitter.framebuffer != NULL) {
+        memset(zvb->blitter.framebuffer, 0,
+               (size_t)ZVB_MAX_RES_WIDTH * ZVB_MAX_RES_HEIGHT * sizeof(uint16_t));
+    }
+#else
     BeginTextureMode(zvb->blitter.main_texture);
         ClearBackground(BLACK);
     EndTextureMode();
+#endif
 }
 
 
@@ -398,7 +412,7 @@ void zvb_render(zvb_t* zvb)
     zvb->need_render = false;
 
 #if CONFIG_PROFILE_RENDER
-    const double profile_start = GetTime();
+    const double profile_start = zeal_host_time();
 #endif
 
     if (zvb->status.vid_ena) {
@@ -422,7 +436,7 @@ void zvb_render(zvb_t* zvb)
     }
 
 #if CONFIG_PROFILE_RENDER
-    const double elapsed = GetTime() - profile_start;
+    const double elapsed = zeal_host_time() - profile_start;
     s_render_profile.zvb_total += elapsed;
     if (elapsed > s_render_profile.zvb_max) {
         s_render_profile.zvb_max = elapsed;
@@ -438,7 +452,7 @@ void zvb_profile_frame(double elapsed_seconds)
         return;
     }
 
-    const double now = GetTime();
+    const double now = zeal_host_time();
     if (s_render_profile.window_start == 0.0) {
         s_render_profile.window_start = now;
     }
@@ -521,8 +535,8 @@ void zvb_deinit(zvb_t* zvb)
 
 #if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        UnloadTexture(zvb->debug_tex[i]);
-        UnloadImage(zvb->debug_img[i]);
+        free(zvb->debug_img[i].pixels);
+        zvb->debug_img[i].pixels = NULL;
     }
 #endif
 }

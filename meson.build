@@ -50,8 +50,19 @@ if fltk_ui
     add_project_arguments('-DCONFIG_FLTK_UI=1', language: 'c')
 endif
 
+# Which video blitter to build. The software blitter renders into CPU memory, which is
+# what lets a desktop build drop Raylib entirely, so it is the default there; the web
+# build keeps the GPU shader.
+blitter_option = get_option('blitter')
+if blitter_option == 'auto'
+    software_blitter = fltk_ui
+else
+    software_blitter = blitter_option == 'software'
+endif
+
 # List all the subdirectories that contain source code
 sources = []
+subdir('host')
 subdir('hw')
 subdir('app')
 subdir('utils')
@@ -94,7 +105,7 @@ add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
 
-if (get_option('blitter_software'))
+if software_blitter
     add_project_arguments('-DZVB_BLITTER_SOFTWARE=1', language: 'c')
     if (get_option('blitter_software_scanline_rendering'))
         add_project_arguments('-DZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING=1', language: 'c')
@@ -102,7 +113,7 @@ if (get_option('blitter_software'))
 else
     add_project_arguments('-DZVB_BLITTER_SHADER=1', language: 'c')
     if (get_option('blitter_software_scanline_rendering'))
-        warning('blitter_software_scanline_rendering requires blitter_software, ignoring')
+        warning('blitter_software_scanline_rendering requires the software blitter, ignoring')
     endif
 endif
 
@@ -136,9 +147,12 @@ ui_objects = []
 ui_link_dependencies = []
 if fltk_ui
     ui_library = static_library('zeal-fltk-ui', fltk_sources, build_by_default: false,
-        include_directories: ['include'], dependencies: fltk_dep, override_options: ['cpp_std=c++17'])
+        include_directories: ['include'], dependencies: [fltk_dep] + host_fltk_deps, override_options: ['cpp_std=c++17'])
     ui_objects = ui_library.extract_all_objects(recursive: true)
     ui_link_dependencies += fltk_dep.partial_dependency(link_args: true, links: true)
+    # Library-only dependencies of the UI library must reach the link too, since the
+    # executable links the extracted objects rather than the archive.
+    ui_link_dependencies += host_fltk_deps
 endif
 
 # Compiler and build targets
@@ -146,7 +160,7 @@ exec = executable(
     OUTPUT_BIN,
     sources, files('hw/main.c'),
     include_directories: ['include', '.'],
-    dependencies: dependencies + ui_link_dependencies,
+    dependencies: dependencies + ui_link_dependencies + host_deps,
     objects: ui_objects,
     link_language: fltk_ui ? 'cpp' : 'c',
     link_args: linker_args + ['-lraylib', '-lm'] + (raylib_lib_dir != '' ? ['-L' + raylib_lib_dir] : []),

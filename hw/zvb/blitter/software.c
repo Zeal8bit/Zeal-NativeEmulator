@@ -95,37 +95,12 @@ void zvb_blitter_init(zvb_t* zvb)
         return;
     }
     memset(bl->framebuffer, 0, FB_BYTES);
-
-    bl->fb_image = (Image){
-        .data    = bl->framebuffer,
-        .width   = FB_WIDTH,
-        .height  = FB_HEIGHT,
-        .mipmaps = 1,
-        .format  = PIXELFORMAT_UNCOMPRESSED_R5G6B5,
-    };
-
-    bl->output_texture = LoadTextureFromImage(bl->fb_image);
-    bl->main_texture   = LoadRenderTexture(FB_WIDTH, FB_HEIGHT);
 }
 
 void zvb_blitter_deinit(zvb_t* zvb)
 {
-    zvb_blitter_t* bl = &zvb->blitter;
-    if (bl->output_texture.id != 0) {
-        UnloadTexture(bl->output_texture);
-        bl->output_texture.id = 0;
-    }
-    if (bl->main_texture.id != 0) {
-        UnloadRenderTexture(bl->main_texture);
-        bl->main_texture.id = 0;
-    }
-    free(bl->framebuffer);
-    bl->framebuffer = NULL;
-
-    if (bl->main_texture.id != 0) {
-        UnloadRenderTexture(bl->main_texture);
-        bl->main_texture.id = 0;
-    }
+    free(zvb->blitter.framebuffer);
+    zvb->blitter.framebuffer = NULL;
 }
 
 /* ================================================================== */
@@ -202,10 +177,6 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
         }
     }
 
-    UpdateTexture(bl->output_texture, bl->framebuffer);
-    BeginTextureMode(bl->main_texture);
-        DrawTextureRec(bl->output_texture, (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT }, (Vector2){ 0, 0 }, WHITE);
-    EndTextureMode();
 }
 
 /* ================================================================== */
@@ -214,44 +185,21 @@ void zvb_blitter_render_text_mode(zvb_t* zvb)
 
 static void zvb_blitter_scale_render(zvb_t* zvb)
 {
-    bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
-
-#if ZVB_BLITTER_SOFTWARE_SCALING
-        if (scale2x) {
-            uint16_t* fb = zvb->blitter.framebuffer;
-            for (int y = 239; y >= 0; y--) {
-                for (int x = 319; x >= 0; x--) {
-                    uint16_t c = fb[y * FB_WIDTH + x];
-                    int dy = y * 2;
-                    int dx = x * 2;
-                    fb[(dy+1) * FB_WIDTH + (dx+1)] = c;
-                    fb[(dy+1) * FB_WIDTH + dx]     = c;
-                    fb[dy * FB_WIDTH     + (dx+1)] = c;
-                    fb[dy * FB_WIDTH     + dx]     = c;
-                }
-            }
+    const bool scale2x = (zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT);
+    if (!scale2x) {
+        return;
+    }
+    uint16_t* fb = zvb->blitter.framebuffer;
+    for (int y = 239; y >= 0; y--) {
+        for (int x = 319; x >= 0; x--) {
+            uint16_t c = fb[y * FB_WIDTH + x];
+            int dy = y * 2, dx = x * 2;
+            fb[(dy + 1) * FB_WIDTH + (dx + 1)] = c;
+            fb[(dy + 1) * FB_WIDTH + dx]       = c;
+            fb[dy * FB_WIDTH + (dx + 1)]       = c;
+            fb[dy * FB_WIDTH + dx]             = c;
         }
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTextureRec(bl->output_texture,
-                (Rectangle){ 0, 0, FB_WIDTH, -FB_HEIGHT },
-                (Vector2){ 0, 0 }, WHITE);
-        EndTextureMode();
-#else
-        int src_w = scale2x ? 320 : 640;
-        int src_h = scale2x ? 240 : 480;
-
-        zvb_blitter_t* bl = &zvb->blitter;
-        UpdateTexture(bl->output_texture, bl->framebuffer);
-        BeginTextureMode(bl->main_texture);
-            DrawTexturePro(bl->output_texture,
-                (Rectangle){ 0, 0, src_w, -src_h },
-                (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
-                (Vector2){ 0, 0 }, 0.0f, WHITE);
-        EndTextureMode();
-#endif
+    }
 }
 
 

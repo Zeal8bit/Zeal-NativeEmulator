@@ -10,12 +10,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "raylib.h"
 #include "utils/config.h"
+#include "host/zeal_host.h"
 
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "utils/log.h"
-#include "raylib.h"
 
 static const char* module = "[CONFIG]";
 
@@ -420,6 +421,17 @@ void config_window_update(bool dbg_enabled) {
 #ifdef PLATFORM_WEB
     return;
 #endif
+#if ZVB_BLITTER_SOFTWARE
+    /* The desktop host owns the window; remember the size it ended up with. */
+    if (dbg_enabled) {
+        config.debugger.width = zeal_host_width();
+        config.debugger.height = zeal_host_height();
+    } else {
+        config.window.width = zeal_host_width();
+        config.window.height = zeal_host_height();
+    }
+    return;
+#else
     if(dbg_enabled) {
         config.debugger.width = GetScreenWidth();
         config.debugger.height = GetScreenHeight();
@@ -434,6 +446,7 @@ void config_window_update(bool dbg_enabled) {
         config.window.y = position.y;
     }
     config.window.display = GetCurrentMonitor();
+#endif /* ZVB_BLITTER_SOFTWARE */
 }
 
 Vector2 config_aspect_force(Vector2 size) {
@@ -458,6 +471,11 @@ bool config_keyboard_passthru(bool dbg_enabled) {
 }
 
 void config_window_set(bool dbg_enabled) {
+#if ZVB_BLITTER_SOFTWARE && !defined(PLATFORM_WEB)
+    /* The desktop host creates and sizes its own window; see zeal_host_init(). */
+    (void)dbg_enabled;
+    return;
+#endif
 #ifdef PLATFORM_WEB
     SetWindowSize(1280, 960);
     printf("PLATFORM_WEB: config_window_set disabled (%d, %d)\n", GetScreenWidth(), GetScreenHeight());

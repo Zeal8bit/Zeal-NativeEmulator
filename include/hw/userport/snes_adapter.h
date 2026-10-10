@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "raylib.h"
 #include "hw/device.h"
 #include "hw/pio.h"
 

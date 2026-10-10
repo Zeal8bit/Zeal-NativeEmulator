@@ -3,11 +3,17 @@
 ## Build Options
 option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
 
+## Host backends
+# Audio and game controllers are compile-time seams; pick one implementation each.
+# Add a backend file under host/ and a choice here to support another library.
+option('audio_backend', type: 'combo', choices: ['auto', 'sdl', 'raylib', 'none'], value: 'auto', description: 'Audio output backend')
+option('controller_backend', type: 'combo', choices: ['auto', 'sdl', 'raylib', 'none'], value: 'auto', description: 'Game controller backend')
+
 ## Debugger
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 
 ## Rendering
-option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
+option('blitter', type: 'combo', choices: ['auto', 'shader', 'software'], value: 'auto', description: 'Video blitter; auto uses the software blitter for the FLTK desktop and the GPU shader otherwise')
 option('blitter_software_scanline_rendering', type: 'boolean', value: false, description: 'Per scanline renderinginstead of per frame (software blitter only)')
 
 ## Profiling

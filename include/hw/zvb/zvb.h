@@ -139,6 +139,27 @@ typedef struct {
 } zvb_config_t;
 
 
+/** @brief One 32-bit RGBA pixel, the format every debug view is rendered in. */
+typedef struct {
+    uint8_t r, g, b, a;
+} zvb_rgba_t;
+
+#define ZVB_RGBA_BLANK ((zvb_rgba_t){ 0, 0, 0, 0 })
+#define ZVB_RGBA_BLACK ((zvb_rgba_t){ 0, 0, 0, 255 })
+#define ZVB_RGBA_WHITE ((zvb_rgba_t){ 255, 255, 255, 255 })
+
+/**
+ * @brief One VRAM debug view.
+ *
+ * The CPU debug renderer fills @c pixels directly and the debugger reads them from
+ * there, so a view owns no GPU resource at all.
+ */
+typedef struct {
+    zvb_rgba_t* pixels; /* width * height RGBA8888 pixels */
+    int width;
+    int height;
+} zvb_debug_image_t;
+
 typedef struct {
     device_t         parent;
     zvb_video_mode_t mode;
@@ -158,9 +179,8 @@ typedef struct {
     /* Blitter/renderer related */
     zvb_blitter_t blitter;
 #if CONFIG_ENABLE_DEBUGGER
-    /* CPU-side pixel buffer + GPU texture for each VRAM debug view */
-    Image            debug_img[DBG_VIEW_TOTAL];
-    Texture          debug_tex[DBG_VIEW_TOTAL];
+    /* CPU pixel buffer for each VRAM debug view */
+    zvb_debug_image_t debug_img[DBG_VIEW_TOTAL];
 #endif
 
     /* Internal values */
@@ -240,12 +260,52 @@ void zvb_force_render(zvb_t* zvb);
 void zvb_deinit(zvb_t* zvb);
 
 
+#if ZVB_BLITTER_SHADER
 /**
  * @brief Get the texture containing the rendered frame, ready to draw to screen.
+ *
+ * Only the GPU blitter has one; a host that can present a CPU buffer should use
+ * zvb_output_pixels() instead.
  */
 static inline Texture zvb_output_texture(zvb_t* zvb)
 {
     return zvb->blitter.main_texture.texture;
+}
+#endif
+
+
+/**
+ * @brief Get the rendered frame as a CPU pixel buffer, or NULL when the blitter keeps
+ *        its output on the GPU.
+ *
+ * A host that can present a CPU buffer should prefer this: reading the frame back from
+ * the GPU costs a full-frame copy every time it is needed.
+ */
+static inline const void* zvb_output_pixels(zvb_t* zvb, int* width, int* height, int* pitch,
+                                            bool* rgb565)
+{
+#if ZVB_BLITTER_SOFTWARE
+    if (width) {
+        *width = ZVB_MAX_RES_WIDTH;
+    }
+    if (height) {
+        *height = ZVB_MAX_RES_HEIGHT;
+    }
+    if (pitch) {
+        *pitch = ZVB_MAX_RES_WIDTH * 2;
+    }
+    if (rgb565) {
+        *rgb565 = true;
+    }
+    return zvb->blitter.framebuffer;
+#else
+    (void)zvb;
+    (void)width;
+    (void)height;
+    (void)pitch;
+    (void)rgb565;
+    return NULL;
+#endif
 }
 
 
@@ -254,16 +314,4 @@ static inline Texture zvb_output_texture(zvb_t* zvb)
  * @brief Render the current VRAM state of one debug view, must be called after `render` function
  */
 void zvb_render_debug_textures(zvb_t* zvb, dbg_vram_t view);
-
-
-/**
- * @brief Get a pointer to the array of VRAM debug textures
- */
-static inline const Texture* zvb_get_debug_textures(zvb_t* zvb, int* count)
-{
-    if (count) {
-        *count = DBG_VIEW_TOTAL;
-    }
-    return zvb->debug_tex;
-}
 #endif

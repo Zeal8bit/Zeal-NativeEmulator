@@ -52,6 +52,10 @@ static inline int os_mkdir(const char* path, int mode) {
 
 #endif // _WIN32
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void get_executable_path(char *buffer, size_t size);
 void get_executable_dir(char *buffer, size_t size);
 
@@ -64,3 +68,7 @@ const char* get_home_dir();
 const char* get_config_dir();
 const char* get_config_path();
 const char* path_sanitize(const char* path);
+
+#ifdef __cplusplus
+}
+#endif

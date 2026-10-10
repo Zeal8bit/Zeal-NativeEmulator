@@ -11,6 +11,8 @@
 #include <assert.h>
 #include <stdbool.h>
 #include "hw/zvb/zvb_sound.h"
+#include "host/zeal_audio.h"
+#include "utils/log.h"
 
 #define BIT(i)  (1 << (i))
 #ifndef MAX
@@ -60,15 +62,13 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
         return;
     }
 
-    InitAudioDevice();
-
-    /* Dirty hack but the callback doesn't take a context/opaque parameter... */
+    /* The callback has no opaque parameter, so the module keeps a file-scope pointer. */
     g_sound = sound;
 
-    SetMasterVolume(1.0f);
-    sound->stream = LoadAudioStream(SAMPLE_RATE, 16, SOUND_CHANNELS);
-    SetAudioStreamCallback(sound->stream, audio_callback);
-    PlayAudioStream(sound->stream);
+    if (!zeal_audio_open(SAMPLE_RATE, SOUND_CHANNELS, audio_callback)) {
+        log_printf("[SOUND] No audio device available, running silently\n");
+    }
+    zeal_audio_set_volume(1.0f);
 }
 
 void zvb_sound_reset(zvb_sound_t* sound)
@@ -106,9 +106,7 @@ void zvb_sound_deinit(zvb_sound_t* sound)
         return;
     }
 
-    StopAudioStream(sound->stream);
-    UnloadAudioStream(sound->stream);
-    CloseAudioDevice();
+    zeal_audio_close();
     sound->enabled = false;
     g_sound = NULL;
 }

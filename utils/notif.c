@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "raylib.h"
+#include "host/zeal_host.h"
 #include "utils/notif.h"
 
 #define NOTIF_TEXT_MAX      64
@@ -55,7 +55,7 @@ bool notif_visible(void)
         return false;
     }
 
-    if ((GetTime() - g_notif.shown_at) >= NOTIF_LIFETIME_SEC) {
+    if ((zeal_host_time() - g_notif.shown_at) >= NOTIF_LIFETIME_SEC) {
         g_notif.active = false;
         return false;
     }
@@ -76,7 +76,7 @@ void notif_show(const char* fmt, ...)
     va_end(args);
 
     g_notif.active = true;
-    g_notif.shown_at = GetTime();
+    g_notif.shown_at = zeal_host_time();
 }
 
 int notif_estimate_width(void)
@@ -85,12 +85,12 @@ int notif_estimate_width(void)
         return 0;
     }
 
-    return MeasureText(g_notif.text, NOTIF_FONT_SIZE);
+    return zeal_host_text_width(g_notif.text, NOTIF_FONT_SIZE);
 }
 
 void notif_render(int x, int y)
 {
-    const double elapsed = GetTime() - g_notif.shown_at;
+    const double elapsed = zeal_host_time() - g_notif.shown_at;
     const unsigned char alpha = notif_alpha(elapsed);
 
     if (!notif_visible() || alpha == 0) {
@@ -98,8 +98,8 @@ void notif_render(int x, int y)
         return;
     }
 
-    const Color text = (Color) { 0xff, 0xe3, 0x45, alpha };
-    DrawText(g_notif.text, x, y, NOTIF_FONT_SIZE, text);
+    const zeal_host_color_t text = { 0xff, 0xe3, 0x45, alpha };
+    zeal_host_text(x, y, g_notif.text, NOTIF_FONT_SIZE, text);
 }
 
 const char* notif_text(void) { return notif_visible() ? g_notif.text : ""; }

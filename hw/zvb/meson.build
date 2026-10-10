@@ -17,7 +17,7 @@ if get_option('enable_debugger')
     sources += files('debug.c')
 endif
 
-if (get_option('blitter_software'))
+if (software_blitter)
     sources += files([
         'blitter/software.c'
     ])

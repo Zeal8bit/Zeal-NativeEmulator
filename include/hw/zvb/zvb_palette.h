@@ -9,15 +9,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#if ZVB_BLITTER_SHADER
 #include "raylib.h"
+#endif
 
 #define ZVB_COLOR_PALETTE_COUNT     (256)
-
-
-/**
- * @brief Color type for the shader.
- */
-typedef Vector3 zvb_color_t;
 
 
 typedef struct {

@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdatomic.h>
-#include "raylib.h"
 
 #define VOICE_COUNT      4
 #define SAMPLE_RATE      44091
@@ -92,8 +91,6 @@ typedef struct {
     uint_fast8_t       right_voices;
     uint_fast8_t       master_volume;
     zvb_sample_table_t sample_table;
-    /* RayLib's audio stream */
-    AudioStream        stream;
     /* Volume interpreted from the master_volume register */
     float              left_volume;
     float              right_volume;

@@ -1,9 +1,11 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "raylib.h"
 #include "utils/paths.h"
 #include "utils/helpers.h"
+#include "host/zeal_controller.h"
 #include "hw/userport/snes_adapter.h"
 #include "hw/userport/snes_adapter/controller.h"
 
@@ -23,44 +25,67 @@ void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
 
 void snes_controller_load_mappings(void)
 {
-    #ifdef PLATFORM_WEB
-        return;
-    #endif
-    // Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path
+#ifdef PLATFORM_WEB
+    return;
+#endif
+    /* Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path */
+    char path[PATH_MAX];
+    bool found = false;
     const char *config_dir = get_config_dir();
-    const char *db_path = config_dir
-        ? TextFormat("%s/gamecontrollerdb.txt", config_dir)
-        : NULL;
-
-    if (!db_path || !FileExists(db_path)) {
-        db_path = TextFormat("%s" GAMECONTROLLERDB_DEV_PATH, GetApplicationDirectory());
+    if (config_dir != NULL) {
+        snprintf(path, sizeof(path), "%s/gamecontrollerdb.txt", config_dir);
+        found = path_exists(path);
     }
-    if (!FileExists(db_path)) {
-        db_path = GAMECONTROLLERDB_INSTALL_PATH;
+    if (!found) {
+        char dir[PATH_MAX];
+        get_executable_dir(dir, sizeof(dir));
+        snprintf(path, sizeof(path), "%s", dir);
+        strncat(path, GAMECONTROLLERDB_DEV_PATH, sizeof(path) - strlen(path) - 1);
+        found = path_exists(path);
     }
-
-    if (FileExists(db_path)) {
-        char* custom_mapping = LoadFileText(db_path);
-        if (custom_mapping != NULL && custom_mapping[0] != '\0') {
-            SetGamepadMappings(custom_mapping);
-            printf("[SNES] Loaded custom gamepad mappings from %s\n", db_path);
-        } else {
-            printf("[SNES] gamecontrollerdb.txt is empty, skipping\n");
-        }
-        UnloadFileText(custom_mapping);
-    } else {
+    if (!found) {
+        snprintf(path, sizeof(path), "%s", GAMECONTROLLERDB_INSTALL_PATH);
+        found = path_exists(path);
+    }
+    if (!found) {
         printf("[SNES] gamecontrollerdb.txt not found, using built-in mappings\n");
+        return;
     }
+
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        printf("[SNES] Cannot read %s, using built-in mappings\n", path);
+        return;
+    }
+    fseek(file, 0, SEEK_END);
+    const long size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if (size <= 0) {
+        fclose(file);
+        printf("[SNES] gamecontrollerdb.txt is empty, skipping\n");
+        return;
+    }
+    char *text = malloc((size_t)size + 1);
+    if (text != NULL) {
+        const size_t read = fread(text, 1, (size_t)size, file);
+        text[read] = '\0';
+        if (read > 0) {
+            zeal_controller_set_mappings(text);
+            printf("[SNES] Loaded custom gamepad mappings from %s\n", path);
+        }
+        free(text);
+    }
+    fclose(file);
 }
 
 bool snes_controller_available(uint8_t index)
 {
-    return IsGamepadAvailable(index);
+    return zeal_controller_available(index);
 }
 
 const char* snes_controller_name(uint8_t index)
 {
-    return GetGamepadName(index);
+    return zeal_controller_name(index);
 }
 
 uint16_t snes_controller_latch(snes_controller_t* ctrl)
@@ -68,43 +93,43 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
     int index = ctrl->index;
     uint16_t bits = 0xFFFF;  // no buttons pressed (active low)
 
-    if (IsGamepadAvailable(index)) {
+    if (zeal_controller_available(index)) {
         if (!ctrl->attached) {
             printf("[SNES] \"%s\" is now available\n", snes_controller_name(index));
             ctrl->attached = true;
         }
 
         // ABXY
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))  bits &= ~(1 << SNES_BTN_B);  // B
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_LEFT))  bits &= ~(1 << SNES_BTN_Y);  // Y
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_A);  // A
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_FACE_UP))    bits &= ~(1 << SNES_BTN_X);  // X
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_DOWN))  bits &= ~(1 << SNES_BTN_B);  // B
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_LEFT))  bits &= ~(1 << SNES_BTN_Y);  // Y
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_A);  // A
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_FACE_UP))    bits &= ~(1 << SNES_BTN_X);  // X
 
         // D-Pad (buttons)
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_UP))    bits &= ~(1 << SNES_BTN_UP);    // Up
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);  // Down
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_LEFT))  bits &= ~(1 << SNES_BTN_LEFT);  // Left
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) bits &= ~(1 << SNES_BTN_RIGHT); // Right
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_UP))    bits &= ~(1 << SNES_BTN_UP);    // Up
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);  // Down
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_LEFT))  bits &= ~(1 << SNES_BTN_LEFT);  // Left
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_DPAD_RIGHT)) bits &= ~(1 << SNES_BTN_RIGHT); // Right
 
         // Left thumbstick as D-Pad
-        float stick_x = GetGamepadAxisMovement(index, GAMEPAD_AXIS_LEFT_X);
-        float stick_y = GetGamepadAxisMovement(index, GAMEPAD_AXIS_LEFT_Y);
+        float stick_x = zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_LEFT_X);
+        float stick_y = zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_LEFT_Y);
         if (stick_y < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_UP);    // Up
         if (stick_y >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_DOWN);  // Down
         if (stick_x < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_LEFT);  // Left
         if (stick_x >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_RIGHT); // Right
 
         // Select/Start
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_MIDDLE_LEFT))  bits &= ~(1 << SNES_BTN_SELECT);  // Select
-        if (IsGamepadButtonDown(index, GAMEPAD_BUTTON_MIDDLE_RIGHT)) bits &= ~(1 << SNES_BTN_START);   // Start
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SELECT)) bits &= ~(1 << SNES_BTN_SELECT);  // Select
+        if (zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_START))  bits &= ~(1 << SNES_BTN_START);   // Start
 
         // L/R
-        bool left_trigger = IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_TRIGGER_1) ||
-            IsGamepadButtonDown(index, GAMEPAD_BUTTON_LEFT_TRIGGER_2) ||
-            GetGamepadAxisMovement(index, GAMEPAD_AXIS_LEFT_TRIGGER) > SNES_TRIGGER_DEADZONE;
-        bool right_trigger = IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_TRIGGER_1) ||
-            IsGamepadButtonDown(index, GAMEPAD_BUTTON_RIGHT_TRIGGER_2) ||
-            GetGamepadAxisMovement(index, GAMEPAD_AXIS_RIGHT_TRIGGER) > SNES_TRIGGER_DEADZONE;
+        bool left_trigger = zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SHOULDER_LEFT) ||
+            zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_TRIGGER_LEFT) ||
+            zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_TRIGGER_LEFT) > SNES_TRIGGER_DEADZONE;
+        bool right_trigger = zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_SHOULDER_RIGHT) ||
+            zeal_controller_button_down(index, ZEAL_CONTROLLER_BUTTON_TRIGGER_RIGHT) ||
+            zeal_controller_axis(index, ZEAL_CONTROLLER_AXIS_TRIGGER_RIGHT) > SNES_TRIGGER_DEADZONE;
         if (left_trigger)  bits &= ~(1 << SNES_BTN_L);  // L
         if (right_trigger) bits &= ~(1 << SNES_BTN_R);  // R
     } else {

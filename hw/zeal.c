@@ -11,6 +11,8 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/zeal.h"
+#include "host/zeal_host.h"
+#include "host/zeal_audio.h"
 #include "app/console/console.h"
 #include "utils/log.h"
 #include "utils/config.h"
@@ -20,7 +22,6 @@
 #include <emscripten.h>
 #endif
 
-#define RAYLIB_KEY_COUNT    384
 
 /**
  * @brief Period, in T-states, between host keyboard polls (15ms).
@@ -60,7 +61,7 @@ static void host_keyboard_check_cb(void* userdata);
  * @brief Array used to key tracked of the key states on the host. This array will help simulate
  * key press, release and repeat.
  */
-static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
+static kb_keys_t HOST_KEYS[ZEAL_HOST_KEY_COUNT];
 
 
 #ifdef PLATFORM_WEB
@@ -102,9 +103,9 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 static int key_can_repeat(int code)
 {
     const int modifiers[] = {
-        KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
-        KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
-        KEY_CAPS_LOCK,   KEY_NUM_LOCK
+        ZEAL_HOST_KEY_LEFT_SHIFT,  ZEAL_HOST_KEY_LEFT_CONTROL,  ZEAL_HOST_KEY_LEFT_ALT,  ZEAL_HOST_KEY_LEFT_SUPER,
+        ZEAL_HOST_KEY_RIGHT_SHIFT, ZEAL_HOST_KEY_RIGHT_CONTROL, ZEAL_HOST_KEY_RIGHT_ALT, ZEAL_HOST_KEY_RIGHT_SUPER,
+        ZEAL_HOST_KEY_CAPS_LOCK,   ZEAL_HOST_KEY_NUM_LOCK
     };
 
     for (unsigned int i = 0; i < DIM(modifiers); i++) {
@@ -119,12 +120,12 @@ static int key_can_repeat(int code)
 static void zeal_read_keyboard_reset(zeal_t* machine)
 {
     (void) machine;
-    /* Clear Raylib's key states */
-    while(GetKeyPressed()) {}
+    /* Drop any key presses the host queued while we were not looking. */
+    while(zeal_host_key_pressed()) {}
 
-    for (int i = 0; i < RAYLIB_KEY_COUNT; i++) {
-        RAYLIB_KEYS[i].duration = 0;
-        RAYLIB_KEYS[i].state = KEY_NOT_PRESSED;
+    for (int i = 0; i < ZEAL_HOST_KEY_COUNT; i++) {
+        HOST_KEYS[i].duration = 0;
+        HOST_KEYS[i].state = KEY_NOT_PRESSED;
     }
 }
 
@@ -138,21 +139,21 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
     const int repeat_delay = us_to_tstates(50000);
 
     // look for newly pressed keys
-    while((keyCode = GetKeyPressed())) {
-        RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
-        RAYLIB_KEYS[keyCode].duration = 0;
+    while((keyCode = zeal_host_key_pressed())) {
+        HOST_KEYS[keyCode].state = KEY_PRESSED;
+        HOST_KEYS[keyCode].duration = 0;
         key_pressed(&machine->keyboard, keyCode);
     }
 
     // look for newly released keys
-    for(keyCode = 0; keyCode < RAYLIB_KEY_COUNT; keyCode++) {
-        kb_keys_t* key = &RAYLIB_KEYS[keyCode];
+    for(keyCode = 0; keyCode < ZEAL_HOST_KEY_COUNT; keyCode++) {
+        kb_keys_t* key = &HOST_KEYS[keyCode];
 
         if(key->state == KEY_NOT_PRESSED) {
             continue;
         }
 
-        if(IsKeyUp(keyCode)) {
+        if(zeal_host_key_up(keyCode)) {
             key->state = KEY_NOT_PRESSED;
             /* No need to clear the duration, it's done when the key is pressed */
             key_released(&machine->keyboard, keyCode);
@@ -231,25 +232,22 @@ int zeal_init(zeal_t* machine)
 
     if (!machine->headless) {
         /* Initialize the UI. It must be done before any shader is created! */
-        SetTraceLogLevel(WIN_LOG_LEVEL);
-#ifndef PLATFORM_WEB
-        SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-#endif
-
-        /* initialize raylib window */
-        InitWindow(640, 480, WIN_NAME);
-        SetExitKey(KEY_NULL);
-#ifndef PLATFORM_WEB
-        SetWindowFocused(); // force focus on the window to capture keypresses
-#endif
-
-        SetTargetFPS(60);
+        const zeal_host_config_t host_config = {
+            .width = 640,
+            .height = 480,
+            .title = WIN_NAME,
+            .resizable = true,
+        };
+        if (!zeal_host_init(&host_config)) {
+            return 1;
+        }
+        zeal_host_frame_rate(60);
         notif_reset();
 
-        /* Force rendering the window, to allow Raylib periphs to attach (ie; gamepads) */
-        BeginDrawing();
-            ClearBackground(BLACK);
-        EndDrawing();
+        /* Draw one frame so the host can attach its peripherals (ie; gamepads) */
+        zeal_host_frame_begin();
+        zeal_host_clear((zeal_host_color_t){0, 0, 0, 255});
+        zeal_host_frame_end();
 
 #if CONFIG_ENABLE_DEBUGGER
         config_window_set(machine->dbg_enabled);
@@ -334,7 +332,7 @@ int zeal_init(zeal_t* machine)
     err = zvb_init(&machine->zvb, &zvb_config, mmu);
     CHECK_ERR(err);
     if (!machine->headless) {
-        SetMasterVolume(config.audio.volume / 100.0f);
+        zeal_audio_set_volume(config.audio.volume / 100.0f);
         if (config.audio.volume != 100) {
             notif_show("Volume: %d%%", config.audio.volume);
         }
@@ -386,7 +384,7 @@ static void host_keyboard_check_cb(void* userdata)
     }
     if (machine->dbg_frontend_visible) return;
 
-    /* A retained but hidden FLTK window must not suppress Raylib input. */
+    /* A retained but hidden FLTK window must not suppress guest input. */
 #endif
     zeal_read_keyboard(machine, HOST_KEYB_CHECK_PERIOD);
 }
@@ -429,11 +427,10 @@ int zeal_debug_enable(zeal_t* machine)
         debugger_host_frontend_args(&machine->dbg, &args);
         if (debugger_ui_init(&machine->dbg_ui, &args) != 0) return -1;
     }
-    SetWindowState(FLAG_WINDOW_ALWAYS_RUN);
-    SetWindowState(FLAG_WINDOW_HIDDEN);
-    SetTargetFPS(0);
+    zeal_host_show(false);
+    zeal_host_frame_rate(0);
     machine->dbg_frontend_visible = true;
-    machine->dbg_last_frame = GetTime();
+    machine->dbg_last_frame = zeal_host_time();
     debugger_ui_show(machine->dbg_ui, true);
 #endif
     return 0;
@@ -446,10 +443,9 @@ int zeal_debug_disable(zeal_t* machine)
     machine->dbg_enabled = false;
     machine->dbg_state = ST_RUNNING;
 #if CONFIG_FLTK_UI
-    ClearWindowState(FLAG_WINDOW_HIDDEN);
-    ClearWindowState(FLAG_WINDOW_ALWAYS_RUN);
-    SetTargetFPS(60);
-    SetWindowFocused();
+    zeal_host_show(true);
+    zeal_host_frame_rate(60);
+    zeal_host_focus();
 #endif
     config_window_set(false);
     return 0;
@@ -473,10 +469,35 @@ void zeal_debug_toggle(dbg_t *dbg)
 /**
  * Returns 1 if rendered, 0 else
  */
+/**
+ * @brief Put the rendered frame on screen.
+ *
+ * The software blitter keeps its frame in CPU memory, so hand that to the host
+ * directly. A GPU blitter has no such buffer and is drawn from its texture instead;
+ * only builds that keep Raylib compile that branch.
+ */
+static void zeal_present_frame(zeal_t* machine, float x, float y, float w, float h)
+{
+    int width = 0, height = 0, pitch = 0;
+    bool rgb565 = false;
+    const void* pixels = zvb_output_pixels(&machine->zvb, &width, &height, &pitch, &rgb565);
+    if (pixels != NULL) {
+        zeal_host_present(pixels, width, height, pitch,
+                          rgb565 ? ZEAL_HOST_RGB565 : ZEAL_HOST_RGBA8888,
+                          (zeal_host_rect_t){x, y, w, h});
+        return;
+    }
+#if ZVB_BLITTER_SHADER
+    DrawTexturePro(zvb_output_texture(&machine->zvb),
+                   (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
+                   (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0.0f, WHITE);
+#endif
+}
+
 static int zeal_dbg_mode_display(zeal_t* machine)
 {
 #if CONFIG_PROFILE_RENDER
-    const double profile_start = GetTime();
+    const double profile_start = zeal_host_time();
 #endif
 
     /**
@@ -488,7 +509,7 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         /* Display all the devices that have a render function */
         zvb_render(&machine->zvb);
     } else if (machine->dbg_state == ST_PAUSED) {
-        if (machine->dbg_frontend_visible && GetTime() - machine->dbg_last_frame < 1.0/30) return 1;
+        if (machine->dbg_frontend_visible && zeal_host_time() - machine->dbg_last_frame < 1.0/30) return 1;
         zvb_force_render(&machine->zvb);
     } else {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
@@ -496,27 +517,26 @@ static int zeal_dbg_mode_display(zeal_t* machine)
     }
 
     if (machine->dbg_ui && machine->dbg_frontend_visible) {
-        double remaining = 1.0/60 - (GetTime() - machine->dbg_last_frame);
-        if (remaining > 0) WaitTime(remaining);
-        machine->dbg_last_frame = GetTime();
+        double remaining = 1.0/60 - (zeal_host_time() - machine->dbg_last_frame);
+        if (remaining > 0) zeal_host_wait(remaining);
+        machine->dbg_last_frame = zeal_host_time();
         debugger_capture_video(&machine->dbg);
         debugger_ui_refresh(machine->dbg_ui);
-        PollInputEvents();
+        zeal_host_poll();
     } else {
-        BeginDrawing();
-        ClearBackground(BLACK);
-        float scale = fminf((float)GetScreenWidth()/ZVB_MAX_RES_WIDTH,(float)GetScreenHeight()/ZVB_MAX_RES_HEIGHT);
+        zeal_host_frame_begin();
+        zeal_host_clear((zeal_host_color_t){0, 0, 0, 255});
+        float scale = fminf((float)zeal_host_width()/ZVB_MAX_RES_WIDTH,(float)zeal_host_height()/ZVB_MAX_RES_HEIGHT);
         float width = ZVB_MAX_RES_WIDTH*scale, height=ZVB_MAX_RES_HEIGHT*scale;
-        DrawTexturePro(zvb_output_texture(&machine->zvb),
-            (Rectangle){0,0,ZVB_MAX_RES_WIDTH,ZVB_MAX_RES_HEIGHT},
-            (Rectangle){(GetScreenWidth()-width)/2,(GetScreenHeight()-height)/2,width,height},(Vector2){0,0},0,WHITE);
-        notif_render(GetScreenWidth()-notif_estimate_width()-20,10);
-        if(show_fps) DrawFPS(10,10);
-        EndDrawing();
+        zeal_present_frame(machine, (zeal_host_width()-width)/2, (zeal_host_height()-height)/2,
+                           width, height);
+        notif_render(zeal_host_width()-notif_estimate_width()-20,10);
+        if(show_fps) zeal_host_fps(10,10);
+        zeal_host_frame_end();
     }
 
 #if CONFIG_PROFILE_RENDER
-    zvb_profile_frame(GetTime() - profile_start);
+    zvb_profile_frame(zeal_host_time() - profile_start);
 #endif
 
     return 1;
@@ -646,10 +666,10 @@ static int zeal_normal_mode_run(zeal_t* machine)
     if (zvb_prepare_render(&machine->zvb)) {
         rendered = 1;
 #if CONFIG_PROFILE_RENDER
-        const double profile_start = GetTime();
+        const double profile_start = zeal_host_time();
 #endif
-        const int screen_w = GetScreenWidth();
-        const int screen_h = GetScreenHeight();
+        const int screen_w = zeal_host_width();
+        const int screen_h = zeal_host_height();
         const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
         const float screen_ratio  = (float)screen_w / screen_h;
 
@@ -673,23 +693,18 @@ static int zeal_normal_mode_run(zeal_t* machine)
 
         zvb_render(&machine->zvb);
 
-        BeginDrawing();
-            ClearBackground(DARKGRAY);
-            DrawTexturePro(zvb_output_texture(&machine->zvb),
-                            (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
-                            (Rectangle){ pos_x, pos_y, draw_w, draw_h },
-                            (Vector2){ 0, 0 },
-                            0.0f,
-                            WHITE);
+        zeal_host_frame_begin();
+            zeal_host_clear((zeal_host_color_t){80, 80, 80, 255});
+            zeal_present_frame(machine, pos_x, pos_y, draw_w, draw_h);
             /* Show notifications on the top-right of the visible content */
             notif_render(pos_x + draw_w - notif_estimate_width() - 20, pos_y + 10);
             if(show_fps == true) {
-                DrawFPS(10, 10);
+                zeal_host_fps(10, 10);
             }
-        EndDrawing();
+        zeal_host_frame_end();
 
 #if CONFIG_PROFILE_RENDER
-        zvb_profile_frame(GetTime() - profile_start);
+        zvb_profile_frame(zeal_host_time() - profile_start);
 #endif
     }
     return rendered;
@@ -702,7 +717,7 @@ static void zeal_loop(zeal_t* machine)
     int rendered = 0;
     unsigned slice = 0;
     /**
-     * When compiling for WASM, it is not necessary to execute WindowShouldClose as often as possible.
+     * When compiling for WASM, it is not necessary to poll for a close request as often as possible.
      * On the contrary, calling it too much would slow the emulation heavily!
      * Calling it once every two rendered frames should be enough to get a stable 60FPS.
      *
@@ -719,7 +734,7 @@ static void zeal_loop(zeal_t* machine)
 #if PLATFORM_WEB
             emscripten_sleep(0);
 #else
-            PollInputEvents();
+            zeal_host_poll();
 #endif
             break;
         }
@@ -791,6 +806,34 @@ void zeal_exit(zeal_t* machine)
     machine->should_exit = true;
 }
 
+/**
+ * @brief One iteration of the host loop: service the debugger UI, then run a frame.
+ *
+ * @return false when the emulator wants the loop to stop.
+ */
+static bool zeal_tick(zeal_t* machine)
+{
+    if (machine->should_exit) {
+        return false;
+    }
+#if CONFIG_ENABLE_DEBUGGER
+    if (!machine->dbg.running) {
+        return false;
+    }
+    debugger_ui_poll(machine->dbg_ui);
+    if (machine->should_exit) {
+        return false;
+    }
+#endif // CONFIG_ENABLE_DEBUGGER
+    zeal_loop(machine);
+    return !machine->should_exit;
+}
+
+static bool zeal_tick_cb(void* user)
+{
+    return zeal_tick((zeal_t*)user);
+}
+
 int zeal_run(zeal_t* machine)
 {
     int ret = 0;
@@ -804,18 +847,9 @@ int zeal_run(zeal_t* machine)
         return 0;
     }
 
-    while (!machine->should_exit && !WindowShouldClose()) {
-#if CONFIG_ENABLE_DEBUGGER
-        if(!machine->dbg.running) {
-            break;
-        }
-#endif // CONFIG_ENABLE_DEBUGGER
-#if CONFIG_ENABLE_DEBUGGER
-        debugger_ui_poll(machine->dbg_ui);
-        if (machine->should_exit) break;
-#endif
-        zeal_loop(machine);
-    }
+    /* The host owns the main loop: FLTK drives it from its idle callback on desktop,
+     * Raylib from its polling loop on the web. */
+    zeal_host_run(zeal_tick_cb, machine);
 
 #if CONFIG_ENABLE_DEBUGGER
     config_window_update(machine->dbg_enabled);
@@ -833,7 +867,7 @@ int zeal_run(zeal_t* machine)
 #endif
     snes_adapter_detach(&machine->snes_adapter);
     zvb_deinit(&machine->zvb);
-    CloseWindow();
+    zeal_host_shutdown();
 
     return ret;
 }

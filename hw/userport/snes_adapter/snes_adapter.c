@@ -3,6 +3,7 @@
 
 #include "utils/log.h"
 #include "hw/userport/snes_adapter.h"
+#include "host/zeal_controller.h"
 #include "hw/userport/snes_adapter/controller.h"
 #include "hw/userport/snes_adapter/mouse.h"
 #include "hw/pio.h"
@@ -270,6 +271,8 @@ int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter)
 
 void snes_adapter_update(snes_adapter_t *snes_adapter)
 {
+    /* Once per frame, before anything reads a controller. */
+    zeal_controller_poll();
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         bool available = snes_controller_available(i);
         bool needed_for_virtual_controller = i == 0 && snes_adapter->virtual_controller_enabled;

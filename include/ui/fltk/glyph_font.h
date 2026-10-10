@@ -19,6 +19,9 @@ class GlyphFont
         loaded = host.font_atlas && host.font_atlas(codes, atlas.data());
     }
 
+    // True once the host supplied a font atlas; text draws as nothing when false.
+    bool ready() const { return loaded; }
+
     bool draw(uint8_t character, int x, int y, int width, int height, Fl_Color foreground,
               Fl_Color background) const
     {

@@ -9,7 +9,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#if ZVB_BLITTER_SHADER
 #include "raylib.h"
+#endif
 
 /**
  * @brief Size of each tilemap, in bytes

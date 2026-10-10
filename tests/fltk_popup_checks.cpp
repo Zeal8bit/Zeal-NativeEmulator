@@ -63,19 +63,25 @@ void fltk_check_menu_placement(Fl_Window &owner, Fl_Menu_Bar &menu)
     unsigned count = 0;
     for (auto item = menu.menu(); item->text; item = item->next()) {
         PopupCheck check{owner, menu.h()};
-        Fl::add_timeout(.03, inspect_and_close, &check);
-        Fl::e_x = x + 8;
-        Fl::e_y = menu.y() + menu.h() / 2;
-        Fl::e_x_root = owner.x() + Fl::e_x;
-        Fl::e_y_root = owner.y() + Fl::e_y;
-        Fl::e_keysym = FL_Button + 1;
-        Fl::e_state = FL_BUTTON1;
-        Fl::e_is_click = 1;
-        Fl::handle(FL_PUSH, &owner);
-        Fl::remove_timeout(inspect_and_close, &check);
+        // Opening a menu runs a nested event loop, and the check itself runs from a
+        // timer. A synthetic click can land before the window is ready to open a
+        // popup, especially on a loaded machine, so retry a bounded number of times
+        // instead of assuming the first click worked.
+        for (int attempt = 0; attempt < 3 && !check.checked; attempt++) {
+            Fl::add_timeout(.03, inspect_and_close, &check);
+            Fl::e_x = x + 8;
+            Fl::e_y = menu.y() + menu.h() / 2;
+            Fl::e_x_root = owner.x() + Fl::e_x;
+            Fl::e_y_root = owner.y() + Fl::e_y;
+            Fl::e_keysym = FL_Button + 1;
+            Fl::e_state = FL_BUTTON1;
+            Fl::e_is_click = 1;
+            Fl::handle(FL_PUSH, &owner);
+            Fl::remove_timeout(inspect_and_close, &check);
+            Fl::e_state = 0;
+            Fl::handle(FL_RELEASE, &owner);
+        }
         assert(check.checked);
-        Fl::e_state = 0;
-        Fl::handle(FL_RELEASE, &owner);
         x += item->measure(nullptr, &menu) + 16;
         ++count;
     }

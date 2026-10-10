@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "raylib.h"
 #include "hw/z80.h"
 #include "hw/device.h"
 #include "hw/mmu.h"
