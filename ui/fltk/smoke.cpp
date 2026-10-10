@@ -179,11 +179,21 @@ void debugger_ui_smoke_tick(dbg_ui_t *u)
         assert(!u->status_bar->visible());
         assert(u->menu->find_item("Machine/Reset"));
         assert(u->menu->find_item("View/Scale Up"));
+        assert(u->menu->find_item("View/Reset View"));
         assert(u->menu->find_item("Debugger/Toggle Debugger"));
         assert(u->menu->find_item("Help/About"));
         assert(!u->menu->find_item("CPU/Pause"));
         assert(!u->menu->find_item("View/Breakpoints"));
         capture("-classic");
+        // "Reset View" is 100%: whatever the window size, the canvas ends up exactly as
+        // wide as the emulated frame.
+        pick("View/Scale Up");
+        pick("View/Reset View");
+        Fl::check();
+        VideoPanel *video = static_cast<VideoPanel *>(u->panels[zeal_ui::PANEL_VIDEO]);
+        assert(video->canvas->image.width > 0);
+        int width_delta = video->canvas->w() - video->canvas->image.width;
+        assert(width_delta >= -1 && width_delta <= 1);
         // Turning the debugger back on goes through the classic menu, not the host API.
         pick("Debugger/Toggle Debugger");
         phase++;

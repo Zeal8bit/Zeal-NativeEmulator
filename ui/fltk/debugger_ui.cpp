@@ -369,6 +369,8 @@ static void menu_callback(Fl_Widget *w, void *data)
         u->scale_window(1);
     else if (s == "View/Scale Down")
         u->scale_window(-1);
+    else if (s == "View/Reset View")
+        u->reset_view();
     else if (s.rfind("View/", 0) == 0) {
         for (int i = 0; i < 8; i++)
             if (s == std::string("View/") + zeal_ui::panel_name(i)) {
@@ -411,6 +413,27 @@ void dbg_ui_t::scale_window(int step)
     int next_width = std::clamp(width + step * std::max(32, width / 10), 320, 4000);
     int next_height = std::clamp(height + step * std::max(32, height / 10), 240, 3000);
     window->size(next_width, next_height);
+}
+
+void dbg_ui_t::reset_view()
+{
+    // The frame size comes through the frontend, so the shell does not need to know the
+    // emulated hardware's resolution constants.
+    VideoPanel *video = static_cast<VideoPanel *>(panels[zeal_ui::PANEL_VIDEO]);
+    if (video == nullptr || video->canvas->image.width <= 0 || video->canvas->image.height <= 0) {
+        return;
+    }
+    // The video keeps its own size, so whatever chrome surrounds it is added on top.
+    int chrome_width = 0, chrome_height = 0;
+    for (const DockSurface::Leaf &leaf : surface->leaves)
+        if (std::find(leaf.node->tabs.begin(), leaf.node->tabs.end(), zeal_ui::PANEL_VIDEO) !=
+            leaf.node->tabs.end()) {
+            chrome_width = window->w() - leaf.rect.w;
+            chrome_height = window->h() - leaf.rect.h;
+            break;
+        }
+    window->size(video->canvas->image.width + chrome_width,
+                 video->canvas->image.height + chrome_height);
 }
 
 void dbg_ui_t::about()
@@ -516,6 +539,7 @@ void dbg_ui_t::build_classic_menu()
     add("File/Quit", FL_COMMAND + 'q');
     add("View/Scale Up", FL_COMMAND + FL_SHIFT + '=');
     add("View/Scale Down", FL_COMMAND + FL_SHIFT + '-');
+    add("View/Reset View", 0);
     add("Audio/Volume Up", FL_COMMAND + FL_SHIFT + '0');
     add("Audio/Volume Down", FL_COMMAND + FL_SHIFT + '9');
     add("Machine/Reset", FL_COMMAND + FL_SHIFT + FL_BackSpace);

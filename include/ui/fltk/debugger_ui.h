@@ -109,6 +109,8 @@ struct dbg_ui_t {
     // Classic view has no panel zoom, so scaling means resizing the window the video
     // fits itself into.
     void scale_window(int step);
+    // Back to 100%, ie one window pixel per emulated pixel.
+    void reset_view();
     void about();
     void refresh_snes();
     void layout();
