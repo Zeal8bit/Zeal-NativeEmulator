@@ -758,10 +758,14 @@ static void zvb_sync_clocks(zvb_t* zvb, uint64_t target_ns)
     }
     zvb->clock_syncing = true;
     while (zvb->clock_ns + ZVB_MASTER_CLOCK_NS <= target_ns) {
-        const uint16_t hpos = (zvb->clock_ns - zvb->line_start_ns) / ZVB_PIXEL_NS;
-        if (zvb_rpu_active(&zvb->rpu)) {
-            zvb_rpu_clock(&zvb->rpu, hpos, zvb->current_scanline, zvb_rpu_load, zvb);
+        if (!zvb_rpu_active(&zvb->rpu)) {
+            const uint32_t clocks = (target_ns - zvb->clock_ns) / ZVB_MASTER_CLOCK_NS;
+            zvb_sound_advance(&zvb->sound, clocks);
+            zvb->clock_ns += (uint64_t)clocks * ZVB_MASTER_CLOCK_NS;
+            break;
         }
+        const uint16_t hpos = (zvb->clock_ns - zvb->line_start_ns) / ZVB_PIXEL_NS;
+        zvb_rpu_clock(&zvb->rpu, hpos, zvb->current_scanline, zvb_rpu_load, zvb);
         zvb_sound_clock(&zvb->sound);
         zvb->clock_ns += ZVB_MASTER_CLOCK_NS;
     }

@@ -27,6 +27,12 @@
 #define SOUND_FIFO_PIPELINE_END          (4)
 #define SOUND_PCM_ZERO                   (32768)
 #define SOUND_PCM_MAX                    (65535)
+#define SOUND_NOISE_BITS                 (16)
+#define SOUND_NOISE_JUMP_BITS            (11)
+#define SOUND_VOICE_PIPELINE_CLOCKS      (2)
+
+_Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
+               "Noise jumps must cover the interval between samples");
 
 #define BIT(i)  (1 << (i))
 #ifndef MAX
@@ -52,6 +58,53 @@ static void audio_callback(void *buffer, uint32_t frames);
 
 static zvb_sound_t* g_sound;
 
+/* Linear noise-state transforms for skips shorter than one sample period. */
+static uint16_t noise_jump[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_BITS];
+
+static uint16_t noise_clock(uint16_t state)
+{
+    const uint16_t feedback = (state ^ (state >> 2) ^
+                               (state >> 3) ^ (state >> 5)) & 1;
+    return (state >> 1) | (feedback << (SOUND_NOISE_BITS - 1));
+}
+
+static uint16_t noise_transform(uint16_t state, const uint16_t* transform)
+{
+    uint16_t result = 0;
+    for (unsigned bit = 0; state != 0; bit++) {
+        if (state & 1) {
+            result ^= transform[bit];
+        }
+        state >>= 1;
+    }
+    return result;
+}
+
+static void noise_jump_init(void)
+{
+    for (unsigned bit = 0; bit < SOUND_NOISE_BITS; bit++) {
+        noise_jump[0][bit] = noise_clock(1u << bit);
+    }
+    for (unsigned power = 1; power < SOUND_NOISE_JUMP_BITS; power++) {
+        for (unsigned bit = 0; bit < SOUND_NOISE_BITS; bit++) {
+            noise_jump[power][bit] = noise_transform(noise_jump[power - 1][bit],
+                                                   noise_jump[power - 1]);
+        }
+    }
+}
+
+static uint16_t noise_advance(uint16_t state, uint32_t clocks)
+{
+    for (unsigned power = 0; clocks != 0; power++) {
+        if (clocks & 1) {
+            state = noise_transform(state, noise_jump[power]);
+        }
+        clocks >>= 1;
+    }
+    return state;
+}
+
+
 static void output_lock(zvb_sound_t* sound)
 {
     while (atomic_flag_test_and_set_explicit(&sound->output_lock, memory_order_acquire)) {
@@ -74,6 +127,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
         atomic_init(&sound->voices[i].output, 0);
     }
     sound->lfsr = SOUND_NOISE_SEED;
+    noise_jump_init();
     sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
     atomic_flag_clear(&sound->output_lock);
 
@@ -263,9 +317,7 @@ void zvb_sound_clock(zvb_sound_t* sound)
     for (int i = 0; i < VOICE_COUNT; i++) {
         voice_clock(&sound->voices[i], sample_clock, sound->lfsr);
     }
-    const uint16_t feedback = (sound->lfsr ^ (sound->lfsr >> 2) ^
-                               (sound->lfsr >> 3) ^ (sound->lfsr >> 5)) & 1;
-    sound->lfsr = (sound->lfsr >> 1) | (feedback << 15);
+    sound->lfsr = noise_clock(sound->lfsr);
     sound->sample_clock_counter = (sound->sample_clock_counter + 1) % SOUND_SAMPLE_PERIOD_CLOCKS;
     if (sample_clock && !tbl->hold) {
         if (tbl->baud_count >= tbl->divider) {
@@ -306,6 +358,30 @@ void zvb_sound_clock(zvb_sound_t* sound)
         }
         default:
             break;
+    }
+}
+
+
+/* Settle changed outputs, then skip clocks with no sample or pipeline work.
+ * Noise advances through the same states without visiting each master clock. */
+void zvb_sound_advance(zvb_sound_t* sound, uint32_t clocks)
+{
+    while (clocks != 0) {
+        for (unsigned i = 0; i < SOUND_VOICE_PIPELINE_CLOCKS && clocks != 0; i++) {
+            zvb_sound_clock(sound);
+            clocks--;
+        }
+        if (sound->sample_table.state != 0 || sound->mix_state != 0 ||
+            sound->sample_clock_counter >= SOUND_SAMPLE_READY_CLOCK) {
+            continue;
+        }
+        uint32_t skip = SOUND_SAMPLE_READY_CLOCK - sound->sample_clock_counter;
+        if (skip > clocks) {
+            skip = clocks;
+        }
+        sound->lfsr = noise_advance(sound->lfsr, skip);
+        sound->sample_clock_counter += skip;
+        clocks -= skip;
     }
 }
 

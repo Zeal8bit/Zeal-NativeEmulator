@@ -144,6 +144,8 @@ void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
 
 /* One master clock; FIFO-empty interrupts are independent of host audio. */
 void zvb_sound_clock(zvb_sound_t* sound);
+/* Advance between bus accesses without iterating unchanged master clocks. */
+void zvb_sound_advance(zvb_sound_t* sound, uint32_t clocks);
 /* Clocks until the next FIFO interrupt opportunity, or zero when inactive. */
 uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound);
 static inline bool zvb_sound_interrupt(const zvb_sound_t* sound)
