@@ -231,7 +231,9 @@ void dbg_ui_t::apply_theme()
                 style(g->child(i));
     };
     int row = theme.row_height, pad = theme.spacing;
-    shell->gap(pad);
+    // The classic view is the menu bar sitting directly on the video, so nothing is
+    // allowed to separate them there.
+    shell->gap(debugging ? pad : 0);
     shell->fixed(menu, row + 4);
     shell->fixed(toolbar_row, row);
     shell->fixed(status_bar, row);
@@ -595,6 +597,7 @@ void dbg_ui_t::set_debugging(bool on)
         }
     }
     if (shell != nullptr) {
+        shell->gap(on ? theme.spacing : 0);
         shell->layout();
     }
     changed_layout();
