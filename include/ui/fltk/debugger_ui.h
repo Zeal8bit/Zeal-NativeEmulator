@@ -94,6 +94,10 @@ struct dbg_ui_t {
     void apply_theme();
     void select_theme(const std::string &);
     void build_menu();
+    // The menu bar of the classic view: a plain emulator has fewer things to offer than
+    // the debugger, and the names and shortcuts follow the non-debugger keys in
+    // hw/zeal_input.c.
+    void build_classic_menu();
     void layout_status();
     void apply_icons();
     void screenshot();
@@ -102,6 +106,10 @@ struct dbg_ui_t {
     void detach_panel(int id);
     bool panel_open(int id) const;
     void set_debugging(bool on);
+    // Classic view has no panel zoom, so scaling means resizing the window the video
+    // fits itself into.
+    void scale_window(int step);
+    void about();
     void refresh_snes();
     void layout();
     void changed_layout();

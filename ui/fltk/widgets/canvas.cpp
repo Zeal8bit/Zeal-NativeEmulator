@@ -46,11 +46,14 @@ void ImageCanvas::on_wheel(int delta, bool horizontal)
 
 void ImageCanvas::draw()
 {
-    int row = ui->theme.row_height, pad = ui->theme.spacing;
+    // A canvas without a hint gives the whole widget to the image, which is what the
+    // classic view wants.
+    const std::string hint = footer();
+    int row = hint.empty() ? 0 : ui->theme.row_height, pad = ui->theme.spacing;
     fl_push_clip(x(), y(), w(), h());
     fl_color(ui->color("surface"));
     fl_rectf(x(), y(), w(), h());
-    int baseline = y() + row - 6;
+    int baseline = y() + (row ? row : ui->theme.row_height) - 6;
     if (!pixels.empty() && image.width) {
         int iw = image.width, ih = image.height;
         int dw, dh, ox, oy;
@@ -80,7 +83,8 @@ void ImageCanvas::draw()
             fl_draw_image(scaled.data(), left, top, right - left, bottom - top, 3);
         }
         decorate(row, pad);
-        text(ui, "muted", footer(), x() + pad, y() + h() - 5, false);
+        if (!hint.empty())
+            text(ui, "muted", hint, x() + pad, y() + h() - 5, false);
     } else
         text(ui, "muted", "Waiting for frame", x() + pad, baseline, false);
     fl_pop_clip();

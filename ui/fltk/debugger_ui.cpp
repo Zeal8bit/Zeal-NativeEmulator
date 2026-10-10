@@ -365,7 +365,11 @@ static void menu_callback(Fl_Widget *w, void *data)
     } else if (s == "View/CP437") {
         u->cp437 = !u->cp437;
         u->last_refresh = 0;
-    } else if (s.rfind("View/", 0) == 0) {
+    } else if (s == "View/Scale Up")
+        u->scale_window(1);
+    else if (s == "View/Scale Down")
+        u->scale_window(-1);
+    else if (s.rfind("View/", 0) == 0) {
         for (int i = 0; i < 8; i++)
             if (s == std::string("View/") + zeal_ui::panel_name(i)) {
                 if (u->panel_open(i))
@@ -393,6 +397,25 @@ static void menu_callback(Fl_Widget *w, void *data)
         u->message = "Volume " + std::to_string(u->volume) + "%";
     } else if (s == "SNES/Reset Mouse Speed")
         u->host.action(u->host.debugger, UI_MOUSE_RESET, 0, 0);
+    else if (s == "Machine/Reset")
+        u->command(DBG_RESET);
+    else if (s == "Debugger/Toggle Debugger")
+        u->host.action(u->host.debugger, UI_ON, 0, 0);
+    else if (s == "Help/About")
+        u->about();
+}
+
+void dbg_ui_t::scale_window(int step)
+{
+    int width = window->w(), height = window->h();
+    int next_width = std::clamp(width + step * std::max(32, width / 10), 320, 4000);
+    int next_height = std::clamp(height + step * std::max(32, height / 10), 240, 3000);
+    window->size(next_width, next_height);
+}
+
+void dbg_ui_t::about()
+{
+    fl_message("Zeal 8-bit Computer\n\nNative emulator\nhttps://zeal8bit.com\n\nApache-2.0");
 }
 
 void dbg_ui_t::refresh_snes()
@@ -408,6 +431,10 @@ void dbg_ui_t::refresh_snes()
 void dbg_ui_t::build_menu()
 {
     menu->clear();
+    if (!debugging) {
+        build_classic_menu();
+        return;
+    }
     if (host.snes_state)
         host.snes_state(host.debugger, &snes);
     else {
@@ -481,6 +508,21 @@ void dbg_ui_t::build_menu()
     add("SNES/Reset Mouse Speed");
 }
 
+void dbg_ui_t::build_classic_menu()
+{
+    auto add = [&](const std::string &s, int key) {
+        menu->add(s.c_str(), key, menu_callback, this);
+    };
+    add("File/Quit", FL_COMMAND + 'q');
+    add("View/Scale Up", FL_COMMAND + FL_SHIFT + '=');
+    add("View/Scale Down", FL_COMMAND + FL_SHIFT + '-');
+    add("Audio/Volume Up", FL_COMMAND + FL_SHIFT + '0');
+    add("Audio/Volume Down", FL_COMMAND + FL_SHIFT + '9');
+    add("Machine/Reset", FL_COMMAND + FL_SHIFT + FL_BackSpace);
+    add("Debugger/Toggle Debugger", FL_COMMAND + FL_F + 1);
+    add("Help/About", 0);
+}
+
 bool dbg_ui_t::panel_open(int id) const
 {
     if (workspace.leaf(id))
@@ -511,6 +553,25 @@ void dbg_ui_t::set_debugging(bool on)
         // one has to come back even if the saved layout did not have it open.
         if (!workspace.leaf(zeal_ui::PANEL_VIDEO))
             workspace.show(zeal_ui::PANEL_VIDEO);
+    }
+    // The toolbar and the status bar belong to the debugger. Without them the classic
+    // view is a menu bar over the video and nothing else.
+    if (toolbar_row != nullptr) {
+        if (on) {
+            toolbar_row->show();
+        } else {
+            toolbar_row->hide();
+        }
+    }
+    if (status_bar != nullptr) {
+        if (on) {
+            status_bar->show();
+        } else {
+            status_bar->hide();
+        }
+    }
+    if (shell != nullptr) {
+        shell->layout();
     }
     changed_layout();
 }

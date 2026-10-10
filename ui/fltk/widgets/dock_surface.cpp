@@ -45,7 +45,8 @@ void DockSurface::arrange(DockNode *n, Rect r)
         arrange(n->second.get(), b);
     } else {
         leaves.push_back({n, r});
-        int head = ui->theme.row_height;
+        // The classic view has no tabs to draw or drag, so the panel gets the whole leaf.
+        int head = ui->debugging ? ui->theme.row_height : 0;
         for (size_t i = 0; i < n->tabs.size(); i++) {
             Panel *p = ui->panels[n->tabs[i]];
             if (p->parent() != this)
@@ -85,6 +86,10 @@ void DockSurface::draw()
         fl_rectf(x(), y(), w(), h());
     }
     draw_children();
+    if (!ui->debugging) {
+        fl_pop_clip();
+        return;
+    }
     int head = ui->theme.row_height;
     for (DockSurface::Leaf l : leaves) {
         fl_color(ui->color("border"));
@@ -139,6 +144,11 @@ int DockSurface::target_edge(Rect r, int x, int y)
 
 int DockSurface::handle(int event)
 {
+    // Nothing here can be rearranged while the debugger is off: the events belong to
+    // the video panel that fills the surface.
+    if (!ui->debugging) {
+        return Fl_Group::handle(event);
+    }
     int mx = Fl::event_x(), my = Fl::event_y();
     if (event == FL_PUSH) {
         for (DockSurface::Split s : splits)

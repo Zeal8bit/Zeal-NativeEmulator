@@ -69,13 +69,22 @@ static void scale_window(float step)
 
 static void main_scale_up(dbg_t *dbg)
 {
-    (void) dbg;
+    /* The shell owns the visible window, so let it decide what scaling means. */
+    zeal_t *machine = (zeal_t*) dbg->arg;
+    if (machine->dbg_ui != NULL) {
+        debugger_ui_scale(machine->dbg_ui, 1);
+        return;
+    }
     scale_window(1.0f);
 }
 
 static void main_scale_down(dbg_t *dbg)
 {
-    (void) dbg;
+    zeal_t *machine = (zeal_t*) dbg->arg;
+    if (machine->dbg_ui != NULL) {
+        debugger_ui_scale(machine->dbg_ui, -1);
+        return;
+    }
     scale_window(-1.0f);
 }
 

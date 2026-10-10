@@ -131,6 +131,11 @@ extern "C" dbg_vram_t debugger_ui_vram_panel_opened(const dbg_ui_t *u)
 
 extern "C" void debugger_ui_scale(dbg_ui_t *u, int delta)
 {
-    if (u)
-        u->scale = std::clamp(u->scale + delta, 1, 6);
+    if (!u)
+        return;
+    if (!u->debugging) {
+        u->scale_window(delta);
+        return;
+    }
+    u->scale = std::clamp(u->scale + delta, 1, 6);
 }

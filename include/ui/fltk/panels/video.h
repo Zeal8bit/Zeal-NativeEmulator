@@ -17,6 +17,11 @@ class VideoCanvas : public ImageCanvas
   protected:
     std::string footer() const override
     {
+        // Outside the debugger the window forwards keys itself, so there is nothing to
+        // click first.
+        if (!ui->debugging) {
+            return {};
+        }
         return "Click video for keyboard";
     }
 

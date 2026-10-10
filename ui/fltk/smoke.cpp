@@ -173,13 +173,30 @@ void debugger_ui_smoke_tick(dbg_ui_t *u)
         assert(u->panel_open(zeal_ui::PANEL_VIDEO));
         assert(!u->panel_open(zeal_ui::PANEL_CPU));
         assert(!u->panel_open(zeal_ui::PANEL_MEMORY));
-        u->host.action(u->host.debugger, UI_ON, 0, 0);
+        // The classic view is the menu bar over the video: no toolbar, no status bar,
+        // and a menu with the emulator's own entries instead of the debugger's.
+        assert(!u->toolbar_row->visible());
+        assert(!u->status_bar->visible());
+        assert(u->menu->find_item("Machine/Reset"));
+        assert(u->menu->find_item("View/Scale Up"));
+        assert(u->menu->find_item("Debugger/Toggle Debugger"));
+        assert(u->menu->find_item("Help/About"));
+        assert(!u->menu->find_item("CPU/Pause"));
+        assert(!u->menu->find_item("View/Breakpoints"));
+        capture("-classic");
+        // Turning the debugger back on goes through the classic menu, not the host API.
+        pick("Debugger/Toggle Debugger");
         phase++;
     } else if (phase == 13 && elapsed > 3.6) {
         assert(u->shown);
-        // The layout the debugger had before it was switched off comes back.
+        // The layout the debugger had before it was switched off comes back, chrome and
+        // all.
         assert(u->panel_open(zeal_ui::PANEL_CPU));
         assert(u->panel_open(zeal_ui::PANEL_MEMORY));
+        assert(u->toolbar_row->visible());
+        assert(u->status_bar->visible());
+        assert(u->menu->find_item("CPU/Pause"));
+        assert(!u->menu->find_item("Machine/Reset"));
         u->command(DBG_CONTINUE);
         phase++;
     } else if (phase == 14 && elapsed > 3.8) {
