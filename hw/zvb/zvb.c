@@ -119,6 +119,12 @@ static bool zvb_gp_interrupt(const zvb_t* zvb)
 static void zvb_update_interrupts(void* userdata)
 {
     zvb_t* zvb = userdata;
+    /* Game Gear virtualizer: notify the machine on the rising edge of v-blank
+     * so it can raise the guest's INT line (the snooper CPLD drives it). */
+    if (zvb->vblank_cb != NULL && zvb->status.v_blank && !zvb->vblank_prev) {
+        zvb->vblank_cb(zvb->vblank_ctx);
+    }
+    zvb->vblank_prev = zvb->status.v_blank;
     if (!zvb->pio) {
         return;
     }

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -295,4 +296,27 @@ void console_debug_mmu(zeal_t* machine, int argc, char** argv)
         log_printf("[DBG] %04x -> %06x (%s)\n", e->virt_addr, (unsigned int) e->phys_addr,
                    e->device != NULL ? e->device : "?");
     }
+}
+
+/* Dump the raw VideoBoard memory (tilemap, palette, tileset, ...) to a file so
+ * a host-side tool can render what the guest VDP produced. */
+void console_debug_dumpvram(zeal_t* machine, int argc, char** argv)
+{
+    if (argc < 2) {
+        log_err_printf("[CONSOLE] Usage: dumpvram <path>\n");
+        return;
+    }
+
+    device_t* dev = DEVICE(&machine->zvb);
+    const int size = dev->mem_region.size;
+    FILE* file = fopen(argv[1], "wb");
+    if (file == NULL) {
+        log_err_printf("[CONSOLE] Cannot open '%s'\n", argv[1]);
+        return;
+    }
+    for (int i = 0; i < size; i++) {
+        fputc(dev->mem_region.read(dev, (uint32_t) i), file);
+    }
+    fclose(file);
+    log_printf("[DBG] Dumped %d bytes of ZVB memory to %s\n", size, argv[1]);
 }

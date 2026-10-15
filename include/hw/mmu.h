@@ -65,6 +65,12 @@ typedef struct {
 
     /* Cached device per virtual page, resolved on page register write */
     mmu_cached_page_t vpages[MMU_PAGES_COUNT];
+
+    /* Optional I/O snooper hook, used to emulate the Game Gear "virtualizer"
+     * CPLD (latch every I/O access and raise NMI). Called for every I/O
+     * access before it is dispatched, even when no device is mapped. */
+    void (*io_snoop)(void* ctx, uint16_t addr, uint8_t data, bool is_write);
+    void* io_snoop_ctx;
 } mmu_t;
 
 
@@ -136,6 +142,9 @@ static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t d
  */
 static inline uint8_t mmu_io_read_byte(mmu_t* mmu, uint16_t addr)
 {
+    if (mmu->io_snoop) {
+        mmu->io_snoop(mmu->io_snoop_ctx, addr, 0, false);
+    }
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
     if (!entry->dev || !entry->dev->io_region.read) return 0;
@@ -149,6 +158,9 @@ static inline uint8_t mmu_io_read_byte(mmu_t* mmu, uint16_t addr)
  */
 static inline void mmu_io_write_byte(mmu_t* mmu, uint16_t addr, uint8_t data)
 {
+    if (mmu->io_snoop) {
+        mmu->io_snoop(mmu->io_snoop_ctx, addr, data, true);
+    }
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
     if (!entry->dev || !entry->dev->io_region.write) return;

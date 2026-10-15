@@ -38,6 +38,36 @@
 typedef uint8_t dev_idx_t;
 
 /**
+ * @brief Game Gear "hardware virtualizer" snooper.
+ *
+ * Models the CPLD that watches the Z80 I/O bus: every I/O access is latched
+ * (port, plus the data for writes) and an NMI is raised. The guest's NMI
+ * handler (patched over the serial vector at 0x0066) reads these registers to
+ * find out what was accessed and emulate the VDP in software.
+ *
+ *   0x40 (RO) latched port; reading it clears the NMI request
+ *   0x41 (RO) latched data; reading it clears the NMI request
+ *   0x42 (RW) bit 7 = enable snooping, bit 0 = direction (1 = write)
+ *
+ * Accesses to 0x40-0x42 are never latched, so the handler can safely
+ * disable/re-enable the snooper from inside itself.
+ */
+#define SNOOPER_PORT_ADDR   0x40
+#define SNOOPER_PORT_DATA   0x41
+#define SNOOPER_PORT_CTRL   0x42
+#define SNOOPER_IO_SIZE     3
+
+#define SNOOPER_CTRL_ENABLE 0x80
+#define SNOOPER_CTRL_WRITE  0x01
+
+typedef struct {
+    device_t parent;
+    uint8_t  addr;      /* latched I/O port (low byte) */
+    uint8_t  data;      /* latched data, valid for writes */
+    uint8_t  ctrl;      /* control register (0x42) */
+} snooper_t;
+
+/**
  * @brief Macros related to RayLib window
  */
 #define WIN_VISIBLE_WIDTH   (ZVB_MAX_RES_WIDTH  * 2)
@@ -61,6 +91,9 @@ struct zeal_t {
     at24c512_t eeprom;
     compactflash_t compactflash;
     snes_adapter_t snes_adapter;
+
+    /* Game Gear I/O snooper (see snooper_t) */
+    snooper_t snooper;
 
     /* Renderer */
     bool headless;

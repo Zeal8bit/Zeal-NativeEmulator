@@ -169,6 +169,86 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
 }
 
 
+/* ------------------------------------------------------------------------- */
+/* Game Gear I/O snooper                                                     */
+/*                                                                           */
+/* Emulates the "hardware virtualizer" CPLD: it latches every I/O access and */
+/* raises an NMI so the guest's NMI handler can emulate the peripheral in    */
+/* software. Its own registers (0x40-0x42) are never latched.                */
+/* ------------------------------------------------------------------------- */
+
+static uint8_t snooper_io_read(device_t* dev, uint32_t addr)
+{
+    snooper_t* snooper = (snooper_t*) dev;
+
+    switch (addr) {
+    case 0: return snooper->addr;   /* 0x40: latched port */
+    case 1: return snooper->data;   /* 0x41: latched data */
+    case 2: return snooper->ctrl;   /* 0x42: control */
+    default: return 0xFF;
+    }
+}
+
+static void snooper_io_write(device_t* dev, uint32_t addr, uint8_t data)
+{
+    snooper_t* snooper = (snooper_t*) dev;
+
+    if (addr == 2) {
+        snooper->ctrl = data;
+    }
+}
+
+static void snooper_reset(device_t* dev)
+{
+    snooper_t* snooper = (snooper_t*) dev;
+
+    snooper->addr = 0;
+    snooper->data = 0;
+    snooper->ctrl = 0;
+}
+
+/* Called for every I/O access, before it is dispatched to its device. */
+static void snooper_io_hook(void* ctx, uint16_t addr, uint8_t data, bool is_write)
+{
+    zeal_t* machine = (zeal_t*) ctx;
+    snooper_t* snooper = &machine->snooper;
+    const uint8_t port = (uint8_t)(addr & 0xFF);
+
+    /* Never latch our own registers, otherwise disabling/re-enabling the
+     * snooper from the handler would recurse. */
+    if (port >= SNOOPER_PORT_ADDR && port <= SNOOPER_PORT_CTRL) {
+        return;
+    }
+    if (!(snooper->ctrl & SNOOPER_CTRL_ENABLE)) {
+        return;
+    }
+
+    snooper->addr = port;
+    snooper->data = data;
+    if (is_write) {
+        snooper->ctrl |= SNOOPER_CTRL_WRITE;
+    } else {
+        snooper->ctrl &= (uint8_t)~SNOOPER_CTRL_WRITE;
+    }
+
+    /* Taken at the end of the current instruction, which is exactly the Z80's
+     * behaviour (and, for block I/O, between two transfers). */
+    z80_gen_nmi(&machine->cpu);
+}
+
+
+/* The snooper CPLD also drives the guest's INT line at v-blank, which is how
+ * the guest VDP delivers its frame interrupt. Only while snooping is enabled. */
+static void zeal_vblank_int(void* ctx)
+{
+    zeal_t* machine = (zeal_t*) ctx;
+
+    if (machine->snooper.ctrl & SNOOPER_CTRL_ENABLE) {
+        z80_gen_int(&machine->cpu, 0xFF);
+    }
+}
+
+
 int zeal_reset(zeal_t* machine)
 {
     z80_reset(&machine->cpu);
@@ -180,6 +260,7 @@ int zeal_reset(zeal_t* machine)
     i2c_reset(&machine->i2c_bus, &machine->pio);
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
+    device_reset(DEVICE(&machine->snooper));
 
     /* If a user program was specified, re-read the ROM and re-inject it so that
      * recompiled programs are picked up automatically on reset */
@@ -329,6 +410,9 @@ int zeal_init(zeal_t* machine)
     };
     err = zvb_init(&machine->zvb, &zvb_config, mmu);
     CHECK_ERR(err);
+    /* Route the VideoBoard v-blank to the guest's INT line (snooper CPLD). */
+    machine->zvb.vblank_cb = zeal_vblank_int;
+    machine->zvb.vblank_ctx = machine;
     mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
     if (!machine->headless) {
         SetMasterVolume(config.audio.volume / 100.0f);
@@ -347,6 +431,14 @@ int zeal_init(zeal_t* machine)
     mmu_register_io_device(mmu, 0xd0, &machine->pio.parent);
     mmu_register_io_device(mmu, 0xe0, &machine->keyboard.parent);
     mmu_register_io_device(mmu, 0xf0, &machine->cpu.mmu.parent);
+
+    /* Game Gear I/O snooper (hardware virtualizer). It latches every I/O
+     * access and raises an NMI; the guest NMI handler emulates the VDP. */
+    device_init_io(DEVICE(&machine->snooper), "snooper", snooper_io_read, snooper_io_write, SNOOPER_IO_SIZE);
+    device_register_reset(DEVICE(&machine->snooper), snooper_reset);
+    mmu_register_io_device(mmu, SNOOPER_PORT_ADDR, DEVICE(&machine->snooper));
+    mmu->io_snoop = snooper_io_hook;
+    mmu->io_snoop_ctx = machine;
 
 #if CONFIG_ENABLE_DEBUGGER
     /* Since the debugger may depend on some components, make sure they are all initialized */

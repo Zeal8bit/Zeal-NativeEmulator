@@ -200,6 +200,13 @@ typedef struct {
     uint8_t          blank_latches;
     pio_t*           pio;
 
+    /* Game Gear virtualizer support: invoked on the rising edge of v-blank so
+     * the machine can assert the guest's INT line, which the snooper CPLD does
+     * in place of the PIO. */
+    void             (*vblank_cb)(void* ctx);
+    void*            vblank_ctx;
+    bool             vblank_prev;
+
     /* Raster FSM */
     int              state; // Any of the STATE_* macros
     vtimer_node_t    timer;

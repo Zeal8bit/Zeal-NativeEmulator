@@ -139,6 +139,7 @@ static const console_cmd_t CONSOLE_COMMANDS[] = {
     { "wb",       console_debug_wb },
     { "u",        console_debug_disasm },
     { "mmu",      console_debug_mmu },
+    { "dumpvram", console_debug_dumpvram },
 #endif
 };
 

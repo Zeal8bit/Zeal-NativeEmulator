@@ -26,5 +26,6 @@ void console_debug_r32(zeal_t* machine, int argc, char** argv);
 void console_debug_wb(zeal_t* machine, int argc, char** argv);
 void console_debug_disasm(zeal_t* machine, int argc, char** argv);
 void console_debug_mmu(zeal_t* machine, int argc, char** argv);
+void console_debug_dumpvram(zeal_t* machine, int argc, char** argv);
 
 #endif /* CONFIG_ENABLE_DEBUGGER */
