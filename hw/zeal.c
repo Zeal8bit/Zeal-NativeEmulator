@@ -240,6 +240,7 @@ static void snooper_io_hook(void* ctx, uint16_t addr, uint8_t data, bool is_writ
         snooper->ctrl &= (uint8_t)~SNOOPER_CTRL_WRITE;
     }
 
+    snooper->nmis++;
     /* Taken at the end of the current instruction, which is exactly the Z80's
      * behaviour (and, for block I/O, between two transfers). */
     z80_gen_nmi(&machine->cpu);

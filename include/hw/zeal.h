@@ -65,6 +65,8 @@ typedef struct {
     uint8_t  addr;      /* latched I/O port (low byte) */
     uint8_t  data;      /* latched data, valid for writes */
     uint8_t  ctrl;      /* control register (0x42) */
+    /* Debug counter: how many NMIs the snooper has raised. */
+    uint64_t nmis;
 } snooper_t;
 
 /**

@@ -318,5 +318,6 @@ void console_debug_dumpvram(zeal_t* machine, int argc, char** argv)
         fputc(dev->mem_region.read(dev, (uint32_t) i), file);
     }
     fclose(file);
-    log_printf("[DBG] Dumped %d bytes of ZVB memory to %s\n", size, argv[1]);
+    log_printf("[DBG] Dumped %d bytes of ZVB memory to %s (cyc=%lu nmis=%lu)\n",
+               size, argv[1], machine->cpu.cyc, (unsigned long) machine->snooper.nmis);
 }
