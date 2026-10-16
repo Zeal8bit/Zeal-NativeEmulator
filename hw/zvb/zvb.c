@@ -17,6 +17,9 @@
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
 #include "hw/zvb/blitter/blitter.h"
+#include "hw/zeal.h"
+
+extern zeal_t* g_zeal_dbg_machine;
 
 #define ZVB_MEM_CONFIG_START             (0x1fe0U)
 #define ZVB_MEM_PERIPHERALS_START        (0x2000U)
@@ -245,6 +248,11 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
     }
     /* Prevent a compilation warning, since LAYER0_ADDR_START is 0 */
     if (addr < LAYER0_ADDR_END) {
+        if (getenv("GG_L0_TRACE") != NULL) {
+            static unsigned long tr = 0;
+            log_printf("[L0W] #%lu idx=%u d=%02x pc=%04x\n", tr++, (unsigned)addr, data,
+                       g_zeal_dbg_machine ? g_zeal_dbg_machine->cpu.pc : 0);
+        }
         zvb_tilemap_write(&zvb->layers, 0, addr, data);
     } else if (IN_RANGE(LAYER1_ADDR_START, LAYER1_ADDR_END, addr)) {
         zvb_tilemap_write(&zvb->layers, 1, addr - LAYER1_ADDR_START, data);
@@ -255,6 +263,13 @@ static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
     } else if(IN_RANGE(FONT_ADDR_START, FONT_ADDR_END, addr)) {
         zvb_font_write(&zvb->font, addr - FONT_ADDR_START, data);
     } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
+        /* Temporary trace for debugging the GameGear converter. */
+        if (getenv("ZVB_TRACE") != NULL && (addr - TILESET_ADDR_START) < 0x100u) {
+            static unsigned long tr = 0;
+            log_printf("[ZVBW] #%lu a=%05x d=%02x line=%d pc=%04x\n",
+                       tr++, (unsigned)(addr - TILESET_ADDR_START), data, zvb->current_scanline,
+                       g_zeal_dbg_machine ? g_zeal_dbg_machine->cpu.pc : 0);
+        }
         zvb_tileset_write(&zvb->tileset, addr - TILESET_ADDR_START, data);
     }
 }

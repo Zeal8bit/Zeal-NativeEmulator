@@ -47,6 +47,9 @@ typedef struct {
 
 int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
 
+/* Debug-only global so other modules (e.g. ZVB tracing) can read the CPU. */
+zeal_t* g_zeal_dbg_machine = NULL;
+
 bool zeal_ui_input(zeal_t* machine);
 
 static void host_keyboard_check_cb(void* userdata);
@@ -223,6 +226,12 @@ static void snooper_io_hook(void* ctx, uint16_t addr, uint8_t data, bool is_writ
         return;
     }
 
+    /* Temporary trace of the guest's VDP accesses, for debugging. */
+    if (getenv("GG_TRACE") != NULL && (port == 0xBE || port == 0xBF)) {
+        log_printf("[GGIO] pc=%04x %s p=%02x d=%02x\n",
+                   machine->cpu.pc, is_write ? "W" : "R", port, data);
+    }
+
     snooper->addr = port;
     snooper->data = data;
     if (is_write) {
@@ -251,6 +260,7 @@ static void zeal_vblank_int(void* ctx)
 
 int zeal_reset(zeal_t* machine)
 {
+    g_zeal_dbg_machine = machine;
     z80_reset(&machine->cpu);
     if (!machine->headless) {
         zeal_read_keyboard_reset(machine);
@@ -276,6 +286,7 @@ int zeal_reset(zeal_t* machine)
     return 0;
 }
 
+
 int zeal_init(zeal_t* machine)
 {
     int err = 0;
@@ -284,6 +295,7 @@ int zeal_init(zeal_t* machine)
     }
 
     memset(machine, 0, sizeof(*machine));
+    g_zeal_dbg_machine = machine;
     vtimer_init();
     machine->headless = config.arguments.headless;
     /* Running headless with an explicitly requested debugger means the console
