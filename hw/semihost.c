@@ -338,9 +338,11 @@ static void semihost_io_write(device_t* dev, uint32_t addr, uint8_t data)
         return;
     }
 
-    return;
-
     uint8_t operation = semihost->cpu->a;
+    if (getenv("SEMIHOST_TRACE") != NULL) {
+        log_printf("[SEMIHOST] io_write op=%02x A=%02x HL=%02x%02x\n", operation,
+                   semihost->cpu->a, semihost->cpu->h, semihost->cpu->l);
+    }
     uint8_t reg_l = semihost->cpu->l;
     uint8_t reg_h = semihost->cpu->h;
     uint16_t reg_hl = concat_registers(reg_h, reg_l);
