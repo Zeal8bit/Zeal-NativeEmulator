@@ -48,7 +48,7 @@ cd build
 meson compile
 ```
 
-You will then have a `zeal.elf` binary that you can run. You can check all the parameters via `./zeal.elf --help`.
+You will then have a `zeal-native` binary that you can run. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
 
 ### WebAssembly compilation
 
@@ -114,7 +114,7 @@ Or simply delete the build directory.
 
 ### Running
 
-You can add `zeal.elf` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
+You can add `zeal-native` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
 
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
 You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
@@ -134,28 +134,33 @@ and default paths are skipped. EEPROM and TF images are optional; a ROM is requi
 selected ROM images are not written back; EEPROM and TF images retain their normal writeback behavior.
 
 ```sh
-$ zeal.elf -h
-Usage: build/zeal.elf [OPTIONS]
+$ build/zeal-native -h
+Zeal Native Emulator 1.0.0
+Usage: build/zeal-native [OPTIONS]
 
 Options:
-  -c, --config <file>           Zeal Config
-  -s, --save <file>             Save * arguments to Zeal Config
-  -r, --rom <file>              * Load ROM file
-  -u, --uprog <file>[,<addr>]   Load user program in romdisk at hex address
-  -e, --eeprom <file>           Load EEPROM file
-  -t, --tf <file>               Load TF/SDcard file
-  -H, --hostfs <path>           Set host filesystem path
-  -m, --map <file>              Load memory map file (for debugging)
-  -g, --debug                   * Enable debug mode
-  -n, --headless [<tstates>]    Run without GUI (no window/input/rendering)
-  -o, --console                 Read control commands from stdin (implies headless)
-      --no-dma                  Disconnect ZVB DMA bus handshake wiring
-      --no-scanline-rendering    Use whole-frame rendering (when compiled in)
-  -v, --verbose                 Verbose console output; repeat for more detail (-vvv)
-  -h, --help                    Show this help message
+  -c, --config <file>                Zeal Config
+  -s, --save <file>                  Save * arguments to Zeal Config
+  -r, --rom <file>                   * Load ROM file
+  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address
+  -e, --eeprom <file>                Load EEPROM file
+  -t, --tf <file>                    Load TF/SDcard file
+  -H, --hostfs <path>                Set host filesystem path
+  -m, --map <file>                   Load memory map file (for debugging)
+  -g, --debug                        * Enable debug mode
+  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)
+  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)
+                                     Optional tstates number to execute can be given
+  -o, --console                      Read control commands from stdin (implies headless)
+  -q, --no-reset                     Exit emulator when a reset is detected
+      --no-dma                       Disconnect ZVB DMA bus handshake wiring
+      --no-scanline-rendering         Use whole-frame rendering (when compiled in)
+  -v, --verbose                      Verbose console output; repeat for more detail (-vvv)
+  -h, --help                         Show this help message
+  -V, --version                      Show version information
 
 Example:
-  build/zeal.elf --rom game.bin --map mem.map --debug
+  build/zeal-native --rom game.bin --map mem.map --debug
 ```
 
 Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
@@ -179,7 +184,7 @@ run, survives emulated resets, and is not saved to `zeal.ini`.
 `run` is based on emulated Z80 T-states, so tests are deterministic and can run faster than real time. Keys include `A-Z`, `0-9`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ENTER`, `ESC`, `SPACE`, `BACKSPACE`, `TAB`, `SHIFT`, `CTRL`, `ALT` and more.
 
 ```sh
-$ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal.elf --headless --console --rom game.elf
+$ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal-native --headless --console --rom game.elf
 ```
 
 ### Debugger console
@@ -203,7 +208,7 @@ Adding `--debug` turns the console into a headless debugger front-end, using the
 | `mmu`                | Show MMU mappings               |
 
 ```sh
-$ printf 'bp main\nc\nregs\nquit\n' | build/zeal.elf --console --debug --rom game.elf
+$ printf 'bp main\nc\nregs\nquit\n' | build/zeal-native --console --debug --rom game.elf
 ```
 
 ## Supported Features

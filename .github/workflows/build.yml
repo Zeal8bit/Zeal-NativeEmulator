@@ -112,21 +112,24 @@ jobs:
           echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "release_date=$(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_OUTPUT
 
-      - name: Delete Existing Draft Releases
+      - name: Delete Existing Development Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete "latest" --yes || true
+          # --cleanup-tag is required: deleting only the release leaves the
+          # `latest` tag on an old commit, which action-gh-release then reuses.
+          gh release delete "latest" --yes --cleanup-tag || true
 
-      - name: Create or Update Latest Release
+      - name: Create or Update Development Build
         uses: softprops/action-gh-release@v3
         with:
-          name: Latest build (${{ steps.tag.outputs.sha }})
+          name: Development build (${{ steps.tag.outputs.sha }})
           body: |
             Built from commit: ${{ steps.tag.outputs.sha }}
             Branch: ${{ github.ref_name }}
             Date: ${{ steps.tag.outputs.release_date }}
           tag_name: latest
+          prerelease: true
           preserve_order: true
           generate_release_notes: false
           files: |

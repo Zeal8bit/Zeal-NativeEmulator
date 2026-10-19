@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "utils/config.h"
+#include "utils/version.h"
 #include "debugger/debugger_ui.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
@@ -107,8 +108,16 @@ void config_debug(void)
     log_printf("%s \n\n", module);
 }
 
+static int print_version(const char* progname)
+{
+    (void) progname;
+    log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
+    exit(0);
+}
+
 int usage(const char* progname)
 {
+    log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
     log_printf("  -c, --config <file>                Zeal Config\n");
@@ -134,6 +143,7 @@ int usage(const char* progname)
 #endif
     log_printf("  -v, --verbose                      Verbose console output; repeat for more detail (-vvv)\n");
     log_printf("  -h, --help                         Show this help message\n");
+    log_printf("  -V, --version                      Show version information\n");
     log_printf("\n");
     log_printf("Example:\n");
     log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
@@ -217,13 +227,14 @@ int parse_command_args(int argc, char* argv[])
         {     "save",       no_argument, 0, 's'},
         {  "verbose",       no_argument, 0, 'v'},
         {    "help",        no_argument, 0, 'h'},
+        { "version",        no_argument, 0, 'V'},
         {          0,                 0, 0,   0}
     };
 
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::oqsgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::oqsgvhV", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
@@ -248,6 +259,8 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 'h':
                 return usage(argv[0]);
+            case 'V':
+                return print_version(argv[0]);
             case 'H':
                 config.arguments.hostfs_path = optarg;
                 break;

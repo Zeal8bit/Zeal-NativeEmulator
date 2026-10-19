@@ -1,7 +1,7 @@
 project(
     'Zeal-NativeEmulator',
     'c',
-    version: '1.0',
+    version: '1.0.0',
     license: 'Apache-2.0',
     default_options: [
         'buildtype=debugoptimized',
@@ -78,6 +78,10 @@ endif
 add_project_arguments('-D_XOPEN_SOURCE=700',
                       '-Iinclude',
                       language: 'c')
+
+# Expose the project version to the C sources. include/utils/version.h provides
+# a fallback for builds that do not go through Meson.
+add_project_arguments('-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version()), language: 'c')
 
 if (get_option('blitter_software'))
     add_project_arguments('-DZVB_BLITTER_SOFTWARE=1', language: 'c')
