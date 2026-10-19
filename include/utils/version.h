@@ -12,7 +12,7 @@
  * sync with meson.build when bumping the release version.
  */
 #ifndef ZEAL_NATIVE_VERSION
-#define ZEAL_NATIVE_VERSION "1.0.0"
+#define ZEAL_NATIVE_VERSION "2.0.0-dev"
 #endif
 
 #define ZEAL_NATIVE_NAME "Zeal Native Emulator"

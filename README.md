@@ -139,7 +139,7 @@ selected ROM images are not written back; EEPROM and TF images retain their norm
 
 ```sh
 $ build/zeal-native -h
-Zeal Native Emulator 1.0.0
+Zeal Native Emulator 2.0.0-dev
 Usage: build/zeal-native [OPTIONS]
 
 Options:
