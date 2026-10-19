@@ -84,11 +84,20 @@ typedef struct {
 
     /* Private fields */
     bool    wait_for_next_char;
+    bool    wait_for_next_char_save;
     uint8_t visible_lines;
     uint8_t visible_columns;
     int     frame_counter;
     bool    cursor_shown;
 } zvb_text_t;
+
+/* Wrap the linear cursor address in its 80x40 backing map,
+ * independently of the visible text resolution. */
+static inline uint32_t zvb_text_cursor_address(const zvb_text_t* text)
+{
+    return ((text->cursor_pos.y + text->scroll.y) * TEXT_MAXIMUM_COLUMNS +
+            text->cursor_pos.x + text->scroll.x) % ZVB_TILEMAP_SIZE;
+}
 
 
 /**
@@ -144,3 +153,6 @@ uint8_t zvb_text_read(zvb_text_t* text, uint32_t addr);
  * @returns true if the cursor is shown, false else.
  */
 bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info);
+
+/* Snapshot cursor/scroll without advancing the once-per-frame blink. */
+bool zvb_text_get_info(const zvb_text_t* text, zvb_text_info_t* info);

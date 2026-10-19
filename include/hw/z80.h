@@ -23,6 +23,9 @@ struct z80 {
      * eliminating function pointer indirection on every memory access. */
     mmu_t mmu;
 
+    /* DMA holds the CPU bus until its release event. */
+    bool bus_requested;
+
     unsigned long cyc; // cycle count (t-states)
 
     uint16_t pc, sp, ix, iy;                // special purpose registers
@@ -51,7 +54,10 @@ void z80_init(z80* const z);
 void z80_reset(z80* const z);
 int z80_instruction_size(z80* const z);
 unsigned long z80_run_for(z80* const z, unsigned long tstates);
-int  z80_step(z80* const z);
+/* Advances peripherals and accepts interrupts after bus release. While DMA
+ * holds the bus, advances events within a bounded interval without
+ * executing an opcode. */
+unsigned long z80_step(z80* const z);
 void z80_debug_output(z80* const z);
 void z80_get_debug_output(z80* const z, char* s);
 void z80_gen_nmi(z80* const z);

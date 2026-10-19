@@ -19,8 +19,9 @@
 /** Sorted singly-linked list head (earliest deadline first). */
 static vtimer_node_t* s_head;
 
-/** Monotonically increasing t-state counter. */
-static uint64_t s_ticks;
+/** Monotonically increasing time in nanoseconds. */
+static uint64_t s_ns;
+static uint64_t s_stall_deadline;
 
 
 /* -------------------------------------------------------------------------- */
@@ -30,7 +31,19 @@ static uint64_t s_ticks;
 void vtimer_init(void)
 {
     s_head  = NULL;
-    s_ticks = 0;
+    s_ns    = 0;
+    s_stall_deadline = UINT64_MAX;
+}
+
+uint64_t vtimer_now_ns(void)
+{
+    return s_ns;
+}
+
+uint64_t vtimer_next_deadline_ns(void)
+{
+    const uint64_t deadline = s_head != NULL ? s_head->deadline : UINT64_MAX;
+    return deadline < s_stall_deadline ? deadline : s_stall_deadline;
 }
 
 
@@ -44,9 +57,9 @@ void vtimer_init_node(vtimer_node_t* node,
 }
 
 
-void vtimer_schedule_tstates(vtimer_node_t* node, uint64_t delay_tstates)
+void vtimer_schedule_at_ns(vtimer_node_t* node, uint64_t deadline_ns)
 {
-    node->deadline = s_ticks + delay_tstates;
+    node->deadline = deadline_ns;
     node->next     = NULL;
 
     /* Insert sorted by deadline (ascending), stable (FIFO for same deadline). */
@@ -64,33 +77,72 @@ void vtimer_schedule_tstates(vtimer_node_t* node, uint64_t delay_tstates)
 }
 
 
-void vtimer_schedule_us(vtimer_node_t* node, uint64_t delay_us)
+void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns)
 {
-    vtimer_schedule_tstates(node, US_TO_TSTATES(delay_us));
+    vtimer_schedule_at_ns(node, s_ns + delay_ns);
 }
 
 
-void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns)
+void vtimer_schedule_tstates(vtimer_node_t* node, uint64_t delay_tstates)
 {
-    /* 1 t-state = 100 ns @ 10MHz. Round up so we never fire too early. */
-    uint64_t delay_tstates = (delay_ns + 99) / 100;
-    vtimer_schedule_tstates(node, delay_tstates);
+    vtimer_schedule_ns(node, delay_tstates * (1000000000UL / CPUFREQ));
+}
+
+
+void vtimer_schedule_us(vtimer_node_t* node, uint64_t delay_us)
+{
+    vtimer_schedule_ns(node, delay_us * 1000);
+}
+
+
+static void vtimer_tick_ns(uint64_t elapsed_ns)
+{
+    s_ns += elapsed_ns;
+    while (s_head != NULL && s_head->deadline <= s_ns) {
+        vtimer_node_t* node = s_head;
+        s_head = node->next;
+        if (node->callback != NULL) {
+            node->callback(node->userdata);
+        }
+    }
 }
 
 
 void vtimer_tick(uint64_t elapsed_tstates)
 {
-    s_ticks += elapsed_tstates;
+    vtimer_tick_ns(elapsed_tstates * (1000000000UL / CPUFREQ));
+}
 
-    /* Fire all callbacks whose deadline has been reached. */
-    while (s_head != NULL && s_head->deadline <= s_ticks) {
-        vtimer_node_t* node = s_head;
-        s_head = node->next;
 
-        if (node->callback != NULL) {
-            node->callback(node->userdata);
-        }
+static uint64_t vtimer_stall_until(uint64_t elapsed_tstates, const bool* bus_requested)
+{
+    /* Dispatch DMA's 20 ns bus events and peripherals in deadline order. */
+    const uint64_t start = s_ns;
+    const uint64_t tstate_ns = 1000000000UL / CPUFREQ;
+    uint64_t target = start + elapsed_tstates * tstate_ns;
+    s_stall_deadline = target;
+    while (s_head != NULL && s_head->deadline <= target &&
+           (bus_requested == NULL || *bus_requested)) {
+        vtimer_tick_ns(s_head->deadline - s_ns);
     }
+    if (bus_requested != NULL && !*bus_requested) {
+        const uint64_t elapsed = s_ns - start;
+        target = start + (elapsed / tstate_ns + (elapsed % tstate_ns != 0)) * tstate_ns;
+        s_stall_deadline = target;
+    }
+    vtimer_tick_ns(target - s_ns);
+    s_stall_deadline = UINT64_MAX;
+    return (s_ns - start) / tstate_ns;
+}
+
+void vtimer_stall(uint64_t elapsed_tstates)
+{
+    vtimer_stall_until(elapsed_tstates, NULL);
+}
+
+uint64_t vtimer_stall_bus(uint64_t max_tstates, const bool* bus_requested)
+{
+    return vtimer_stall_until(max_tstates, bus_requested);
 }
 
 

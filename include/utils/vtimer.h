@@ -10,7 +10,7 @@
  *
  * Maintains a sorted singly-linked list of timer nodes. Callers schedule a callback
  * with a delay in t-states, microseconds, or nanoseconds. After each Z80 instruction,
- * vtimer_tick() is called with the elapsed t-states to fire any due callbacks.
+ * the CPU calls vtimer_tick() with the elapsed t-states to fire due callbacks.
  *
  * All state is global/static — there is no per-machine instance.
  */
@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /**
  * @brief A node in the timer linked list. Returned by schedule functions as a handle
@@ -26,7 +27,7 @@
  */
 typedef struct vtimer_node {
     struct vtimer_node* next;
-    uint64_t            deadline;   /* absolute t-state count when this fires   */
+    uint64_t            deadline;   /* absolute nanosecond deadline   */
     void                (*callback)(void* userdata);
     void*               userdata;
 } vtimer_node_t;
@@ -38,6 +39,12 @@ typedef struct vtimer_node {
  *        Must be called once at program startup.
  */
 void vtimer_init(void);
+
+/* Current emulated time, for peripheral counters between scheduled events. */
+uint64_t vtimer_now_ns(void);
+
+/* Next timer or current stall-budget boundary; UINT64_MAX when neither exists. */
+uint64_t vtimer_next_deadline_ns(void);
 
 
 /**
@@ -82,8 +89,7 @@ void vtimer_schedule_us(vtimer_node_t* node, uint64_t delay_us);
 /**
  * @brief Schedule a one-shot callback after @p delay_ns nanoseconds.
  *
- * Converts nanoseconds to t-states using the 10 MHz CPU clock (1 t-state = 100 ns).
- * Fractional t-states are rounded up to ensure the delay is never shorter than requested.
+ * Deadlines retain nanosecond precision, including sub-T-state DMA events.
  *
  * @param node      Timer node to link into the list.
  * @param delay_ns  Delay in nanoseconds.
@@ -94,15 +100,27 @@ void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns);
 /**
  * @brief Advance the virtual timer by @p elapsed_tstates t-states.
  *
- * Fires all callbacks whose deadline has been reached (deadline <= current t-states).
+ * Fires all callbacks whose deadline has been reached.
  * Each callback is invoked exactly once, then its node is unlinked from the list.
  * The caller is responsible for the node's lifetime (it is not freed).
  *
- * Call this after every Z80 instruction with the number of t-states that instruction took.
+ * The CPU core calls this after each instruction. Machine execution paths must
+ * not advance timers a second time.
  *
  * @param elapsed_tstates  Number of t-states to advance the counter by.
  */
 void vtimer_tick(uint64_t elapsed_tstates);
+
+/**
+ * @brief Advance time while the CPU has yielded the bus (e.g. DMA).
+ * Visits exact deadlines, including every period of a callback that rearms
+ * itself. Ordinary instruction-boundary timing remains in vtimer_tick().
+ */
+void vtimer_stall(uint64_t elapsed_tstates);
+
+/* Yield while the bus is held, stopping at release or the caller's budget.
+ * Returns elapsed whole T-states, rounding release to the next CPU boundary. */
+uint64_t vtimer_stall_bus(uint64_t max_tstates, const bool* bus_requested);
 
 
 /**
@@ -114,3 +132,6 @@ void vtimer_tick(uint64_t elapsed_tstates);
  * @param node  Timer node to cancel.
  */
 void vtimer_cancel(vtimer_node_t* node);
+
+/* Schedule an absolute deadline, preserving cadence after late dispatch. */
+void vtimer_schedule_at_ns(vtimer_node_t* node, uint64_t deadline_ns);

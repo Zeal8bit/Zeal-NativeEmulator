@@ -19,10 +19,8 @@
 /* Two channels left and right */
 #define SOUND_CHANNELS      2
 #define SAMPLES_PER_FRAME   (735)
-/* Since we cannot control the number of frames the audio callback
- * will request from us, we must make sure that the FIFO bigger than
- * audio callaback's `frames` parameter. */
-#define SAMPLE_FIFO_SIZE    (1024)
+#define SAMPLE_FIFO_SIZE    (256)
+#define SAMPLE_OUTPUT_SIZE  (4096)
 
 // Waveform types
 #define WAVE_SQUARE   0
@@ -45,26 +43,22 @@
 #define REG_MST_VOL    0xE
 #define REG_MST_ENA    0xF
 
-static inline float volume_steps_to_float(int value, int bits)
-{
-    const int mask = (1 << bits) - 1;
-    const float step = 1.0 / (mask + 1);
-    /* Highest bit of all volume registers mark a disable sound */
-    return ((value & mask) + 1) * step;
-}
-
-
 typedef struct {
     uint8_t freq_low;
     uint8_t freq_high;
     uint8_t wave;
     uint8_t duty;
     uint8_t voice_volume;
-    bool  noise;
     bool  hold;
-    /* Internal values, unrelated to the registers */
-    float volume;
+    /* Latch changes until the waveform can safely restart. */
+    uint16_t frequency;
+    uint16_t max_state;
+    uint8_t wave_latch;
+    uint8_t duty_latch;
+    bool need_reload;
+    bool decrementing;
     unsigned int phase;
+    atomic_int output;
 } zvb_voice_t;
 
 
@@ -77,12 +71,22 @@ typedef struct {
     /* FIFO-related */
     int fifo_head;
     int fifo_tail;
-    atomic_int fifo_bytes;
+    bool fifo_empty;
     uint8_t fifo[SAMPLE_FIFO_SIZE];
     /* Baudrate divider counter, used to know when to go to the next sample in the FIFO */
     int baud_count;
+    bool int_pending;
+    uint8_t state;
+    uint8_t ram_output;
+    uint16_t sample_output;
+    /* CPU clock owns the FIFO; the host audio thread only reads this sample. */
+    atomic_int output;
 } zvb_sample_table_t;
 
+typedef struct {
+    int16_t left;
+    int16_t right;
+} zvb_pcm_frame_t;
 
 typedef struct {
     zvb_voice_t        voices[VOICE_COUNT];
@@ -94,10 +98,21 @@ typedef struct {
     zvb_sample_table_t sample_table;
     /* RayLib's audio stream */
     AudioStream        stream;
-    /* Volume interpreted from the master_volume register */
-    float              left_volume;
-    float              right_volume;
     bool               enabled;
+    uint16_t           sample_clock_counter;
+    uint16_t           lfsr;
+    uint8_t            mix_state;
+    /* Exact clocks still needed after writes or sample events. */
+    uint8_t            settle_clocks;
+    uint16_t mean_left;
+    uint16_t mean_right;
+    /* Host playback queue, separate from the emulated hardware FIFO. */
+    atomic_flag        output_lock;
+    zvb_pcm_frame_t    output_samples[SAMPLE_OUTPUT_SIZE];
+    zvb_pcm_frame_t    output_last;
+    uint32_t output_head;
+    uint32_t output_tail;
+    uint32_t output_count;
 } zvb_sound_t;
 
 
@@ -128,6 +143,18 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port);
  * @param value Value of the register
  */
 void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value);
+
+/* One master clock; FIFO-empty interrupts are independent of host audio. */
+void zvb_sound_clock(zvb_sound_t* sound);
+/* Advance between bus accesses without iterating unchanged master clocks. */
+void zvb_sound_advance(zvb_sound_t* sound, uint32_t clocks);
+/* Clocks until the next FIFO interrupt opportunity, or zero when inactive. */
+uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound);
+static inline bool zvb_sound_interrupt(const zvb_sound_t* sound)
+
+{
+    return (sound->sample_table.config & 8) && sound->sample_table.int_pending;
+}
 
 
 /**
