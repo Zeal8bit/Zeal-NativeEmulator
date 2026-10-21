@@ -8,7 +8,7 @@
 
 This project is a software emulator for Zeal 8-bit Computer: a homebrew 8-bit computer based on a Z80 CPU.
 
-The emulator is written in C, and runs natively on desktop platforms. It features hardware-accelerated rendering for efficient graphics and is designed to precisely replicate the behavior of the original hardware.
+The emulator is written in C, and runs natively on desktop platforms. It supports a CPU software renderer and an optional hardware-accelerated shader renderer (deprecated), and is designed to precisely replicate the behavior of the original hardware.
 
 Whether you're developing software for Zeal 8-bit Computer or just using it to execute existing software, this emulator provides a fast and flexible environment for running and testing your code.
 
@@ -17,7 +17,7 @@ Whether you're developing software for Zeal 8-bit Computer or just using it to e
 An emulator for the Zeal 8-bit Computer already exists: it's called [Zeal-WebEmulator](https://github.com/Zeal8bit/Zeal-WebEmulator). That emulator is also public and open-source. To make it easily accessible without requiring any installation, it was developed in JavaScript and runs entirely in the web browser. However, due to this implementation choice, it struggles to maintain full speed and deliver a native-like experience when running Z80 CPU-intensive programs.
 
 That's where the **Zeal Native Emulator** comes in!
-This project is written entirely in C, using Raylib for 2D rendering and Nuklear for UI. It takes advantage of hardware acceleration through OpenGL and GLSL shaders, delivering a fast and smooth experience that works just like the real hardware. Even if the emulated programs are very demanding or CPU-intensive, the emulator always runs at full speed!
+This project is written entirely in C, using Raylib for 2D rendering and Nuklear for UI. It can render on the CPU with its software blitter or use hardware acceleration through OpenGL and GLSL shaders, delivering a fast and smooth experience that works just like the real hardware. Even if the emulated programs are very demanding or CPU-intensive, the emulator always runs at full speed!
 
 Thanks to its native implementation, this emulator is also much more portable, it can be adapted to other platforms including (but not limited to) WASM and Android. See the [Ports](#ports) section for more details.
 
@@ -35,8 +35,11 @@ To compile the emulator, you will need the following software:
 
 ### Hardware Requirements
 
-* For the native (desktop) version, your system must support OpenGL 3.3 Core since the emulator uses modern GLSL shaders.
-* For the WebAssembly (WASM) version, the browser must support WebGL2, which corresponds to OpenGL ES 3.0.
+* For the native (desktop) version:
+  * The software renderer (recommended) draws pixels on the CPU and uses Raylib only to display the finished frame. It does not use the custom GLSL shader path.
+  * The optional shader renderer (deprecated) requires OpenGL 3.3 Core, since it uses modern GLSL shaders.
+  * In both cases, Raylib must be able to create an OpenGL context and display the window.
+* For the WebAssembly (WASM) version, the browser must support WebGL2 (OpenGL ES 3.0), which Raylib uses for display.
 
 ### Native compilation
 
@@ -79,7 +82,7 @@ meson setup build -Draylib_path=/path/to/your/raylib
 
 ### Renderer options
 
-Use the software renderer for new builds:
+The software renderer is recommended for new builds:
 
 ```sh
 meson setup build -Dblitter_software=true
@@ -98,9 +101,10 @@ Set `-Dblitter_software_scanline_rendering=false` to compile out scanline
 capture and its command-line/debugger controls. Raylib handles display scaling;
 the CPU renders native-resolution rows.
 
-The shader renderer (`-Dblitter_software=false`) is deprecated and does not
-support RPU effects. It remains the default build setting for now, so select
-the software renderer explicitly.
+> [!WARNING]
+> The shader renderer (`-Dblitter_software=false`) is deprecated and does not
+> support RPU effects or scanline rendering emulation. It remains the default
+> build setting in this release, so select the software renderer explicitly.
 
 ### Clean
 
