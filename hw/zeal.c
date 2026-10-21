@@ -99,7 +99,8 @@ static int key_can_repeat(int code)
     const int modifiers[] = {
         KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
         KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
-        KEY_CAPS_LOCK,   KEY_NUM_LOCK
+        KEY_CAPS_LOCK,   KEY_NUM_LOCK,      KEY_SCROLL_LOCK,
+        KEY_KB_MENU
     };
 
     for (unsigned int i = 0; i < DIM(modifiers); i++) {
@@ -134,9 +135,11 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
 
     // look for newly pressed keys
     while((keyCode = GetKeyPressed())) {
-        RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
-        RAYLIB_KEYS[keyCode].duration = 0;
-        key_pressed(&machine->keyboard, keyCode);
+        if (keyCode > 0 && keyCode < RAYLIB_KEY_COUNT) {
+            RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
+            RAYLIB_KEYS[keyCode].duration = 0;
+            key_pressed(&machine->keyboard, keyCode);
+        }
     }
 
     // look for newly released keys
