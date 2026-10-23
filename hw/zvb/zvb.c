@@ -99,11 +99,9 @@ static uint8_t zvb_io_read(device_t* dev, uint32_t addr);
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data);
 static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uint8_t data);
 
-#if ZVB_BLITTER_SOFTWARE
 static void zvb_sync_sound(zvb_t* zvb, uint64_t target_ns);
 static void zvb_schedule_sound(zvb_t* zvb);
 static void zvb_sound_next(void* userdata);
-#endif
 
 static uint8_t zvb_external_interrupts(const zvb_t* zvb)
 {
@@ -180,9 +178,7 @@ static bool zvb_mem_dma_access_can_defer(device_t* dev, uint32_t addr)
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-#if ZVB_BLITTER_SOFTWARE
     zvb_sync_sound(zvb, vtimer_now_ns());
-#endif
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -212,9 +208,7 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-#if ZVB_BLITTER_SOFTWARE
     zvb_sync_sound(zvb, vtimer_now_ns());
-#endif
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -250,10 +244,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
             return (zvb->current_scanline >> 0) & 0xff;
         case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
         case ZVB_IO_CONFIG_HPOS_LOW: {
-            uint32_t hpos = zvb->current_hpos;
-#if ZVB_BLITTER_SOFTWARE
-            hpos = (vtimer_now_ns() - zvb->line_start_ns) / ZVB_PIXEL_NS;
-#endif
+            const uint32_t hpos = (vtimer_now_ns() - zvb->line_start_ns) / ZVB_PIXEL_NS;
             zvb->ctrl.hpos_latch = (hpos >> 8) & ZVB_HPOS_HIGH_MASK;
             return hpos & ZVB_HPOS_LOW_MASK;
         }
@@ -288,9 +279,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-#if ZVB_BLITTER_SOFTWARE
     zvb_sync_sound(zvb, vtimer_now_ns());
-#endif
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
@@ -350,11 +339,9 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             break;
         case ZVB_IO_CONFIG_STATUS_REG:
             zvb->status.vid_ena = status.vid_ena;
-#if ZVB_BLITTER_SOFTWARE
             if (zvb->status.v_blank) {
                 zvb->screen_enabled = status.vid_ena;
             }
-#endif
             zvb->status.h_int_ena = status.h_int_ena;
             zvb->status.v_int_ena = status.v_int_ena;
             zvb_update_interrupts(zvb);
@@ -397,20 +384,16 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
         default:
             break;
     }
-#if ZVB_BLITTER_SOFTWARE
     if (bank == ZVB_IO_MAPPING_SOUND) {
         zvb_schedule_sound(zvb);
     }
-#endif
     zvb_update_interrupts(zvb);
 }
 
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-#if ZVB_BLITTER_SOFTWARE
     zvb_sync_sound(zvb, vtimer_now_ns());
-#endif
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
@@ -492,8 +475,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
     /* Set the state to STATE_RENDERING, waiting for the next event */
     dev->state = STATE_RENDERING;
     vtimer_init_node(&dev->timer, zvb_fsm_next, dev);
-#if ZVB_BLITTER_SOFTWARE
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     dev->scanline_requested = !config->scanline_disabled;
     dev->scanline_rendering = dev->scanline_requested;
 #endif
@@ -501,7 +483,6 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
     dev->sound_clock_ns = vtimer_now_ns();
     dev->rpu_clock_ns = dev->sound_clock_ns;
     dev->line_start_ns = dev->sound_clock_ns;
-#endif
     vtimer_schedule_ns(&dev->timer, ZVB_VISIBLE_LINE_NS);
 
     /* Enable the screen by default */
@@ -532,16 +513,14 @@ static void zvb_reset(device_t* dev)
     zvb->current_scanline = 0;
     zvb->state = STATE_RENDERING;
     zvb->need_render = false;
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     zvb->scanline_rendering = zvb->scanline_requested;
     zvb->blitter.raster_frame = false;
 #endif
-#if ZVB_BLITTER_SOFTWARE
     vtimer_cancel(&zvb->sound_event);
     zvb->sound_clock_ns = vtimer_now_ns();
     zvb->rpu_clock_ns = zvb->sound_clock_ns;
     zvb->line_start_ns = zvb->sound_clock_ns;
-#endif
     vtimer_schedule_ns(&zvb->timer, ZVB_VISIBLE_LINE_NS);
     zvb_update_interrupts(zvb);
 }
@@ -608,13 +587,9 @@ void zvb_render(zvb_t* zvb)
     const double profile_start = GetTime();
 #endif
 
-#if ZVB_BLITTER_SOFTWARE
     bool frame_ready = zvb->screen_enabled;
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     frame_ready |= zvb->blitter.raster_frame;
-#endif
-#else
-    const bool frame_ready = zvb->status.vid_ena;
 #endif
     if (frame_ready) {
         switch (zvb->mode) {
@@ -696,7 +671,7 @@ void zvb_force_render(zvb_t* zvb)
 }
 
 
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
 void zvb_set_scanline_rendering(zvb_t* zvb, bool enabled)
 {
     zvb->scanline_requested = enabled;
@@ -708,7 +683,6 @@ bool zvb_scanline_rendering_requested(const zvb_t* zvb)
 }
 #endif
 
-#if ZVB_BLITTER_SOFTWARE
 static void zvb_rpu_load(void* userdata, uint16_t address, uint8_t data)
 {
     zvb_t* zvb = userdata;
@@ -766,20 +740,15 @@ static void zvb_advance_rpu(zvb_t* zvb, uint64_t target_ns)
     }
     zvb->rpu_clock_ns = target_ns;
 }
-#endif
 
 static void zvb_fsm_next(void* userdata)
 {
     zvb_t* zvb = userdata;
     const uint64_t deadline = zvb->timer.deadline;
-#if ZVB_BLITTER_SOFTWARE
     zvb_sync_sound(zvb, deadline);
-#endif
     if (zvb->state == STATE_RENDERING) {
-#if ZVB_BLITTER_SOFTWARE
         zvb_advance_rpu(zvb, deadline);
-#endif
-#if ZVB_BLITTER_SHADER || ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
         if (zvb->rendering_enabled && zvb->current_scanline < ZVB_MAX_RES_HEIGHT) {
             zvb_blitter_render_scanline(zvb, zvb->current_scanline);
         }
@@ -792,23 +761,19 @@ static void zvb_fsm_next(void* userdata)
     } else {
         zvb->current_hpos = 0;
         zvb->current_scanline++;
-#if ZVB_BLITTER_SOFTWARE
         zvb->line_start_ns = deadline;
-#endif
         zvb->state = STATE_RENDERING;
         zvb->status.h_blank = 0;
         if (zvb->current_scanline == ZVB_MAX_RES_HEIGHT) {
             zvb->need_render = true;
             zvb->status.v_blank = 1;
             zvb->blank_latches |= ZVB_VBLANK_LATCH;
-#if ZVB_BLITTER_SOFTWARE
             zvb_text_info_t info;
             zvb_text_update(&zvb->text, &info);
-#endif
         } else if (zvb->current_scanline >= ZVB_TOTAL_SCANLINES) {
             zvb->current_scanline = 0;
             zvb->status.v_blank = 0;
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
             if (zvb->scanline_rendering != zvb->scanline_requested) {
                 zvb->scanline_rendering = zvb->scanline_requested;
                 zvb->blitter.raster_frame = false;
@@ -831,9 +796,7 @@ void zvb_deinit(zvb_t* zvb)
     vtimer_cancel(&zvb->spi.event);
     zvb_dma_reset(&zvb->dma);
     vtimer_cancel(&zvb->peri_timer.event);
-#if ZVB_BLITTER_SOFTWARE
     vtimer_cancel(&zvb->sound_event);
-#endif
     zvb_sound_deinit(&zvb->sound);
     if (!zvb->rendering_enabled) {
         return;

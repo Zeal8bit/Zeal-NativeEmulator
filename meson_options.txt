@@ -7,8 +7,7 @@ option('raylib_path', type : 'string', value : '', description : 'Path to Raylib
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
 
 ## Rendering
-option('blitter_software', type: 'boolean', value: false, description: 'Use software blitter')
-option('blitter_software_scanline_rendering', type: 'boolean', value: true, description: 'Compile scanline rendering support (software blitter only)')
+option('scanline_rendering', type: 'boolean', value: true, description: 'Compile scanline rendering support')
 
 ## Profiling
 option('show_fps', type: 'boolean', value: false, description: 'Show FPS')

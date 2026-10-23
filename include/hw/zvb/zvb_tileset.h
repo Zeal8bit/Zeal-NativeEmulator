@@ -9,7 +9,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "raylib.h"
 
 /**
  * @brief Size of the tileset, in bytes
@@ -20,25 +19,7 @@
 typedef struct {
     /* Raw arrays representing the tileset in VRAM */
     uint8_t raw[ZVB_TILESET_SIZE];
-#if ZVB_BLITTER_SHADER
-    /* Make rendering faster by using an Image and a Texture for the tileset */
-    Image   img_tileset;
-    Texture tex_tileset;
-    int     dirty;
-#endif
 } zvb_tileset_t;
-
-
-
-/**
- * @brief Get the shader out of the palette
- */
-#if ZVB_BLITTER_SHADER
-static inline Texture* zvb_tileset_texture(zvb_tileset_t* tileset)
-{
-    return &tileset->tex_tileset;
-}
-#endif
 
 
 /**
@@ -63,9 +44,3 @@ void zvb_tileset_write(zvb_tileset_t* tileset, uint32_t addr, uint8_t data);
  * @param layer Layer to read from (0 or 1)
  */
 uint8_t zvb_tileset_read(zvb_tileset_t* tileset, uint32_t addr);
-
-
-/**
- * @brief Update the tileset renderer, needs to be called before starting drawing anything on screen.
- */
-void zvb_tileset_update(zvb_tileset_t* tileset);

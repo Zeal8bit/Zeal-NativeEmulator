@@ -25,11 +25,7 @@
 #include "hw/zvb/zvb_timer.h"
 #include "debugger/debugger_types.h"
 
-#if ZVB_BLITTER_SHADER
-#include "hw/zvb/blitter/shader.h"
-#elif ZVB_BLITTER_SOFTWARE
 #include "hw/zvb/blitter/software.h"
-#endif
 
 
 /**
@@ -154,10 +150,9 @@ typedef struct {
 } zvb_ctrl_t;
 
 
-
 typedef struct {
     bool rendering_enabled;
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     bool scanline_disabled;
 #endif
     bool dma_disabled; /* Missing BUSREQ/BUSACK wiring; other ZVB features remain active */
@@ -205,13 +200,11 @@ typedef struct {
     vtimer_node_t    timer;
     int              current_scanline;
     int              current_hpos;
-#if ZVB_BLITTER_SOFTWARE
     vtimer_node_t    sound_event;
     uint64_t         line_start_ns;
     uint64_t         sound_clock_ns;
     uint64_t         rpu_clock_ns;
-#endif
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     bool             scanline_requested;
     bool             scanline_rendering;
 #endif
@@ -277,7 +270,7 @@ void zvb_profile_frame(double elapsed_seconds);
 void zvb_force_render(zvb_t* zvb);
 
 
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
 /* Runtime requests take effect at the next frame boundary. */
 void zvb_set_scanline_rendering(zvb_t* zvb, bool enabled);
 bool zvb_scanline_rendering_requested(const zvb_t* zvb);

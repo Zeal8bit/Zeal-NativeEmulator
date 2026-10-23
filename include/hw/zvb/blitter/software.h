@@ -17,7 +17,7 @@
 typedef struct {
     /* RGB565 framebuffer, 640×480 = 614 400 bytes */
     uint16_t*     framebuffer;
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     bool          raster_frame;
 #endif
     /* Raylib Image wrapping framebuffer for UpdateTexture */
