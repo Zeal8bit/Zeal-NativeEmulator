@@ -83,13 +83,8 @@ add_project_arguments('-D_XOPEN_SOURCE=700',
 # a fallback for builds that do not go through Meson.
 add_project_arguments('-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version()), language: 'c')
 
-if (get_option('blitter_software'))
-    add_project_arguments('-DZVB_BLITTER_SOFTWARE=1', language: 'c')
-    if (get_option('blitter_software_scanline_rendering'))
-        add_project_arguments('-DZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING=1', language: 'c')
-    endif
-else
-    add_project_arguments('-DZVB_BLITTER_SHADER=1', language: 'c')
+if get_option('scanline_rendering')
+    add_project_arguments('-DZVB_SCANLINE_RENDERING=1', language: 'c')
 endif
 
 zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')

@@ -123,7 +123,7 @@ static void debug_draw_grid(Image* img, const dbg_grid_t* g, bool gfx_mode)
 }
 
 /* Graphics-mode layers: highlight the subscreen (320x240) boundaries, one
- * green line at every 20th/15th cell, like the former debug shader. */
+ * green line at every 20th/15th cell. */
 static void debug_draw_subscreens(Image* img, const dbg_grid_t* g)
 {
     Color* data = img->data;

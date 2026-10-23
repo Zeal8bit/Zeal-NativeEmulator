@@ -9,7 +9,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "raylib.h"
 #include "hw/zvb/default_font.h"
 
 /* Size of a character in the font, in bytes */
@@ -27,24 +26,7 @@
 typedef struct {
     /* Raw data, as organized in the real hardware. Each character is a bitmap. */
     uint8_t raw_font[ZVB_FONT_SIZE];
-#if ZVB_BLITTER_SHADER
-    /* Make rendering faster by using an Image and a Texture underneath */
-    Image   img_font;
-    Texture tex_font;
-    int     dirty;
-#endif
 } zvb_font_t;
-
-
-/**
- * @brief Get the texture out of the font
- */
-#if ZVB_BLITTER_SHADER
-static inline Texture zvb_font_texture(zvb_font_t* font)
-{
-    return font->tex_font;
-}
-#endif
 
 
 /**
@@ -66,9 +48,3 @@ void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data);
  * @brief Function to call when a read occurs on the Font memory area.
  */
 uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr);
-
-
-/**
- * @brief Update the font renderer, needs to be called before starting drawing anything on screen.
- */
-void zvb_font_update(zvb_font_t* font);

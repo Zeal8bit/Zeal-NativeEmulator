@@ -225,7 +225,7 @@ int zeal_init(zeal_t* machine)
 #endif // CONFIG_ENABLE_DEBUGGER
 
     if (!machine->headless) {
-        /* Initialize the UI. It must be done before any shader is created! */
+        /* Initialize the UI before creating rendering resources. */
         SetTraceLogLevel(WIN_LOG_LEVEL);
 #ifndef PLATFORM_WEB
         SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -322,7 +322,7 @@ int zeal_init(zeal_t* machine)
     const zvb_config_t zvb_config = {
         .rendering_enabled = !machine->headless,
         .dma_disabled = config.arguments.no_dma,
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
         .scanline_disabled = config.arguments.no_scanline_rendering,
 #endif
         .pio = &machine->pio,
