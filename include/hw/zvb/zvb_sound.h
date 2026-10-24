@@ -20,7 +20,7 @@
 #define SOUND_CHANNELS      2
 #define SAMPLES_PER_FRAME   (735)
 #define SAMPLE_FIFO_SIZE    (256)
-#define SAMPLE_OUTPUT_SIZE  (4096)
+#define SAMPLE_OUTPUT_SIZE  (8192)
 
 // Waveform types
 #define WAVE_SQUARE   0
@@ -113,6 +113,11 @@ typedef struct {
     uint32_t output_head;
     uint32_t output_tail;
     uint32_t output_count;
+    /* Host-only resampling state; never feeds back into FPGA synthesis. */
+    zvb_pcm_frame_t playback_last;
+    bool playback_started;
+    double playback_position;
+    double playback_rate;
 } zvb_sound_t;
 
 
