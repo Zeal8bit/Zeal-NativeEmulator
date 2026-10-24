@@ -35,6 +35,16 @@
 #define SOUND_NOISE_NIBBLE_MASK          (SOUND_NOISE_NIBBLE_VALUES - 1u)
 #define SOUND_VOICE_PIPELINE_CLOCKS      (2)
 
+/* About 93 ms of queued audio absorbs video-frame bursts and host jitter,
+ * including an occasional missed presentation while correcting clock drift.
+ * Slowly correct clock drift at the host boundary, without skipping chunks
+ * of the FPGA output or changing any emulated clocks/registers. */
+#define SOUND_PLAYBACK_TARGET           (SAMPLE_OUTPUT_SIZE / 2)
+#define SOUND_PLAYBACK_CORRECTION_SECS  (0.5)
+#define SOUND_PLAYBACK_SMOOTH_SECS      (0.25)
+/* Native pacing supplies real-time samples; only correct residual clock drift. */
+#define SOUND_PLAYBACK_MAX_CORRECTION   (0.01)
+
 _Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
                "Noise jumps must cover the interval between samples");
 
@@ -147,6 +157,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
     noise_jump_init();
     sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
     atomic_flag_clear(&sound->output_lock);
+    sound->playback_rate = 1.0;
 
     if (!enabled) {
         return;
@@ -208,6 +219,10 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->output_tail = 0;
     sound->output_head = 0;
     sound->output_last = (zvb_pcm_frame_t){0};
+    sound->playback_last = (zvb_pcm_frame_t){0};
+    sound->playback_started = false;
+    sound->playback_position = 0;
+    sound->playback_rate = 1.0;
     sound->mix_state = 0;
     output_unlock(sound);
 
@@ -251,8 +266,9 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
     }
     const uint32_t previous_phase = voice->phase;
     const uint32_t next = (previous_phase + voice->frequency) & SOUND_PHASE_MASK;
-    const uint32_t triangle = (previous_phase +
-        (voice->decrementing ? -(int)voice->frequency * 2 : voice->frequency * 2)) & SOUND_PHASE_MASK;
+    const uint32_t triangle_increment = (previous_phase + voice->frequency * 2) & SOUND_PHASE_MASK;
+    const uint32_t triangle_decrement = (previous_phase - voice->frequency * 2) & SOUND_PHASE_MASK;
+    const uint32_t triangle = voice->decrementing ? triangle_decrement : triangle_increment;
     switch (voice->wave) {
         case WAVE_SQUARE:
         case WAVE_SAWTOOTH:
@@ -261,9 +277,13 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
         case WAVE_TRIANGLE:
             if ((!voice->decrementing && (previous_phase & SOUND_PHASE_OVERFLOW)) ||
                 (voice->decrementing && !triangle)) {
+                /* RTL reverses the step on this clock, using the old direction.
+                 * Keep the old-direction candidate for the reload check below. */
+                voice->phase = voice->decrementing ? triangle_increment : triangle_decrement;
                 voice->decrementing = !voice->decrementing;
+            } else {
+                voice->phase = triangle;
             }
-            voice->phase = triangle;
             break;
         case WAVE_NOISE:
             voice->phase = lfsr;
@@ -431,12 +451,41 @@ static void audio_callback(void* rbuf, unsigned int frames)
     /* The host only consumes complete frames; all registers and synthesis
      * belong to the emulation thread. */
     output_lock(g_sound);
+    if (!g_sound->playback_started && g_sound->output_count >= SOUND_PLAYBACK_TARGET) {
+        g_sound->playback_started = true;
+    }
+    if (g_sound->playback_started) {
+        double correction = ((double)g_sound->output_count - SOUND_PLAYBACK_TARGET) /
+                            (SAMPLE_RATE * SOUND_PLAYBACK_CORRECTION_SECS);
+        if (correction > SOUND_PLAYBACK_MAX_CORRECTION) {
+            correction = SOUND_PLAYBACK_MAX_CORRECTION;
+        } else if (correction < -SOUND_PLAYBACK_MAX_CORRECTION) {
+            correction = -SOUND_PLAYBACK_MAX_CORRECTION;
+        }
+        const double smoothing = frames / (SAMPLE_RATE * SOUND_PLAYBACK_SMOOTH_SECS + frames);
+        g_sound->playback_rate += smoothing * (1.0 + correction - g_sound->playback_rate);
+    }
     for (uint32_t i = 0; i < frames; i++) {
-        zvb_pcm_frame_t sample = g_sound->output_last;
-        if (g_sound->output_count) {
-            sample = g_sound->output_samples[g_sound->output_tail];
-            g_sound->output_tail = (g_sound->output_tail + 1) % SAMPLE_OUTPUT_SIZE;
-            g_sound->output_count--;
+        zvb_pcm_frame_t sample = g_sound->playback_last;
+        if (g_sound->playback_started && g_sound->output_count >= 2) {
+            const zvb_pcm_frame_t first = g_sound->output_samples[g_sound->output_tail];
+            const zvb_pcm_frame_t second = g_sound->output_samples[
+                (g_sound->output_tail + 1) % SAMPLE_OUTPUT_SIZE];
+            const double fraction = g_sound->playback_position;
+            sample.left = first.left + (second.left - first.left) * fraction;
+            sample.right = first.right + (second.right - first.right) * fraction;
+            g_sound->playback_last = sample;
+            g_sound->playback_position += g_sound->playback_rate;
+            const uint32_t consumed = (uint32_t)g_sound->playback_position;
+            g_sound->playback_position -= consumed;
+            g_sound->output_tail = (g_sound->output_tail + consumed) % SAMPLE_OUTPUT_SIZE;
+            g_sound->output_count -= consumed;
+        } else if (g_sound->playback_started) {
+            /* A long stall/pause needs a fresh reserve. Hold the last played
+             * sample, not the producer's newest (possibly dropped) sample. */
+            g_sound->playback_started = false;
+            g_sound->playback_position = 0;
+            g_sound->playback_rate = 1.0;
         }
         buffer[i * SOUND_CHANNELS] = sample.left;
         buffer[i * SOUND_CHANNELS + 1] = sample.right;
