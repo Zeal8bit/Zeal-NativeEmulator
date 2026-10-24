@@ -26,6 +26,9 @@
  */
 #define HOST_KEYB_CHECK_PERIOD   US_TO_TSTATES(15000)
 
+/* Rebase after a long host stall rather than rapidly replaying missed time. */
+#define NATIVE_PACING_MAX_LAG_SECONDS  (0.1)
+
 #define CHECK_ERR(err)  \
     do {                \
         if (err)        \
@@ -758,13 +761,47 @@ int zeal_run(zeal_t* machine)
         return 0;
     }
 
+#ifndef PLATFORM_WEB
+    double host_epoch = GetTime();
+    uint64_t emulated_epoch = vtimer_now_ns();
+#endif
     while (!machine->should_exit && !WindowShouldClose()) {
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;
         }
 #endif // CONFIG_ENABLE_DEBUGGER
+#ifndef PLATFORM_WEB
+        bool paused = false;
+#if CONFIG_ENABLE_DEBUGGER
+        paused = machine->dbg_enabled && machine->dbg_state == ST_PAUSED;
+#endif
+        /* Running emulation uses the absolute deadline below. Only a paused
+         * debugger needs Raylib to limit UI redraws independently of the CPU. */
+        SetTargetFPS(paused ? 60 : 0);
+#endif
         zeal_loop(machine);
+#ifndef PLATFORM_WEB
+        const double now = GetTime();
+        const uint64_t emulated_now = vtimer_now_ns();
+#if CONFIG_ENABLE_DEBUGGER
+        paused = paused || (machine->dbg_enabled && machine->dbg_state == ST_PAUSED);
+#endif
+        if (paused || emulated_now < emulated_epoch) {
+            host_epoch = now;
+            emulated_epoch = emulated_now;
+        } else {
+            /* Match elapsed emulated time to wall time, including the exact
+             * 16.768 ms video period. Sleep overshoot is repaid next frame. */
+            const double remaining = host_epoch + (emulated_now - emulated_epoch) / 1e9 - now;
+            if (remaining < -NATIVE_PACING_MAX_LAG_SECONDS) {
+                host_epoch = now;
+                emulated_epoch = emulated_now;
+            } else if (remaining > 0) {
+                WaitTime(remaining);
+            }
+        }
+#endif
     }
 
 #if CONFIG_ENABLE_DEBUGGER

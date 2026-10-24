@@ -42,9 +42,8 @@
 #define SOUND_PLAYBACK_TARGET           (SAMPLE_OUTPUT_SIZE / 2)
 #define SOUND_PLAYBACK_CORRECTION_SECS  (0.5)
 #define SOUND_PLAYBACK_SMOOTH_SECS      (0.25)
-/* Native frame limiting can undershoot 60 Hz by more than 2%. Keep enough
- * correction range and queue reserve for that sustained mismatch. */
-#define SOUND_PLAYBACK_MAX_CORRECTION   (0.05)
+/* Native pacing supplies real-time samples; only correct residual clock drift. */
+#define SOUND_PLAYBACK_MAX_CORRECTION   (0.01)
 
 _Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
                "Noise jumps must cover the interval between samples");
@@ -267,8 +266,9 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
     }
     const uint32_t previous_phase = voice->phase;
     const uint32_t next = (previous_phase + voice->frequency) & SOUND_PHASE_MASK;
-    const uint32_t triangle = (previous_phase +
-        (voice->decrementing ? -(int)voice->frequency * 2 : voice->frequency * 2)) & SOUND_PHASE_MASK;
+    const uint32_t triangle_increment = (previous_phase + voice->frequency * 2) & SOUND_PHASE_MASK;
+    const uint32_t triangle_decrement = (previous_phase - voice->frequency * 2) & SOUND_PHASE_MASK;
+    const uint32_t triangle = voice->decrementing ? triangle_decrement : triangle_increment;
     switch (voice->wave) {
         case WAVE_SQUARE:
         case WAVE_SAWTOOTH:
@@ -277,9 +277,13 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
         case WAVE_TRIANGLE:
             if ((!voice->decrementing && (previous_phase & SOUND_PHASE_OVERFLOW)) ||
                 (voice->decrementing && !triangle)) {
+                /* RTL reverses the step on this clock, using the old direction.
+                 * Keep the old-direction candidate for the reload check below. */
+                voice->phase = voice->decrementing ? triangle_increment : triangle_decrement;
                 voice->decrementing = !voice->decrementing;
+            } else {
+                voice->phase = triangle;
             }
-            voice->phase = triangle;
             break;
         case WAVE_NOISE:
             voice->phase = lfsr;
