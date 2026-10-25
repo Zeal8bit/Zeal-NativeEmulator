@@ -6,10 +6,10 @@ Use GCC or Clang, Meson, Ninja, and Raylib 5.5 or newer. Install the platform
 dependencies required by Raylib. Native builds need OpenGL support; browser
 builds need WebGL2. See [README.md](README.md) for platform and runtime details.
 
-Run commands from the repository root. For software-renderer development:
+Run commands from the repository root. For development:
 
 ```sh
-meson setup build-dev -Dblitter_software=true -Denable_debugger=true
+meson setup build-dev -Denable_debugger=true
 meson compile -C build-dev
 ./build-dev/zeal-native --help
 ```
@@ -26,7 +26,7 @@ For WebAssembly, activate an Emscripten environment with `emcc`, `em++`, and
 `emar` available, then configure a separate build:
 
 ```sh
-meson setup build-wasm --cross-file wasm-cross.build -Dblitter_software=true
+meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 ```
 
@@ -40,13 +40,13 @@ an HTTP server rather than opening them directly.
 | --- | --- |
 | `hw/main.c`, `hw/zeal.c` | Application entry point and machine integration. |
 | `hw/` | CPU, memory, buses, storage, and other emulated devices. |
-| `hw/zvb/` | Video-board components; `blitter/` contains renderer implementations. |
+| `hw/zvb/` | Video-board components; `blitter/` contains the software renderer. |
 | `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend, UI panels, and machine integration. |
 | `hw/userport/` | User-port device implementations. |
 | `app/console/` | Headless console and debugger command handling. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
 | `utils/` | Configuration, paths, logging support, notifications, FIFO, and virtual timers. |
-| `assets/` | Fonts, shaders, resources, and browser templates/support code. |
+| `assets/` | Fonts, resources, and browser templates/support code. |
 | `raylib/` | Bundled platform libraries, headers, and license. |
 | `tools/` | Build-time resource and WASM helper scripts. |
 | `meson.build`, subsystem `meson.build` files | Build configuration and source lists. |
@@ -126,9 +126,8 @@ unrelated project code or bundled dependencies.
 Build the affected configuration and inspect compiler warnings. For changes
 that interact with optional code, also build the relevant feature combinations
 in separate directories, such as debugger enabled/disabled or software
-scanline rendering enabled/disabled. The software renderer is the development
-focus; the shader renderer is deprecated. Shared changes must still compile for
-both renderer selections.
+scanline rendering enabled/disabled. Use `-Dscanline_rendering=false` to
+validate builds without scanline support.
 
 Use a known ROM to check the affected behavior in the debugger or headless
 console. Headless commands advance a specified number of emulated CPU T-states:
@@ -153,7 +152,7 @@ and arithmetic checks. A separate instrumented application build can be made
 with:
 
 ```sh
-meson setup build-sanitize -Dblitter_software=true -Db_sanitize=address,undefined
+meson setup build-sanitize -Db_sanitize=address,undefined
 meson compile -C build-sanitize
 ```
 

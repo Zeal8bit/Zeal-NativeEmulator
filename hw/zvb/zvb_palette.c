@@ -5,34 +5,9 @@
  */
 
 
-#include <stdio.h>
 #include <assert.h>
 #include <string.h>
 #include "hw/zvb/zvb_palette.h"
-
-
-#if ZVB_BLITTER_SHADER
-
-static void palette_rgb565_to_color(uint_fast16_t rgb, Color *color)
-{
-    const uint_fast8_t r = (rgb >> 11) & 0x1F;  // 5 bits for red
-    const uint_fast8_t g = (rgb >> 5)  & 0x3F;  // 6 bits for green
-    const uint_fast8_t b = (rgb >> 0)  & 0x1F;  // 5 bits for blue
-    color->r = (r << 3) | 0;  // convert 5->8 bits
-    color->g = (g << 2) | 0;  // convert 6->8 bits
-    color->b = (b << 3) | 0;  // convert 5->8 bits
-    color->a = 0xFF;
-}
-
-void zvb_palette_update(zvb_palette_t* pal)
-{
-    if (pal->dirty && pal->tex_pal.id != 0) {
-        UpdateTexture(pal->tex_pal, pal->img_pal.data);
-        pal->dirty = false;
-    }
-}
-
-#endif // ZVB_BLITTER_SHADER
 
 
 /**
@@ -79,25 +54,8 @@ void zvb_palette_init(zvb_palette_t* pal, bool rendering_enabled)
 {
     assert(pal != NULL);
     (void) rendering_enabled;
-    
+
     memcpy(pal->raw_palette, default_palette_565, sizeof(default_palette_565));
-
-#if ZVB_BLITTER_SHADER
-    if (!rendering_enabled) {
-        pal->dirty = false;
-        return;
-    }
-    pal->img_pal = GenImageColor(ZVB_COLOR_PALETTE_COUNT, 1, BLACK);
-
-    /* Each color is 2 bytes big, in little-endian format */
-    Color* colors = (Color*) pal->img_pal.data;
-    for (size_t i = 0; i < sizeof(default_palette_565); i += 2) {
-        const uint_fast16_t rgb = default_palette_565[i] + (default_palette_565[i + 1] << 8);
-        palette_rgb565_to_color(rgb, &colors[i / 2]);
-    }
-    pal->tex_pal = LoadTextureFromImage(pal->img_pal);
-    pal->dirty = false;
-#endif // ZVB_BLITTER_SHADER
 }
 
 
@@ -110,18 +68,6 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data)
     /* Odd address (MSB) written! */
     pal->raw_palette[addr - 1] = pal->wr_latch;
     pal->raw_palette[addr] = data;
-
-#if ZVB_BLITTER_SHADER
-    if (pal->img_pal.data == NULL) {
-        return;
-    }
-
-    Color* colors = (Color*) (pal->img_pal.data);
-    /* Update the color in the dediacted table, so get the RGB565 out of the two bytes */
-    const uint_fast16_t rgb565 = (data << 8) | pal->wr_latch;
-    palette_rgb565_to_color(rgb565, &colors[addr / 2]);
-    pal->dirty = true;
-#endif
 }
 
 

@@ -211,7 +211,7 @@ static void present_frame(zvb_t* zvb)
             (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
             (Vector2){ 0, 0 }, 0.0f, WHITE);
     EndTextureMode();
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     bl->raster_frame = false;
 #endif
 }
@@ -512,7 +512,7 @@ static void render_scanline(zvb_t* zvb, int y)
     }
 }
 
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
     if (!zvb->scanline_rendering || !zvb->blitter.framebuffer ||
@@ -537,14 +537,14 @@ void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 
 static void render_frame(zvb_t* zvb)
 {
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     if (!zvb->blitter.raster_frame) {
 #endif
         const int height = low_resolution(zvb) ? LOWRES_HEIGHT : FB_HEIGHT;
         for (int y = 0; y < height; y++) {
             render_scanline(zvb, y);
         }
-#if ZVB_BLITTER_SOFTWARE_SCANLINE_RENDERING
+#if ZVB_SCANLINE_RENDERING
     }
 #endif
     present_frame(zvb);
