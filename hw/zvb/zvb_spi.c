@@ -15,6 +15,7 @@
 #define SPI_RESET_CLK_DIV                (10)
 #define SPI_CLOCK_NS                     (20U)
 #define SPI_BYTE_CLOCKS                  (16U)
+#define SPI_BYTE_BITS                    (8U)
 #define SPI_RAM_LEN_MASK                 (15)
 #define SPI_RAM_RESET_INDEXES            (0x80)
 #define TF_COMMAND_PREFIX_MASK           (0xc0)
@@ -56,10 +57,40 @@ static void zvb_tf_deassert(zvb_spi_t* spi);
 static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data);
 static void zvb_spi_complete_byte(void* userdata);
 
+/* The FPGA samples directly into receive RAM on rising SCLK edges. Materialize
+ * those bits on access, keeping one scheduled callback per completed byte. */
+static void zvb_spi_sync_receive(zvb_spi_t* spi, uint64_t now_ns)
+{
+    if (!spi->busy) {
+        return;
+    }
+
+    const uint64_t elapsed_ns = now_ns - spi->byte_started_ns;
+    uint64_t sampled_bits = (elapsed_ns + spi->half_period_ns) / (2U * spi->half_period_ns);
+    if (sampled_bits > SPI_BYTE_BITS) {
+        sampled_bits = SPI_BYTE_BITS;
+    }
+    if (sampled_bits <= spi->sampled_bits) {
+        return;
+    }
+
+    const zvb_tf_t* tf = &spi->tf;
+    const uint8_t incoming = spi->tf_cs && tf->img && tf->reply_idx < tf->reply_len ?
+                             tf->reply[tf->reply_idx] : TF_IDLE_BYTE;
+    const uint8_t mask = (TF_IDLE_BYTE >> spi->sampled_bits) &
+                         (TF_IDLE_BYTE << (SPI_BYTE_BITS - sampled_bits));
+    const uint8_t index = spi->transfer_index % SPI_RAM_LEN;
+    spi->ram_rd.data[index] = (spi->ram_rd.data[index] & ~mask) | (incoming & mask);
+    spi->sampled_bits = (uint8_t)sampled_bits;
+}
+
 static void zvb_spi_schedule_byte(zvb_spi_t* spi, uint64_t start_ns)
 {
     spi->outgoing = spi->ram_wr.data[spi->transfer_index % SPI_RAM_LEN];
-    vtimer_schedule_at_ns(&spi->event, start_ns + SPI_BYTE_CLOCKS * SPI_CLOCK_NS * spi->clk_div);
+    spi->byte_started_ns = start_ns;
+    spi->half_period_ns = SPI_CLOCK_NS * spi->clk_div;
+    spi->sampled_bits = 0;
+    vtimer_schedule_at_ns(&spi->event, start_ns + SPI_BYTE_CLOCKS * spi->half_period_ns);
 }
 
 void zvb_spi_init(zvb_spi_t* spi)
@@ -72,6 +103,7 @@ void zvb_spi_init(zvb_spi_t* spi)
 
 void zvb_spi_reset(zvb_spi_t* spi)
 {
+    zvb_spi_sync_receive(spi, vtimer_now_ns());
     vtimer_cancel(&spi->event);
     spi->clk_div = SPI_RESET_CLK_DIV;
     spi->ram_rd.idx = 0;
@@ -112,6 +144,7 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
         return 1;
     }
     if (spi->tf.img) {
+        zvb_spi_sync_receive(spi, vtimer_now_ns());
         fclose(spi->tf.img);
     }
     spi->tf.img = image;
@@ -124,6 +157,7 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
 
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 {
+    zvb_spi_sync_receive(spi, vtimer_now_ns());
     uint_fast8_t index;
     /* We may want to interpret the value as a control */
     zvb_spi_ctrl_t ctrl = { .raw = value };
@@ -202,6 +236,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 
 uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr)
 {
+    zvb_spi_sync_receive(spi, vtimer_now_ns());
     switch(addr) {
         case SPI_REG_VERSION:
             return SPI_VERSION;
@@ -521,12 +556,14 @@ static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
     }
 }
 
-/* Complete whole bytes; no clock edges or partially received bits are modeled. */
+/* Advance the card byte stream after the final falling SCLK edge. */
 static void zvb_spi_complete_byte(void* userdata)
 {
     zvb_spi_t* spi = userdata;
-    const uint8_t index = spi->transfer_index % SPI_RAM_LEN;
-    spi->ram_rd.data[index] = spi->tf_cs && spi->tf.img ? zvb_tf_next_byte(&spi->tf) : TF_IDLE_BYTE;
+    zvb_spi_sync_receive(spi, spi->event.deadline);
+    if (spi->tf_cs && spi->tf.img) {
+        zvb_tf_next_byte(&spi->tf);
+    }
     zvb_tf_receive_byte(spi, spi->outgoing);
     spi->transfer_index++;
     if (spi->transfer_index == spi->transfer_len) {
