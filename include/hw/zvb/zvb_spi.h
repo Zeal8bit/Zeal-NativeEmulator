@@ -113,6 +113,9 @@ typedef struct {
     uint8_t         transfer_index;
     uint8_t         transfer_len;
     uint8_t         outgoing;
+    uint8_t         sampled_bits;
+    uint32_t        half_period_ns;
+    uint64_t        byte_started_ns;
     vtimer_node_t   event;
 } zvb_spi_t;
 
