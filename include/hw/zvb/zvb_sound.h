@@ -118,6 +118,10 @@ typedef struct {
     bool playback_started;
     double playback_position;
     double playback_rate;
+    /* Host AC coupling, after resampling; protected by output_lock. */
+    double playback_dc_input[SOUND_CHANNELS];
+    double playback_dc_output[SOUND_CHANNELS];
+    bool playback_dc_ready;
 } zvb_sound_t;
 
 
