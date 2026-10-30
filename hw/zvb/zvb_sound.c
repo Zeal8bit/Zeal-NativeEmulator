@@ -44,6 +44,8 @@
 #define SOUND_PLAYBACK_SMOOTH_SECS      (0.25)
 /* Native pacing supplies real-time samples; only correct residual clock drift. */
 #define SOUND_PLAYBACK_MAX_CORRECTION   (0.01)
+/* First-order AC coupling at 5 Hz preserves bass while rejecting DC. */
+#define SOUND_PLAYBACK_DC_POLE          (1.0 / (1.0 + 2.0 * 3.141592653589793 * 5.0 / SAMPLE_RATE))
 
 _Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
                "Noise jumps must cover the interval between samples");
@@ -224,6 +226,9 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->playback_position = 0;
     sound->playback_rate = 1.0;
     sound->mix_state = 0;
+    memset(sound->playback_dc_input, 0, sizeof(sound->playback_dc_input));
+    memset(sound->playback_dc_output, 0, sizeof(sound->playback_dc_output));
+    sound->playback_dc_ready = false;
     output_unlock(sound);
 
 }
@@ -445,6 +450,31 @@ uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound)
 }
 
 
+/* Keep FPGA mixer levels intact in the queue. Only the host DAC
+ * needs AC coupling: a muted mixer and a held underrun sample must settle
+ * to zero, and changing route/volume/duty must not leave a lasting bias. */
+static zvb_pcm_frame_t playback_ac_couple(zvb_sound_t* sound, zvb_pcm_frame_t sample)
+{
+    const double input[SOUND_CHANNELS] = {sample.left, sample.right};
+    int16_t output[SOUND_CHANNELS];
+    for (unsigned channel = 0; channel < SOUND_CHANNELS; channel++) {
+        if (!sound->playback_dc_ready) {
+            /* Start at the first input's DC level, without a startup step. */
+            sound->playback_dc_input[channel] = input[channel];
+        }
+        const double filtered = SOUND_PLAYBACK_DC_POLE *
+            (sound->playback_dc_output[channel] + input[channel] - sound->playback_dc_input[channel]);
+        sound->playback_dc_input[channel] = input[channel];
+        sound->playback_dc_output[channel] = filtered;
+        /* A full-range input step can exceed signed PCM after DC removal.
+         * Retain filter precision/state, clipping only the DAC sample. */
+        output[channel] = filtered > INT16_MAX ? INT16_MAX :
+                          filtered < INT16_MIN ? INT16_MIN : (int16_t)filtered;
+    }
+    sound->playback_dc_ready = true;
+    return (zvb_pcm_frame_t){output[0], output[1]};
+}
+
 static void audio_callback(void* rbuf, unsigned int frames)
 {
     int16_t* buffer = rbuf;
@@ -486,6 +516,9 @@ static void audio_callback(void* rbuf, unsigned int frames)
             g_sound->playback_started = false;
             g_sound->playback_position = 0;
             g_sound->playback_rate = 1.0;
+        }
+        if (g_sound->playback_dc_ready || g_sound->playback_started) {
+            sample = playback_ac_couple(g_sound, sample);
         }
         buffer[i * SOUND_CHANNELS] = sample.left;
         buffer[i * SOUND_CHANNELS + 1] = sample.right;
