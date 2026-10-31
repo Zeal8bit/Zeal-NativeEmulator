@@ -1,7 +1,7 @@
 project(
     'Zeal-NativeEmulator',
     'c',
-    version: '2.0.0-dev',
+    version: '1.0.1',
     license: 'Apache-2.0',
     default_options: [
         'buildtype=debugoptimized',
