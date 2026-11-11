@@ -83,6 +83,35 @@ own a workspace in a given backend at a time, even across different chapter URLs
 Storage ownership is released after orderly exit; closing the tab also releases
 its Web Locks. HostFS is independent of this selection.
 
+## HostFS guest outcomes and diagnostics
+
+HostFS sends ordinary filesystem outcomes back through the guest status protocol.
+Missing file/directory probes (including executable searches) and wrong entry
+kinds return `NO_SUCH_ENTRY` (4) for lookup operations. Invalid descriptors or
+access modes, invalid guest paths, existing-directory creation, nonempty-directory
+removal, and file-specific write conflicts return a guest failure as appropriate.
+`STAT` of an invalid descriptor returns 4; other invalid descriptor operations
+return `FAILURE` (1). Failed create/remove/write operations use 1. Descriptor
+exhaustion/end-of-listing still return 20/21. These outcomes do not call
+`console.error` or notify the embedding page.
+
+`HostFS.mount({onError(operation, error) { ... }})` and the `HostFS` constructor's
+same option are reserved for **unexpected emulator/browser integration failures**.
+The callback signature and operation labels are unchanged; consumers do not need
+to parse operation numbers to distinguish guest errors from emulator failures.
+The native template can continue displaying every `onError` notification as an
+integration error. This callback is separate from `ZealNative.onStorageError`.
+
+Classification happens around filesystem entry operations, not by globally
+ignoring exception names. Before translating a missing entry, wrong entry kind,
+or file write conflict, HostFS verifies that the mounted workspace is still
+accessible with the needed permission. A removed workspace can also produce
+`NotFoundError`; it remains diagnostic and returns guest failure (1), rather than
+being mistaken for a missing guest file (4). Lost workspace permissions, browser security,
+quota/I/O failures, unexpected JavaScript exceptions, and WASM bridge failures
+still call `console.error` and `onError`. No permission prompts or storage resets
+are performed during this check.
+
 ## Device write completion
 
 WasmFS reads and writes the OPFS files directly; there are no periodic full-image
@@ -184,6 +213,10 @@ Activate Emscripten 7.0.0, then:
 meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 node tools/wasm-tests/run.mjs build-wasm
+# Include real guest shell/keyboard/HostFS coverage (an emulator-target OS image):
+ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tools/wasm-tests/run.mjs build-wasm
+# Run only the HostFS protocol and optional guest-shell checks:
+ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tools/wasm-tests/run.mjs build-wasm --hostfs-only
 ```
 
 The test runner uses Node 22+ and Chrome, with no npm dependencies. Set `CHROME`
@@ -194,6 +227,11 @@ page reloads, update safety, backend selection, device error reporting, and emul
 It also verifies completed writes across an abrupt Chrome termination and a new
 browser session, without flushing or closing the writer devices, then
 removes its profile. Generated test modules stay in the build directory.
+
+The real guest-shell check uses Chrome keyboard events to run H: directory,
+missing executable/file, and copy operations. It writes a screenshot to
+`<build>/wasm-tests/hostfs-zshell.png`. Without `ZEAL_OS_IMAGE`, that check is
+explicitly skipped; the browser HostFS protocol/error tests still run.
 
 See `raylib/web/README.md` for the reproducible dependency rebuild. Native
 Raylib bundles are independent of the web dependency.
