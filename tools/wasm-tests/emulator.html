@@ -1,0 +1,69 @@
+<!doctype html><html><body><canvas id="canvas" width="640" height="480"></canvas>
+<script src="/wasm/zeal.elf.js"></script>
+<script src="/wasm/libnative/indexeddb.js"></script>
+<script src="/wasm/libnative/disk-images.js"></script>
+<script src="/wasm/libnative/hostfs.js"></script>
+<script src="/wasm/libnative/zeal-native.js"></script>
+<script>
+window.testResult = (async () => {
+    const assert = (condition, message) => { if (!condition) throw new Error(message); };
+    assert(!crossOriginIsolated, 'Tests must work without isolation headers');
+    const messages = window.testMessages = [];
+    const storageErrors = [];
+    const canvas = document.querySelector('canvas');
+    for (const imageStorage of ['opfs', 'indexeddb', 'memory']) {
+        // An OPFS directory handle also exercises HostFS without a picker in CI.
+        const directory = await navigator.storage.getDirectory();
+        const hostfs = new HostFS(await directory.getDirectoryHandle('zeal-hostfs-test', {create: true}));
+        const emulator = new ZealNative({canvas, imageStorage, romdisk: '/fixture/default.img',
+            eeprom: '/fixture/eeprom.img', tf: '/fixture/tf.img', hostfs,
+            print: message => messages.push(message), printErr: message => messages.push(message),
+            onStorageError: error => storageErrors.push(error.message)});
+        window.testStage = `${imageStorage}: start`;
+        await emulator.start();
+        assert(emulator.module, `${imageStorage} boots`);
+        const originalModule = emulator.module;
+        await emulator.applyImageUpdates([]);
+        assert(emulator.module === originalModule, 'Empty update list must not restart or lose RAM');
+        const persist = emulator.diskImages.persist.bind(emulator.diskImages);
+        emulator.diskImages.persist = async () => { throw new Error('Simulated storage failure'); };
+        try { await emulator.reload(); throw new Error('Reload should fail'); }
+        catch (error) { assert(error.message === 'Simulated storage failure', error.message); }
+        assert(emulator.module, 'Failed persistence must not destroy the running module');
+        emulator.diskImages.persist = persist;
+        emulator.setSnesButton('a', true);
+        emulator.clearSnesButtons();
+        emulator.toggleFps();
+        emulator.toggleDebugger();
+        window.testStage = `${imageStorage}: audio`;
+        await emulator.resumeAudio();
+        window.testStage = `${imageStorage}: save/reload`;
+        await Promise.all([emulator.saveDiskImages(), emulator.reload()]);
+        assert(emulator.module, `${imageStorage} queues reload after Save`);
+        window.testStage = `${imageStorage}: check`;
+        const updates = await emulator.checkImageUpdates();
+        assert(updates.length === 0, 'Unchanged images have no updates');
+        // Download failure must leave the emulator running.
+        const source = emulator.diskImages.images[0].source;
+        emulator.diskImages.images[0].source = '/fixture/missing.img';
+        try { await emulator.applyImageUpdates(['romdisk']); throw new Error('Update should fail'); }
+        catch (error) { assert(error.message.includes('HTTP 404'), error.message); }
+        assert(emulator.module, 'Download failure preserves running emulator');
+        emulator.diskImages.images[0].source = source;
+        window.testStage = `${imageStorage}: update`;
+        await emulator.applyImageUpdates(['romdisk']);
+        assert(emulator.module, 'Explicit update restarts emulator');
+        window.testStage = `${imageStorage}: clear`;
+        await emulator.clearDiskImages();
+        assert(emulator.module, 'Clear restarts from configured sources');
+        window.testStage = `${imageStorage}: exit`;
+        await emulator.exit();
+        assert(!emulator.module, 'Orderly exit completes');
+    }
+    assert(storageErrors.length === 6, 'Only deliberately injected failures report errors');
+    return 'PASS: emulator boot/save/reload/update/clear/exit, audio/input controls, HostFS binding, all backends';
+})();
+window.testResult = Promise.race([window.testResult, new Promise((_, reject) => setTimeout(() =>
+    reject(new Error(`Timed out at ${window.testStage}: ${JSON.stringify(window.testMessages.slice(-12))}`)), 30000))]);
+window.testResult.catch(error => { document.body.append(error.stack); });
+</script></body></html>

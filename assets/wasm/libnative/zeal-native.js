@@ -26,9 +26,10 @@
             userProgramPath = '/roms/user.bin',
             eepromPath = '/roms/eeprom.img',
             tfPath = '/roms/tf.img',
-            imagePersistence = false,
+            imageStorage = 'opfs',
             diskImages = {},
-            onImageConflict = null,
+            onImageUpdateAvailable = null,
+            onStorageError = null,
             arguments: moduleArguments = null,
             hostfs = null,
             print = text => console.log(`Log: ${text}`),
@@ -52,11 +53,10 @@
             this.userProgramPath = userProgramPath;
             this.eepromPath = eepromPath;
             this.tfPath = tfPath;
-            this.imagePersistence = imagePersistence;
+            this.imageStorage = imageStorage;
+            this.onStorageError = onStorageError;
             this.arguments = moduleArguments == null ? [] : [...moduleArguments];
-            this.addAssetArgument('-u', userProgramPath, userProgram);
-            this.addAssetArgument('-e', eepromPath, eeprom);
-            this.addAssetArgument('-t', tfPath, tf);
+
             this.hostfs = hostfs;
             this.print = print;
             this.printErr = printErr;
@@ -70,29 +70,26 @@
             this.binaryPromises = new Map();
             const imageDefaults = {
                 romdisk: {
-                    source: romdisk, path: romdiskPath, key: this.cacheKey(romdisk, romdiskPath),
-                    persist: false,
+                    source: romdisk, path: romdiskPath,
                 },
                 eeprom: {
-                    source: eeprom, path: eepromPath, key: this.cacheKey(eeprom, eepromPath),
-                    persist: true,
+                    source: eeprom, path: eepromPath,
                 },
                 tf: {
-                    source: tf, path: tfPath, key: this.cacheKey(tf, tfPath),
-                    persist: true,
+                    source: tf, path: tfPath,
                 },
             };
             this.diskImages = new DiskImageStore({
-                enabled: imagePersistence,
-                images: Object.entries(imageDefaults).map(([name, defaults]) => ({
-                    name,
-                    ...defaults,
-                    ...(diskImages[name] || {}),
-                })),
+                storage: imageStorage,
+                images: Object.entries(imageDefaults).map(([name, defaults]) => {
+                    const image = {...defaults, ...(diskImages[name] || {}), name};
+                    image.key ??= this.cacheKey(image.source, image.path);
+                    return image;
+                }),
                 onWarning: (message, error) => this.printErr(
-                    `${message}: ${error?.message || error}`
+                    error ? `${message}: ${error.message || error}` : message
                 ),
-                onConflict: onImageConflict || (async () => 'remote'),
+                onUpdateAvailable: onImageUpdateAvailable,
             });
         }
 
@@ -100,12 +97,6 @@
             if (typeof source === 'string') return source;
             if (source instanceof URL) return source.toString();
             return path.split('/').filter(Boolean).at(-1);
-        }
-
-        addAssetArgument(flag, path, source) {
-            if (source != null && !this.arguments.includes(flag)) {
-                this.arguments.push(flag, path.replace(/^\//, ''));
-            }
         }
 
         async resolveBinary(source) {
@@ -127,12 +118,7 @@
         }
 
         ensureDirectory(fs, path) {
-            const parts = path.split('/').filter(Boolean);
-            let current = '';
-            for (const part of parts) {
-                current += `/${part}`;
-                if (!fs.analyzePath(current).exists) fs.mkdir(current);
-            }
+            fs.mkdirTree(path);
         }
 
         writeBinary(fs, path, data) {
@@ -143,79 +129,146 @@
         }
 
         async loadModule() {
-            const [diskImages, userProgram] = await Promise.all([
-                this.diskImages.loadAll(),
-                this.resolveBinary(this.userProgram),
-            ]);
-            const {romdisk, eeprom, tf} = diskImages;
-
-            let resolveExit;
-            const exitPromise = new Promise(resolve => {
-                resolveExit = resolve;
+            this.runtimeError = null;
+            let resolveReady;
+            let rejectReady;
+            const ready = new Promise((resolve, reject) => {
+                resolveReady = resolve;
+                rejectReady = reject;
             });
-            let instance = null;
+            // Attach immediately: an early abort can occur before factory completion.
+            ready.catch(() => {});
+            let resolveExit;
+            const exitPromise = new Promise(resolve => { resolveExit = resolve; });
             const owner = this;
-            const moduleOptions = {
-                arguments: [...this.arguments],
-                hostfsBackend: this.hostfs,
-                print: this.print,
-                printErr: this.printErr,
-                canvas: this.canvas,
-                onRuntimeInitialized() {
-                    if (romdisk) owner.writeBinary(this.FS, owner.romdiskPath, romdisk);
-                    if (userProgram) owner.writeBinary(this.FS, owner.userProgramPath, userProgram);
-                    if (eeprom) owner.writeBinary(this.FS, owner.eepromPath, eeprom);
-                    if (tf) owner.writeBinary(this.FS, owner.tfPath, tf);
-                    owner.canvas.setAttribute('tabindex', '0');
-                    owner.canvas.focus();
-                    owner.onRuntimeInitialized?.(this);
-                },
-                onExit(exitCode) {
-                    resolveExit(exitCode);
-                    if (owner.module === instance || owner.module === this) {
-                        owner.module = null;
-                        owner.exitPromise = null;
-                    }
-                    owner.onExit?.(exitCode);
-                },
-            };
+            let instance;
+            try {
+                const images = await this.diskImages.loadAll();
+                const userProgram = await this.resolveBinary(this.userProgram);
+                const args = [...this.arguments];
+                for (const image of this.diskImages.images) {
+                    const flag = {romdisk: '-r', eeprom: '-e', tf: '-t'}[image.name];
+                    if (args.includes(flag)) throw new Error(`Configure ${image.name} through diskImages, not ${flag}`);
+                    args.push(flag, image.path);
+                }
+                if (userProgram) args.push('-u', this.userProgramPath);
+                const moduleOptions = {
+                    arguments: args,
+                    imageStorage: this.imageStorage,
+                    hostfsBackend: this.hostfs,
+                    print: this.print,
+                    printErr: this.printErr,
+                    canvas: this.canvas,
+                    onRuntimeInitialized() {
+                        // WasmFS does not create the legacy filesystem's home directory.
+                        this.FS.mkdirTree('/home/web_user');
+                        for (const image of owner.diskImages.images) {
+                            if (images[image.name]) owner.writeBinary(this.FS, image.path, images[image.name]);
+                        }
+                        if (userProgram) owner.writeBinary(this.FS, owner.userProgramPath, userProgram);
+                    },
+                    onEmulatorReady() { resolveReady(); },
+                    onStorageComplete(error) {
+                        const request = owner.storageRequest;
+                        owner.storageRequest = null;
+                        if (error) request?.reject(new Error(`Storage flush failed (errno ${error})`));
+                        else request?.resolve();
+                    },
+                    onAbort(reason) {
+                        const error = new Error(`Emulator aborted: ${reason}`);
+                        owner.runtimeError = error;
+                        rejectReady(error);
+                        owner.storageRequest?.reject(error);
+                        owner.storageRequest = null;
+                        owner.reportStorageError(error);
+                    },
+                    onExit(exitCode) {
+                        rejectReady(new Error(`Emulator exited before startup completed (${exitCode})`));
+                        owner.storageRequest?.reject(new Error('Emulator exited during storage operation'));
+                        owner.storageRequest = null;
+                        resolveExit(exitCode);
+                        if (owner.module === instance || owner.module === this) {
+                            owner.module = null;
+                            owner.exitPromise = null;
+                        }
+                        owner.onExit?.(exitCode);
+                    },
+                };
+                this.hostfs?.bindModule(moduleOptions);
+                instance = await this.moduleFactory(moduleOptions);
+                await ready;
+                this.hostfs?.bindModule(instance);
+                this.module = instance;
+                this.exitPromise = exitPromise;
+                this.canvas.setAttribute('tabindex', '0');
+                this.canvas.focus();
+                this.onRuntimeInitialized?.(instance);
+                // Network checks do not hold up local boot or ask for a decision.
+                this.updateCheck = this.diskImages.checkUpdates();
+                return instance;
+            } catch (error) {
+                await this.diskImages.close();
+                throw error;
+            }
+        }
 
-            this.hostfs?.bindModule(moduleOptions);
-            instance = await this.moduleFactory(moduleOptions);
-            this.hostfs?.bindModule(instance);
-            this.module = instance;
-            this.exitPromise = exitPromise;
-            return instance;
+        reportStorageError(error) {
+            this.printErr(error.message || String(error));
+            this.onStorageError?.(error);
         }
 
         runExclusive(operation) {
-            if (this.operationPromise) return this.operationPromise;
-            this.loading = true;
-            this.onLoadingChange?.(true);
-            this.operationPromise = Promise.resolve()
-                .then(operation)
-                .finally(() => {
-                    this.loading = false;
+            const previous = this.operationPromise || Promise.resolve();
+            const current = previous.catch(() => {}).then(async () => {
+                this.loading = true;
+                this.onLoadingChange?.(true);
+                try { return await operation(); }
+                catch (error) { this.reportStorageError(error); throw error; }
+            }).finally(() => {
+                if (this.operationPromise === current) {
                     this.operationPromise = null;
+                    this.loading = false;
                     this.onLoadingChange?.(false);
-                });
-            return this.operationPromise;
+                }
+            });
+            this.operationPromise = current;
+            return current;
         }
 
         start() {
             return this.runExclusive(() => this.module || this.loadModule());
         }
 
+        requestStorage(exit = false) {
+            if (this.runtimeError) throw this.runtimeError;
+            if (!this.module) throw new Error('Emulator is not running');
+            return new Promise((resolve, reject) => {
+                this.storageRequest = {resolve, reject};
+                if (exit) this.module._zeal_exit_web();
+                else this.module._zeal_flush_storage_web();
+            });
+        }
+
+        async flushImages() {
+            if (!this.module) return [];
+            await this.requestStorage();
+            return this.diskImages.persist(this.module.FS);
+        }
+
         async exitModule() {
-            const module = this.module;
+            if (!this.module) return;
+            await this.flushImages();
             const exitPromise = this.exitPromise;
-            if (!module) return;
-            module._zeal_exit_web();
-            if (exitPromise) await exitPromise;
+            await this.requestStorage(true);
+            await exitPromise;
         }
 
         exit() {
-            return this.runExclusive(() => this.exitModule());
+            return this.runExclusive(async () => {
+                await this.exitModule();
+                await this.updateCheck;
+                await this.diskImages.close();
+            });
         }
 
         reload() {
@@ -230,18 +283,57 @@
             return this;
         }
 
-        async saveDiskImages() {
-            if (!this.module) throw new Error('Emulator is not running');
-            this.module._zeal_flush_storage_web?.();
-            return this.diskImages.persist(this.module.FS);
+        saveDiskImages() {
+            return this.runExclusive(() => {
+                if (!this.module) throw new Error('Emulator is not running');
+                return this.flushImages();
+            });
+        }
+
+        checkImageUpdates() {
+            return this.runExclusive(async () => {
+                await this.diskImages.open();
+                await this.diskImages.loadAll();
+                return this.diskImages.checkUpdates();
+            });
+        }
+
+        applyImageUpdates(names) {
+            return this.runExclusive(async () => {
+                if (!Array.isArray(names)) throw new TypeError('Image names must be an array');
+                if (!names.length) return this.module;
+                await this.diskImages.open();
+                const staged = await this.diskImages.stageUpdates(names);
+                const running = !!this.module;
+                try {
+                    await this.exitModule();
+                    await this.updateCheck;
+                    await this.diskImages.commit(staged);
+                } catch (error) {
+                    await this.diskImages.removeFiles(staged.files);
+                    if (running && !this.module) await this.loadModule();
+                    throw error;
+                }
+                return running ? this.loadModule() : undefined;
+            });
         }
 
         clearDiskImages() {
-            return this.diskImages.clear();
+            return this.runExclusive(async () => {
+                const running = !!this.module;
+                await this.diskImages.open();
+                await this.exitModule();
+                await this.updateCheck;
+                await this.diskImages.clear();
+                if (running) return this.loadModule();
+            });
         }
 
         diskImageUsage() {
-            return this.diskImages.usage();
+            return this.runExclusive(async () => {
+                await this.diskImages.open();
+                return this.diskImages.usage();
+            });
         }
 
         resumeAudio() {

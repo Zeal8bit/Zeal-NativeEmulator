@@ -7,6 +7,10 @@
 
 #pragma once
 
+#ifdef PLATFORM_WEB
+void zeal_service_web(void);
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "raylib.h"

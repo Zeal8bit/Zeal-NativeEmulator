@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 /* **** */
 #include "utils/helpers.h"
 #include "hw/flash.h"
@@ -450,15 +451,17 @@ int flash_save_to_file(flash_t* flash, const char* name)
         return fd;
     }
 
-    int wr = write(fd, flash->data, flash->size);
-    if (wr < 0) {
+    ssize_t wr = write(fd, flash->data, flash->size);
+    if (wr < 0 || (size_t)wr != flash->size) {
+        const int error = wr < 0 ? errno : EIO;
         log_perror("[FLASH] Could not dump to file");
         close(fd);
-        return wr;
+        errno = error;
+        return -1;
     }
 
+    if (close(fd) < 0) return -1;
+    flash->dirty = 0;
     log_printf("[FLASH] Dump saved to %s successfully\n", name);
-
-    close(fd);
     return 0;
 }

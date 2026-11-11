@@ -766,6 +766,10 @@ int zeal_run(zeal_t* machine)
     uint64_t emulated_epoch = vtimer_now_ns();
 #endif
     while (!machine->should_exit && !WindowShouldClose()) {
+#ifdef PLATFORM_WEB
+        zeal_service_web();
+        if (machine->should_exit) break;
+#endif
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;

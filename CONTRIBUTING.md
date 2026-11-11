@@ -22,7 +22,7 @@ If Raylib is outside the compiler's search paths, add
 Provide a Zeal ROM through `--rom /path/to/rom.img` or the image locations
 documented in the README. Keep local images and generated files untracked.
 
-For WebAssembly, activate an Emscripten environment with `emcc`, `em++`, and
+For WebAssembly, activate Emscripten **7.0.0** with `emcc`, `em++`, and
 `emar` available, then configure a separate build:
 
 ```sh
@@ -32,7 +32,10 @@ meson compile -C build-wasm
 
 The WASM cross file disables the debugger by default; add
 `-Denable_debugger=true` when needed. Serve the generated browser files through
-an HTTP server rather than opening them directly.
+an HTTP server rather than opening them directly. The bundled web dependency is
+Raylib 6.2; see [its rebuild instructions](raylib/web/README.md). Run the browser
+storage and lifecycle checks with `node tools/wasm-tests/run.mjs build-wasm`
+([details](assets/wasm/README.md)).
 
 ## Project Structure
 
