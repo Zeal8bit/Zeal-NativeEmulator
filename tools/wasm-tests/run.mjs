@@ -21,6 +21,16 @@ for (const memory of [false, true]) {
         {cwd: root, stdio: 'inherit'});
     if (compile.status !== 0) throw new Error('Device test compilation failed; activate Emscripten first');
 }
+const errorCompile = spawnSync('emcc', ['tools/wasm-tests/device-errors.c', 'utils/vtimer.c',
+    '-Iinclude', '-Iraylib/web/include', '-D_DEFAULT_SOURCE', '-O2', '-sASSERTIONS=1',
+    '-sWASMFS', '-o', resolve(build, 'wasm-tests/device-errors.js')], {cwd: root, stdio: 'inherit'});
+if (errorCompile.status !== 0) throw new Error('Device fault test compilation failed');
+const completedCompile = spawnSync('emcc', ['tools/wasm-tests/completed-writes.c',
+    'hw/i2c/at24c512.c', 'utils/vtimer.c', '-Iinclude', '-Iraylib/web/include',
+    '-DPLATFORM_WEB', '-D_DEFAULT_SOURCE', '-O2', '-sASSERTIONS=1', '-sWASMFS',
+    '-sASYNCIFY', '-sASYNCIFY_STACK_SIZE=65536',
+    '-o', resolve(build, 'wasm-tests/completed-writes.js')], {cwd: root, stdio: 'inherit'});
+if (completedCompile.status !== 0) throw new Error('Completed-write test compilation failed');
 const fixtures = {
     'default.img': Buffer.alloc(256 * 1024),
     'eeprom.img': Buffer.alloc(65536),
@@ -78,29 +88,31 @@ const server = createServer(async (request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const profile = await mkdtemp(resolve(tmpdir(), 'zeal-wasm-test-'));
-const child = spawn(chrome, ['--headless=new', '--no-first-run', '--no-default-browser-check',
-    '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
-    '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=0',
-    `--user-data-dir=${profile}`, 'about:blank'], {stdio: ['ignore', 'ignore', 'pipe']});
+let child;
 let socket;
 let deadline;
-try {
-    deadline = setTimeout(() => { child.kill(); console.error('Browser test timeout'); process.exitCode = 1; }, 120000);
+const launchBrowser = async () => {
+    const browser = spawn(chrome, ['--headless=new', '--no-first-run', '--no-default-browser-check',
+        '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
+        '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=0',
+        `--user-data-dir=${profile}`, 'about:blank'], {stdio: ['ignore', 'ignore', 'pipe']});
+    child = browser;
     const endpoint = await new Promise((resolve, reject) => {
         let output = '';
-        child.stderr.on('data', chunk => {
+        browser.stderr.on('data', chunk => {
             output += chunk;
             const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
             if (match) resolve(match[1]);
         });
-        child.on('error', reject);
-        child.on('exit', code => reject(new Error(`Chrome exited ${code}: ${output.slice(-1000)}`)));
+        browser.on('error', reject);
+        browser.on('exit', code => reject(new Error(`Chrome exited ${code}: ${output.slice(-1000)}`)));
     });
-    socket = new WebSocket(endpoint);
-    await new Promise(resolve => socket.addEventListener('open', resolve));
+    const connection = new WebSocket(endpoint);
+    socket = connection;
+    await new Promise(resolve => connection.addEventListener('open', resolve));
     let next = 0;
     const pending = new Map();
-    socket.addEventListener('message', event => {
+    connection.addEventListener('message', event => {
         const data = JSON.parse(event.data);
         if (!data.id) return;
         const operation = pending.get(data.id);
@@ -108,16 +120,20 @@ try {
         if (data.error) operation.reject(new Error(JSON.stringify(data.error)));
         else operation.resolve(data.result);
     });
-    socket.addEventListener('close', () => {
+    connection.addEventListener('close', () => {
         for (const operation of pending.values()) operation.reject(new Error('Chrome connection closed'));
         pending.clear();
     });
-    const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+    return (method, params = {}, sessionId) => new Promise((resolve, reject) => {
         const id = ++next;
         pending.set(id, {resolve, reject});
-        socket.send(JSON.stringify({id, method, params, sessionId}));
+        connection.send(JSON.stringify({id, method, params, sessionId}));
     });
-    for (const page of ['storage.html', 'namespaces.html', 'devices.html', 'devices.html?memory', 'devices.html', 'startup.html', 'emulator.html']) {
+};
+try {
+    deadline = setTimeout(() => { child?.kill(); console.error('Browser test timeout'); process.exitCode = 1; }, 120000);
+    let call = await launchBrowser();
+    const runPage = async page => {
         const {targetId} = await call('Target.createTarget', {url: `${origin}/test/${page}`});
         const {sessionId} = await call('Target.attachToTarget', {targetId, flatten: true});
         const result = await call('Runtime.evaluate', {
@@ -131,6 +147,10 @@ try {
         }, sessionId);
         if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
         console.log(`${page}: ${result.result.value}`);
+        return targetId;
+    };
+    for (const page of ['storage.html', 'namespaces.html', 'device-errors.html', 'devices.html', 'devices.html?memory', 'devices.html', 'startup.html', 'emulator.html']) {
+        const targetId = await runPage(page);
         await call('Target.closeTarget', {targetId});
     }
     for (const template of ['native', 'minimal', 'game']) {
@@ -146,11 +166,20 @@ try {
         console.log(`${template} template: PASS`);
         await call('Target.closeTarget', {targetId});
     }
+    await runPage('completed-writes.html');
+    // Keep the writer page and its C FILE streams alive until the browser is
+    // killed. Neither closeTarget nor any orderly emulator shutdown is used.
+    const terminated = new Promise(resolve => child.once('exit', resolve));
+    child.kill('SIGKILL');
+    await terminated;
+    socket.close();
+    call = await launchBrowser();
+    await runPage('completed-writes-read.html');
     await call('Browser.close');
 } finally {
     clearTimeout(deadline);
     socket?.close();
-    child.kill();
+    child?.kill();
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
     await rm(profile, {recursive: true, force: true, maxRetries: 10, retryDelay: 100});

@@ -48,6 +48,20 @@ int main(void)
     eeprom.parent.write(&eeprom.parent, 123);
     eeprom.parent.write(&eeprom.parent, 0x5a);
     eeprom.parent.stop(&eeprom.parent);
+    assert(fflush(eeprom.file) == 0); // Start timing with no prior buffered page.
+    const double eeprom_started = emscripten_get_now();
+    for (int page = 1; page <= 32; page++) {
+        const unsigned address = page * AT24C512_PAGE;
+        eeprom.parent.start(&eeprom.parent);
+        eeprom.parent.write(&eeprom.parent, address >> 8);
+        eeprom.parent.write(&eeprom.parent, address & 255);
+        for (int i = 0; i < AT24C512_PAGE; i++) eeprom.parent.write(&eeprom.parent, (uint8_t)i);
+        eeprom.parent.stop(&eeprom.parent);
+    }
+    /* Benchmark barrier also makes the old buffered policy comparable. This is
+     * not the no-flush visibility regression (completed-writes.c). */
+    assert(fflush(eeprom.file) == 0);
+    const double eeprom_elapsed = emscripten_get_now() - eeprom_started;
     at24c512_deinit(&eeprom);
     assert(at24c512_init(&eeprom, "/opfs/zeal-device-test/eeprom.img") == 0);
     assert(eeprom.data[123] == 0x5a);
@@ -61,7 +75,7 @@ int main(void)
     for (int block = 0; block < 32; block++) {
         spi.tf.state = TF_WRITE_BLOCK_WAIT_TOK;
         // The card has accepted CMD24; exercise the actual block receiver.
-        assert(fseek(spi.tf.img, 512, SEEK_SET) == 0);
+        assert(fseek(spi.tf.img, (block + 1) * 512, SEEK_SET) == 0);
         zvb_tf_receive_byte(&spi, 0xfe);
         for (int i = 0; i < 512; i++) zvb_tf_receive_byte(&spi, (uint8_t)i);
         zvb_tf_receive_byte(&spi, 0);
@@ -85,6 +99,6 @@ int main(void)
     assert(flash.dirty == 0);
     assert(flash_load_from_file(&flash, "/opfs/zeal-device-test/default.img", NULL) == 0);
     assert(flash.data[321] == 0x5a);
-    EM_ASM({document.body.textContent = 'PASS: real EEPROM/TF/NOR persistence; previous EEPROM byte=' + $0 + '; 32 TF sector writes: ' + $1.toFixed(1) + ' ms';}, previous, elapsed);
+    EM_ASM({document.body.textContent = 'PASS: real EEPROM/TF/NOR persistence; previous EEPROM byte=' + $0 + '; 32 TF sector writes: ' + $1.toFixed(1) + ' ms; 32 EEPROM page writes: ' + $2.toFixed(1) + ' ms';}, previous, elapsed, eeprom_elapsed);
     return 0;
 }

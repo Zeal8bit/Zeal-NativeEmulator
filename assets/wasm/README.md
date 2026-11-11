@@ -83,18 +83,66 @@ own a workspace in a given backend at a time, even across different chapter URLs
 Storage ownership is released after orderly exit; closing the tab also releases
 its Web Locks. HostFS is independent of this selection.
 
-WasmFS reads and writes the OPFS files directly. There is no periodic full-image
-copy. The non-threaded Emscripten OPFS backend uses asynchronous file streams
-and commits each filesystem write; it is slower than memory storage. A local
-Chrome run measured 32 sector writes to a 2 MB TF image at about 285–340 ms,
-versus 0.4 ms in memory. This is an indicative small-image benchmark, not a
-comparison with native desktop disk I/O. IndexedDB remains available when
-explicit snapshot saves are preferable. EEPROM and TF retain normal C stdio buffering. NOR flash is kept in device
-memory until Save or orderly exit. `saveDiskImages()` flushes all three devices;
-`reload()` and `exit()` flush before teardown. Operations are queued and reject
-on failure. Abrupt tab closure or a crash can lose unflushed buffers; browser
-unload callbacks cannot guarantee saving them. OPFS remains subject to browser
-quota, eviction, and the user's site-data controls.
+## Device write completion
+
+WasmFS reads and writes the OPFS files directly; there are no periodic full-image
+snapshots or book-side autosave. Guest software owns its buffers. Only writes
+that have reached the emulated device are handled here:
+
+- TF flushes a full 512-byte sector after receiving its payload and CRC bytes,
+  before returning `TF_WRITE_ACCEPTED`. A short write or failed flush returns
+  `TF_WRITE_ERROR` and logs a diagnostic.
+- EEPROM writes and flushes its 128-byte backing page at the completed I2C
+  page-write transaction's STOP, including transactions containing fewer than
+  128 guest data bytes. Seek, write, and flush failures are logged through the
+  existing error output; the STOP callback has no error-return channel.
+- Incomplete sectors and in-progress EEPROM transactions do not trigger flushes.
+  No guest filesystem buffers are inspected or drained.
+
+For the pinned **Emscripten 7.0.0, WasmFS, Asyncify, non-pthread** build,
+`fflush(FILE*)` is sufficient to reach persistent OPFS backing storage. It drains
+libc's output buffer into WasmFS. The backend's
+[`FileSystemAsyncAccessHandle.write()`](https://github.com/emscripten-core/emscripten/blob/7.0.0/src/lib/libwasmfs_opfs.js)
+awaits both `FileSystemWritableFileStream.write()` and `close()` before returning;
+its separate `flush()` is a no-op. No additional `fsync`/`syncfs` is needed at
+these device boundaries. This contract must be rechecked if the backend,
+threading configuration, or SDK changes. All device I/O stays on the emulator's
+existing Asyncify execution path, not unrelated JavaScript callbacks.
+
+Native builds use the same portable checked stdio flushes, without adding
+per-sector/page `fsync()` calls or changing the image format or guest protocol.
+This is not a claim of power-loss durability. Browser storage remains subject to
+quota, eviction, and the user's site-data controls. A write/flush error can leave
+partial data; there is no rollback or atomicity across sectors or guest filesystem
+operations. Data still held by the guest, incomplete device transactions, and
+NOR changes still buffered by the emulator are not covered by this guarantee.
+
+NOR flash retains its existing policy: it stays in device memory until Save or
+orderly exit. `saveDiskImages()` still flushes all three devices; `reload()` and
+`exit()` flush before teardown. Existing IndexedDB snapshot saves and memory mode
+remain available; device stdio flushing alone does not create an IndexedDB save.
+
+The non-threaded OPFS backend commits each filesystem write, so persistent I/O
+has higher latency than memory storage. The device benchmark reports 32 adjacent
+TF sector writes to a 2 MB image and 32 EEPROM page transactions to a 64 KB image.
+It includes a final barrier so comparison with the previous buffered policy
+counts all submitted writes. The separate completion regression does **not**
+use those barriers: it observes each device through native browser OPFS reads,
+leaves both C streams open, kills Chrome, and verifies bytes in a new browser
+process without loading any WASM module.
+
+Local Chrome measurements against the previous device policy (`bdd27b6`), using
+three alternating runs of the same benchmark with all writes drained at the end:
+
+| Workload | Previous median (range) | Completed-write flush median (range) |
+| --- | --- | --- |
+| 32 TF sectors, 2 MB image | 249 ms (224–281) | 233 ms (231–329) |
+| 32 EEPROM pages, 64 KB image | 97 ms (81–98) | 68 ms (64–69) |
+
+These small samples show browser I/O variability, not a general speedup or
+throughput guarantee. The policy moves persistence latency onto each completed
+transaction instead of deferring it to the next seek or explicit barrier. It
+does not add a second OPFS synchronization operation per transaction.
 
 ## Remote updates
 
@@ -142,7 +190,9 @@ The test runner uses Node 22+ and Chrome, with no npm dependencies. Set `CHROME`
 to the Chrome executable if it is not at the default macOS path or named
 `google-chrome` on other platforms. It starts an ordinary localhost server and
 an isolated browser profile, tests real device writes and persistence across
-page reloads, update safety, backend selection, and emulator lifecycle, then
+page reloads, update safety, backend selection, device error reporting, and emulator lifecycle.
+It also verifies completed writes across an abrupt Chrome termination and a new
+browser session, without flushing or closing the writer devices, then
 removes its profile. Generated test modules stay in the build directory.
 
 See `raylib/web/README.md` for the reproducible dependency rebuild. Native

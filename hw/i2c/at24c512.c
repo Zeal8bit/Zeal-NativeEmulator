@@ -58,9 +58,21 @@ static void at24c512_stop(i2c_device_t* dev) {
     at24c512_t* eeprom = (at24c512_t*)dev;
     if (eeprom->writing && eeprom->file) {
         const int page_start = eeprom->sector_written * AT24C512_PAGE;
-        fseek(eeprom->file, page_start, SEEK_SET);
-        debug("[EEPROM] Writing back sector 0x%x to file\n", eeprom->sector_written);
-        fwrite(&eeprom->data[page_start], 1, AT24C512_PAGE, eeprom->file);
+        if (fseek(eeprom->file, page_start, SEEK_SET) != 0) {
+            log_perror("[EEPROM] Could not seek to completed page");
+        } else {
+            debug("[EEPROM] Writing back sector 0x%x to file\n", eeprom->sector_written);
+            const size_t written = fwrite(&eeprom->data[page_start], 1, AT24C512_PAGE, eeprom->file);
+            /* Flush this completed I2C page transaction, not each guest byte.
+             * WasmFS OPFS commits its underlying write before fflush returns. */
+            const int flushed = fflush(eeprom->file);
+            if (written != AT24C512_PAGE) {
+                log_err_printf("[EEPROM] Could only write %zu/%d bytes of completed page\n", written, AT24C512_PAGE);
+            }
+            if (flushed != 0) {
+                log_perror("[EEPROM] Could not flush completed page");
+            }
+        }
     }
     eeprom->writing = false;
 }
