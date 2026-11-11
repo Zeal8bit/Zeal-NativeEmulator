@@ -33,6 +33,11 @@ fixtures['default.img'][0] = 0x76; // Z80 HALT: deterministic boot without an ex
 const server = createServer(async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
     try {
+        if (/^\/zeal-pascal\/chapter-(one|two)\/$/.test(path)) {
+            response.writeHead(200, {'Content-Type': 'text/html'});
+            response.end(await readFile(resolve(root, 'tools/wasm-tests/namespace-frame.html')));
+            return;
+        }
         if (path.startsWith('/template/')) {
             const [, , template, ...parts] = path.split('/');
             if (!['native', 'minimal', 'game'].includes(template)) throw new Error('Unknown template');
@@ -112,7 +117,7 @@ try {
         pending.set(id, {resolve, reject});
         socket.send(JSON.stringify({id, method, params, sessionId}));
     });
-    for (const page of ['storage.html', 'devices.html', 'devices.html?memory', 'devices.html', 'emulator.html']) {
+    for (const page of ['storage.html', 'namespaces.html', 'devices.html', 'devices.html?memory', 'devices.html', 'startup.html', 'emulator.html']) {
         const {targetId} = await call('Target.createTarget', {url: `${origin}/test/${page}`});
         const {sessionId} = await call('Target.attachToTarget', {targetId, flatten: true});
         const result = await call('Runtime.evaluate', {

@@ -34,12 +34,54 @@ Existing IndexedDB records are left intact and are not migrated automatically.
 IndexedDB mode retains explicit Save behavior; memory mode retains changes only
 for the lifetime of the `ZealNative` instance. HostFS remains a separate feature.
 
-OPFS files live below `zeal-native/<hash of page directory URL>/`. Different page
-directories have separate stores. A manifest maps image keys to active files;
-`diskImages: {tf: {key: 'my-card'}}` can explicitly identify a card. The default
-key is its configured source URL, or the image filename for byte sources. Keep
-keys stable to reuse images. Only one emulator can own a store at a time, using
-Web Locks. Closing the tab releases ownership.
+### Application workspaces
+
+`storageNamespace` is an optional initialization string that selects an application
+workspace. If omitted (or `undefined`), the namespace is still the SHA-256 hash of
+`new URL('.', document.baseURI).href`. Existing page-directory storage locations,
+manifest keys, and locks are unchanged.
+
+An explicit namespace is an exact, case-sensitive identifier shared across pages
+on the same origin. It must be a non-empty primitive string; empty/whitespace-only
+strings, `null`, and other types throw `TypeError` during initialization, before
+storage is accessed. Names are not URL-resolved, trimmed, or normalized, so use
+the same spelling and trailing slash in every chapter. Explicit identifiers are
+hashed in a separate domain from the default page-directory names; arbitrary
+input is never used directly as a filesystem path.
+
+For a Hugo book deployed under a GitHub Pages project path:
+
+```js
+const emulator = new ZealNative({
+    canvas,
+    romdisk: '/zeal-pascal/media/zshell.img',
+    tf: '/zeal-pascal/media/tf.img',
+    eeprom: '/zeal-pascal/media/eeprom.img',
+    imageStorage: 'opfs',
+    storageNamespace: '/zeal-pascal/',
+});
+```
+
+Every chapter using `/zeal-pascal/` and the same image keys shares those persisted
+disks. Another project on the same origin can use `/other-project/` for separate
+disks, manifests, backend metadata, and Web Locks. Different origins are already
+isolated by the browser. This is entirely JavaScript configuration: the same
+WASM binary serves every project without recompilation.
+
+OPFS files live below `zeal-native/<namespace hash>/`. Image keys identify
+individual disks inside the selected workspace: `diskImages: {tf: {key: 'my-card'}}`
+can explicitly identify a card. The default key is its configured source URL, or
+the image filename for byte sources. Keep keys stable across chapters; the
+absolute image URLs in the example provide stable default keys.
+
+Choose the namespace when creating `ZealNative`. Selecting another namespace
+does not delete, reset, or migrate data from the old one; removing the option
+returns to that page's original store. Explicit workspaces do not automatically
+adopt old page-directory disks. Namespace selection applies to all three
+backends; `memory` data still lasts only for that instance. Only one emulator can
+own a workspace in a given backend at a time, even across different chapter URLs.
+Storage ownership is released after orderly exit; closing the tab also releases
+its Web Locks. HostFS is independent of this selection.
 
 WasmFS reads and writes the OPFS files directly. There is no periodic full-image
 copy. The non-threaded Emscripten OPFS backend uses asynchronous file streams

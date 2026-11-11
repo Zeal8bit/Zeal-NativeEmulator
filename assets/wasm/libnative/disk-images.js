@@ -1,12 +1,17 @@
 (() => {
     // OPFS files are opened by WasmFS, never copied out of the running module.
     class DiskImageStore {
-        constructor({storage = 'opfs', images = [], onWarning = console.warn,
+        constructor({storage = 'opfs', storageNamespace, images = [], onWarning = console.warn,
             onUpdateAvailable = null} = {}) {
             if (!['opfs', 'indexeddb', 'memory'].includes(storage)) {
                 throw new RangeError(`Unknown image storage: ${storage}`);
             }
+            if (storageNamespace !== undefined &&
+                (typeof storageNamespace !== 'string' || !storageNamespace.trim())) {
+                throw new TypeError('storageNamespace must be a non-empty string when provided');
+            }
             this.storage = storage;
+            this.storageNamespace = storageNamespace;
             this.images = images.filter(image => image.source != null);
             for (const image of this.images) {
                 if (typeof image.source !== 'string' && !(image.source instanceof URL) &&
@@ -31,7 +36,11 @@
         async open() {
             if (this.releaseLock) return;
             if (!navigator.locks) throw new Error('Image storage requires HTTPS and the Web Locks API');
-            const namespace = await this.hash(new URL('.', document.baseURI).href);
+            // Keep the legacy input byte-for-byte when no workspace is selected.
+            // Explicit identifiers have a separate domain and are never URL-resolved.
+            const namespace = await this.hash(this.storageNamespace === undefined
+                ? new URL('.', document.baseURI).href
+                : `storageNamespace:${JSON.stringify(this.storageNamespace)}`);
             this.namespace = namespace;
             for (const image of this.images) image.id = await this.hash(String(image.key ?? image.source));
             if (new Set(this.images.map(image => image.id)).size !== this.images.length) {

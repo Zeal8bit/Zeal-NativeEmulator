@@ -1,0 +1,13 @@
+<!doctype html><html><body><canvas id="canvas"></canvas>
+<script src="/wasm/libnative/indexeddb.js"></script>
+<script src="/wasm/libnative/disk-images.js"></script>
+<script src="/wasm/libnative/zeal-native.js"></script>
+<script>
+window.makeEmulator = options => new ZealNative({
+    canvas: document.querySelector('canvas'),
+    moduleFactory: () => { throw new Error('Storage-only test must not create a runtime'); },
+    romdisk: '/fixture/default.img', eeprom: '/fixture/eeprom.img', tf: '/fixture/tf.img',
+    diskImages: {romdisk: {key: 'book-rom'}, eeprom: {key: 'book-eeprom'}, tf: {key: 'book-tf'}},
+    print: () => {}, printErr: () => {}, ...options,
+});
+</script></body></html>

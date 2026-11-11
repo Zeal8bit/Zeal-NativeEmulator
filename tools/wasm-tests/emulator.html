@@ -15,7 +15,7 @@ window.testResult = (async () => {
         // An OPFS directory handle also exercises HostFS without a picker in CI.
         const directory = await navigator.storage.getDirectory();
         const hostfs = new HostFS(await directory.getDirectoryHandle('zeal-hostfs-test', {create: true}));
-        const emulator = new ZealNative({canvas, imageStorage, romdisk: '/fixture/default.img',
+        const emulator = new ZealNative({canvas, imageStorage, storageNamespace: '/lifecycle-tests/', romdisk: '/fixture/default.img',
             eeprom: '/fixture/eeprom.img', tf: '/fixture/tf.img', hostfs,
             print: message => messages.push(message), printErr: message => messages.push(message),
             onStorageError: error => storageErrors.push(error.message)});
