@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,22 +23,28 @@ static zeal_t machine;
 #ifdef PLATFORM_WEB
 /* Only request work from JS. File I/O must run on the main Asyncify stack,
  * rather than re-entering it while Raylib is sleeping between frames. */
+#define WEB_STORAGE_FLUSH 1
+#define WEB_STORAGE_EXIT 2
+
 static int web_storage_request;
 
+// These macro bodies contain JavaScript, not C.
+// clang-format off
 EM_JS(int, web_uses_opfs, (), { return Module.imageStorage === 'opfs'; });
 EM_JS(void, web_ready, (), { Module.onEmulatorReady?.(); });
 EM_JS(void, web_storage_complete, (int error), { Module.onStorageComplete?.(error); });
+// clang-format on
 
 EMSCRIPTEN_KEEPALIVE
 void zeal_exit_web(void)
 {
-    web_storage_request = 2;
+    web_storage_request = WEB_STORAGE_EXIT;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void zeal_flush_storage_web(void)
 {
-    web_storage_request = 1;
+    web_storage_request = WEB_STORAGE_FLUSH;
 }
 
 void zeal_service_web(void)
@@ -48,13 +53,27 @@ void zeal_service_web(void)
     if (!request) return;
     web_storage_request = 0;
     int error = 0;
-    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) error = errno ? errno : EIO;
-    if (fflush(NULL) != 0) error = errno ? errno : EIO;
-    if (machine.eeprom.file && ferror(machine.eeprom.file)) error = EIO;
-    if (machine.zvb.spi.tf.img && ferror(machine.zvb.spi.tf.img)) error = EIO;
-    if (machine.eeprom.file && fsync(fileno(machine.eeprom.file)) < 0) error = errno ? errno : EIO;
-    if (machine.zvb.spi.tf.img && fsync(fileno(machine.zvb.spi.tf.img)) < 0) error = errno ? errno : EIO;
-    if (!error && request == 2) zeal_exit(&machine);
+    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) {
+        error = errno ? errno : EIO;
+    }
+    if (fflush(NULL) != 0) {
+        error = errno ? errno : EIO;
+    }
+    if (machine.eeprom.file && ferror(machine.eeprom.file)) {
+        error = EIO;
+    }
+    if (machine.zvb.spi.tf.img && ferror(machine.zvb.spi.tf.img)) {
+        error = EIO;
+    }
+    if (machine.eeprom.file && fsync(fileno(machine.eeprom.file)) < 0) {
+        error = errno ? errno : EIO;
+    }
+    if (machine.zvb.spi.tf.img && fsync(fileno(machine.zvb.spi.tf.img)) < 0) {
+        error = errno ? errno : EIO;
+    }
+    if (!error && request == WEB_STORAGE_EXIT) {
+        zeal_exit(&machine);
+    }
     web_storage_complete(error);
 }
 
@@ -84,7 +103,7 @@ int main(int argc, char* argv[])
     int code = 0;
 #ifdef PLATFORM_WEB
     if (web_uses_opfs()) {
-        backend_t backend = wasmfs_create_opfs_backend();
+        const backend_t backend = wasmfs_create_opfs_backend();
         if (wasmfs_create_directory("/opfs", 0777, backend) != 0) {
             log_err_printf("Could not mount OPFS\n");
             return 1;
@@ -92,7 +111,7 @@ int main(int argc, char* argv[])
     }
 #endif
     code = parse_command_args(argc, argv);
-    if(code != 0) return code;
+    if (code != 0) return code;
 
     config_parse_file(config.arguments.config_path);
     config_resolve_images();
@@ -151,7 +170,7 @@ int main(int argc, char* argv[])
 
     int saved = config_save();
     config_unload();
-    if(!saved && code == 0) return saved; // ???
+    if (!saved && code == 0) return saved; // ???
 
 deinit:
     zvb_sound_deinit(&machine.zvb.sound);

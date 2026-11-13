@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,22 +22,21 @@
 #include "utils/paths.h"
 #include "utils/log.h"
 
-
 /**
  * @brief Romdisk header and first entry
  */
 typedef struct {
     uint16_t entry;
-    char     name[16];
+    char name[16];
     uint32_t size;
     uint32_t offset;
-    uint8_t  year[2];
-    uint8_t  month;
-    uint8_t  day;
-    uint8_t  date;
-    uint8_t  hours;
-    uint8_t  minutes;
-    uint8_t  seconds;
+    uint8_t year[2];
+    uint8_t month;
+    uint8_t day;
+    uint8_t date;
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
 } __attribute__((packed)) romdisk_entry_t;
 
 typedef enum {
@@ -47,9 +45,9 @@ typedef enum {
     /* State reached after *(0x5555)=0xAA operation is detected.
      * This operation is common to all erase, software id and write commands */
     STATE_SPECIAL_STEP0,
-    STATE_SPECIAL_STEP1,    /* Similarly, with *(0x2AAAA)=0x55 */
-    STATE_SPECIAL_STEP2,    /* Similarly, only relevant for erase command */
-    STATE_SPECIAL_STEP3,    /* Similarly, only relevant for erase command */
+    STATE_SPECIAL_STEP1, /* Similarly, with *(0x2AAAA)=0x55 */
+    STATE_SPECIAL_STEP2, /* Similarly, only relevant for erase command */
+    STATE_SPECIAL_STEP3, /* Similarly, only relevant for erase command */
     /* In this state, writing a byte is allowed, then a delay is applied */
     STATE_PERFORM_WRITE,
     /* During this state, the flash is being written */
@@ -62,29 +60,29 @@ typedef enum {
 
 static uint8_t flash_read(device_t* dev, uint32_t addr)
 {
-    flash_t* f = (flash_t*) dev;
+    flash_t* f = (flash_t*)dev;
 
     switch (f->state) {
-        case STATE_PERFORM_ERASE_DELAY:
-            return 0xff;
-        case STATE_PERFORM_WRITE_DELAY: {
-            /* DQ7 has already been flipped before programming the write */
-            const uint8_t ret = f->writing_byte;
-            /* Bit 6 must be flipped here */
-            f->writing_byte ^= 0x40;
-            return ret;
-        }
-        case STATE_SOFTWARE_ID:
-            /**
-             * On address 0, return SST Manufacturer's ID: 0xBF
-             * On address 1, return the Device ID: 0xB6 (SST39SF020)
-             */
-            if (addr == 0) return 0xBF;
-            if (addr == 1) return 0xB6;
-            /* TODO: Verify on real hardware the behavior here */
-            return 0xFF;
-        default:
-            break;
+    case STATE_PERFORM_ERASE_DELAY:
+        return 0xff;
+    case STATE_PERFORM_WRITE_DELAY: {
+        /* DQ7 has already been flipped before programming the write */
+        const uint8_t ret = f->writing_byte;
+        /* Bit 6 must be flipped here */
+        f->writing_byte ^= 0x40;
+        return ret;
+    }
+    case STATE_SOFTWARE_ID:
+        /**
+         * On address 0, return SST Manufacturer's ID: 0xBF
+         * On address 1, return the Device ID: 0xB6 (SST39SF020)
+         */
+        if (addr == 0) return 0xBF;
+        if (addr == 1) return 0xB6;
+        /* TODO: Verify on real hardware the behavior here */
+        return 0xFF;
+    default:
+        break;
     }
 
     if (addr >= f->size) {
@@ -96,7 +94,7 @@ static uint8_t flash_read(device_t* dev, uint32_t addr)
 
 static uint8_t flash_debug_read(device_t* dev, uint32_t addr)
 {
-    flash_t* f = (flash_t*) dev;
+    flash_t* f = (flash_t*)dev;
     if (addr >= f->size) {
         log_err_printf("[FLASH] Invalid debug read size: %08x\n", addr);
         return 0;
@@ -106,105 +104,103 @@ static uint8_t flash_debug_read(device_t* dev, uint32_t addr)
 
 static void flash_write(device_t* dev, uint32_t addr, uint8_t data)
 {
-    flash_t* f = (flash_t*) dev;
+    flash_t* f = (flash_t*)dev;
 
     switch (f->state) {
-        case STATE_IDLE:
-            if (addr == 0x5555 && data == 0xaa) {
-                f->state = STATE_SPECIAL_STEP0;
-            }
-            break;
-        case STATE_SPECIAL_STEP0:
-            if (addr == 0x2aaa && data == 0x55) {
-                f->state = STATE_SPECIAL_STEP1;
-            }
-            break;
-        case STATE_SPECIAL_STEP1:
-            if (addr == 0x5555 && data == 0x90) {
-                f->state = STATE_SOFTWARE_ID;
-            } else if (addr == 0x5555 && data == 0xa0) {
-                f->state = STATE_PERFORM_WRITE;
-            } else if (addr == 0x5555 && data == 0x80) {
-                f->state = STATE_SPECIAL_STEP2;
-            }
-            break;
-        case STATE_SPECIAL_STEP2:
-            if (addr == 0x5555 && data == 0xaa) {
-                f->state = STATE_SPECIAL_STEP3;
-            }
-            break;
-        case STATE_SPECIAL_STEP3:
-            if (addr == 0x2aaa && data == 0x55) {
-                f->state = STATE_PERFORM_ERASE;
-            }
-            break;
+    case STATE_IDLE:
+        if (addr == 0x5555 && data == 0xaa) {
+            f->state = STATE_SPECIAL_STEP0;
+        }
+        break;
+    case STATE_SPECIAL_STEP0:
+        if (addr == 0x2aaa && data == 0x55) {
+            f->state = STATE_SPECIAL_STEP1;
+        }
+        break;
+    case STATE_SPECIAL_STEP1:
+        if (addr == 0x5555 && data == 0x90) {
+            f->state = STATE_SOFTWARE_ID;
+        } else if (addr == 0x5555 && data == 0xa0) {
+            f->state = STATE_PERFORM_WRITE;
+        } else if (addr == 0x5555 && data == 0x80) {
+            f->state = STATE_SPECIAL_STEP2;
+        }
+        break;
+    case STATE_SPECIAL_STEP2:
+        if (addr == 0x5555 && data == 0xaa) {
+            f->state = STATE_SPECIAL_STEP3;
+        }
+        break;
+    case STATE_SPECIAL_STEP3:
+        if (addr == 0x2aaa && data == 0x55) {
+            f->state = STATE_PERFORM_ERASE;
+        }
+        break;
 
-        case STATE_PERFORM_WRITE:
-            /* The NOR flash accepts writing a byte! Only bits that are 1 can be set to 0.
-             * Write the value right now to simplify the logic after */
-            log_printf("[FLASH] Writing byte 0x%x (& %x = %x) @ 0x%x\n", data, f->data[addr], data & f->data[addr], addr);
-            f->data[addr] &= data;
+    case STATE_PERFORM_WRITE:
+        /* The NOR flash accepts writing a byte! Only bits that are 1 can be set to 0.
+         * Write the value right now to simplify the logic after */
+        log_printf("[FLASH] Writing byte 0x%x (& %x = %x) @ 0x%x\n", data, f->data[addr], data & f->data[addr], addr);
+        f->data[addr] &= data;
+        f->dirty = 1;
+        /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
+        f->writing_byte = data ^ 0x80;
+        /* Writing a byte takes 20us on real hardware */
+        vtimer_schedule_us(&f->timer, 20);
+        f->state = STATE_PERFORM_WRITE_DELAY;
+        break;
+
+    case STATE_PERFORM_ERASE:
+        if (data == 0x30) {
+            /* Erase sector transaction! */
+            /* Erasing a sector takes 25ms on real hardware */
+            vtimer_schedule_us(&f->timer, 25000);
+            f->state = STATE_PERFORM_ERASE_DELAY;
+            /* Get the corresponding 4KB-sector to erase out of the 22-bit address */
+            const uint32_t sector = addr & 0x3ff000;
+            log_printf("[FLASH] Erasing sector %d @ address 0x%x\n", sector / 4096, sector);
             f->dirty = 1;
-            /* The byte being written must have bit 7 flipped, DQ6 must be toggled at each read */
-            f->writing_byte = data ^ 0x80;
-            /* Writing a byte takes 20us on real hardware */
-            vtimer_schedule_us(&f->timer, 20);
-            f->state = STATE_PERFORM_WRITE_DELAY;
-            break;
-
-        case STATE_PERFORM_ERASE:
-            if (data == 0x30) {
-                /* Erase sector transaction! */
-                /* Erasing a sector takes 25ms on real hardware */
-                vtimer_schedule_us(&f->timer, 25000);
-                f->state = STATE_PERFORM_ERASE_DELAY;
-                /* Get the corresponding 4KB-sector to erase out of the 22-bit address */
-                const uint32_t sector = addr & 0x3ff000;
-                log_printf("[FLASH] Erasing sector %d @ address 0x%x\n", sector / 4096, sector);
-                f->dirty = 1;
-                memset(&f->data[sector], 0xff, 4096);
-            } else if (data == 0x10 && addr == 0x5555) {
-                /* Chip erase! */
-                log_printf("[FLASH] Erasing chip\n");
-                /* Erasing the chip takes 100ms on real hardware */
-                vtimer_schedule_us(&f->timer, 100000);
-                f->state = STATE_PERFORM_ERASE_DELAY;
-                f->dirty = 1;
-                memset(f->data, 0xff, f->size);
-            } else {
-                /* Invalid state, try again */
-                f->state = STATE_IDLE;
-                flash_write(dev, addr, data);
-            }
-            break;
-
-        case STATE_PERFORM_ERASE_DELAY:
-        case STATE_PERFORM_WRITE_DELAY:
-            /* Delaying the write to simulate a real NOR flash */
-            break;
-
-        case STATE_SOFTWARE_ID:
-            if (data == 0xf0) {
-                f->state = STATE_IDLE;
-            }
-            break;
-
-        default:
-            /* The combination was invalid, reset the state and retry, else,
-             * the current byte being written would be lost and not part of the FSM. */
+            memset(&f->data[sector], 0xff, 4096);
+        } else if (data == 0x10 && addr == 0x5555) {
+            /* Chip erase! */
+            log_printf("[FLASH] Erasing chip\n");
+            /* Erasing the chip takes 100ms on real hardware */
+            vtimer_schedule_us(&f->timer, 100000);
+            f->state = STATE_PERFORM_ERASE_DELAY;
+            f->dirty = 1;
+            memset(f->data, 0xff, f->size);
+        } else {
+            /* Invalid state, try again */
             f->state = STATE_IDLE;
             flash_write(dev, addr, data);
-            break;
+        }
+        break;
+
+    case STATE_PERFORM_ERASE_DELAY:
+    case STATE_PERFORM_WRITE_DELAY:
+        /* Delaying the write to simulate a real NOR flash */
+        break;
+
+    case STATE_SOFTWARE_ID:
+        if (data == 0xf0) {
+            f->state = STATE_IDLE;
+        }
+        break;
+
+    default:
+        /* The combination was invalid, reset the state and retry, else,
+         * the current byte being written would be lost and not part of the FSM. */
+        f->state = STATE_IDLE;
+        flash_write(dev, addr, data);
+        break;
     }
 }
 
-
 static void flash_idle_cb(void* userdata)
 {
-    flash_t* f = (flash_t*) userdata;
+    flash_t* f = (flash_t*)userdata;
     f->state = STATE_IDLE;
 }
-
 
 int flash_init(flash_t* f)
 {
@@ -253,11 +249,11 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
         /* The config is always with the first 4KB but after the reset vectors, make sure the
          * first byte is referring to Zeal 8-bit computer (1) */
         if (config_addr >= 0x40 && config_addr < 0x1000 && flash->data[i + config_addr] == zeal_computer_target) {
-            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%x\n", (uint32_t) i);
+            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%x\n", (uint32_t)i);
             if (out_config_addr) {
                 *out_config_addr = config_addr;
             }
-            return (int) i;
+            return (int)i;
         }
     }
 
@@ -267,7 +263,7 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
 /**
  * @brief Check if the given path is a correct "init" path for Zeal 8-bit OS
  */
-static int flash_is_init_path(const char *s)
+static int flash_is_init_path(const char* s)
 {
     if (s == NULL) {
         return 0;
@@ -291,7 +287,6 @@ static int flash_is_init_path(const char *s)
 
     return 1;
 }
-
 
 static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
 {
@@ -317,7 +312,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     if (comma) {
         /* Make the filename end before the address */
         *comma = 0;
-        char *endptr;
+        char* endptr;
         size_t address = strtoul(comma + 1, &endptr, 16);
         if (address >= flash->size || *endptr != '\0') {
             log_err_printf("[FLASH] Invalid user file address, ignoring\n");
@@ -363,7 +358,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     };
     /* Find the name pointer of the init program from the configuration structure */
     const uint16_t os_init_addr = flash_dereference(flash, zealos_offset, config_addr + 0xa);
-    const char* os_init_path = (const char*) (&flash->data[zealos_offset + os_init_addr]);
+    const char* os_init_path = (const char*)(&flash->data[zealos_offset + os_init_addr]);
     if (flash_is_init_path(os_init_path)) {
         /* Escape the A:/ prefix */
         snprintf(entry.name, sizeof(entry.name), "%s", os_init_path + 3);
@@ -393,7 +388,6 @@ ret:
     return err;
 }
 
-
 int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename)
 {
     if (flash == NULL) {
@@ -422,7 +416,7 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
     close(fd);
 
     /* Try to load the user program, if any */
-    if (userprog_filename != NULL ) {
+    if (userprog_filename != NULL) {
         int err = flash_override_romdisk(flash, userprog_filename);
         if (err != 0) return err;
     }
@@ -432,7 +426,6 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
 
     return 0;
 }
-
 
 int flash_save_to_file(flash_t* flash, const char* name)
 {
@@ -460,7 +453,9 @@ int flash_save_to_file(flash_t* flash, const char* name)
         return -1;
     }
 
-    if (close(fd) < 0) return -1;
+    if (close(fd) < 0) {
+        return -1;
+    }
     flash->dirty = 0;
     log_printf("[FLASH] Dump saved to %s successfully\n", name);
     return 0;

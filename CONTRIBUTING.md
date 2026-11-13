@@ -75,8 +75,9 @@ variations; avoid reformatting unrelated lines.
 - Put function opening braces on their own line. Put control-flow opening braces
   on the same line as the condition, with a space after `if`, `for`, `while`, and
   `switch`. Write `} else {` and `} else if (...) {` on one line.
-- Always use braces for control-flow bodies, including a single statement.
-  Expand the body onto separate lines; do not write inline `if` statements.
+- Use braces for control-flow bodies. Short guard statements such as
+  `if (!request) return;` and `if (machine->should_exit) break;` may omit braces
+  and stay on one line. Expand braced bodies onto separate lines.
 - Declare one variable or struct member per line. Write one assignment per line;
   do not chain assignments. Split multiple statements onto separate lines.
 - Write one `case` label per line, with its statements on following lines.
@@ -98,7 +99,8 @@ variations; avoid reformatting unrelated lines.
   project headers; use quotes for project includes and include paths relative
   to `include/`.
 - Preserve existing SPDX copyright and license headers. Add an appropriate SPDX
-  header to new project source files. Comments should explain behavior, intent,
+  header to new project source files; test fixtures and harnesses do not require
+  SPDX headers. Comments should explain behavior, intent,
   or constraints; avoid references to private implementation sources.
 - Use the helpers in `include/utils/log.h` for component diagnostics. Preserve
   useful debug logging and its existing verbosity controls.
@@ -119,10 +121,11 @@ static inline uint32_t next_address(uint32_t address, int operation)
 }
 ```
 
-The repository currently has no configured code formatter or linter: there is no
-`.clang-format`, `.clang-tidy`, `.editorconfig`, or formatting check in CI. Apply
-these rules manually and inspect `git diff --check`. Do not run a formatter over
-unrelated project code or bundled dependencies.
+The repository `.clang-format` configures C/C++ formatting, including one-line
+short guard statements and `} else {` on one line. Use file-based style in your
+editor so format on save picks up these settings. There is no formatting check
+in CI; inspect `git diff --check`. Do not run a formatter over unrelated project
+code or bundled dependencies.
 
 ## Testing
 

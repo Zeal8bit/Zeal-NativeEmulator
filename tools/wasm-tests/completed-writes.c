@@ -6,6 +6,9 @@
 #include "hw/i2c/at24c512.h"
 #include "utils/config.h"
 #include "../../hw/zvb/zvb_spi.c"
+
+#define OBSERVATION_SLEEP_MS 50
+
 config_t config;
 static at24c512_t eeprom;
 static zvb_spi_t spi;
@@ -22,9 +25,12 @@ int main(void)
     assert(zvb_spi_load_tf_image(&spi, "/opfs/zeal-completed-write-test/tf.img") == 0);
     spi.tf_cs = 1;
     spi.tf.state = TF_WRITE_BLOCK_WAIT_TOK;
-    assert(fseek(spi.tf.img, 512, SEEK_SET) == 0);
+    assert(fseek(spi.tf.img, TF_BLK_SIZE, SEEK_SET) == 0);
     zvb_tf_receive_byte(&spi, 0xfe);
-    for (int i = 0; i < 512; i++) zvb_tf_receive_byte(&spi, (uint8_t)(i * 13 + 17));
+    for (int i = 0; i < TF_BLK_SIZE; i++)
+    {
+        zvb_tf_receive_byte(&spi, (uint8_t)(i * 13 + 17));
+    }
     zvb_tf_receive_byte(&spi, 0); // CRC bytes finish the submitted sector.
     zvb_tf_receive_byte(&spi, 0);
     observe_write(0, spi.tf.reply[0] == TF_WRITE_ACCEPTED);
@@ -32,12 +38,18 @@ int main(void)
     eeprom.parent.start(&eeprom.parent);
     eeprom.parent.write(&eeprom.parent, 1); // Page starts at 0x100.
     eeprom.parent.write(&eeprom.parent, 0);
-    for (int i = 0; i < AT24C512_PAGE; i++) eeprom.parent.write(&eeprom.parent, (uint8_t)(i * 7 + 33));
+    for (int i = 0; i < AT24C512_PAGE; i++)
+    {
+        eeprom.parent.write(&eeprom.parent, (uint8_t)(i * 7 + 33));
+    }
     eeprom.parent.stop(&eeprom.parent);
     observe_write(1, 1);
     EM_ASM({ Module.writesCompleted(); });
 
     // Returning from main, deinit, or closing a device could hide the bug by
     // flushing libc. Stay alive until the test runner kills this browser.
-    for (;;) emscripten_sleep(50);
+    for (;;)
+    {
+        emscripten_sleep(OBSERVATION_SLEEP_MS);
+    }
 }
