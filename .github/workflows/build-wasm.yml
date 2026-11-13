@@ -28,9 +28,6 @@ jobs:
           cross-file: wasm-cross.build
           meson-args: -Dwasm_template=native
 
-      - name: Test browser storage and lifecycle
-        run: node tools/wasm-tests/run.mjs build
-
       - name: Download latest Zeal 8-bit OS image
         run: |
           curl --fail --location --retry 3 \

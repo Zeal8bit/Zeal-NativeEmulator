@@ -3,7 +3,7 @@
     class DiskImageStore {
         constructor({storage = 'opfs', storageNamespace, images = [], onWarning = console.warn,
             onUpdateAvailable = null} = {}) {
-            if (!['opfs', 'indexeddb', 'memory'].includes(storage)) {
+            if (!['opfs', 'memory'].includes(storage)) {
                 throw new RangeError(`Unknown image storage: ${storage}`);
             }
             if (storageNamespace !== undefined &&
@@ -21,7 +21,6 @@
             }
             this.onWarning = onWarning;
             this.onUpdateAvailable = onUpdateAvailable;
-            this.database = new IndexedDBStore();
             this.manifest = {version: 1, images: {}};
             this.memory = new Map();
             this.directory = null;
@@ -71,8 +70,6 @@
                     catch (error) { if (error.name !== 'NotFoundError') throw error; }
                     this.manifest = file ? JSON.parse(await (await file.getFile()).text())
                         : {version: 1, images: {}};
-                } else if (this.storage === 'indexeddb') {
-                    this.manifest = await this.database.get(`${namespace}:manifest`) || {version: 1, images: {}};
                 }
                 if (this.manifest.version !== 1 || !this.manifest.images ||
                     typeof this.manifest.images !== 'object' || Array.isArray(this.manifest.images)) {
@@ -139,7 +136,6 @@
                     const file = `${crypto.randomUUID()}.img`;
                     files.push(file);
                     if (this.storage === 'opfs') await this.writeFile(file, remote.data);
-                    else if (this.storage === 'indexeddb') await this.database.put(file, remote.data);
                     else this.memory.set(file, remote.data);
                     next.images[image.id] = {file, etag: remote.etag, lastModified: remote.lastModified};
                 }
@@ -154,7 +150,6 @@
             for (const file of files) {
                 try {
                     if (this.storage === 'opfs') await this.directory.removeEntry(file);
-                    else if (this.storage === 'indexeddb') await this.database.delete(file);
                     else this.memory.delete(file);
                 } catch (error) {
                     if (error.name !== 'NotFoundError') {
@@ -168,9 +163,11 @@
         }
 
         async commit(staged) {
-            if (this.storage === 'opfs') await this.writeFile('manifest.json', JSON.stringify(staged.manifest));
-            else if (this.storage === 'indexeddb') {
-                await this.database.put(`${this.namespace}:manifest`, staged.manifest);
+            try {
+                if (this.storage === 'opfs') await this.writeFile('manifest.json', JSON.stringify(staged.manifest));
+            } catch (error) {
+                await this.removeFiles(staged.files);
+                throw error;
             }
             const previous = this.manifest;
             this.manifest = staged.manifest;
@@ -190,8 +187,7 @@
                     await this.directory.getFileHandle(record.file);
                     image.path = `/opfs/zeal-native/${this.namespace}/${record.file}`;
                 } else {
-                    loaded[image.name] = this.storage === 'indexeddb'
-                        ? await this.database.get(record.file) : this.memory.get(record.file);
+                    loaded[image.name] = this.memory.get(record.file);
                     if (!(loaded[image.name] instanceof Uint8Array)) {
                         throw new Error(`Stored image is missing: ${image.name}`);
                     }
@@ -234,8 +230,7 @@
                 for (const image of this.images) {
                     const file = this.manifest.images[image.id].file;
                     const data = fs.readFile(image.path);
-                    if (this.storage === 'indexeddb') await this.database.put(file, data);
-                    else this.memory.set(file, data);
+                    this.memory.set(file, data);
                 }
             }
             return this.images.map(image => image.name);
@@ -255,8 +250,7 @@
                 if (this.storage === 'opfs') {
                     total += (await (await this.directory.getFileHandle(record.file)).getFile()).size;
                 } else {
-                    const data = this.storage === 'indexeddb'
-                        ? await this.database.get(record.file) : this.memory.get(record.file);
+                    const data = this.memory.get(record.file);
                     total += data?.byteLength || 0;
                 }
             }

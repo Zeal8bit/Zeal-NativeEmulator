@@ -28,11 +28,12 @@ const emulator = new ZealNative({
 await emulator.start();
 ```
 
-`imageStorage` selects `opfs` (default), `indexeddb`, or `memory`. There is no
-silent fallback. The old `imagePersistence`/`onImageConflict` API is replaced.
-Existing IndexedDB records are left intact and are not migrated automatically.
-IndexedDB mode retains explicit Save behavior; memory mode retains changes only
-for the lifetime of the `ZealNative` instance. HostFS remains a separate feature.
+`imageStorage` selects `opfs` (default) or `memory`. There is no silent fallback.
+IndexedDB storage is no longer supported; selecting `indexeddb` throws
+`RangeError`. Existing IndexedDB records are left intact and are not migrated
+automatically. The old `imagePersistence`/`onImageConflict` API is replaced.
+Memory mode retains changes only for the lifetime of the `ZealNative` instance.
+HostFS remains a separate feature.
 
 ### Application workspaces
 
@@ -148,8 +149,8 @@ NOR changes still buffered by the emulator are not covered by this guarantee.
 
 NOR flash retains its existing policy: it stays in device memory until Save or
 orderly exit. `saveDiskImages()` still flushes all three devices; `reload()` and
-`exit()` flush before teardown. Existing IndexedDB snapshot saves and memory mode
-remain available; device stdio flushing alone does not create an IndexedDB save.
+`exit()` flush before teardown. Memory mode keeps snapshots in the current
+`ZealNative` instance; it does not persist data across page reloads.
 
 The non-threaded OPFS backend commits each filesystem write, so persistent I/O
 has higher latency than memory storage. The device benchmark reports 32 adjacent
@@ -197,7 +198,9 @@ minimal/game templates log availability for their host UI to handle.
 Replacement downloads complete before stopping a running emulator. A manifest
 commit activates selected replacements together, then the emulator restarts.
 Failed downloads leave it running; failed activation preserves the old manifest.
-Previously active files are removed only after a successful commit.
+Previously active files are removed only after a successful commit. Failed
+manifest commits remove their staged files, including during initial boot, so
+retries do not accumulate unused images.
 
 `clearDiskImages()` stops a running emulator, removes configured images and their
 metadata from the selected backend, then restarts and downloads fresh copies.
@@ -207,16 +210,18 @@ clear unrelated images, old IndexedDB records, or HostFS files.
 
 ## Building and checking
 
-Activate Emscripten 7.0.0, then:
+The browser regression harnesses are local, untracked files under
+`tests/wasm-tests/`. They are not included in a fresh checkout or run by CI.
+When the harnesses are available locally, activate Emscripten 7.0.0, then:
 
 ```sh
 meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
-node tools/wasm-tests/run.mjs build-wasm
+node tests/wasm-tests/run.mjs build-wasm
 # Include real guest shell/keyboard/HostFS coverage (an emulator-target OS image):
-ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tools/wasm-tests/run.mjs build-wasm
+ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tests/wasm-tests/run.mjs build-wasm
 # Run only the HostFS protocol and optional guest-shell checks:
-ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tools/wasm-tests/run.mjs build-wasm --hostfs-only
+ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tests/wasm-tests/run.mjs build-wasm --hostfs-only
 ```
 
 The test runner uses Node 22+ and Chrome, with no npm dependencies. Set `CHROME`

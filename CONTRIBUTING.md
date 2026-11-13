@@ -34,8 +34,10 @@ The WASM cross file disables the debugger by default; add
 `-Denable_debugger=true` when needed. Serve the generated browser files through
 an HTTP server rather than opening them directly. The bundled web dependency is
 Raylib 6.2; see [its rebuild instructions](raylib/web/README.md). Run the browser
-storage and lifecycle checks with `node tools/wasm-tests/run.mjs build-wasm`
-([details](assets/wasm/README.md)).
+storage and lifecycle checks, when available locally, with
+`node tests/wasm-tests/run.mjs build-wasm`
+([details](assets/wasm/README.md)). The harnesses are untracked under `tests/`
+and are not included in a fresh checkout or run by CI.
 
 ## Project Structure
 
@@ -99,8 +101,7 @@ variations; avoid reformatting unrelated lines.
   project headers; use quotes for project includes and include paths relative
   to `include/`.
 - Preserve existing SPDX copyright and license headers. Add an appropriate SPDX
-  header to new project source files; test fixtures and harnesses do not require
-  SPDX headers. Comments should explain behavior, intent,
+  header to new project source files. Comments should explain behavior, intent,
   or constraints; avoid references to private implementation sources.
 - Use the helpers in `include/utils/log.h` for component diagnostics. Preserve
   useful debug logging and its existing verbosity controls.

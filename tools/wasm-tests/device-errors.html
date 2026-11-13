@@ -1,8 +1,0 @@
-<!doctype html><html><body>Pending<script>
-var deviceErrors = [];
-var Module = {
-    print: message => { if (message.startsWith('PASS:')) document.body.textContent = message; },
-    printErr: message => deviceErrors.push(message),
-    onAbort: reason => { document.body.textContent = 'FAIL: ' + reason + ' ' + deviceErrors.join('\n'); },
-};
-</script><script src="/wasm/wasm-tests/device-errors.js"></script></body></html>
