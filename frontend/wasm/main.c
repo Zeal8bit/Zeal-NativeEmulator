@@ -9,25 +9,20 @@
 #include <unistd.h>
 #include <errno.h>
 
-#ifdef PLATFORM_WEB
 #include <emscripten.h>
 #include <emscripten/wasmfs.h>
-#endif
 
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
 #include "frontend/common/hostfs.h"
 #include "frontend/common/app.h"
-#ifdef PLATFORM_WEB
-#include "frontend/nuklear/frontend.h"
-#include "frontend/nuklear/snes_adapter.h"
-#endif
+#include "frontend/wasm/frontend.h"
+#include "frontend/wasm/snes_adapter.h"
 #include "utils/log.h"
 #include "utils/config.h"
 
 static zeal_t machine;
 
-#ifdef PLATFORM_WEB
 /* Only request work from JS. File I/O must run on the main Asyncify stack,
  * rather than re-entering it while Raylib is sleeping between frames. */
 #define WEB_STORAGE_FLUSH 1
@@ -87,9 +82,7 @@ void zeal_service_web(void)
 EMSCRIPTEN_KEEPALIVE
 void zeal_debug_toggle_web(void)
 {
-#if CONFIG_ENABLE_DEBUGGER
-    zeal_debug_toggle(&machine.dbg);
-#endif
+    /* Compatibility export: the browser frontend has no debugger UI. */
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -103,12 +96,10 @@ void zeal_snes_clear_web(void)
 {
     snes_adapter_clear_virtual_buttons(&frontend_snes);
 }
-#endif
 
 int main(int argc, char* argv[])
 {
     int code = 0;
-#ifdef PLATFORM_WEB
     if (web_uses_opfs()) {
         const backend_t backend = wasmfs_create_opfs_backend();
         if (wasmfs_create_directory("/opfs", 0777, backend) != 0) {
@@ -116,79 +107,42 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-#endif
-    code = parse_command_args(argc, argv);
+    code = frontend_configure(argc, argv);
     if (code != 0) return code;
 
-#if FRONTEND_HEADLESS
-    config.arguments.headless = true;
-#else
-    if (config.arguments.headless || config.arguments.console) {
-        log_err_printf("Headless and console modes moved to zeal-headless; use zeal-headless with the same arguments.\n");
-        return 1;
-    }
-#endif
-    config_parse_file(config.arguments.config_path);
-    config_resolve_images();
-    config_debug();
-
-    if (config.arguments.hostfs_path == NULL) {
-        log_printf("No HostFS path specified.\n");
-    }
-
-    // Process non-option arguments, if needed
-    for (int i = optind; i < argc; i++) {
-        log_printf("Non-option argument: %s\n", argv[i]);
-    }
-
-    if (frontend_init(&machine)) {
+    if (frontend_init(&machine, false)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }
-#ifdef PLATFORM_WEB
     if (config.images.eeprom && !frontend_media.eeprom) {
         log_err_printf("Could not open configured EEPROM image for persistence\n");
         code = 1;
         goto deinit;
     }
-#endif
 
     if (flash_load_from_file(&machine.rom, config.images.rom,
                              config.arguments.uprog_filename)) {
         goto deinit;
     }
 
-#ifndef PLATFORM_WEB
-    if (frontend_hostfs_load_path(&frontend_hostfs, config.arguments.hostfs_path)) {
-        goto deinit;
-    }
-#endif
-
     if (config.images.tf != NULL &&
         frontend_tf_load(&frontend_media, &machine.zvb.spi, config.images.tf)) {
         goto deinit;
     }
 
-#ifdef PLATFORM_WEB
     web_ready();
-#endif
     code = frontend_run(&machine);
     if (machine.compactflash.failed) goto deinit;
 
     flash_save_to_file(&machine.rom, config.arguments.rom_filename);
-#ifdef PLATFORM_WEB
     frontend_eeprom_close(&frontend_media);
     frontend_tf_close(&frontend_media);
-#endif
 
     int saved = config_save();
     config_unload();
     (void)saved;
 
 deinit:
-    frontend_hostfs_close(&frontend_hostfs);
-    frontend_close(&machine);
-    frontend_media_close(&frontend_media);
-    zeal_deinit(&machine);
+    frontend_deinit(&machine);
     return code;
 }

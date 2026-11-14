@@ -31,8 +31,9 @@ meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 ```
 
-The WASM cross file disables the debugger by default; add
-`-Denable_debugger=true` when needed. Serve the generated browser files through
+The WASM cross file disables the core debugger API by default; add
+`-Denable_debugger=true` when needed. The WASM frontend never includes the
+Nuklear debugger UI. Serve the generated browser files through
 an HTTP server rather than opening them directly. The helper builds Raylib 6.2
 headers and library in `raylib/web/`, where generated files are ignored by Git;
 see [its build instructions](raylib/web/README.md). Run the browser
@@ -50,7 +51,9 @@ and are not included in a fresh checkout or run by CI.
 | `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend and machine integration. |
 | `hw/userport/` | SNES serial protocol. |
 | `frontend/common/` | CLI/INI, image files, HostFS, RTC and stream adapters. |
-| `frontend/nuklear/` | Window/render loop, input, audio playback, and debugger UI. |
+| `frontend/nuklear/` | Desktop-only window loop, input, audio playback, and all Nuklear debugger UI. |
+| `frontend/wasm/` | Independent Raylib browser frontend, Emscripten exports, OPFS startup and browser HostFS. |
+| `frontend/common/native/` | Native startup, paths and HostFS shared by desktop and headless. |
 | `frontend/headless/` | Batch execution and console/debugger commands. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
 | `utils/` | Portable FIFO and per-machine virtual timers. |
@@ -197,3 +200,10 @@ and browser appearance/input still need interactive verification in addition
 to build and API checks. The legacy Makefile does not build the pre-split
 baseline (it compiles debugger sources without their required definitions and
 omits required sources); it remains unsupported. Use Meson.
+
+WASM-specific code and link flags belong in `frontend/wasm/`. Keep all Nuklear
+code in `frontend/nuklear/`; neither frontend may include or compile the other.
+There is no shared graphics layer. Core-debugger-enabled WASM builds must still
+exclude Nuklear, debugger panels, and debug textures. Preserve build-root web
+artifact names when changing Meson: declaring the executable in a subdirectory
+would change the existing browser URLs.

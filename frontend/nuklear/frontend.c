@@ -27,9 +27,6 @@
 #include "utils/config.h"
 #include "utils/notif.h"
 #include "utils/vtimer.h"
-#ifdef PLATFORM_WEB
-#include <emscripten.h>
-#endif
 
 #define RAYLIB_KEY_COUNT 384
 
@@ -67,9 +64,6 @@ static bool window_opened;
  */
 static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 
-#ifdef PLATFORM_WEB
-EMSCRIPTEN_KEEPALIVE volatile
-#endif
 #if CONFIG_SHOW_FPS
     bool show_fps = true;
 #else
@@ -379,21 +373,9 @@ static int zeal_normal_mode_run(zeal_t *machine)
 static void zeal_loop(zeal_t *machine)
 {
     int rendered = 0;
-    /**
-     * When compiling for WASM, it is not necessary to execute WindowShouldClose as often as possible.
-     * On the contrary, calling it too much would slow the emulation heavily!
-     * Calling it once every two rendered frames should be enough to get a stable 60FPS.
-     *
-     * When compiling as a native appliaction, it is necessarily to call it more often, let's call it
-     * once per frame, just like in Raylib examples.
-     */
-#if PLATFORM_WEB
-    while (rendered < 2)
-    {
-#else
+    /* Service desktop window events after each presented frame. */
     while (rendered < 1)
     {
-#endif
 
         int frame_rendered = 0;
 #if CONFIG_ENABLE_DEBUGGER
@@ -423,21 +405,14 @@ int frontend_run(zeal_t *machine)
         return -1;
     }
 
-#ifndef PLATFORM_WEB
     double host_epoch = GetTime();
     uint64_t emulated_epoch = vtimer_now_ns(&machine->cpu.clock);
-#endif
     while (!machine->should_exit && !WindowShouldClose())
     {
-#ifdef PLATFORM_WEB
-        zeal_service_web();
-        if (machine->should_exit) break;
-#endif
 #if CONFIG_ENABLE_DEBUGGER
         if (!machine->dbg.running)
             break;
 #endif // CONFIG_ENABLE_DEBUGGER
-#ifndef PLATFORM_WEB
         bool paused = false;
 #if CONFIG_ENABLE_DEBUGGER
         paused = machine->dbg_enabled && machine->dbg_state == ST_PAUSED;
@@ -445,9 +420,7 @@ int frontend_run(zeal_t *machine)
         /* Running emulation uses the absolute deadline below. Only a paused
          * debugger needs Raylib to limit UI redraws independently of the CPU. */
         SetTargetFPS(paused ? 60 : 0);
-#endif
         zeal_loop(machine);
-#ifndef PLATFORM_WEB
         const double now = GetTime();
         const uint64_t emulated_now = vtimer_now_ns(&machine->cpu.clock);
 #if CONFIG_ENABLE_DEBUGGER
@@ -473,7 +446,6 @@ int frontend_run(zeal_t *machine)
                 WaitTime(remaining);
             }
         }
-#endif
     }
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -498,15 +470,11 @@ void frontend_reset_input(zeal_t* machine)
 void frontend_open(bool debug)
 {
     SetTraceLogLevel(WIN_LOG_LEVEL);
-#ifndef PLATFORM_WEB
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-#endif
     InitWindow(640, 480, WIN_NAME);
     window_opened = true;
     SetExitKey(KEY_NULL);
-#ifndef PLATFORM_WEB
     SetWindowFocused();
-#endif
     SetTargetFPS(60);
     notif_reset();
     BeginDrawing();

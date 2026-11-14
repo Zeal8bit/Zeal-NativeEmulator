@@ -3,9 +3,6 @@
 #include "utils/config.h"
 #include "hw/zvb/zvb.h"
 void config_window_update(bool dbg_enabled) {
-#ifdef PLATFORM_WEB
-    return;
-#endif
     if(dbg_enabled) {
         config.debugger.width = GetScreenWidth();
         config.debugger.height = GetScreenHeight();
@@ -24,9 +21,6 @@ void config_window_update(bool dbg_enabled) {
 
 Vector2 config_aspect_force(Vector2 size) {
     Vector2 aspect = { .x = 4, .y = 3 };
-#ifdef PLATFORM_WEB
-    return aspect;
-#endif
     // calculate aspect for missing size
 
     if(size.x >= size.y) {
@@ -44,11 +38,6 @@ bool config_keyboard_passthru(bool dbg_enabled) {
 }
 
 void config_window_set(bool dbg_enabled) {
-#ifdef PLATFORM_WEB
-    SetWindowSize(1280, 960);
-    printf("PLATFORM_WEB: config_window_set disabled (%d, %d)\n", GetScreenWidth(), GetScreenHeight());
-    return;
-#endif
 
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);

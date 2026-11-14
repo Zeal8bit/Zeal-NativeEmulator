@@ -5,10 +5,17 @@ cc = meson.get_compiler('c')
 frontend = get_option('frontend')
 is_web = host_machine.system() == 'emscripten'
 if frontend == 'auto'
-    frontend = is_web ? 'nuklear' : 'both'
+    frontend = is_web ? 'wasm' : 'both'
 endif
 build_nuklear = frontend == 'nuklear' or frontend == 'both'
 build_headless = frontend == 'headless' or frontend == 'both'
+build_wasm = frontend == 'wasm'
+if build_wasm and not is_web
+    error('frontend=wasm requires an Emscripten cross file (for example wasm-cross.build)')
+endif
+if is_web and (build_nuklear or build_headless)
+    error('Emscripten supports frontend=wasm (or auto) and frontend=none; nuklear and headless are native frontends')
+endif
 
 core_args = []
 if get_option('enable_debugger')
@@ -30,27 +37,28 @@ core = static_library('zeal', sources, include_directories: includes,
 zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
 
-if build_nuklear or build_headless
+if build_nuklear or build_headless or build_wasm
     subdir('frontend/common')
     host_args = ['-D_XOPEN_SOURCE=700',
         '-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version())]
     if host_machine.system() == 'darwin'
         host_args += '-D_DARWIN_C_SOURCE'
     endif
-    if is_web
-        host_args += '-DPLATFORM_WEB'
-    endif
+endif
+if build_nuklear or build_headless
+    subdir('frontend/common/native')
 endif
 
 if build_headless
     subdir('frontend/headless')
-    executable('zeal-headless', common_sources + headless_sources,
+    executable('zeal-headless', common_sources + native_sources + headless_sources,
         dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
 endif
 
-if build_nuklear
-    subdir('frontend/nuklear')
-    subdir('assets')
+if build_nuklear or build_wasm
+    if build_nuklear
+        subdir('assets')
+    endif
     raylib_path = get_option('raylib_path')
     if raylib_path == ''
         raylib_path = meson.get_external_property('raylib_path', '')
@@ -67,17 +75,10 @@ if build_nuklear
     if get_option('show_fps')
         graphics_args += '-DCONFIG_SHOW_FPS=1'
     endif
-    zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
-    graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
-    linker_args = meson.get_external_property('link_args', [])
-    if is_web and get_option('wasm_embed_roms')
-        linker_args += ['--embed-file', 'roms']
+    if build_nuklear
+        zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
+        graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
     endif
-    OUTPUT_BIN = is_web ? 'zeal.elf' : 'zeal-native'
-    exec = executable(OUTPUT_BIN, common_sources + nuklear_sources,
-        dependencies: zeal_dep, c_args: host_args + graphics_args,
-        link_args: graphics_link + linker_args, install: true)
-    run_target('run', command: [exec])
     run_command('mkdir', '-p', meson.project_build_root() / 'roms', check: true)
     res = run_command('cp', 'roms/default.img', meson.project_build_root() / 'roms/default.img', check: false)
     if res.returncode() != 0
@@ -85,8 +86,22 @@ if build_nuklear
     endif
 endif
 
-# We have to do it here so that the final file is at the root of the build dir
-if is_web and build_nuklear
+if build_nuklear
+    subdir('frontend/nuklear')
+    exec = executable('zeal-native', common_sources + native_sources + nuklear_sources,
+        dependencies: zeal_dep, c_args: host_args + graphics_args,
+        link_args: graphics_link + meson.get_external_property('link_args', []), install: true)
+    run_target('run', command: [exec])
+endif
+if build_wasm
+    subdir('frontend/wasm')
+    # Root placement preserves existing browser URLs and deployment artifacts.
+    exec = executable('zeal.elf', common_sources + wasm_sources,
+        dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
+        link_args: graphics_link + wasm_link_args, install: true)
+    run_target('run', command: [exec])
+    OUTPUT_BIN = 'zeal.elf'
+
     wasm_template = get_option('wasm_template')
     wasm_dir = join_paths(meson.project_source_root(), 'assets', 'wasm', wasm_template)
     configure_file(
@@ -140,7 +155,7 @@ if is_web and build_nuklear
 
     patch_wasm = custom_target('patch_wasm',
         output: 'dummy_file',
-        command: ['python3', patch_script, OUTPUT_BIN + '.js'],
+        command: ['python3', patch_script, meson.project_build_root() / (OUTPUT_BIN + '.js')],
         depends: exec,
         build_by_default: true,
     )

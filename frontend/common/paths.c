@@ -17,38 +17,6 @@
 
 static char path_buffer[PATH_MAX] = { 0 };
 
-#ifdef _WIN32
-    #include <libloaderapi.h>
-    void get_executable_path(char *buffer, size_t size) {
-        GetModuleFileName(NULL, buffer, (DWORD)size);
-    }
-#elif __linux__
-    #include <unistd.h>
-    #include <limits.h>
-    void get_executable_path(char *buffer, size_t size) {
-        ssize_t len = readlink("/proc/self/exe", buffer, size - 1);
-        if (len != -1) buffer[len] = '\0';
-    }
-#elif __APPLE__
-    #include <mach-o/dyld.h>
-    #include <limits.h>
-    void get_executable_path(char *buffer, size_t size) {
-        uint32_t bufsize = (uint32_t)size;
-        if (_NSGetExecutablePath(buffer, &bufsize) != 0) {
-            fprintf(stderr, "Buffer too small; need size %u\n", bufsize);
-        }
-    }
-#elif PLATFORM_WEB
-    void get_executable_path(char *buffer, size_t size) {
-        if (size > 1) {
-            buffer[0] = '/';
-            buffer[1] = 0;
-        }
-    }
-#else
-    #error "Unsupported platform"
-#endif
-
 void get_executable_dir(char *buffer, size_t size) {
     get_executable_path(buffer, size);
     const char* dir = dirname(buffer);

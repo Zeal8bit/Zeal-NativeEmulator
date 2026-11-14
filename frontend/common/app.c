@@ -19,15 +19,15 @@ static void frontend_reset(void* userdata, zeal_t* machine, bool after_devices)
     }
 }
 
-int frontend_init(zeal_t* machine)
+int frontend_init(zeal_t* machine, bool allow_debugger)
 {
     bool debug = false;
-    if (config.arguments.headless && !config.arguments.console && config.debugger.enabled == DEBUGGER_STATE_ARG) {
+    if (allow_debugger && config.arguments.headless && !config.arguments.console && config.debugger.enabled == DEBUGGER_STATE_ARG) {
         config.arguments.console = true;
     }
 #if CONFIG_ENABLE_DEBUGGER
-    debug = config.arguments.console ? config.debugger.enabled == DEBUGGER_STATE_ARG :
-        config_debugger_enabled() && !config.arguments.headless;
+    debug = allow_debugger && (config.arguments.console ? config.debugger.enabled == DEBUGGER_STATE_ARG :
+        config_debugger_enabled() && !config.arguments.headless);
 #endif
     frontend_open(debug);
     const zeal_options_t options = {
@@ -58,4 +58,41 @@ int frontend_init(zeal_t* machine)
     frontend_hostfs_bind(&frontend_hostfs, &machine->hostfs);
     if (options.frames) v_log_printf(1, "[RENDER] Blitter: software\n");
     return frontend_bind_output(machine);
+}
+
+int frontend_configure(int argc, char* argv[])
+{
+    int code = parse_command_args(argc, argv);
+    if (code != 0) return code;
+
+#if FRONTEND_HEADLESS
+    config.arguments.headless = true;
+#else
+    if (config.arguments.headless || config.arguments.console) {
+        log_err_printf("Headless and console modes moved to zeal-headless; use zeal-headless with the same arguments.\n");
+        return 1;
+    }
+#endif
+    config_parse_file(config.arguments.config_path);
+    config_resolve_images();
+    config_debug();
+
+    if (config.arguments.hostfs_path == NULL) {
+        log_printf("No HostFS path specified.\n");
+    }
+
+    // Process non-option arguments, if needed
+    for (int i = optind; i < argc; i++) {
+        log_printf("Non-option argument: %s\n", argv[i]);
+    }
+
+    return 0;
+}
+
+void frontend_deinit(zeal_t* machine)
+{
+    frontend_hostfs_close(&frontend_hostfs);
+    frontend_close(machine);
+    frontend_media_close(&frontend_media);
+    zeal_deinit(machine);
 }

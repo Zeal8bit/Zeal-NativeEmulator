@@ -12,6 +12,3 @@ int zeal_debug_disable(zeal_t*);
 void zeal_debug_toggle(dbg_t*);
 #endif
 float zeal_scale_quantize_tenths(float scale, float step);
-#ifdef PLATFORM_WEB
-void zeal_service_web(void);
-#endif

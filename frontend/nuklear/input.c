@@ -45,19 +45,6 @@ float zeal_scale_quantize_tenths(float scale, float step)
     return target_tenths / 10.0f;
 }
 
-#ifdef PLATFORM_WEB
-
-static void main_scale_up(dbg_t *dbg)
-{
-    (void) dbg;
-}
-
-static void main_scale_down(dbg_t *dbg)
-{
-    (void) dbg;
-}
-
-#else
 
 static void scale_window(float step)
 {
@@ -80,7 +67,6 @@ static void main_scale_down(dbg_t *dbg)
     scale_window(-1.0f);
 }
 
-#endif
 
 
 static void main_volume_up(dbg_t *dbg)

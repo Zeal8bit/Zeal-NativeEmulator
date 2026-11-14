@@ -3,8 +3,6 @@ common_sources = files(
     'config.c',
     'flash.c',
     'host.c',
-    'hostfs.c',
-    'main.c',
     'media.c',
     'paths.c',
     'rtc.c',

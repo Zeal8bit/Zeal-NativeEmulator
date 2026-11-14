@@ -64,8 +64,8 @@ meson compile
 ```
 
 > [!NOTE]
-> WebAssembly builds disable the debugger by default. Pass
-> `-Denable_debugger=true` to enable it explicitly.
+> WebAssembly builds use the Raylib-only WASM frontend, with no Nuklear debugger UI.
+> `-Denable_debugger=true` enables only the emulator core debugger API.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
 The helper builds **Raylib 6.2** headers and library in `raylib/web/`, where
@@ -328,12 +328,19 @@ buffer. Host I/O is supplied through instance-bound callbacks; the core does
 not open files, poll input devices, read host time, or present graphics/audio.
 The standalone static library is `libzeal.a` (`zeal_dep` for Meson subprojects).
 
-`frontend/nuklear/` owns the graphical application, input polling, debugger
-panels, textures, and audio playback. `frontend/headless/` owns the batch and
-console application. `frontend/common/` supplies shared command-line/INI
-handling, image files, HostFS adapters, RTC conversion, and console streams.
-Desktop/browser differences stay in these adapters behind `PLATFORM_WEB`;
-the emulator library has no platform-specific branches.
+`frontend/nuklear/` owns the desktop graphical application and all Nuklear
+code, including debugger panels, input, textures, and audio playback.
+`frontend/wasm/` independently owns the browser application: Raylib rendering,
+input and audio, the browser loop, Emscripten exports, OPFS startup, and the
+browser HostFS bridge. It always shows the normal emulator view and never
+builds or links Nuklear, including when the core debugger API is enabled.
+`frontend/headless/` owns the batch and console application.
+
+`frontend/common/` contains shared command-line/INI handling, image files,
+RTC conversion, and stream adapters. `frontend/common/native/` contains the
+native entry point, executable path discovery, and native HostFS adapter used
+by desktop and headless. Graphical frontend code is not shared between Nuklear
+and WASM. The emulator library has no platform-specific branches.
 
 Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
 headless scripts should replace the executable name with `zeal-headless`; the
@@ -354,8 +361,8 @@ meson setup build-core -Dfrontend=none
 meson compile -C build-core
 ```
 
-`frontend` accepts `auto`, `both`, `nuklear`, `headless`, or `none`. `auto`
-selects both native executables and Nuklear for Emscripten. Core-only and
+`frontend` accepts `auto`, `both`, `nuklear`, `headless`, `wasm`, or `none`. `auto`
+selects both native executables and WASM for Emscripten. Core-only and
 headless-only builds require no Raylib, Nuklear, graphics libraries, or assets.
 The debugger and scanline-rendering build options remain independent.
 
@@ -378,3 +385,18 @@ Pixels are RGB565 and owned by the machine. Low-resolution rows still have a
 instruction boundary used by the graphical application. Audio sinks receive
 synthesized stereo PCM; frontend playback owns buffering, resampling, and
 host device access.
+
+Build the browser frontend with the Emscripten toolchain active:
+
+```sh
+meson setup build-wasm --cross-file wasm-cross.build -Dfrontend=wasm
+meson compile -C build-wasm
+```
+
+`auto` selects this frontend for Emscripten, so existing default cross-build
+commands still work. Browser output names and embedding entry points are retained.
+`-Denable_debugger=true` enables the core debugger API only; it does not add a
+browser debugger UI. The old JavaScript `toggleDebugger()` method returns
+`false`, and its C export is retained as a no-op for existing embedders.
+Desktop Nuklear and headless targets require a native toolchain; `frontend=none`
+can build the core library with either native or Emscripten toolchains.

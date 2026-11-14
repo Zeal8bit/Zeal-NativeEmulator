@@ -403,11 +403,9 @@
             return true;
         }
 
+        // Retained for existing embedders; the WASM frontend has no debugger UI.
         toggleDebugger() {
-            if (!this.module?._zeal_debug_toggle_web) return false;
-            this.module._zeal_debug_toggle_web();
-            this.canvas.focus();
-            return true;
+            return false;
         }
 
         toggleFps() {
