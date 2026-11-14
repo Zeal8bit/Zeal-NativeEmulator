@@ -27,9 +27,14 @@ jobs:
       #  run: |
       #    LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib ./build/zeal-native --help
 
+      - name: Test headless executable
+        run: ./build/zeal-headless --help
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-linux
-          path: build/zeal-native
+          path: |
+            build/zeal-native
+            build/zeal-headless
           retention-days: 30
