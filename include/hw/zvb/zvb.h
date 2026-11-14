@@ -239,7 +239,7 @@ static inline bool zvb_is_text_mode(const zvb_t* zvb)
  * @param mmu Physical memory bus used by DMA
  * @param bus_requested CPU-owned request line, valid until board teardown
  */
-int zvb_init(zvb_t* zvb, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested);
+int zvb_init(zvb_t* zvb, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested);
 
 
 /**

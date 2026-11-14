@@ -178,7 +178,7 @@ static bool zvb_mem_dma_access_can_defer(device_t* dev, uint32_t addr)
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -208,7 +208,7 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -244,7 +244,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
             return (zvb->current_scanline >> 0) & 0xff;
         case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
         case ZVB_IO_CONFIG_HPOS_LOW: {
-            const uint32_t hpos = (vtimer_now_ns() - zvb->line_start_ns) / ZVB_PIXEL_NS;
+            const uint32_t hpos = (vtimer_now_ns(zvb->timer.clock) - zvb->line_start_ns) / ZVB_PIXEL_NS;
             zvb->ctrl.hpos_latch = (hpos >> 8) & ZVB_HPOS_HIGH_MASK;
             return hpos & ZVB_HPOS_LOW_MASK;
         }
@@ -279,7 +279,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
@@ -393,7 +393,7 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
@@ -429,7 +429,7 @@ static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int heigh
 static void zvb_fsm_next(void* userdata);
 
 
-int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested)
+int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested)
 {
     if (dev == NULL || config == NULL || mmu == NULL || bus_requested == NULL) {
         return 1;
@@ -453,12 +453,12 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
     zvb_tileset_init(&dev->tileset, rendering_enabled);
     zvb_text_init(&dev->text);
     zvb_sprites_init(&dev->sprites, rendering_enabled);
-    zvb_spi_init(&dev->spi);
+    zvb_spi_init(&dev->spi, clock);
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound, rendering_enabled);
-    zvb_dma_init(&dev->dma, mmu, bus_requested, !config->dma_disabled);
+    zvb_dma_init(&dev->dma, clock, mmu, bus_requested, !config->dma_disabled);
     zvb_rpu_init(&dev->rpu);
-    zvb_timer_init(&dev->peri_timer, zvb_update_interrupts, dev);
+    zvb_timer_init(&dev->peri_timer, clock, zvb_update_interrupts, dev);
 
     if (dev->rendering_enabled) {
 #if CONFIG_ENABLE_DEBUGGER
@@ -474,13 +474,13 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
 
     /* Set the state to STATE_RENDERING, waiting for the next event */
     dev->state = STATE_RENDERING;
-    vtimer_init_node(&dev->timer, zvb_fsm_next, dev);
+    vtimer_init_node(&dev->timer, clock, zvb_fsm_next, dev);
 #if ZVB_SCANLINE_RENDERING
     dev->scanline_requested = !config->scanline_disabled;
     dev->scanline_rendering = dev->scanline_requested;
 #endif
-    vtimer_init_node(&dev->sound_event, zvb_sound_next, dev);
-    dev->sound_clock_ns = vtimer_now_ns();
+    vtimer_init_node(&dev->sound_event, clock, zvb_sound_next, dev);
+    dev->sound_clock_ns = vtimer_now_ns(clock);
     dev->rpu_clock_ns = dev->sound_clock_ns;
     dev->line_start_ns = dev->sound_clock_ns;
     vtimer_schedule_ns(&dev->timer, ZVB_VISIBLE_LINE_NS);
@@ -518,7 +518,7 @@ static void zvb_reset(device_t* dev)
     zvb->blitter.raster_frame = false;
 #endif
     vtimer_cancel(&zvb->sound_event);
-    zvb->sound_clock_ns = vtimer_now_ns();
+    zvb->sound_clock_ns = vtimer_now_ns(zvb->timer.clock);
     zvb->rpu_clock_ns = zvb->sound_clock_ns;
     zvb->line_start_ns = zvb->sound_clock_ns;
     vtimer_schedule_ns(&zvb->timer, ZVB_VISIBLE_LINE_NS);

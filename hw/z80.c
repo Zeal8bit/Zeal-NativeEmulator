@@ -822,6 +822,7 @@ void z80_init(z80* const z)
 {
     /* MMU is embedded in the CPU, init it first so device sub-system is ready */
     mmu_init(&z->mmu);
+    vtimer_init(&z->clock);
 
     z80_reset(z);
 }
@@ -910,7 +911,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
 {
     const unsigned long cycles = z->cyc;
     if (z->bus_requested) {
-        z->cyc += vtimer_stall_bus(stall_limit, &z->bus_requested);
+        z->cyc += vtimer_stall_bus(&z->clock, stall_limit, &z->bus_requested);
     } else {
         if (z->halted) {
             exec_opcode(z, 0x00);
@@ -918,7 +919,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
             const uint8_t opcode = nextb(z);
             exec_opcode(z, opcode);
         }
-        vtimer_tick(z->cyc - cycles);
+        vtimer_tick(&z->clock, z->cyc - cycles);
     }
 
     /* Events during a bus hold must become pending before acceptance. Never
@@ -926,7 +927,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
     if (!z->bus_requested) {
         const unsigned long before_interrupt = z->cyc;
         process_interrupts(z);
-        vtimer_tick(z->cyc - before_interrupt);
+        vtimer_tick(&z->clock, z->cyc - before_interrupt);
     }
     return z->cyc - cycles;
 }

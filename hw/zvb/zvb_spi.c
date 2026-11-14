@@ -93,17 +93,17 @@ static void zvb_spi_schedule_byte(zvb_spi_t* spi, uint64_t start_ns)
     vtimer_schedule_at_ns(&spi->event, start_ns + SPI_BYTE_CLOCKS * spi->half_period_ns);
 }
 
-void zvb_spi_init(zvb_spi_t* spi)
+void zvb_spi_init(zvb_spi_t* spi, vtimer_t* clock)
 {
     assert(spi != NULL);
     memset(spi, 0, sizeof(*spi));
-    vtimer_init_node(&spi->event, zvb_spi_complete_byte, spi);
+    vtimer_init_node(&spi->event, clock, zvb_spi_complete_byte, spi);
     zvb_spi_reset(spi);
 }
 
 void zvb_spi_reset(zvb_spi_t* spi)
 {
-    zvb_spi_sync_receive(spi, vtimer_now_ns());
+    zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
     vtimer_cancel(&spi->event);
     spi->clk_div = SPI_RESET_CLK_DIV;
     spi->ram_rd.idx = 0;
@@ -144,7 +144,7 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
         return 1;
     }
     if (spi->tf.img) {
-        zvb_spi_sync_receive(spi, vtimer_now_ns());
+        zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
         fclose(spi->tf.img);
     }
     spi->tf.img = image;
@@ -157,7 +157,7 @@ int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
 
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 {
-    zvb_spi_sync_receive(spi, vtimer_now_ns());
+    zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
     uint_fast8_t index;
     /* We may want to interpret the value as a control */
     zvb_spi_ctrl_t ctrl = { .raw = value };
@@ -200,7 +200,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
                            spi->ram_wr.data[7],
                            spi->transfer_len);
 #endif
-                zvb_spi_schedule_byte(spi, vtimer_now_ns());
+                zvb_spi_schedule_byte(spi, vtimer_now_ns(spi->event.clock));
             }
             break;
         case SPI_REG_CLK_DIV:
@@ -236,7 +236,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 
 uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr)
 {
-    zvb_spi_sync_receive(spi, vtimer_now_ns());
+    zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
     switch(addr) {
         case SPI_REG_VERSION:
             return SPI_VERSION;

@@ -206,7 +206,7 @@ static void flash_idle_cb(void* userdata)
 }
 
 
-int flash_init(flash_t* flash)
+int flash_init(flash_t* flash, vtimer_t* clock)
 {
     if (flash == NULL) {
         return 1;
@@ -216,7 +216,7 @@ int flash_init(flash_t* flash)
     flash->size = NOR_FLASH_SIZE_KB;
     flash->state = STATE_IDLE;
     flash->dirty = 0;
-    vtimer_init_node(&flash->timer, flash_idle_cb, flash);
+    vtimer_init_node(&flash->timer, clock, flash_idle_cb, flash);
 
 #if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
     flash->data = malloc(flash->size);

@@ -80,6 +80,9 @@ typedef struct symbols_t {
 
 
 struct dbg_t {
+    char ed_fmt[2][64];
+    instr_data_t ed_opcode;
+    char ixiy_fmt[sizeof("bit 0,(i%c%+d)")];
     bool            running; // should the emulator continue running?
     breakpoint_t    breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];

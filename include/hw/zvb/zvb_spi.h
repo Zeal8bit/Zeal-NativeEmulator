@@ -123,7 +123,7 @@ typedef struct {
 /**
  * @brief Initialize the SPI, must be called before using it.
  */
-void zvb_spi_init(zvb_spi_t* spi);
+void zvb_spi_init(zvb_spi_t* spi, vtimer_t* clock);
 
 
 /**

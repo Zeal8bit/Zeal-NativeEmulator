@@ -40,7 +40,7 @@ typedef struct {
 } flash_t;
 
 
-int flash_init(flash_t* flash);
+int flash_init(flash_t* flash, vtimer_t* clock);
 
 int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
 

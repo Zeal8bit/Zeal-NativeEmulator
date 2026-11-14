@@ -17,8 +17,8 @@
 #include "hw/keyboard.h"
 #include "hw/pio.h"
 
-static unsigned long PS2_SCANCODE_DURATION = 0;
-static unsigned long PS2_KEY_TIMING = 0;
+#define PS2_SCANCODE_DURATION (us_to_tstates(19.7))
+#define PS2_KEY_TIMING (us_to_tstates(3900))
 
 
 static const uint16_t TABLE[384] = {
@@ -195,17 +195,15 @@ static void keyboard_tick_cb(void* userdata)
 }
 
 
-int keyboard_init(keyboard_t* keyboard, pio_t* pio)
+int keyboard_init(keyboard_t* keyboard, vtimer_t* clock, pio_t* pio)
 {
     /* On the real hardware, the active signal stays on for ~19.7 microseconds */
-    PS2_SCANCODE_DURATION = us_to_tstates(19.7);
     /* We have a delay of 3.9ms between each scancode */
-    PS2_KEY_TIMING = us_to_tstates(3900); // 39000
     /* The release code happens 30ms after the first code is issued */
 
     keyboard->pio = pio;
     keyboard->size = 0x10;
-    vtimer_init_node(&keyboard->timer, keyboard_tick_cb, keyboard);
+    vtimer_init_node(&keyboard->timer, clock, keyboard_tick_cb, keyboard);
     device_init_io(DEVICE(keyboard), "keyboard_dev", io_read, NULL, keyboard->size);
     device_register_reset(DEVICE(keyboard), keyboard_reset);
 

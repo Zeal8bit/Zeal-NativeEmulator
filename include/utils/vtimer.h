@@ -12,7 +12,7 @@
  * with a delay in t-states, microseconds, or nanoseconds. After each Z80 instruction,
  * the CPU calls vtimer_tick() with the elapsed t-states to fire due callbacks.
  *
- * All state is global/static — there is no per-machine instance.
+ * Each machine owns a scheduler; timer nodes retain their owning scheduler.
  */
 
 #pragma once
@@ -25,12 +25,21 @@
  * @brief A node in the timer linked list. Returned by schedule functions as a handle
  *        that can be passed to vtimer_cancel().
  */
+typedef struct vtimer vtimer_t;
+
 typedef struct vtimer_node {
+    vtimer_t* clock;
     struct vtimer_node* next;
     uint64_t            deadline;   /* absolute nanosecond deadline   */
     void                (*callback)(void* userdata);
     void*               userdata;
 } vtimer_node_t;
+
+struct vtimer {
+    vtimer_node_t* head;
+    uint64_t now_ns;
+    uint64_t stall_deadline;
+};
 
 
 /**
@@ -38,13 +47,13 @@ typedef struct vtimer_node {
  *        Resets the internal t-state counter to 0 and clears the timer list.
  *        Must be called once at program startup.
  */
-void vtimer_init(void);
+void vtimer_init(vtimer_t* clock);
 
 /* Current emulated time, for peripheral counters between scheduled events. */
-uint64_t vtimer_now_ns(void);
+uint64_t vtimer_now_ns(vtimer_t* clock);
 
 /* Next timer or current stall-budget boundary; UINT64_MAX when neither exists. */
-uint64_t vtimer_next_deadline_ns(void);
+uint64_t vtimer_next_deadline_ns(vtimer_t* clock);
 
 
 /**
@@ -57,7 +66,7 @@ uint64_t vtimer_next_deadline_ns(void);
  * @param callback  Function to call when the timer fires.
  * @param userdata  Opaque pointer passed to the callback.
  */
-void vtimer_init_node(vtimer_node_t* node,
+void vtimer_init_node(vtimer_node_t* node, vtimer_t* clock,
                       void (*callback)(void*),
                       void* userdata);
 
@@ -109,18 +118,18 @@ void vtimer_schedule_ns(vtimer_node_t* node, uint64_t delay_ns);
  *
  * @param elapsed_tstates  Number of t-states to advance the counter by.
  */
-void vtimer_tick(uint64_t elapsed_tstates);
+void vtimer_tick(vtimer_t* clock, uint64_t elapsed_tstates);
 
 /**
  * @brief Advance time while the CPU has yielded the bus (e.g. DMA).
  * Visits exact deadlines, including every period of a callback that rearms
  * itself. Ordinary instruction-boundary timing remains in vtimer_tick().
  */
-void vtimer_stall(uint64_t elapsed_tstates);
+void vtimer_stall(vtimer_t* clock, uint64_t elapsed_tstates);
 
 /* Yield while the bus is held, stopping at release or the caller's budget.
  * Returns elapsed whole T-states, rounding release to the next CPU boundary. */
-uint64_t vtimer_stall_bus(uint64_t max_tstates, const bool* bus_requested);
+uint64_t vtimer_stall_bus(vtimer_t* clock, uint64_t max_tstates, const bool* bus_requested);
 
 
 /**

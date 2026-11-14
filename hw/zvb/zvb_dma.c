@@ -64,9 +64,9 @@ static void dma_schedule_writes(zvb_dma_t* dma, uint32_t read_clocks, uint32_t w
     }
     uint32_t source = dma->rd_addr;
     uint32_t destination = dma->wr_addr;
-    uint64_t deadline = vtimer_now_ns() + write_clocks * DMA_CLOCK_NS;
-    const uint64_t next_event = vtimer_next_deadline_ns();
-    const uint64_t batch_end = vtimer_now_ns() + DMA_BATCH_NS;
+    uint64_t deadline = vtimer_now_ns(dma->timer.clock) + write_clocks * DMA_CLOCK_NS;
+    const uint64_t next_event = vtimer_next_deadline_ns(dma->timer.clock);
+    const uint64_t batch_end = vtimer_now_ns(dma->timer.clock) + DMA_BATCH_NS;
     const uint64_t limit = next_event < batch_end ? next_event : batch_end;
     const uint32_t byte_ns = (read_clocks + write_clocks) * DMA_CLOCK_NS;
     while (dma->batch_remaining < dma->remaining && deadline + byte_ns < limit) {
@@ -166,14 +166,14 @@ static void dma_advance(void* userdata)
 }
 
 
-void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu, bool* bus_requested, bool bus_connected)
+void zvb_dma_init(zvb_dma_t* dma, vtimer_t* clock, mmu_t* mmu, bool* bus_requested, bool bus_connected)
 {
     dma->desc_addr = 0;
     dma->flags = 0;
     dma->mmu = mmu;
     dma->bus_requested = bus_requested;
     dma->bus_connected = bus_connected;
-    vtimer_init_node(&dma->timer, dma_advance, dma);
+    vtimer_init_node(&dma->timer, clock, dma_advance, dma);
     zvb_dma_reset(dma);
 }
 

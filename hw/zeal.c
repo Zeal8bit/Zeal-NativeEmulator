@@ -208,7 +208,6 @@ int zeal_init(zeal_t* machine)
     }
 
     memset(machine, 0, sizeof(*machine));
-    vtimer_init();
     machine->headless = config.arguments.headless;
     /* Running headless with an explicitly requested debugger means the console
      * debugger front-end: the console is the only headless debugger UI. */
@@ -272,7 +271,7 @@ int zeal_init(zeal_t* machine)
     z80_init(&machine->cpu);
     mmu_t* mmu = z80_get_mmu(&machine->cpu);
 
-    err = flash_init(&machine->rom);
+    err = flash_init(&machine->rom, &machine->cpu.clock);
     CHECK_ERR(err);
 
     err = ram_init(&machine->ram);
@@ -287,9 +286,9 @@ int zeal_init(zeal_t* machine)
     err = i2c_init(&machine->i2c_bus, &machine->pio);
     CHECK_ERR(err);
 
-    err = keyboard_init(&machine->keyboard, &machine->pio);
+    err = keyboard_init(&machine->keyboard, &machine->cpu.clock, &machine->pio);
     CHECK_ERR(err);
-    vtimer_init_node(&machine->host_keyb_timer, host_keyboard_check_cb, machine);
+    vtimer_init_node(&machine->host_keyb_timer, &machine->cpu.clock, host_keyboard_check_cb, machine);
     vtimer_schedule_tstates(&machine->host_keyb_timer, HOST_KEYB_CHECK_PERIOD);
 
     err = snes_adapter_init(&machine->snes_adapter, &machine->pio);
@@ -332,7 +331,7 @@ int zeal_init(zeal_t* machine)
 #endif
         .pio = &machine->pio,
     };
-    err = zvb_init(&machine->zvb, &zvb_config, mmu, &machine->cpu.bus_requested);
+    err = zvb_init(&machine->zvb, &machine->cpu.clock, &zvb_config, mmu, &machine->cpu.bus_requested);
     CHECK_ERR(err);
     mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
     if (!machine->headless) {
@@ -765,7 +764,7 @@ int zeal_run(zeal_t* machine)
 
 #ifndef PLATFORM_WEB
     double host_epoch = GetTime();
-    uint64_t emulated_epoch = vtimer_now_ns();
+    uint64_t emulated_epoch = vtimer_now_ns(&machine->cpu.clock);
 #endif
     while (!machine->should_exit && !WindowShouldClose()) {
 #ifdef PLATFORM_WEB
@@ -789,7 +788,7 @@ int zeal_run(zeal_t* machine)
         zeal_loop(machine);
 #ifndef PLATFORM_WEB
         const double now = GetTime();
-        const uint64_t emulated_now = vtimer_now_ns();
+        const uint64_t emulated_now = vtimer_now_ns(&machine->cpu.clock);
 #if CONFIG_ENABLE_DEBUGGER
         paused = paused || (machine->dbg_enabled && machine->dbg_state == ST_PAUSED);
 #endif

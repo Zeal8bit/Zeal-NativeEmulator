@@ -75,7 +75,7 @@ static void audio_callback(void *buffer, uint32_t frames);
 static zvb_sound_t* g_sound;
 
 /* Nibble lookups preserve exact linear noise transforms between samples. */
-static uint16_t noise_nibbles[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_NIBBLE_COUNT][SOUND_NOISE_NIBBLE_VALUES];
+
 
 static uint16_t noise_clock(uint16_t state)
 {
@@ -96,7 +96,7 @@ static uint16_t noise_transform(uint16_t state, const uint16_t* transform)
     return result;
 }
 
-static void noise_jump_init(void)
+static void noise_jump_init(zvb_sound_t* sound)
 {
     uint16_t noise_jump[SOUND_NOISE_JUMP_BITS][SOUND_NOISE_BITS];
     for (unsigned bit = 0; bit < SOUND_NOISE_BITS; bit++) {
@@ -111,21 +111,21 @@ static void noise_jump_init(void)
     for (uint32_t power = 0; power < SOUND_NOISE_JUMP_BITS; power++) {
         for (uint32_t chunk = 0; chunk < SOUND_NOISE_NIBBLE_COUNT; chunk++) {
             for (uint32_t value = 0; value < SOUND_NOISE_NIBBLE_VALUES; value++) {
-                noise_nibbles[power][chunk][value] =
+                sound->noise_nibbles[power][chunk][value] =
                     noise_transform(value << (chunk * SOUND_NOISE_NIBBLE_BITS), noise_jump[power]);
             }
         }
     }
 }
 
-static uint16_t noise_advance(uint16_t state, uint32_t clocks)
+static uint16_t noise_advance(zvb_sound_t* sound, uint16_t state, uint32_t clocks)
 {
     for (unsigned power = 0; clocks != 0; power++) {
         if (clocks & 1) {
-            state = noise_nibbles[power][0][state & SOUND_NOISE_NIBBLE_MASK] ^
-                    noise_nibbles[power][1][(state >> SOUND_NOISE_NIBBLE_BITS) & SOUND_NOISE_NIBBLE_MASK] ^
-                    noise_nibbles[power][2][(state >> (2 * SOUND_NOISE_NIBBLE_BITS)) & SOUND_NOISE_NIBBLE_MASK] ^
-                    noise_nibbles[power][3][state >> (3 * SOUND_NOISE_NIBBLE_BITS)];
+            state = sound->noise_nibbles[power][0][state & SOUND_NOISE_NIBBLE_MASK] ^
+                    sound->noise_nibbles[power][1][(state >> SOUND_NOISE_NIBBLE_BITS) & SOUND_NOISE_NIBBLE_MASK] ^
+                    sound->noise_nibbles[power][2][(state >> (2 * SOUND_NOISE_NIBBLE_BITS)) & SOUND_NOISE_NIBBLE_MASK] ^
+                    sound->noise_nibbles[power][3][state >> (3 * SOUND_NOISE_NIBBLE_BITS)];
         }
         clocks >>= 1;
     }
@@ -156,7 +156,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
     }
     sound->lfsr = SOUND_NOISE_SEED;
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
-    noise_jump_init();
+    noise_jump_init(sound);
     sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
     atomic_flag_clear(&sound->output_lock);
     sound->playback_rate = 1.0;
@@ -425,7 +425,7 @@ void zvb_sound_advance(zvb_sound_t* sound, uint32_t clocks)
         if (skip > clocks) {
             skip = clocks;
         }
-        sound->lfsr = noise_advance(sound->lfsr, skip);
+        sound->lfsr = noise_advance(sound, sound->lfsr, skip);
         sound->sample_clock_counter += skip;
         clocks -= skip;
     }

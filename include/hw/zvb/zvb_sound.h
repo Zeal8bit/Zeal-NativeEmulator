@@ -89,6 +89,7 @@ typedef struct {
 } zvb_pcm_frame_t;
 
 typedef struct {
+    uint16_t noise_nibbles[11][4][16];
     zvb_voice_t        voices[VOICE_COUNT];
     uint_fast8_t       hold_voices;
     uint_fast8_t       enabled_voices;

@@ -21,6 +21,8 @@
 typedef struct {
         // device_t
         device_t parent;
+        uint8_t tx_fifo[10];
+        uint8_t tx_pos;
         size_t size; // in bytes
 } uart_t;
 
