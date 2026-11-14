@@ -1,136 +1,92 @@
-project(
-    'Zeal-NativeEmulator',
-    'c',
-    version: '1.0.1',
-    license: 'Apache-2.0',
-    default_options: [
-        'buildtype=debugoptimized',
-        'c_std=c99',
-        'warning_level=everything',
-        'warning_level=2',
-    ],
-)
+project('Zeal-NativeEmulator', 'c', version: '1.0.1', license: 'Apache-2.0',
+    default_options: ['buildtype=debugoptimized', 'c_std=c99', 'warning_level=2'])
 
-
-# Output binary
-dependencies = []
-OUTPUT_BIN = 'zeal-native'
-if (host_machine.system() == 'emscripten')
-    OUTPUT_BIN = 'zeal.elf'
+cc = meson.get_compiler('c')
+frontend = get_option('frontend')
+is_web = host_machine.system() == 'emscripten'
+if frontend == 'auto'
+    frontend = is_web ? 'nuklear' : 'both'
 endif
+build_nuklear = frontend == 'nuklear' or frontend == 'both'
+build_headless = frontend == 'headless' or frontend == 'both'
 
-# Retrieve raylib_path option (set via command line or use system defaults)
-raylib_path = get_option('raylib_path')
-raylib_target_path = meson.get_external_property('raylib_path', '')
-
-if raylib_path != ''
-    # Target provided path
-    raylib_include_dir = raylib_path / 'include'
-    raylib_lib_dir = raylib_path / 'lib'
-elif raylib_target_path != ''
-    # Target provided path
-    raylib_include_dir = raylib_target_path / 'include'
-    raylib_lib_dir = raylib_target_path / 'lib'
-else
-    # No path provided, rely on system's default libraries (i.e., /usr/include and /usr/lib)
-    raylib_include_dir = ''
-    raylib_lib_dir = ''
+core_args = []
+if get_option('enable_debugger')
+    core_args += '-DCONFIG_ENABLE_DEBUGGER=1'
 endif
-
-
-# List all the subdirectories that contain source code
+if get_option('scanline_rendering')
+    core_args += '-DZVB_SCANLINE_RENDERING=1'
+endif
+if get_option('profile_render')
+    core_args += '-DCONFIG_PROFILE_RENDER=1'
+endif
+includes = include_directories('include')
+portable_deps = [cc.find_library('m', required: false)]
 sources = []
 subdir('hw')
-subdir('app')
 subdir('utils')
-subdir('assets')
-sources += files('frontend/nuklear/video.c', 'frontend/nuklear/audio.c')
+core = static_library('zeal', sources, include_directories: includes,
+    c_args: core_args, dependencies: portable_deps)
+zeal_dep = declare_dependency(link_with: core, include_directories: includes,
+    compile_args: core_args, dependencies: portable_deps)
 
-
-run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)
-res = run_command(
-    'cp',
-    'roms/default.img',
-    join_paths(meson.project_build_root(), 'roms/default.img'),
-    check: false,
-)
-
-if res.returncode() != 0
-  warning('default.img not found, skipping copy')
-endif
-
-
-if (get_option('show_fps'))
-    add_project_arguments('-DCONFIG_SHOW_FPS', language: 'c')
-endif
-
-if get_option('profile_render')
-    add_project_arguments('-DCONFIG_PROFILE_RENDER', language: 'c')
-endif
-
-if get_option('enable_debugger')
-    add_project_arguments('-DCONFIG_ENABLE_DEBUGGER', language: 'c')
-endif
-
-if (host_machine.system() == 'darwin')
-    add_project_arguments('-D_DARWIN_C_SOURCE', language: 'c')
-endif
-
-add_project_arguments('-D_XOPEN_SOURCE=700',
-                      '-Iinclude',
-                      language: 'c')
-
-# Expose the project version to the C sources. include/utils/version.h provides
-# a fallback for builds that do not go through Meson.
-add_project_arguments('-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version()), language: 'c')
-
-if get_option('scanline_rendering')
-    add_project_arguments('-DZVB_SCANLINE_RENDERING=1', language: 'c')
-endif
-
-zeal_assets_dir = join_paths(get_option('prefix'), get_option('datadir'), 'zeal-native', 'assets')
-add_project_arguments('-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"', language: 'c')
-
-if raylib_include_dir != ''
-    add_project_arguments('-I' + raylib_include_dir, language: 'c')
-endif
-
-if raylib_lib_dir != ''
-    add_project_link_arguments('-L' + raylib_lib_dir, language: 'c')
-endif
-
-add_project_link_arguments('-lraylib', '-lm', language: 'c')
-
-if host_machine.system() == 'linux'
-    add_project_link_arguments('-lX11', language: 'c')
-endif
-
-linker_args = meson.get_external_property('link_args', [])
-
-if host_machine.system() == 'emscripten'
-    if get_option('wasm_embed_roms')
-        linker_args += ['--embed-file', 'roms']
+if build_nuklear or build_headless
+    subdir('frontend/common')
+    host_args = ['-D_XOPEN_SOURCE=700',
+        '-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version())]
+    if host_machine.system() == 'darwin'
+        host_args += '-D_DARWIN_C_SOURCE'
+    endif
+    if is_web
+        host_args += '-DPLATFORM_WEB'
     endif
 endif
 
-# Compiler and build targets
-exec = executable(
-    OUTPUT_BIN,
-    sources,
-    include_directories: ['include'],
-    dependencies: dependencies,
-    link_args: linker_args,
-    install: true
-)
+if build_headless
+    subdir('frontend/headless')
+    executable('zeal-headless', common_sources + headless_sources,
+        dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
+endif
 
-# meson compile run to launch emulator after building
-run_target(
-    'run',
-    command: [exec],
-)
+if build_nuklear
+    subdir('frontend/nuklear')
+    subdir('assets')
+    raylib_path = get_option('raylib_path')
+    if raylib_path == ''
+        raylib_path = meson.get_external_property('raylib_path', '')
+    endif
+    graphics_args = ['-DFRONTEND_HEADLESS=0']
+    graphics_link = ['-lraylib']
+    if raylib_path != ''
+        graphics_args += '-I' + raylib_path / 'include'
+        graphics_link += '-L' + raylib_path / 'lib'
+    endif
+    if host_machine.system() == 'linux'
+        graphics_link += '-lX11'
+    endif
+    if get_option('show_fps')
+        graphics_args += '-DCONFIG_SHOW_FPS=1'
+    endif
+    zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
+    graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
+    linker_args = meson.get_external_property('link_args', [])
+    if is_web and get_option('wasm_embed_roms')
+        linker_args += ['--embed-file', 'roms']
+    endif
+    OUTPUT_BIN = is_web ? 'zeal.elf' : 'zeal-native'
+    exec = executable(OUTPUT_BIN, common_sources + nuklear_sources,
+        dependencies: zeal_dep, c_args: host_args + graphics_args,
+        link_args: graphics_link + linker_args, install: true)
+    run_target('run', command: [exec])
+    run_command('mkdir', '-p', meson.project_build_root() / 'roms', check: true)
+    res = run_command('cp', 'roms/default.img', meson.project_build_root() / 'roms/default.img', check: false)
+    if res.returncode() != 0
+        warning('default.img not found, skipping copy')
+    endif
+endif
 
 # We have to do it here so that the final file is at the root of the build dir
-if (host_machine.system() == 'emscripten')
+if is_web and build_nuklear
     wasm_template = get_option('wasm_template')
     wasm_dir = join_paths(meson.project_source_root(), 'assets', 'wasm', wasm_template)
     configure_file(

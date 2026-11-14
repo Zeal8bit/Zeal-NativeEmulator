@@ -183,6 +183,7 @@ void zvb_sound_reset(zvb_sound_t* sound)
 
 void zvb_sound_deinit(zvb_sound_t* sound)
 {
+    if (!sound) return;
     sound->output = NULL;
     sound->output_reset = NULL;
     sound->output_userdata = NULL;

@@ -5,10 +5,8 @@
  */
 
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "utils/log.h"
 #include "hw/i2c/at24c512.h"
 
 // #define debug log_printf
@@ -56,28 +54,14 @@ static void at24c512_start(i2c_device_t* dev) {
 
 static void at24c512_stop(i2c_device_t* dev) {
     at24c512_t* eeprom = (at24c512_t*)dev;
-    if (eeprom->writing && eeprom->file) {
-        const int page_start = eeprom->sector_written * AT24C512_PAGE;
-        if (fseek(eeprom->file, page_start, SEEK_SET) != 0) {
-            log_perror("[EEPROM] Could not seek to completed page");
-        } else {
-            debug("[EEPROM] Writing back sector 0x%x to file\n", eeprom->sector_written);
-            const size_t written = fwrite(&eeprom->data[page_start], 1, AT24C512_PAGE, eeprom->file);
-            /* Flush this completed I2C page transaction, not each guest byte.
-             * WasmFS OPFS commits its underlying write before fflush returns. */
-            const int flushed = fflush(eeprom->file);
-            if (written != AT24C512_PAGE) {
-                log_err_printf("[EEPROM] Could only write %zu/%d bytes of completed page\n", written, AT24C512_PAGE);
-            }
-            if (flushed != 0) {
-                log_perror("[EEPROM] Could not flush completed page");
-            }
-        }
+    if (eeprom->writing && eeprom->persist) {
+        const uint32_t page_start = eeprom->sector_written * AT24C512_PAGE;
+        eeprom->persist(eeprom->userdata, page_start, &eeprom->data[page_start]);
     }
     eeprom->writing = false;
 }
 
-int at24c512_init(at24c512_t* eeprom, const char* filename)
+int at24c512_init(at24c512_t* eeprom)
 {
     if (eeprom == NULL) {
         return 1;
@@ -90,32 +74,10 @@ int at24c512_init(at24c512_t* eeprom, const char* filename)
     eeprom->parent.stop = at24c512_stop;
     eeprom->count = 0;
     eeprom->writing = false;
-    eeprom->file = NULL;
+    eeprom->userdata = NULL;
+    eeprom->persist = NULL;
     memset(eeprom->data, 0, AT24C512_SIZE);
 
-    if (filename) {
-        FILE* file = fopen(filename, "rb+");
-        if (file) {
-            size_t count = fread(eeprom->data, 1, AT24C512_SIZE, file);
-            log_printf("[EEPROM] Loaded from %s\n", filename);
-            if (count < AT24C512_SIZE) {
-                log_err_printf("[EEPROM] Warning: image size is smaller than EEPROM size\n");
-            }
-            eeprom->file = file;
-        } else {
-            log_err_printf("[EEPROM] Could not open image %s\n", filename);
-        }
-    }
 
     return 0;
-}
-
-
-void at24c512_deinit(at24c512_t* eeprom)
-{
-    if (eeprom == NULL || eeprom->file == NULL) {
-        return;
-    }
-    fflush(eeprom->file);
-    fclose(eeprom->file);
 }

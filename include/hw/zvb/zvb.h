@@ -151,6 +151,7 @@ typedef struct {
 
 
 typedef struct {
+    const hw_host_t* host;
     bool rendering_enabled;
 #if ZVB_SCANLINE_RENDERING
     bool scanline_disabled;
@@ -287,3 +288,8 @@ static inline zvb_frame_t zvb_frame(const zvb_t* zvb)
     return (zvb_frame_t){zvb->blitter.framebuffer, zvb->blitter.width,
         zvb->blitter.height, ZVB_MAX_RES_WIDTH * sizeof(uint16_t), zvb->blitter.sequence};
 }
+
+/* Frame pixels are RGB565, owned by the ZVB until deinit. Rows have the
+ * reported byte stride even at 320px width. The view is updated by execution
+ * or an explicit paused refresh; retrieving it has no hardware side effects. */
+int zvb_set_frame_output(zvb_t*, bool enabled);

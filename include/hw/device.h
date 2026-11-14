@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "hw/host.h"
 
 #define DEVICE(dev) &((dev)->parent)
 
@@ -30,6 +31,7 @@ typedef struct {
 } region_t;
 
 struct device_t {
+    const hw_host_t* host;
     const char* name; // Used for debugging
     region_t io_region;
     region_t mem_region;

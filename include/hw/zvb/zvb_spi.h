@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include <stdio.h>
+#include <stddef.h>
+#include "hw/host.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "utils/vtimer.h"
@@ -80,13 +81,30 @@ static inline int zvb_tf_is_write(zvb_tf_state_t st) {
 }
 
 
+/* Borrowed media callbacks. A successful seek selects one complete sector;
+ * completed writes are flushed before the guest receives its response.
+ * Supply all callbacks for a connected card, or an all-zero backend to detach.
+ * Reads/writes span 512 bytes and return a byte count; flush returns zero on
+ * success. The backend and its userdata must remain valid until detached. */
+typedef struct {
+    void* userdata;
+    size_t size;
+    bool (*seek)(void*, uint32_t sector);
+    size_t (*read)(void*, uint8_t* sector);
+    size_t (*write)(void*, const uint8_t* sector);
+    int (*flush)(void*);
+} zvb_tf_backend_t;
+
 /**
  * @brief Structure representing a TF card
  */
 typedef struct {
     zvb_tf_state_t  state;
-    FILE*           img;
-    size_t          img_size;
+    uint32_t debug_command;
+    uint32_t debug_parameter;
+    int debug_count;
+    zvb_tf_backend_t backend;
+    const hw_host_t* host;
     /* Managed by the SPI controller */
     uint8_t         reply[1024];
     int             reply_idx;
@@ -148,9 +166,4 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
 uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr);
 
 
-/**
- * @brief Load an image for the TF card
- *
- * @return 0 on success, 1 in case of error
- */
-int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename);
+void zvb_spi_bind_tf(zvb_spi_t* spi, const zvb_tf_backend_t* backend);

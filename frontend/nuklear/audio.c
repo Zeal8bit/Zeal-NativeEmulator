@@ -137,7 +137,7 @@ static void audio_callback(void* rbuf, unsigned int frames)
 }
 
 
-
+/* One playback device per graphical application; close it before rebinding. */
 void nuklear_audio_init(zvb_sound_t* sound, bool enabled)
 {
     memset(&playback, 0, sizeof(playback));

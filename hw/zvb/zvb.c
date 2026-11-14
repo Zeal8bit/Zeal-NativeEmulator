@@ -10,9 +10,8 @@
 #include <stdbool.h>
 #include <limits.h>
 
-#include "utils/log.h"
+#include "hw/host.h"
 #include "utils/helpers.h"
-#include "utils/paths.h"
 #include "hw/mmu.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
@@ -256,7 +255,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
         case ZVB_IO_CONFIG_EXT_STATUS_REG:
             return zvb_external_interrupts(zvb);
         default:
-            log_err_printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unknwon register %x\n", addr);
             break;
     }
 
@@ -339,7 +338,7 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             zvb_update_interrupts(zvb);
             break;
         default:
-            log_err_printf("[ZVB][CTRL] Unsupported write register %x\n", addr);
+            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unsupported write register %x\n", addr);
             break;
     }
 }
@@ -417,6 +416,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     dev->parent.mem_region.dma_access_can_defer = zvb_mem_dma_access_can_defer;
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
+    dev->parent.host = config->host;
     dev->mode = MODE_DEFAULT;
     dev->rendering_enabled = rendering_enabled;
     dev->pio = config->pio;
@@ -428,6 +428,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     zvb_text_init(&dev->text);
     zvb_sprites_init(&dev->sprites, rendering_enabled);
     zvb_spi_init(&dev->spi, clock);
+    dev->spi.tf.host = config->host;
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound, rendering_enabled);
     zvb_dma_init(&dev->dma, clock, mmu, bus_requested, !config->dma_disabled);
@@ -437,6 +438,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     if (dev->rendering_enabled) {
 
         zvb_blitter_init(dev);
+        if (!dev->blitter.framebuffer) return 2;
     }
 
     /* Set the state to STATE_RENDERING, waiting for the next event */
@@ -724,11 +726,17 @@ void zvb_deinit(zvb_t* zvb)
     vtimer_cancel(&zvb->peri_timer.event);
     vtimer_cancel(&zvb->sound_event);
     zvb_sound_deinit(&zvb->sound);
-    if (!zvb->rendering_enabled) {
-        return;
-    }
-
     zvb_blitter_deinit(zvb);
 
 
+}
+
+int zvb_set_frame_output(zvb_t* zvb, bool enabled)
+{
+    if (enabled && !zvb->blitter.framebuffer) {
+        zvb_blitter_init(zvb);
+        if (!zvb->blitter.framebuffer) return 2;
+    }
+    zvb->rendering_enabled = enabled;
+    return 0;
 }

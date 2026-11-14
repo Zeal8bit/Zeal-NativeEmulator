@@ -40,8 +40,7 @@ typedef struct {
 } flash_t;
 
 
-int flash_init(flash_t* flash, vtimer_t* clock);
+int flash_init(flash_t* flash, vtimer_t* clock, const hw_host_t* host);
 
-int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename);
-
-int flash_save_to_file(flash_t* flash, const char* name);
+/* Mark an externally loaded image as clean without changing pending timers. */
+void flash_loaded(flash_t* flash);

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "hw/host.h"
 #include <stddef.h>
 
 #include "hw/pio.h"
@@ -19,6 +20,7 @@
 #define BAUDRATE_US 17.361
 
 typedef struct {
+    const hw_host_t* host;
         // device_t
         device_t parent;
         uint8_t tx_fifo[10];

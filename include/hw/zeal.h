@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "raylib.h"
 #include "hw/z80.h"
 #include "hw/device.h"
 #include "hw/mmu.h"
@@ -23,7 +22,6 @@
 #include "hw/hostfs.h"
 #include "hw/compactflash.h"
 #include "hw/semihost.h"
-#include "utils/config.h"
 #include "utils/vtimer.h"
 #include "hw/userport/snes_adapter.h"
 
@@ -32,22 +30,8 @@
 #include "hw/i2c/at24c512.h"
 
 #if CONFIG_ENABLE_DEBUGGER
-#include "debugger/debugger_ui.h"
+#include "debugger/debugger.h"
 #endif
-
-#ifdef PLATFORM_WEB
-void zeal_service_web(void);
-#endif
-
-typedef uint8_t dev_idx_t;
-
-/**
- * @brief Macros related to RayLib window
- */
-#define WIN_VISIBLE_WIDTH   (ZVB_MAX_RES_WIDTH  * 2)
-#define WIN_VISIBLE_HEIGHT  (ZVB_MAX_RES_HEIGHT * 2)
-#define WIN_NAME            "Zeal 8-bit Computer"
-#define WIN_LOG_LEVEL       LOG_WARNING
 
 struct zeal_t {
     /* The MMU is integrated in the CPU now, it also manages the memory mapping  */
@@ -66,22 +50,22 @@ struct zeal_t {
     compactflash_t compactflash;
     snes_adapter_t snes_adapter;
 
-    /* Renderer */
-    bool headless;
+    /* Host callbacks and execution policy */
+    const hw_host_t* host;
+    bool stop_on_reset;
+    void* reset_userdata;
+    void (*reset_hook)(void*, struct zeal_t*, bool after_devices);
     bool should_exit;
 
     /* Misc features */
     zeal_hostfs_t hostfs;
 
-    /* Host keyboard polling timer */
-    vtimer_node_t host_keyb_timer;
 
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER
     bool             dbg_enabled;
     dbg_state_t      dbg_state;
     dbg_t            dbg;
-    struct dbg_ui_t* dbg_ui;
     uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);
 #endif
 };
@@ -89,60 +73,46 @@ struct zeal_t {
 typedef struct zeal_t zeal_t;
 
 
-/**
- * @brief Initialize the Zeal 8-bit Computer virtual machine with optional parameters
- */
-int zeal_init(zeal_t* machine);
+typedef struct {
+    const hw_host_t* host;
+    bool frames;
+    bool debugger;
+    bool stop_on_reset;
+    bool no_dma;
+    bool no_scanline_rendering;
+} zeal_options_t;
 
+typedef enum {
+    ZEAL_STEP_NONE = 0,
+    ZEAL_STEP_FRAME = 1,
+    ZEAL_STEP_STOP = 2,
+    ZEAL_STEP_DEBUG_STOP = 4,
+    ZEAL_STEP_FATAL = 8,
+} zeal_step_result_t;
 
-/**
- * @brief Reset the Zeal 8-bit Computer
- *
- * Resets the CPU and ZVB
- */
-int zeal_reset(zeal_t* machine);
+typedef struct {
+    uint64_t elapsed_tstates;
+    /* NONE means budget exhausted; otherwise STOP, DEBUG_STOP, or FATAL. */
+    zeal_step_result_t reason;
+} zeal_run_result_t;
 
-/**
- * @brief Run the virtual machine, won't return until the emulation is terminated
- */
-int zeal_run(zeal_t* machine);
-
-/**
- * @brief Run the machine for a given number of Z80 T-states (console 'wait' command)
- */
-void zeal_run_for_tstates(zeal_t* machine, unsigned long tstates);
-
-/**
- * @brief Stop the virtual machine, and call CloseWindow()
- */
-void zeal_exit(zeal_t* machine);
-
-/**
- * @brief Quantize a scale factor to the next or previous 10% step.
- */
-float zeal_scale_quantize_tenths(float scale, float step);
-
+/* Caller owns a zeroable machine and its borrowed host/media callbacks.
+ * Calls are synchronous and non-concurrent. Reset is permitted from timer
+ * callbacks; elapsed execution is measured by the monotonic virtual clock.
+ * reset_hook runs after CPU reset, before devices, then after device reset.
+ * Input/timer callbacks may reset or change debugger state; media callbacks
+ * may complete pending host requests. Callbacks must not recursively run or
+ * destroy the machine. Detach host bindings before deinit; deinit also accepts
+ * a partially initialized machine after zeal_init fails. */
+int zeal_init(zeal_t*, const zeal_options_t*);
+int zeal_reset(zeal_t*);
+void zeal_deinit(zeal_t*);
+zeal_step_result_t zeal_step(zeal_t*, bool debug);
+/* Run to a T-state budget (with instruction overshoot), or until stop when
+ * budget is zero. Use zeal_step and its FRAME bit to stop at each frame. */
+zeal_run_result_t zeal_run(zeal_t*, unsigned long max_tstates);
+zeal_run_result_t zeal_run_for_tstates(zeal_t*, unsigned long tstates);
+void zeal_exit(zeal_t*);
 #if CONFIG_ENABLE_DEBUGGER
-
-/**
- * @brief Enable Zeal Debugger view
- */
-int zeal_debug_enable(zeal_t* machine);
-
-/**
- * @brief Disable Zeal Debugger view
- */
-int zeal_debug_disable(zeal_t* machine);
-
-/**
- * @brief Toggle the Zeal Debugger view
- */
-void zeal_debug_toggle(dbg_t *dbg);
-
-/**
- * @brief Run the machine while the debugger state machine allows it (console debugger).
- * @return true if stopped by a breakpoint or step request, false otherwise.
- */
-bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates);
-
-#endif // CONFIG_ENABLE_DEBUGGER
+bool zeal_debugger_run(zeal_t*, unsigned long max_tstates);
+#endif

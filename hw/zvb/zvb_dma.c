@@ -157,7 +157,7 @@ static void dma_advance(void* userdata)
 
         case DMA_RELEASE:
             dma->state = DMA_IDLE;
-            *dma->bus_requested = false;
+            if (dma->bus_requested) *dma->bus_requested = false;
             break;
 
         case DMA_IDLE:
@@ -182,7 +182,7 @@ void zvb_dma_reset(zvb_dma_t* dma)
 {
     vtimer_cancel(&dma->timer);
     dma->state = DMA_IDLE;
-    *dma->bus_requested = false;
+    if (dma->bus_requested) *dma->bus_requested = false;
     dma->remaining = 0;
     dma->batch_remaining = 0;
     dma->wr_addr = 0;

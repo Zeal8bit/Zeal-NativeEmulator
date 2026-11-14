@@ -105,6 +105,8 @@ typedef struct {
     uint16_t mean_left;
     uint16_t mean_right;
     zvb_pcm_frame_t output_last;
+    /* Borrowed synchronous sinks; copy samples during output. Neither sink
+     * may recursively execute or destroy the machine. Reset clears playback. */
     void* output_userdata;
     void (*output)(void*, zvb_pcm_frame_t);
     void (*output_reset)(void*);

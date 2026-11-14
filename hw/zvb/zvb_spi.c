@@ -5,12 +5,11 @@
  */
 
 
-#include <stdio.h>
 #include <assert.h>
 #include <string.h>
 #include <limits.h>
 #include "hw/zvb/zvb_spi.h"
-#include "utils/log.h"
+#include "hw/host.h"
 
 #define SPI_RESET_CLK_DIV                (10)
 #define SPI_CLOCK_NS                     (20U)
@@ -75,7 +74,7 @@ static void zvb_spi_sync_receive(zvb_spi_t* spi, uint64_t now_ns)
     }
 
     const zvb_tf_t* tf = &spi->tf;
-    const uint8_t incoming = spi->tf_cs && tf->img && tf->reply_idx < tf->reply_len ?
+    const uint8_t incoming = spi->tf_cs && tf->backend.read && tf->reply_idx < tf->reply_len ?
                              tf->reply[tf->reply_idx] : TF_IDLE_BYTE;
     const uint8_t mask = (TF_IDLE_BYTE >> spi->sampled_bits) &
                          (TF_IDLE_BYTE << (SPI_BYTE_BITS - sampled_bits));
@@ -98,6 +97,7 @@ void zvb_spi_init(zvb_spi_t* spi, vtimer_t* clock)
     assert(spi != NULL);
     memset(spi, 0, sizeof(*spi));
     vtimer_init_node(&spi->event, clock, zvb_spi_complete_byte, spi);
+    spi->tf.debug_count = 1;
     zvb_spi_reset(spi);
 }
 
@@ -120,40 +120,12 @@ void zvb_spi_reset(zvb_spi_t* spi)
     spi->tf.state = TF_IDLE;
 }
 
-int zvb_spi_load_tf_image(zvb_spi_t* spi, const char* filename)
+void zvb_spi_bind_tf(zvb_spi_t* spi, const zvb_tf_backend_t* backend)
 {
-    if (spi == NULL || filename == NULL) {
-        return 1;
-    }
-
-    /* Open it in both read and write */
-    FILE* image = fopen(filename, "r+b");
-    if (image == NULL) {
-        log_perror("[TF] Could not open TF Card image");
-        return 1;
-    }
-
-    /* Save the size of the file */
-    if (fseek(image, 0, SEEK_END) != 0) {
-        fclose(image);
-        return 1;
-    }
-    const long size = ftell(image);
-    if (size < 0 || fseek(image, 0, SEEK_SET) != 0) {
-        fclose(image);
-        return 1;
-    }
-    if (spi->tf.img) {
-        zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
-        fclose(spi->tf.img);
-    }
-    spi->tf.img = image;
-    spi->tf.img_size = (size_t)size;
+    zvb_spi_sync_receive(spi, vtimer_now_ns(spi->event.clock));
+    spi->tf.backend = *backend;
     zvb_tf_deassert(spi);
-    log_printf("[TF] %s loaded successfully\n", filename);
-    return 0;
 }
-
 
 void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
 {
@@ -189,7 +161,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
                 /* Latch the request length; later writes configure the next transfer. */
                 spi->transfer_len = spi->ram_len;
 #if 0
-                log_printf("[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
+                hw_log(spi->tf.host, false, 0, "[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
                            spi->ram_wr.data[0],
                            spi->ram_wr.data[1],
                            spi->ram_wr.data[2],
@@ -283,7 +255,7 @@ static void zvb_tf_deassert(zvb_spi_t* spi)
     zvb_tf_t* tf = &spi->tf;
     if (tf->state == TF_READ_BLOCK && tf->reply_idx < TF_BLK_DUMMY_BYTES + TF_BLK_SIZE) {
         const int received = tf->reply_idx > TF_BLK_DUMMY_BYTES ? tf->reply_idx - TF_BLK_DUMMY_BYTES : 0;
-        log_err_printf("[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
+        hw_log(tf->host, true, 0, "[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
                        received, TF_BLK_SIZE);
     }
     tf->write_index = 0;
@@ -324,20 +296,11 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
 {
     /* Validate a complete sector before multiplying; never wrap a large
      * guest address or extend the host image with an out-of-range write. */
-    if (!tf->img || (uint64_t)sector >= tf->img_size / TF_BLK_SIZE) {
-        log_err_printf("[TF] Invalid sector: 0x%x (image size: 0x%zx)\n", sector, tf->img_size);
+    if (!tf->backend.read || (uint64_t)sector >= tf->backend.size / TF_BLK_SIZE) {
+        hw_log(tf->host, true, 0, "[TF] Invalid sector: 0x%x (image size: 0x%zx)\n", sector, tf->backend.size);
         return false;
     }
-    const uint64_t offset = (uint64_t)sector * TF_BLK_SIZE;
-    if (offset > LONG_MAX) {
-        log_err_printf("[TF] Sector offset exceeds host file range: 0x%x\n", sector);
-        return false;
-    }
-    if (fseek(tf->img, (long)offset, SEEK_SET) != 0) {
-        log_perror("[TF] Could not seek into image");
-        return false;
-    }
-    return true;
+    return tf->backend.seek(tf->backend.userdata, sector);
 }
 
 static uint16_t zvb_tf_data_crc(const uint8_t* data)
@@ -359,20 +322,15 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
     r1_resp r1 = { .idle = 1 };
     int idx = 0;
 #if DEBUG_CMD
-    static struct {
-        uint32_t cmd;
-        uint32_t param;
-    } former_command = { 0 };
-    static int former_count = 1;
-    if (former_command.cmd == command && former_command.param == param) {
-        former_count++;
+    if (tf->debug_command == command && tf->debug_parameter == param) {
+        tf->debug_count++;
     } else {
-        former_count = 1;
+        tf->debug_count = 1;
     }
-    log_printf("[TF] Command: %d (0x%x), param: %x, count: %d\n",
-        command, command | TF_CMD_MASK, param, former_count);
-    former_command.cmd = command;
-    former_command.param = param;
+    hw_log(tf->host, false, 0, "[TF] Command: %d (0x%x), param: %x, count: %d\n",
+        command, command | TF_CMD_MASK, param, tf->debug_count);
+    tf->debug_command = command;
+    tf->debug_parameter = param;
 #endif
 
     switch (command) {
@@ -399,7 +357,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 r1.ill_cmd = 1;
                 zvb_r1_response(tf, r1.raw);
             } else if (param != 512) {
-                log_err_printf("[TF] Cannot set block size to another value than 512 bytes\n");
+                hw_log(tf->host, true, 0, "[TF] Cannot set block size to another value than 512 bytes\n");
                 r1.param_err = 1;
                 zvb_r1_response(tf, r1.raw);
             } else {
@@ -421,9 +379,9 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 tf->reply[0] = 0xFF;     // Dummy byte
                 tf->reply[1] = 0x00;     // ACK!
                 tf->reply[2] = TF_DATA_TOKEN;     // Set as ready!
-                const size_t rd = fread(tf->reply + TF_BLK_DUMMY_BYTES, 1, TF_BLK_SIZE, tf->img);
+                const size_t rd = tf->backend.read(tf->backend.userdata, tf->reply + TF_BLK_DUMMY_BYTES);
                 if (rd < TF_BLK_SIZE) {
-                    log_err_printf("[TF] Warning could only read %zu/%d bytes from the image file\n", rd, TF_BLK_SIZE);
+                    hw_log(tf->host, true, 0, "[TF] Warning could only read %zu/%d bytes from the image file\n", rd, TF_BLK_SIZE);
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     return;
@@ -448,7 +406,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                     break;
                 }
 #if DEBUG_WRITE
-                log_printf("[TF] Write block, offset: 0x%llx (sector: %x)\n",
+                hw_log(tf->host, false, 0, "[TF] Write block, offset: 0x%llx (sector: %x)\n",
                            (unsigned long long)param * TF_BLK_SIZE, param);
 #endif
                 tf->state = TF_WRITE_BLOCK_WAIT_TOK;
@@ -507,7 +465,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
 static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
 {
     zvb_tf_t* tf = &spi->tf;
-    if (!spi->tf_cs || !tf->img) {
+    if (!spi->tf_cs || !tf->backend.read) {
         return;
     }
     if (tf->state == TF_WRITE_BLOCK_WAIT_TOK) {
@@ -521,23 +479,20 @@ static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
         tf->reply[tf->write_index++] = data;
         if (tf->write_index == TF_BLK_SIZE + TF_CRC_BYTES) {
 #if 0
-            log_printf("[TF] Writing data: \n");
+            hw_log(tf->host, false, 0, "[TF] Writing data: \n");
             for (int i = 0; i < TF_BLK_SIZE; i++) {
-                log_printf("%x, ", tf->reply[i]);
+                hw_log(tf->host, false, 0, "%x, ", tf->reply[i]);
             }
-            log_printf("\n");
+            hw_log(tf->host, false, 0, "\n");
 #endif
-            const size_t written = fwrite(tf->reply, 1, TF_BLK_SIZE, tf->img);
+            const size_t written = tf->backend.write(tf->backend.userdata, tf->reply);
             /* Complete the submitted sector before acknowledging it. On the
              * pinned, non-threaded WasmFS OPFS backend, fflush waits for the
              * backing write's writable-stream close; no extra sync is needed. */
-            const int flushed = fflush(tf->img);
             if (written < TF_BLK_SIZE) {
-                log_err_printf("[TF] Warning could only write %zu/%d bytes to the image file\n", written, TF_BLK_SIZE);
+                hw_log(tf->host, true, 0, "[TF] Warning could only write %zu/%d bytes to the image file\n", written, TF_BLK_SIZE);
             }
-            if (flushed != 0) {
-                log_perror("[TF] Could not flush completed sector");
-            }
+            const int flushed = tf->backend.flush(tf->backend.userdata);
             tf->reply[0] = written == TF_BLK_SIZE && flushed == 0 ? TF_WRITE_ACCEPTED : TF_WRITE_ERROR;
             tf->reply[1] = TF_BUSY_BYTE;
             tf->reply[2] = TF_IDLE_BYTE;
@@ -568,7 +523,7 @@ static void zvb_spi_complete_byte(void* userdata)
 {
     zvb_spi_t* spi = userdata;
     zvb_spi_sync_receive(spi, spi->event.deadline);
-    if (spi->tf_cs && spi->tf.img) {
+    if (spi->tf_cs && spi->tf.backend.read) {
         zvb_tf_next_byte(&spi->tf);
     }
     zvb_tf_receive_byte(spi, spi->outgoing);

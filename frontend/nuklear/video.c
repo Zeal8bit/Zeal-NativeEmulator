@@ -17,12 +17,14 @@ typedef struct {
 } render_profile_t;
 
 static render_profile_t s_render_profile;
+static double last_core_seconds;
 #endif
 #if CONFIG_PROFILE_RENDER
 static double profile_time(void* userdata) { (void)userdata; return GetTime(); }
 static void profile_render(void* userdata, double start) {
     (void)userdata;
     const double elapsed = GetTime() - start;
+    last_core_seconds = elapsed;
     s_render_profile.zvb_total += elapsed;
     if (elapsed > s_render_profile.zvb_max) s_render_profile.zvb_max = elapsed;
     s_render_profile.zvb_calls++;
@@ -50,6 +52,9 @@ void nuklear_video_init(zvb_t* zvb)
 
 void nuklear_video_upload(zvb_t* zvb)
 {
+#if CONFIG_PROFILE_RENDER
+    const double upload_start = GetTime();
+#endif
     zvb_frame_t frame = zvb_frame(zvb);
 #if ZVB_BLITTER_SOFTWARE_SCALING
     /* Keep the optional CPU scaling at the presentation boundary. */
@@ -76,6 +81,13 @@ void nuklear_video_upload(zvb_t* zvb)
         (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
         (Vector2){0, 0}, 0, WHITE);
     EndTextureMode();
+#if CONFIG_PROFILE_RENDER
+    const double upload_seconds = GetTime() - upload_start;
+    s_render_profile.zvb_total += upload_seconds;
+    if (last_core_seconds + upload_seconds > s_render_profile.zvb_max) {
+        s_render_profile.zvb_max = last_core_seconds + upload_seconds;
+    }
+#endif
 }
 
 Texture nuklear_video_output(zvb_t* zvb)
@@ -108,6 +120,7 @@ void zvb_profile_frame(double elapsed_seconds)
     if (s_render_profile.window_start == 0.0) {
         s_render_profile.window_start = now;
     }
+    elapsed_seconds += last_core_seconds;
     s_render_profile.frame_total += elapsed_seconds;
     if (elapsed_seconds > s_render_profile.frame_max) {
         s_render_profile.frame_max = elapsed_seconds;

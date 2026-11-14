@@ -8,7 +8,7 @@
 /* Software blitter: renders all video modes on CPU */
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/blitter/software.h"
-#include "utils/log.h"
+#include "hw/host.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -97,11 +97,10 @@ void zvb_blitter_init(zvb_t* zvb)
 {
     zvb_blitter_t* bl = &zvb->blitter;
 
-    v_log_printf(1, "[RENDER] Blitter: software\n");
 
     bl->framebuffer = (uint16_t*)malloc(FB_BYTES);
     if (!bl->framebuffer) {
-        log_err_printf("Software blitter: framebuffer allocation failed\n");
+        hw_log(zvb->parent.host, true, 0, "Software blitter: framebuffer allocation failed\n");
         return;
     }
     memset(bl->framebuffer, 0, FB_BYTES);

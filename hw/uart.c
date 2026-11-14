@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "utils/log.h"
+#include "hw/host.h"
 #include "utils/helpers.h"
 #include "hw/pio.h"
 #include "hw/uart.h"
@@ -21,8 +21,7 @@ static void transfer_complete(uart_t* uart) {
 
     if(c == 0) return; // can't print null, :shrug:
 
-    log_printf("%c", c);
-    fflush(stdout);
+    if (uart->host && uart->host->uart_byte) uart->host->uart_byte(uart->host->userdata, (uint8_t)c);
 }
 
 void write_tx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)
@@ -47,8 +46,8 @@ void read_rx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition
 {
     // TODO: do nothing ... should we even define this?
     (void)pio;
-    (void)arg;
-    log_printf("uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
+    uart_t* uart = arg;
+    hw_log(uart->host, false, 0, "uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
 }
 
 int uart_init(uart_t* uart, pio_t* pio)

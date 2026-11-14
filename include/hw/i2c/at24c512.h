@@ -5,8 +5,8 @@
  */
 
 
-#include <stdio.h>
-#include <time.h>
+#pragma once
+#include <stdint.h>
 #include <stdbool.h>
 #include "hw/i2c/i2c_device.h"
 
@@ -22,19 +22,10 @@ typedef struct at24c512_t {
     int         sector_written;
     int         count;
     bool        writing;
-    FILE*       file;
+    /* Borrowed synchronous sink: one AT24C512_PAGE buffer at I2C STOP. */
+    void* userdata;
+    void (*persist)(void*, uint32_t offset, const uint8_t* page);
 } at24c512_t;
 
 
-/**
- * @brief Initialize the emulated EEPROM, if a file is passed, it will
- * be loaded inside the eeprom.
- */
-int at24c512_init(at24c512_t* eeprom, const char* filename);
-
-
-/**
- * @brief Close the emulated EEPROM backing file. Completed page transactions
- * are already flushed at I2C STOP; this also flushes any remaining stdio data.
- */
-void at24c512_deinit(at24c512_t* eeprom);
+int at24c512_init(at24c512_t* eeprom);
