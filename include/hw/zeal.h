@@ -35,6 +35,10 @@
 #include "debugger/debugger_ui.h"
 #endif
 
+#ifdef PLATFORM_WEB
+void zeal_service_web(void);
+#endif
+
 typedef uint8_t dev_idx_t;
 
 /**

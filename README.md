@@ -67,7 +67,14 @@ meson compile
 > `-Denable_debugger=true` to enable it explicitly.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
-Keep in mind that this build will use the Raylib 5.5 release that is present at the root of the project, in `raylib/wasm`. If you wish to override this library and use your own version
+Activate **Emscripten 7.0.0** before building. The web build uses the bundled
+**Raylib 6.2** headers and library in `raylib/web`. See its
+[rebuild instructions](raylib/web/README.md) to reproduce the dependency.
+
+Browser images use OPFS through WasmFS by default. Chrome and ordinary HTTPS
+static hosting (including GitHub Pages) are supported without custom headers.
+See [WASM storage and template APIs](assets/wasm/README.md) for persistence,
+remote update notifications, alternative backends, and browser tests.
 
 ### Compilation options
 

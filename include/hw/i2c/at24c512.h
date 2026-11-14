@@ -34,7 +34,7 @@ int at24c512_init(at24c512_t* eeprom, const char* filename);
 
 
 /**
- * @brief Deinitialize the emulated EEPROM. This needs to be called to be sure
- * that the changes will be flushed to the opened file.
+ * @brief Close the emulated EEPROM backing file. Completed page transactions
+ * are already flushed at I2C STOP; this also flushes any remaining stdio data.
  */
 void at24c512_deinit(at24c512_t* eeprom);

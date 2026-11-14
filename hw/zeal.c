@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,40 +18,41 @@
 #include <emscripten.h>
 #endif
 
-#define RAYLIB_KEY_COUNT    384
+#define RAYLIB_KEY_COUNT 384
 
 /**
  * @brief Period, in T-states, between host keyboard polls (15ms).
  */
-#define HOST_KEYB_CHECK_PERIOD   US_TO_TSTATES(15000)
+#define HOST_KEYB_CHECK_PERIOD US_TO_TSTATES(15000)
 
 /* Rebase after a long host stall rather than rapidly replaying missed time. */
-#define NATIVE_PACING_MAX_LAG_SECONDS  (0.1)
+#define NATIVE_PACING_MAX_LAG_SECONDS (0.1)
 
 #define CHECK_ERR(err)  \
-    do {                \
+    do                  \
+    {                   \
         if (err)        \
             return err; \
     } while (0)
 
-
-typedef enum {
+typedef enum
+{
     KEY_NOT_PRESSED,
     KEY_PRESSED,
     KEY_REPEATED,
 } kb_key_state_t;
 
-typedef struct {
+typedef struct
+{
     kb_key_state_t state;
     int duration;
 } kb_keys_t;
 
+int zeal_debugger_init(zeal_t *machine, dbg_t *dbg);
 
-int zeal_debugger_init(zeal_t* machine, dbg_t* dbg);
+bool zeal_ui_input(zeal_t *machine);
 
-bool zeal_ui_input(zeal_t* machine);
-
-static void host_keyboard_check_cb(void* userdata);
+static void host_keyboard_check_cb(void *userdata);
 
 /**
  * @brief Array used to key tracked of the key states on the host. This array will help simulate
@@ -60,35 +60,29 @@ static void host_keyboard_check_cb(void* userdata);
  */
 static kb_keys_t RAYLIB_KEYS[RAYLIB_KEY_COUNT];
 
-
 #ifdef PLATFORM_WEB
 EMSCRIPTEN_KEEPALIVE volatile
 #endif
 #if CONFIG_SHOW_FPS
-bool show_fps = true;
+    bool show_fps = true;
 #else
 bool show_fps = false;
 #endif
-
-
-
-
 
 #if CONFIG_ENABLE_DEBUGGER
 /**
  * @brief Read a byte from memory for the debugger, so write-only areas can still be read
  */
-static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
+static uint8_t debug_read_memory(zeal_t *machine, hwaddr virt_addr)
 {
-    const int phys_addr      = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
-    const map_entry_t entry  = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
-    device_t* device         = entry.dev;
-    const int start_addr     = entry.page_from * MMU_PAGE_SIZE;
+    const int phys_addr = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
+    const map_entry_t entry = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+    device_t *device = entry.dev;
+    const int start_addr = entry.page_from * MMU_PAGE_SIZE;
 
-    if (device) {
-        return device->mem_region.debug_read ?
-                    device->mem_region.debug_read(device, phys_addr - start_addr) :
-                    device->mem_region.read(device, phys_addr - start_addr);
+    if (device)
+    {
+        return device->mem_region.debug_read ? device->mem_region.debug_read(device, phys_addr - start_addr) : device->mem_region.read(device, phys_addr - start_addr);
     }
 
     log_printf("[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
@@ -96,37 +90,39 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 }
 #endif
 
-
 static int key_can_repeat(int code)
 {
     const int modifiers[] = {
-        KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
+        KEY_LEFT_SHIFT, KEY_LEFT_CONTROL, KEY_LEFT_ALT, KEY_LEFT_SUPER,
         KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
-        KEY_CAPS_LOCK,   KEY_NUM_LOCK
-    };
+        KEY_CAPS_LOCK, KEY_NUM_LOCK};
 
-    for (unsigned int i = 0; i < DIM(modifiers); i++) {
-        if (modifiers[i] == code) {
+    for (unsigned int i = 0; i < DIM(modifiers); i++)
+    {
+        if (modifiers[i] == code)
+        {
             return false;
         }
     }
     return true;
 }
 
-
-static void zeal_read_keyboard_reset(zeal_t* machine)
+static void zeal_read_keyboard_reset(zeal_t *machine)
 {
-    (void) machine;
+    (void)machine;
     /* Clear Raylib's key states */
-    while(GetKeyPressed()) {}
+    while (GetKeyPressed())
+    {
+    }
 
-    for (int i = 0; i < RAYLIB_KEY_COUNT; i++) {
+    for (int i = 0; i < RAYLIB_KEY_COUNT; i++)
+    {
         RAYLIB_KEYS[i].duration = 0;
         RAYLIB_KEYS[i].state = KEY_NOT_PRESSED;
     }
 }
 
-static void zeal_read_keyboard(zeal_t* machine, int delta)
+static void zeal_read_keyboard(zeal_t *machine, int delta)
 {
     int keyCode;
 
@@ -136,21 +132,25 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
     const int repeat_delay = us_to_tstates(50000);
 
     // look for newly pressed keys
-    while((keyCode = GetKeyPressed())) {
+    while ((keyCode = GetKeyPressed()))
+    {
         RAYLIB_KEYS[keyCode].state = KEY_PRESSED;
         RAYLIB_KEYS[keyCode].duration = 0;
         key_pressed(&machine->keyboard, keyCode);
     }
 
     // look for newly released keys
-    for(keyCode = 0; keyCode < RAYLIB_KEY_COUNT; keyCode++) {
-        kb_keys_t* key = &RAYLIB_KEYS[keyCode];
+    for (keyCode = 0; keyCode < RAYLIB_KEY_COUNT; keyCode++)
+    {
+        kb_keys_t *key = &RAYLIB_KEYS[keyCode];
 
-        if(key->state == KEY_NOT_PRESSED) {
+        if (key->state == KEY_NOT_PRESSED)
+        {
             continue;
         }
 
-        if(IsKeyUp(keyCode)) {
+        if (IsKeyUp(keyCode))
+        {
             key->state = KEY_NOT_PRESSED;
             /* No need to clear the duration, it's done when the key is pressed */
             key_released(&machine->keyboard, keyCode);
@@ -160,22 +160,25 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
         /* Key is still pressed, add the current delta to its duration and check it */
         key->duration += delta;
 
-        if (key->state == KEY_PRESSED && key_can_repeat(keyCode) && key->duration >= start_delay) {
+        if (key->state == KEY_PRESSED && key_can_repeat(keyCode) && key->duration >= start_delay)
+        {
             key_pressed(&machine->keyboard, keyCode);
             key->state = KEY_REPEATED;
             key->duration = 0;
-        } else if (key->state == KEY_REPEATED && key->duration >= repeat_delay) {
+        }
+        else if (key->state == KEY_REPEATED && key->duration >= repeat_delay)
+        {
             key->duration = 0;
             key_pressed(&machine->keyboard, keyCode);
         }
     }
 }
 
-
-int zeal_reset(zeal_t* machine)
+int zeal_reset(zeal_t *machine)
 {
     z80_reset(&machine->cpu);
-    if (!machine->headless) {
+    if (!machine->headless)
+    {
         zeal_read_keyboard_reset(machine);
     }
     device_reset(DEVICE(&machine->cpu.mmu));
@@ -186,22 +189,25 @@ int zeal_reset(zeal_t* machine)
 
     /* If a user program was specified, re-read the ROM and re-inject it so that
      * recompiled programs are picked up automatically on reset */
-    if (config.arguments.uprog_filename != NULL) {
+    if (config.arguments.uprog_filename != NULL)
+    {
         flash_load_from_file(&machine->rom, config.images.rom, config.arguments.uprog_filename);
     }
 
 #if CONFIG_ENABLE_DEBUGGER
-    if(machine->dbg_enabled) {
+    if (machine->dbg_enabled)
+    {
         machine->dbg_state = ST_PAUSED;
     }
 #endif // CONFIG_ENABLE_DEBUGGER
     return 0;
 }
 
-int zeal_init(zeal_t* machine)
+int zeal_init(zeal_t *machine)
 {
     int err = 0;
-    if (machine == NULL) {
+    if (machine == NULL)
+    {
         return 1;
     }
 
@@ -211,7 +217,8 @@ int zeal_init(zeal_t* machine)
     /* Running headless with an explicitly requested debugger means the console
      * debugger front-end: the console is the only headless debugger UI. */
     if (machine->headless && !config.arguments.console &&
-        config.debugger.enabled == DEBUGGER_STATE_ARG) {
+        config.debugger.enabled == DEBUGGER_STATE_ARG)
+    {
         config.arguments.console = true;
     }
 #if CONFIG_ENABLE_DEBUGGER
@@ -220,14 +227,18 @@ int zeal_init(zeal_t* machine)
     /* Set the debug mode in the machine structure as soon as possible.
      * In console mode the debugger is only enabled when explicitly requested
      * with --debug; the config file must not implicitly enable it. */
-    if (config.arguments.console) {
+    if (config.arguments.console)
+    {
         machine->dbg_enabled = (config.debugger.enabled == DEBUGGER_STATE_ARG);
-    } else {
+    }
+    else
+    {
         machine->dbg_enabled = config_debugger_enabled() && !machine->headless;
     }
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    if (!machine->headless) {
+    if (!machine->headless)
+    {
         /* Initialize the UI before creating rendering resources. */
         SetTraceLogLevel(WIN_LOG_LEVEL);
 #ifndef PLATFORM_WEB
@@ -246,7 +257,7 @@ int zeal_init(zeal_t* machine)
 
         /* Force rendering the window, to allow Raylib periphs to attach (ie; gamepads) */
         BeginDrawing();
-            ClearBackground(BLACK);
+        ClearBackground(BLACK);
         EndDrawing();
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -259,16 +270,18 @@ int zeal_init(zeal_t* machine)
      * debugger, so initialize it regardless of the rendering mode. */
     zeal_debugger_init(machine, &machine->dbg);
     /* Load symbols if provided */
-    if (config.arguments.map_file) {
+    if (config.arguments.map_file)
+    {
         debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     }
-    if (config.arguments.breakpoints) {
+    if (config.arguments.breakpoints)
+    {
         debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
     }
 #endif // CONFIG_ENABLE_DEBUGGER
 
     z80_init(&machine->cpu);
-    mmu_t* mmu = z80_get_mmu(&machine->cpu);
+    mmu_t *mmu = z80_get_mmu(&machine->cpu);
 
     err = flash_init(&machine->rom);
     CHECK_ERR(err);
@@ -316,7 +329,8 @@ int zeal_init(zeal_t* machine)
 
     /* Register the devices in the memory space */
     mmu_register_mem_device(mmu, 0x000000, &machine->rom.parent);
-    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
+    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX)
+    {
         /* Create a mirror in the upper 256KB */
         mmu_register_mem_device(mmu, 0x040000, &machine->rom.parent);
     }
@@ -333,16 +347,19 @@ int zeal_init(zeal_t* machine)
     err = zvb_init(&machine->zvb, &zvb_config, mmu, &machine->cpu.bus_requested);
     CHECK_ERR(err);
     mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
-    if (!machine->headless) {
+    if (!machine->headless)
+    {
         SetMasterVolume(config.audio.volume / 100.0f);
-        if (config.audio.volume != 100) {
+        if (config.audio.volume != 100)
+        {
             notif_show("Volume: %d%%", config.audio.volume);
         }
     }
 
     /* Register the devices in the I/O space */
     mmu_register_io_device(mmu, 0x10, &machine->semihost.parent);
-    if (cf_err == 0) {
+    if (cf_err == 0)
+    {
         mmu_register_io_device(mmu, 0x70, &machine->compactflash.parent);
     }
     mmu_register_io_device(mmu, 0x80, &machine->zvb.parent);
@@ -353,7 +370,8 @@ int zeal_init(zeal_t* machine)
 
 #if CONFIG_ENABLE_DEBUGGER
     /* Since the debugger may depend on some components, make sure they are all initialized */
-    if (machine->dbg_enabled) {
+    if (machine->dbg_enabled)
+    {
         zeal_debug_enable(machine);
         /* Force the machine in RUNNING mode */
         machine->dbg_state = ST_RUNNING;
@@ -363,43 +381,45 @@ int zeal_init(zeal_t* machine)
     return 0;
 }
 
-
 /**
  * @brief Periodic vtimer callback to poll the host keyboard for new key events.
  */
-static void host_keyboard_check_cb(void* userdata)
+static void host_keyboard_check_cb(void *userdata)
 {
-    zeal_t* machine = (zeal_t*) userdata;
+    zeal_t *machine = (zeal_t *)userdata;
 
     /* Reschedule for the next periodic check */
     vtimer_schedule_tstates(&machine->host_keyb_timer, HOST_KEYB_CHECK_PERIOD);
 
 #if CONFIG_ENABLE_DEBUGGER
     /* Skip polling if CPU is paused in debug mode */
-    if (machine->dbg_enabled && machine->dbg_state != ST_RUNNING) {
+    if (machine->dbg_enabled && machine->dbg_state != ST_RUNNING)
+    {
         return;
     }
     /* Skip if a UI shortcut consumed the input */
-    if (zeal_ui_input(machine)) {
+    if (zeal_ui_input(machine))
+    {
         return;
     }
     /* Skip if the debugger main view doesn't have focus */
-    if (machine->dbg_ui != NULL && !debugger_ui_main_view_focused(machine->dbg_ui)) {
+    if (machine->dbg_ui != NULL && !debugger_ui_main_view_focused(machine->dbg_ui))
+    {
         return;
     }
 #endif
     zeal_read_keyboard(machine, HOST_KEYB_CHECK_PERIOD);
 }
 
-
 /**
  * @brief Execute a single Z80 instruction and advance the virtual timer.
  * If --no-reset is set and the PC returns to 0, the machine is flagged to exit.
  */
-static void zeal_step(zeal_t* machine)
+static void zeal_step(zeal_t *machine)
 {
     z80_step(&machine->cpu);
-    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+    if (config.arguments.no_reset && machine->cpu.pc == 0)
+    {
         /* PC is back to 0, that's a software reset! */
         log_printf("[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
         zeal_exit(machine);
@@ -407,11 +427,11 @@ static void zeal_step(zeal_t* machine)
     }
 }
 
-
 #if CONFIG_ENABLE_DEBUGGER
-int zeal_debug_enable(zeal_t* machine)
+int zeal_debug_enable(zeal_t *machine)
 {
-    if (machine->headless) {
+    if (machine->headless)
+    {
         /* Headless console debugger: no window to configure */
         machine->dbg_enabled = true;
         machine->dbg_state = ST_PAUSED;
@@ -423,7 +443,8 @@ int zeal_debug_enable(zeal_t* machine)
     machine->dbg_enabled = true;
     machine->dbg_state = ST_PAUSED;
     config_window_set(true);
-    if(machine->dbg_ui == NULL) {
+    if (machine->dbg_ui == NULL)
+    {
         dbg_ui_init_args_t args = {
             .main_view = &machine->zvb.blitter.main_texture,
             .zvb = &machine->zvb,
@@ -434,8 +455,7 @@ int zeal_debug_enable(zeal_t* machine)
     return ret;
 }
 
-
-int zeal_debug_disable(zeal_t* machine)
+int zeal_debug_disable(zeal_t *machine)
 {
     config_window_update(machine->dbg_enabled);
     machine->dbg_enabled = false;
@@ -444,16 +464,19 @@ int zeal_debug_disable(zeal_t* machine)
     return 0;
 }
 
-
 void zeal_debug_toggle(dbg_t *dbg)
 {
-    if (dbg == NULL) return;
-    zeal_t* machine = (zeal_t*) (dbg->arg);
+    if (dbg == NULL)
+        return;
+    zeal_t *machine = (zeal_t *)(dbg->arg);
 
-    if (machine->dbg_enabled) {
+    if (machine->dbg_enabled)
+    {
         log_printf("[DEBUGGER]: Disabled\n");
         zeal_debug_disable(machine);
-    } else {
+    }
+    else
+    {
         log_printf("[DEBUGGER]: Enabled\n");
         zeal_debug_enable(machine);
     }
@@ -462,7 +485,7 @@ void zeal_debug_toggle(dbg_t *dbg)
 /**
  * Returns 1 if rendered, 0 else
  */
-static int zeal_dbg_mode_display(zeal_t* machine)
+static int zeal_dbg_mode_display(zeal_t *machine)
 {
 #if CONFIG_PROFILE_RENDER
     const double profile_start = GetTime();
@@ -473,31 +496,38 @@ static int zeal_dbg_mode_display(zeal_t* machine)
      * proceed to rendering, else, we don't need to update the view.
      * However, if the CPU is paused (breakpoint/step), force the rendering.
      */
-    if (zvb_prepare_render(&machine->zvb)) {
+    if (zvb_prepare_render(&machine->zvb))
+    {
         /* Display all the devices that have a render function */
         zvb_render(&machine->zvb);
-    } else if (machine->dbg_state == ST_PAUSED) {
+    }
+    else if (machine->dbg_state == ST_PAUSED)
+    {
         zvb_force_render(&machine->zvb);
-    } else {
+    }
+    else
+    {
         /* Do not proceed, the CPU is currently running and the ZVB doens't need to be refreshed yet */
         return 0;
     }
 
     /* Update only the VRAM debug view currently focused in the panel */
     const dbg_vram_t debug_view = debugger_ui_vram_panel_opened(machine->dbg_ui);
-    if (debug_view != DBG_VIEW_NONE) {
+    if (debug_view != DBG_VIEW_NONE)
+    {
         zvb_render_debug_textures(&machine->zvb, debug_view);
     }
 
     debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);
     BeginDrawing();
-        /* Grey brackground */
-        ClearBackground((Color){ 0x63, 0x63, 0x63, 0xff });
-        debugger_ui_render(machine->dbg_ui, &machine->dbg);
-        notif_render(GetScreenWidth() - notif_estimate_width() - 20, 10);
-        if(show_fps == true) {
-            DrawFPS(10, 10);
-        }
+    /* Grey brackground */
+    ClearBackground((Color){0x63, 0x63, 0x63, 0xff});
+    debugger_ui_render(machine->dbg_ui, &machine->dbg);
+    notif_render(GetScreenWidth() - notif_estimate_width() - 20, 10);
+    if (show_fps == true)
+    {
+        DrawFPS(10, 10);
+    }
 
     EndDrawing();
 
@@ -508,15 +538,16 @@ static int zeal_dbg_mode_display(zeal_t* machine)
     return 1;
 }
 
-
 /**
  * @brief Run Zeal 8-bit Computer VM in debug mode
  */
-static int zeal_dbg_mode_run(zeal_t* machine)
+static int zeal_dbg_mode_run(zeal_t *machine)
 {
-    if (machine->dbg_state != ST_PAUSED) {
+    if (machine->dbg_state != ST_PAUSED)
+    {
 
-        if (machine->dbg_state == ST_REQ_STEP_OVER) {
+        if (machine->dbg_state == ST_REQ_STEP_OVER)
+        {
             int instr_size = z80_instruction_size(&machine->cpu);
             debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + instr_size);
             machine->dbg_state = ST_RUNNING;
@@ -535,7 +566,8 @@ static int zeal_dbg_mode_run(zeal_t* machine)
 
     int rendered = zeal_dbg_mode_display(machine);
     /* If the CPU is paused, we didn't check the UI input! Check it once per frame */
-    if (rendered && machine->dbg_state == ST_PAUSED) {
+    if (rendered && machine->dbg_state == ST_PAUSED)
+    {
         zeal_ui_input(machine);
     }
     return rendered;
@@ -553,14 +585,16 @@ static int zeal_dbg_mode_run(zeal_t* machine)
  * @return true if stopped because of a breakpoint or step request, false if
  *         the budget was spent or the machine was flagged to exit.
  */
-bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
+bool zeal_debugger_run(zeal_t *machine, unsigned long max_tstates)
 {
     const unsigned long target = machine->cpu.cyc + max_tstates;
     bool debugger_stop = false;
 
-    while (!machine->should_exit) {
+    while (!machine->should_exit)
+    {
         /* A step-over request sets a temporary breakpoint past the call */
-        if (machine->dbg_state == ST_REQ_STEP_OVER) {
+        if (machine->dbg_state == ST_REQ_STEP_OVER)
+        {
             const int instr_size = z80_instruction_size(&machine->cpu);
             debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + instr_size);
             machine->dbg_state = ST_RUNNING;
@@ -570,7 +604,8 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
 
         /* Stop on a single step or a breakpoint */
         if (machine->dbg_state == ST_REQ_STEP ||
-            debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
+            debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc))
+        {
             machine->dbg_state = ST_PAUSED;
             debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
             debugger_stop = true;
@@ -578,7 +613,8 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
         }
 
         /* Stop once the requested number of T-states has been spent */
-        if (max_tstates > 0 && machine->cpu.cyc >= target) {
+        if (max_tstates > 0 && machine->cpu.cyc >= target)
+        {
             break;
         }
     }
@@ -588,13 +624,12 @@ bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
 }
 #endif // CONFIG_ENABLE_DEBUGGER
 
-
 /**
  * @brief Run Zeal 8-bit Computer VM in normal mode.
  *
  * Returns 1 if the screen was rendered, 0 else
  */
-static int zeal_normal_mode_run(zeal_t* machine)
+static int zeal_normal_mode_run(zeal_t *machine)
 {
     int rendered = 0;
 
@@ -603,7 +638,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
     // unsigned long ran_for = z80_run_for(&machine->cpu, next_event);
 
     z80_step(&machine->cpu);
-    if (config.arguments.no_reset && machine->cpu.pc == 0) {
+    if (config.arguments.no_reset && machine->cpu.pc == 0)
+    {
         /* PC is back to 0, that's a software reset!
          * Return 2 to tell the caller we rendered 2 frames, forcing it to exit the current loop and
          * check for the close/exit flag */
@@ -612,7 +648,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
         return 2;
     }
 
-    if (zvb_prepare_render(&machine->zvb)) {
+    if (zvb_prepare_render(&machine->zvb))
+    {
         rendered = 1;
 #if CONFIG_PROFILE_RENDER
         const double profile_start = GetTime();
@@ -620,7 +657,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
         const int screen_w = GetScreenWidth();
         const int screen_h = GetScreenHeight();
         const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
-        const float screen_ratio  = (float)screen_w / screen_h;
+        const float screen_ratio = (float)screen_w / screen_h;
 
         int pos_x = 0;
         int pos_y = 0;
@@ -628,12 +665,15 @@ static int zeal_normal_mode_run(zeal_t* machine)
         int draw_w = ZVB_MAX_RES_WIDTH;
         int draw_h = ZVB_MAX_RES_HEIGHT;
 
-        if (texture_ratio > screen_ratio) {
+        if (texture_ratio > screen_ratio)
+        {
             /* Texture is "wider" than the screen, add bars on top/bottom */
             draw_w = screen_w;
             draw_h = (int)(screen_w / texture_ratio);
             pos_y = (screen_h - draw_h) / 2;
-        } else {
+        }
+        else
+        {
             /* Texture is "taller" than the screen, add bars on left/right */
             draw_h = screen_h;
             draw_w = (int)(screen_h * texture_ratio);
@@ -643,18 +683,19 @@ static int zeal_normal_mode_run(zeal_t* machine)
         zvb_render(&machine->zvb);
 
         BeginDrawing();
-            ClearBackground(DARKGRAY);
-            DrawTexturePro(zvb_output_texture(&machine->zvb),
-                            (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
-                            (Rectangle){ pos_x, pos_y, draw_w, draw_h },
-                            (Vector2){ 0, 0 },
-                            0.0f,
-                            WHITE);
-            /* Show notifications on the top-right of the visible content */
-            notif_render(pos_x + draw_w - notif_estimate_width() - 20, pos_y + 10);
-            if(show_fps == true) {
-                DrawFPS(10, 10);
-            }
+        ClearBackground(DARKGRAY);
+        DrawTexturePro(zvb_output_texture(&machine->zvb),
+                       (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
+                       (Rectangle){pos_x, pos_y, draw_w, draw_h},
+                       (Vector2){0, 0},
+                       0.0f,
+                       WHITE);
+        /* Show notifications on the top-right of the visible content */
+        notif_render(pos_x + draw_w - notif_estimate_width() - 20, pos_y + 10);
+        if (show_fps == true)
+        {
+            DrawFPS(10, 10);
+        }
         EndDrawing();
 
 #if CONFIG_PROFILE_RENDER
@@ -664,7 +705,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
     return rendered;
 }
 
-static void zeal_loop(zeal_t* machine)
+static void zeal_loop(zeal_t *machine)
 {
     int rendered = 0;
     /**
@@ -676,22 +717,27 @@ static void zeal_loop(zeal_t* machine)
      * once per frame, just like in Raylib examples.
      */
 #if PLATFORM_WEB
-    while(rendered < 2) {
+    while (rendered < 2)
+    {
 #else
-    while(rendered < 1) {
+    while (rendered < 1)
+    {
 #endif
 
         int frame_rendered = 0;
 #if CONFIG_ENABLE_DEBUGGER
-        if (machine->dbg_enabled) {
+        if (machine->dbg_enabled)
+        {
             frame_rendered = zeal_dbg_mode_run(machine);
-        } else
+        }
+        else
 #endif // CONFIG_ENABLE_DEBUGGER
         {
             frame_rendered = zeal_normal_mode_run(machine);
         }
         rendered += frame_rendered;
-        if (frame_rendered > 0) {
+        if (frame_rendered > 0)
+        {
             snes_adapter_update(&machine->snes_adapter);
         }
     }
@@ -704,14 +750,19 @@ static void zeal_loop(zeal_t* machine)
  * Otherwise it auto-runs until it exits or the requested number of
  * T-states is reached.
  */
-static void zeal_run_headless(zeal_t* machine)
+static void zeal_run_headless(zeal_t *machine)
 {
-    if (config.arguments.console) {
+    if (config.arguments.console)
+    {
         console_run(machine);
-    } else {
-        while (!machine->should_exit) {
+    }
+    else
+    {
+        while (!machine->should_exit)
+        {
             zeal_step(machine);
-            if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
+            if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks)
+            {
                 log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
                 break;
             }
@@ -726,10 +777,11 @@ static void zeal_run_headless(zeal_t* machine)
  * @brief Run the machine for a given number of Z80 T-states.
  * Used by the console 'wait' command to make test scripts deterministic.
  */
-void zeal_run_for_tstates(zeal_t* machine, unsigned long tstates)
+void zeal_run_for_tstates(zeal_t *machine, unsigned long tstates)
 {
 #if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled) {
+    if (machine->dbg_enabled)
+    {
         /* Debugger mode: honor breakpoints and step requests while running */
         debugger_continue(&machine->dbg);
         zeal_debugger_run(machine, tstates);
@@ -738,25 +790,28 @@ void zeal_run_for_tstates(zeal_t* machine, unsigned long tstates)
 #endif
     const unsigned long target = machine->cpu.cyc + tstates;
 
-    while (machine->cpu.cyc < target && !machine->should_exit) {
+    while (machine->cpu.cyc < target && !machine->should_exit)
+    {
         zeal_step(machine);
     }
 }
 
-void zeal_exit(zeal_t* machine)
+void zeal_exit(zeal_t *machine)
 {
     machine->should_exit = true;
 }
 
-int zeal_run(zeal_t* machine)
+int zeal_run(zeal_t *machine)
 {
     int ret = 0;
 
-    if (machine == NULL) {
+    if (machine == NULL)
+    {
         return -1;
     }
 
-    if (machine->headless) {
+    if (machine->headless)
+    {
         zeal_run_headless(machine);
         return 0;
     }
@@ -765,11 +820,15 @@ int zeal_run(zeal_t* machine)
     double host_epoch = GetTime();
     uint64_t emulated_epoch = vtimer_now_ns();
 #endif
-    while (!machine->should_exit && !WindowShouldClose()) {
+    while (!machine->should_exit && !WindowShouldClose())
+    {
+#ifdef PLATFORM_WEB
+        zeal_service_web();
+        if (machine->should_exit) break;
+#endif
 #if CONFIG_ENABLE_DEBUGGER
-        if(!machine->dbg.running) {
+        if (!machine->dbg.running)
             break;
-        }
 #endif // CONFIG_ENABLE_DEBUGGER
 #ifndef PLATFORM_WEB
         bool paused = false;
@@ -787,17 +846,23 @@ int zeal_run(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
         paused = paused || (machine->dbg_enabled && machine->dbg_state == ST_PAUSED);
 #endif
-        if (paused || emulated_now < emulated_epoch) {
+        if (paused || emulated_now < emulated_epoch)
+        {
             host_epoch = now;
             emulated_epoch = emulated_now;
-        } else {
+        }
+        else
+        {
             /* Match elapsed emulated time to wall time, including the exact
              * 16.768 ms video period. Sleep overshoot is repaid next frame. */
             const double remaining = host_epoch + (emulated_now - emulated_epoch) / 1e9 - now;
-            if (remaining < -NATIVE_PACING_MAX_LAG_SECONDS) {
+            if (remaining < -NATIVE_PACING_MAX_LAG_SECONDS)
+            {
                 host_epoch = now;
                 emulated_epoch = emulated_now;
-            } else if (remaining > 0) {
+            }
+            else if (remaining > 0)
+            {
                 WaitTime(remaining);
             }
         }
@@ -807,11 +872,12 @@ int zeal_run(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
     config_window_update(machine->dbg_enabled);
 
-    if(machine->dbg_ui != NULL) {
+    if (machine->dbg_ui != NULL)
+    {
         debugger_ui_deinit(machine->dbg_ui);
     }
 #else
-        config_window_update(false);
+    config_window_update(false);
 #endif // CONFIG_ENABLE_DEBUGGER
 
     snes_adapter_detach(&machine->snes_adapter);
