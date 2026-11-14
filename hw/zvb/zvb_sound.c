@@ -35,18 +35,6 @@
 #define SOUND_NOISE_NIBBLE_MASK          (SOUND_NOISE_NIBBLE_VALUES - 1u)
 #define SOUND_VOICE_PIPELINE_CLOCKS      (2)
 
-/* About 93 ms of queued audio absorbs video-frame bursts and host jitter,
- * including an occasional missed presentation while correcting clock drift.
- * Slowly correct clock drift at the host boundary, without skipping chunks
- * of the FPGA output or changing any emulated clocks/registers. */
-#define SOUND_PLAYBACK_TARGET           (SAMPLE_OUTPUT_SIZE / 2)
-#define SOUND_PLAYBACK_CORRECTION_SECS  (0.5)
-#define SOUND_PLAYBACK_SMOOTH_SECS      (0.25)
-/* Native pacing supplies real-time samples; only correct residual clock drift. */
-#define SOUND_PLAYBACK_MAX_CORRECTION   (0.01)
-/* First-order AC coupling at 5 Hz preserves bass while rejecting DC. */
-#define SOUND_PLAYBACK_DC_POLE          (1.0 / (1.0 + 2.0 * 3.141592653589793 * 5.0 / SAMPLE_RATE))
-
 _Static_assert(SOUND_SAMPLE_READY_CLOCK < (1u << SOUND_NOISE_JUMP_BITS),
                "Noise jumps must cover the interval between samples");
 
@@ -70,9 +58,6 @@ static inline bool voice_held(zvb_sound_t* sound, int i)
     return (sound->hold_voices & BIT(i)) != 0;
 }
 
-static void audio_callback(void *buffer, uint32_t frames);
-
-static zvb_sound_t* g_sound;
 
 /* Nibble lookups preserve exact linear noise transforms between samples. */
 
@@ -133,22 +118,11 @@ static uint16_t noise_advance(zvb_sound_t* sound, uint16_t state, uint32_t clock
 }
 
 
-static void output_lock(zvb_sound_t* sound)
-{
-    while (atomic_flag_test_and_set_explicit(&sound->output_lock, memory_order_acquire)) {
-    }
-}
-
-static void output_unlock(zvb_sound_t* sound)
-{
-    atomic_flag_clear_explicit(&sound->output_lock, memory_order_release);
-}
-
 void zvb_sound_init(zvb_sound_t* sound, bool enabled)
 {
     assert(sound);
     memset(sound, 0, sizeof(*sound));
-    sound->enabled = enabled;
+    (void)enabled;
     sound->sample_table.baud_count = 0;
     atomic_init(&sound->sample_table.output, 0);
     for (int i = 0; i < VOICE_COUNT; i++) {
@@ -158,22 +132,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
     noise_jump_init(sound);
     sound->master_volume = SOUND_CHANNEL_MUTE_BOTH;
-    atomic_flag_clear(&sound->output_lock);
-    sound->playback_rate = 1.0;
 
-    if (!enabled) {
-        return;
-    }
-
-    InitAudioDevice();
-
-    /* Dirty hack but the callback doesn't take a context/opaque parameter... */
-    g_sound = sound;
-
-    SetMasterVolume(1.0f);
-    sound->stream = LoadAudioStream(SAMPLE_RATE, 16, SOUND_CHANNELS);
-    SetAudioStreamCallback(sound->stream, audio_callback);
-    PlayAudioStream(sound->stream);
 }
 
 void zvb_sound_reset(zvb_sound_t* sound)
@@ -216,34 +175,17 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->lfsr = SOUND_NOISE_SEED;
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
     atomic_store(&sound->sample_table.output, 0);
-    output_lock(sound);
-    sound->output_count = 0;
-    sound->output_tail = 0;
-    sound->output_head = 0;
     sound->output_last = (zvb_pcm_frame_t){0};
-    sound->playback_last = (zvb_pcm_frame_t){0};
-    sound->playback_started = false;
-    sound->playback_position = 0;
-    sound->playback_rate = 1.0;
     sound->mix_state = 0;
-    memset(sound->playback_dc_input, 0, sizeof(sound->playback_dc_input));
-    memset(sound->playback_dc_output, 0, sizeof(sound->playback_dc_output));
-    sound->playback_dc_ready = false;
-    output_unlock(sound);
+    if (sound->output_reset) sound->output_reset(sound->output_userdata);
 
 }
 
 void zvb_sound_deinit(zvb_sound_t* sound)
 {
-    if (sound == NULL || !sound->enabled) {
-        return;
-    }
-
-    StopAudioStream(sound->stream);
-    UnloadAudioStream(sound->stream);
-    CloseAudioDevice();
-    sound->enabled = false;
-    g_sound = NULL;
+    sound->output = NULL;
+    sound->output_reset = NULL;
+    sound->output_userdata = NULL;
 }
 
 /* Apply each truncating shift before summing the scaled values. */
@@ -331,14 +273,8 @@ static void mixer_clock(zvb_sound_t* sound)
         const uint16_t left = volume & SOUND_CHANNEL_MUTE_LEFT ? 0 : scale_volume(sound->mean_left, volume);
         const uint16_t right = volume & SOUND_CHANNEL_MUTE_RIGHT ? 0 : scale_volume(sound->mean_right, volume >> 2);
         const zvb_pcm_frame_t frame = { .left = (int)left - SOUND_PCM_ZERO, .right = (int)right - SOUND_PCM_ZERO };
-        output_lock(sound);
         sound->output_last = frame;
-        if (sound->enabled && sound->output_count < SAMPLE_OUTPUT_SIZE) {
-            sound->output_samples[sound->output_head] = frame;
-            sound->output_head = (sound->output_head + 1) % SAMPLE_OUTPUT_SIZE;
-            sound->output_count++;
-        }
-        output_unlock(sound);
+        if (sound->output) sound->output(sound->output_userdata, frame);
         sound->mix_state = 0;
     }
     if (sound->sample_clock_counter == SOUND_MIX_CAPTURE_CLOCK) {
@@ -447,83 +383,6 @@ uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound)
     return (SOUND_SAMPLE_READY_CLOCK + SOUND_SAMPLE_PERIOD_CLOCKS -
             sound->sample_clock_counter) % SOUND_SAMPLE_PERIOD_CLOCKS +
             SOUND_FIFO_PIPELINE_END;
-}
-
-
-/* Keep FPGA mixer levels intact in the queue. Only the host DAC
- * needs AC coupling: a muted mixer and a held underrun sample must settle
- * to zero, and changing route/volume/duty must not leave a lasting bias. */
-static zvb_pcm_frame_t playback_ac_couple(zvb_sound_t* sound, zvb_pcm_frame_t sample)
-{
-    const double input[SOUND_CHANNELS] = {sample.left, sample.right};
-    int16_t output[SOUND_CHANNELS];
-    for (unsigned channel = 0; channel < SOUND_CHANNELS; channel++) {
-        if (!sound->playback_dc_ready) {
-            /* Start at the first input's DC level, without a startup step. */
-            sound->playback_dc_input[channel] = input[channel];
-        }
-        const double filtered = SOUND_PLAYBACK_DC_POLE *
-            (sound->playback_dc_output[channel] + input[channel] - sound->playback_dc_input[channel]);
-        sound->playback_dc_input[channel] = input[channel];
-        sound->playback_dc_output[channel] = filtered;
-        /* A full-range input step can exceed signed PCM after DC removal.
-         * Retain filter precision/state, clipping only the DAC sample. */
-        output[channel] = filtered > INT16_MAX ? INT16_MAX :
-                          filtered < INT16_MIN ? INT16_MIN : (int16_t)filtered;
-    }
-    sound->playback_dc_ready = true;
-    return (zvb_pcm_frame_t){output[0], output[1]};
-}
-
-static void audio_callback(void* rbuf, unsigned int frames)
-{
-    int16_t* buffer = rbuf;
-    /* The host only consumes complete frames; all registers and synthesis
-     * belong to the emulation thread. */
-    output_lock(g_sound);
-    if (!g_sound->playback_started && g_sound->output_count >= SOUND_PLAYBACK_TARGET) {
-        g_sound->playback_started = true;
-    }
-    if (g_sound->playback_started) {
-        double correction = ((double)g_sound->output_count - SOUND_PLAYBACK_TARGET) /
-                            (SAMPLE_RATE * SOUND_PLAYBACK_CORRECTION_SECS);
-        if (correction > SOUND_PLAYBACK_MAX_CORRECTION) {
-            correction = SOUND_PLAYBACK_MAX_CORRECTION;
-        } else if (correction < -SOUND_PLAYBACK_MAX_CORRECTION) {
-            correction = -SOUND_PLAYBACK_MAX_CORRECTION;
-        }
-        const double smoothing = frames / (SAMPLE_RATE * SOUND_PLAYBACK_SMOOTH_SECS + frames);
-        g_sound->playback_rate += smoothing * (1.0 + correction - g_sound->playback_rate);
-    }
-    for (uint32_t i = 0; i < frames; i++) {
-        zvb_pcm_frame_t sample = g_sound->playback_last;
-        if (g_sound->playback_started && g_sound->output_count >= 2) {
-            const zvb_pcm_frame_t first = g_sound->output_samples[g_sound->output_tail];
-            const zvb_pcm_frame_t second = g_sound->output_samples[
-                (g_sound->output_tail + 1) % SAMPLE_OUTPUT_SIZE];
-            const double fraction = g_sound->playback_position;
-            sample.left = first.left + (second.left - first.left) * fraction;
-            sample.right = first.right + (second.right - first.right) * fraction;
-            g_sound->playback_last = sample;
-            g_sound->playback_position += g_sound->playback_rate;
-            const uint32_t consumed = (uint32_t)g_sound->playback_position;
-            g_sound->playback_position -= consumed;
-            g_sound->output_tail = (g_sound->output_tail + consumed) % SAMPLE_OUTPUT_SIZE;
-            g_sound->output_count -= consumed;
-        } else if (g_sound->playback_started) {
-            /* A long stall/pause needs a fresh reserve. Hold the last played
-             * sample, not the producer's newest (possibly dropped) sample. */
-            g_sound->playback_started = false;
-            g_sound->playback_position = 0;
-            g_sound->playback_rate = 1.0;
-        }
-        if (g_sound->playback_dc_ready || g_sound->playback_started) {
-            sample = playback_ac_couple(g_sound, sample);
-        }
-        buffer[i * SOUND_CHANNELS] = sample.left;
-        buffer[i * SOUND_CHANNELS + 1] = sample.right;
-    }
-    output_unlock(g_sound);
 }
 
 

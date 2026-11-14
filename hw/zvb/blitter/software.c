@@ -67,7 +67,7 @@ static uint16_t* zvb_get_palette(zvb_t* zvb)
 static uint16_t* zvb_get_palette(zvb_t* zvb)
 {
     const uint8_t* pal = zvb->palette.raw_palette;
-    static uint16_t pal_rgb[256];
+    uint16_t* pal_rgb = zvb->blitter.palette;
     for (int i = 0; i < 256; i++) {
         pal_rgb[i] = pal_rgb565(pal, i);
     }
@@ -106,36 +106,14 @@ void zvb_blitter_init(zvb_t* zvb)
     }
     memset(bl->framebuffer, 0, FB_BYTES);
 
-    bl->fb_image = (Image){
-        .data    = bl->framebuffer,
-        .width   = FB_WIDTH,
-        .height  = FB_HEIGHT,
-        .mipmaps = 1,
-        .format  = PIXELFORMAT_UNCOMPRESSED_R5G6B5,
-    };
-
-    bl->output_texture = LoadTextureFromImage(bl->fb_image);
-    bl->main_texture   = LoadRenderTexture(FB_WIDTH, FB_HEIGHT);
+    bl->width = FB_WIDTH;
+    bl->height = FB_HEIGHT;
 }
 
 void zvb_blitter_deinit(zvb_t* zvb)
 {
-    zvb_blitter_t* bl = &zvb->blitter;
-    if (bl->output_texture.id != 0) {
-        UnloadTexture(bl->output_texture);
-        bl->output_texture.id = 0;
-    }
-    if (bl->main_texture.id != 0) {
-        UnloadRenderTexture(bl->main_texture);
-        bl->main_texture.id = 0;
-    }
-    free(bl->framebuffer);
-    bl->framebuffer = NULL;
-
-    if (bl->main_texture.id != 0) {
-        UnloadRenderTexture(bl->main_texture);
-        bl->main_texture.id = 0;
-    }
+    free(zvb->blitter.framebuffer);
+    zvb->blitter.framebuffer = NULL;
 }
 
 /* ================================================================== */
@@ -187,30 +165,10 @@ static void present_frame(zvb_t* zvb)
     const bool lowres = low_resolution(zvb);
     int width = lowres ? LOWRES_WIDTH : FB_WIDTH;
     int height = lowres ? LOWRES_HEIGHT : FB_HEIGHT;
-#if ZVB_BLITTER_SOFTWARE_SCALING
-    /* Optional CPU fallback belongs to presentation, not row rendering. */
-    if (lowres) {
-        for (int y = LOWRES_HEIGHT - 1; y >= 0; y--) {
-            for (int x = LOWRES_WIDTH - 1; x >= 0; x--) {
-                const uint16_t pixel = bl->framebuffer[y * FB_WIDTH + x];
-                const int offset = y * LOWRES_SCALE * FB_WIDTH + x * LOWRES_SCALE;
-                bl->framebuffer[offset] = pixel;
-                bl->framebuffer[offset + 1] = pixel;
-                bl->framebuffer[offset + FB_WIDTH] = pixel;
-                bl->framebuffer[offset + FB_WIDTH + 1] = pixel;
-            }
-        }
-        width = FB_WIDTH;
-        height = FB_HEIGHT;
-    }
-#endif
-    UpdateTexture(bl->output_texture, bl->framebuffer);
-    BeginTextureMode(bl->main_texture);
-        DrawTexturePro(bl->output_texture,
-            (Rectangle){ 0, 0, width, -height },
-            (Rectangle){ 0, 0, FB_WIDTH, FB_HEIGHT },
-            (Vector2){ 0, 0 }, 0.0f, WHITE);
-    EndTextureMode();
+
+    bl->width = width;
+    bl->height = height;
+    bl->sequence++;
 #if ZVB_SCANLINE_RENDERING
     bl->raster_frame = false;
 #endif

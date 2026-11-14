@@ -1,29 +1,26 @@
-/*
- * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-#include "raylib.h"
+#include <stddef.h>
 
-/**
- * @brief Software blitter state.
- *
- * Renders all video modes on CPU into a pixel buffer, then uploads to GPU
- * via UpdateTexture once per frame.  No GPU shaders, no FBO — plain RAM.
- */
 typedef struct {
-    /* RGB565 framebuffer, 640×480 = 614 400 bytes */
-    uint16_t*     framebuffer;
-#if ZVB_SCANLINE_RENDERING
-    bool          raster_frame;
+    const uint16_t* pixels;
+    int width;
+    int height;
+    size_t stride_bytes;
+    uint64_t sequence;
+} zvb_frame_t;
+
+typedef struct {
+    uint16_t* framebuffer;
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+    uint16_t palette[256];
 #endif
-    /* Raylib Image wrapping framebuffer for UpdateTexture */
-    Image         fb_image;
-    /* CPU-rendered texture (RGB565), uploaded from framebuffer each frame */
-    Texture2D     output_texture;
-    /* Output render target, blitted from output_texture for debugger compatibility */
-    RenderTexture main_texture;
+    int width;
+    int height;
+    uint64_t sequence;
+#if ZVB_SCANLINE_RENDERING
+    bool raster_frame;
+#endif
 } zvb_blitter_t;

@@ -4,7 +4,7 @@
  */
 
 #include <stdlib.h>
-#include "hw/zvb/zvb.h"
+#include "frontend/nuklear/video.h"
 
 #if CONFIG_ENABLE_DEBUGGER
 
@@ -150,7 +150,7 @@ static void debug_draw_subscreens(Image* img, const dbg_grid_t* g)
 
 static void render_palette(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_PALETTE];
+    Image* img = &nuklear_video.debug_img[DBG_PALETTE];
     const dbg_grid_t g = debug_grid(DBG_PALETTE, false);
 
     img_fill(img, BLANK);
@@ -162,7 +162,7 @@ static void render_palette(zvb_t* zvb)
                           TILE_W, TILE_H, palette_color(zvb, y * 16 + x));
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_PALETTE], img->data);
+    UpdateTexture(nuklear_video.debug_tex[DBG_PALETTE], img->data);
 }
 
 /* ------------------------------------------------------------------ */
@@ -171,7 +171,7 @@ static void render_palette(zvb_t* zvb)
 
 static void render_font(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_FONT];
+    Image* img = &nuklear_video.debug_img[DBG_FONT];
     const dbg_grid_t g = debug_grid(DBG_FONT, false);
 
     img_fill(img, BLACK);
@@ -195,7 +195,7 @@ static void render_font(zvb_t* zvb)
             }
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_FONT], img->data);
+    UpdateTexture(nuklear_video.debug_tex[DBG_FONT], img->data);
 }
 
 /* ------------------------------------------------------------------ */
@@ -204,7 +204,7 @@ static void render_font(zvb_t* zvb)
 
 static void render_tileset(zvb_t* zvb)
 {
-    Image* img = &zvb->debug_img[DBG_TILESET];
+    Image* img = &nuklear_video.debug_img[DBG_TILESET];
     const dbg_grid_t g = debug_grid(DBG_TILESET, false);
     const bool color_4bit = zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT;
 
@@ -240,7 +240,7 @@ static void render_tileset(zvb_t* zvb)
             /* 8-bit mode, tile >= 256: leave the cell transparent */
         }
     }
-    UpdateTexture(zvb->debug_tex[DBG_TILESET], img->data);
+    UpdateTexture(nuklear_video.debug_tex[DBG_TILESET], img->data);
 }
 
 /* ------------------------------------------------------------------ */
@@ -318,7 +318,7 @@ static void render_layer(zvb_t* zvb, bool layer1)
     const bool gfx_mode = zvb_is_gfx_mode(zvb);
     const dbg_vram_t view = layer1 ? DBG_TILEMAP_LAYER1 : DBG_TILEMAP_LAYER0;
     const dbg_grid_t g = debug_grid(view, gfx_mode);
-    Image* img = &zvb->debug_img[view];
+    Image* img = &nuklear_video.debug_img[view];
 
     img_fill(img, BLANK);
     debug_draw_grid(img, &g, gfx_mode);
@@ -338,7 +338,7 @@ static void render_layer(zvb_t* zvb, bool layer1)
             }
         }
     }
-    UpdateTexture(zvb->debug_tex[view], img->data);
+    UpdateTexture(nuklear_video.debug_tex[view], img->data);
 }
 
 void zvb_render_debug_textures(zvb_t* zvb, dbg_vram_t view)

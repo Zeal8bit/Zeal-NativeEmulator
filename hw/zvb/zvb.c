@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
-#include "raylib.h"
+
 #include "utils/log.h"
 #include "utils/helpers.h"
 #include "utils/paths.h"
@@ -50,19 +50,7 @@
 #define SIZE_WITH_GRID(TILESIZE, TILECOUNT)    ((((TILESIZE)+1)*TILECOUNT)+1)
 
 
-#if CONFIG_PROFILE_RENDER
-typedef struct {
-    double window_start;
-    double frame_total;
-    double frame_max;
-    double zvb_total;
-    double zvb_max;
-    uint64_t frames;
-    uint64_t zvb_calls;
-} render_profile_t;
 
-static render_profile_t s_render_profile;
-#endif
 
 
 #define ZVB_IO_SIZE         (3 * 16)
@@ -412,20 +400,6 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
-#if CONFIG_ENABLE_DEBUGGER
-/**
- * @brief Create the CPU Image and its GPU Texture for one VRAM debug view.
- * The image keeps its pixel buffer, which is filled by the CPU debug renderer
- * and uploaded to the texture with UpdateTexture().
- */
-static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int height)
-{
-    dev->debug_img[view] = GenImageColor(width, height, BLANK);
-    dev->debug_tex[view] = LoadTextureFromImage(dev->debug_img[view]);
-}
-#endif
-
-
 static void zvb_fsm_next(void* userdata);
 
 
@@ -461,14 +435,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     zvb_timer_init(&dev->peri_timer, clock, zvb_update_interrupts, dev);
 
     if (dev->rendering_enabled) {
-#if CONFIG_ENABLE_DEBUGGER
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER0, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER1, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-        zvb_debug_tex_init(dev, DBG_TILESET, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-        zvb_debug_tex_init(dev, DBG_PALETTE, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-        zvb_debug_tex_init(dev, DBG_FONT,    SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
-#endif
+
         zvb_blitter_init(dev);
     }
 
@@ -531,9 +498,11 @@ static void zvb_reset(device_t* dev)
  */
 static void zvb_render_disabled_mode(zvb_t* zvb)
 {
-    BeginTextureMode(zvb->blitter.main_texture);
-        ClearBackground(BLACK);
-    EndTextureMode();
+    memset(zvb->blitter.framebuffer, 0, ZVB_MAX_RES_WIDTH * ZVB_MAX_RES_HEIGHT * sizeof(uint16_t));
+    zvb->blitter.width = ZVB_MAX_RES_WIDTH;
+    zvb->blitter.height = ZVB_MAX_RES_HEIGHT;
+    zvb->blitter.sequence++;
+
 }
 
 
@@ -584,7 +553,7 @@ void zvb_render(zvb_t* zvb)
     zvb->need_render = false;
 
 #if CONFIG_PROFILE_RENDER
-    const double profile_start = GetTime();
+    const double profile_start = zvb->profile_time ? zvb->profile_time(zvb->profile_userdata) : 0;
 #endif
 
     bool frame_ready = zvb->screen_enabled;
@@ -612,52 +581,9 @@ void zvb_render(zvb_t* zvb)
     }
 
 #if CONFIG_PROFILE_RENDER
-    const double elapsed = GetTime() - profile_start;
-    s_render_profile.zvb_total += elapsed;
-    if (elapsed > s_render_profile.zvb_max) {
-        s_render_profile.zvb_max = elapsed;
-    }
-    s_render_profile.zvb_calls++;
+    if (zvb->profile_render) zvb->profile_render(zvb->profile_userdata, profile_start);
 #endif
 }
-
-#if CONFIG_PROFILE_RENDER
-void zvb_profile_frame(double elapsed_seconds)
-{
-    if (!config.arguments.profile) {
-        return;
-    }
-
-    const double now = GetTime();
-    if (s_render_profile.window_start == 0.0) {
-        s_render_profile.window_start = now;
-    }
-    s_render_profile.frame_total += elapsed_seconds;
-    if (elapsed_seconds > s_render_profile.frame_max) {
-        s_render_profile.frame_max = elapsed_seconds;
-    }
-    s_render_profile.frames++;
-
-    if (now - s_render_profile.window_start < 1.0) {
-        return;
-    }
-
-    const double frame_avg = s_render_profile.frames > 0
-        ? s_render_profile.frame_total / s_render_profile.frames : 0.0;
-    const double zvb_avg = s_render_profile.zvb_calls > 0
-        ? s_render_profile.zvb_total / s_render_profile.zvb_calls : 0.0;
-    log_printf(
-        "[PROFILE][ZVB] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms\n",
-        (unsigned long long)s_render_profile.frames,
-        frame_avg * 1000.0,
-        s_render_profile.frame_max * 1000.0,
-        zvb_avg * 1000.0,
-        s_render_profile.zvb_max * 1000.0);
-
-    memset(&s_render_profile, 0, sizeof(s_render_profile));
-    s_render_profile.window_start = now;
-}
-#endif
 
 
 void zvb_force_render(zvb_t* zvb)
@@ -804,10 +730,5 @@ void zvb_deinit(zvb_t* zvb)
 
     zvb_blitter_deinit(zvb);
 
-#if CONFIG_ENABLE_DEBUGGER
-    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        UnloadTexture(zvb->debug_tex[i]);
-        UnloadImage(zvb->debug_img[i]);
-    }
-#endif
+
 }

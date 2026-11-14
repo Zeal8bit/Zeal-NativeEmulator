@@ -15,6 +15,7 @@
 #endif
 
 #include "hw/zeal.h"
+#include "frontend/nuklear/audio.h"
 #include "utils/log.h"
 #include "utils/config.h"
 
@@ -173,6 +174,7 @@ int main(int argc, char* argv[])
     if (!saved && code == 0) return saved; // ???
 
 deinit:
+    nuklear_audio_deinit(&machine.zvb.sound);
     zvb_sound_deinit(&machine.zvb.sound);
     return code;
 }

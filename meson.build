@@ -44,6 +44,7 @@ subdir('hw')
 subdir('app')
 subdir('utils')
 subdir('assets')
+sources += files('frontend/nuklear/video.c', 'frontend/nuklear/audio.c')
 
 
 run_command('mkdir', '-p', join_paths(meson.project_build_root(), 'roms'), check: true)

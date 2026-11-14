@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdatomic.h>
-#include "raylib.h"
+
 
 #define VOICE_COUNT      4
 #define SAMPLE_RATE      44091
@@ -97,9 +97,6 @@ typedef struct {
     uint_fast8_t       right_voices;
     uint_fast8_t       master_volume;
     zvb_sample_table_t sample_table;
-    /* RayLib's audio stream */
-    AudioStream        stream;
-    bool               enabled;
     uint16_t           sample_clock_counter;
     uint16_t           lfsr;
     uint8_t            mix_state;
@@ -107,22 +104,10 @@ typedef struct {
     uint8_t            settle_clocks;
     uint16_t mean_left;
     uint16_t mean_right;
-    /* Host playback queue, separate from the emulated hardware FIFO. */
-    atomic_flag        output_lock;
-    zvb_pcm_frame_t    output_samples[SAMPLE_OUTPUT_SIZE];
-    zvb_pcm_frame_t    output_last;
-    uint32_t output_head;
-    uint32_t output_tail;
-    uint32_t output_count;
-    /* Host-only resampling state; never feeds back into FPGA synthesis. */
-    zvb_pcm_frame_t playback_last;
-    bool playback_started;
-    double playback_position;
-    double playback_rate;
-    /* Host AC coupling, after resampling; protected by output_lock. */
-    double playback_dc_input[SOUND_CHANNELS];
-    double playback_dc_output[SOUND_CHANNELS];
-    bool playback_dc_ready;
+    zvb_pcm_frame_t output_last;
+    void* output_userdata;
+    void (*output)(void*, zvb_pcm_frame_t);
+    void (*output_reset)(void*);
 } zvb_sound_t;
 
 

@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdint.h>
 #include "hw/zeal.h"
+#include "frontend/nuklear/video.h"
+#include "frontend/nuklear/audio.h"
 #include "app/console/console.h"
 #include "utils/log.h"
 #include "utils/config.h"
@@ -334,6 +336,8 @@ int zeal_init(zeal_t* machine)
     err = zvb_init(&machine->zvb, &machine->cpu.clock, &zvb_config, mmu, &machine->cpu.bus_requested);
     CHECK_ERR(err);
     mmu_register_mem_device(mmu, ZVB_PHYS_ADDR_BASE, DEVICE(&machine->zvb));
+    nuklear_audio_init(&machine->zvb.sound, !machine->headless);
+    if (!machine->headless) nuklear_video_init(&machine->zvb);
     if (!machine->headless) {
         SetMasterVolume(config.audio.volume / 100.0f);
         if (config.audio.volume != 100) {
@@ -426,7 +430,7 @@ int zeal_debug_enable(zeal_t* machine)
     config_window_set(true);
     if(machine->dbg_ui == NULL) {
         dbg_ui_init_args_t args = {
-            .main_view = &machine->zvb.blitter.main_texture,
+            .main_view = &nuklear_video.main_texture,
             .zvb = &machine->zvb,
         };
         args.debug_views = zvb_get_debug_textures(&machine->zvb, &args.debug_views_count);
@@ -490,6 +494,7 @@ static int zeal_dbg_mode_display(zeal_t* machine)
         zvb_render_debug_textures(&machine->zvb, debug_view);
     }
 
+    nuklear_video_upload(&machine->zvb);
     debugger_ui_prepare_render(machine->dbg_ui, &machine->dbg);
     BeginDrawing();
         /* Grey brackground */
@@ -645,7 +650,7 @@ static int zeal_normal_mode_run(zeal_t* machine)
 
         BeginDrawing();
             ClearBackground(DARKGRAY);
-            DrawTexturePro(zvb_output_texture(&machine->zvb),
+            DrawTexturePro(nuklear_video_output(&machine->zvb),
                             (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
                             (Rectangle){ pos_x, pos_y, draw_w, draw_h },
                             (Vector2){ 0, 0 },
@@ -720,6 +725,8 @@ static void zeal_run_headless(zeal_t* machine)
     }
 
     snes_adapter_detach(&machine->snes_adapter);
+    nuklear_audio_deinit(&machine->zvb.sound);
+    if (!machine->headless) nuklear_video_deinit();
     zvb_deinit(&machine->zvb);
 }
 
@@ -820,6 +827,8 @@ int zeal_run(zeal_t* machine)
 #endif // CONFIG_ENABLE_DEBUGGER
 
     snes_adapter_detach(&machine->snes_adapter);
+    nuklear_audio_deinit(&machine->zvb.sound);
+    if (!machine->headless) nuklear_video_deinit();
     zvb_deinit(&machine->zvb);
     CloseWindow();
 

@@ -16,7 +16,7 @@ zvb_sources = files([
 ])
 
 if get_option('enable_debugger')
-    zvb_sources += files('debug.c')
+    sources += files('../../frontend/nuklear/debug_video.c')
 endif
 
 zvb_sources += files('blitter/software.c')
