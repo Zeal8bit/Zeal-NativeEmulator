@@ -46,12 +46,12 @@ if build_nuklear or build_headless or build_wasm
     endif
 endif
 if build_nuklear or build_headless
-    subdir('frontend/common/native')
+    subdir('frontend/common/desktop')
 endif
 
 if build_headless
     subdir('frontend/headless')
-    executable('zeal-headless', common_sources + native_sources + headless_sources,
+    executable('zeal-headless', common_sources + desktop_sources + headless_sources,
         dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
 endif
 
@@ -88,7 +88,7 @@ endif
 
 if build_nuklear
     subdir('frontend/nuklear')
-    exec = executable('zeal-native', common_sources + native_sources + nuklear_sources,
+    exec = executable('zeal-native', common_sources + desktop_sources + nuklear_sources,
         dependencies: zeal_dep, c_args: host_args + graphics_args,
         link_args: graphics_link + meson.get_external_property('link_args', []), install: true)
     run_target('run', command: [exec])

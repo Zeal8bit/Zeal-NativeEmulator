@@ -53,7 +53,7 @@ and are not included in a fresh checkout or run by CI.
 | `frontend/common/` | CLI/INI, image files, HostFS, RTC and stream adapters. |
 | `frontend/nuklear/` | Desktop-only window loop, input, audio playback, and all Nuklear debugger UI. |
 | `frontend/wasm/` | Independent Raylib browser frontend, Emscripten exports, OPFS startup and browser HostFS. |
-| `frontend/common/native/` | Native startup, paths and HostFS shared by desktop and headless. |
+| `frontend/common/desktop/` | Desktop OS startup, paths and HostFS shared by Nuklear and headless. |
 | `frontend/headless/` | Batch execution and console/debugger commands. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
 | `utils/` | Portable FIFO and per-machine virtual timers. |

@@ -337,9 +337,9 @@ builds or links Nuklear, including when the core debugger API is enabled.
 `frontend/headless/` owns the batch and console application.
 
 `frontend/common/` contains shared command-line/INI handling, image files,
-RTC conversion, and stream adapters. `frontend/common/native/` contains the
-native entry point, executable path discovery, and native HostFS adapter used
-by desktop and headless. Graphical frontend code is not shared between Nuklear
+RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
+desktop OS entry point, executable path discovery, and HostFS adapter used
+by Nuklear and headless. Graphical frontend code is not shared between Nuklear
 and WASM. The emulator library has no platform-specific branches.
 
 Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
