@@ -6,21 +6,21 @@
 
 static void host_log(void* userdata, bool error, int verbosity, const char* format, va_list args)
 {
-    (void)userdata;
+    (void) userdata;
     if (verbosity > config.arguments.verbose) return;
     vfprintf(error ? stderr : stdout, format, args);
 }
 
 static int host_read_byte(void* userdata)
 {
-    (void)userdata;
+    (void) userdata;
     uint8_t byte;
     return read(STDIN_FILENO, &byte, 1) == 1 ? byte : -1;
 }
 
 static void host_uart_byte(void* userdata, uint8_t byte)
 {
-    (void)userdata;
+    (void) userdata;
     printf("%c", byte);
     fflush(stdout);
 }

@@ -20,10 +20,20 @@ extern frontend_media_t frontend_media;
 
 int flash_load_from_file(flash_t*, const char* rom, const char* userprog);
 int flash_save_to_file(flash_t*, const char* path);
+/**
+ * @brief Initialize the EEPROM and load the supplied backing file, if any.
+ */
 int frontend_eeprom_init(frontend_media_t*, at24c512_t*, const char* path);
+/**
+ * @brief Close the EEPROM backing file. Completed pages are flushed at I2C STOP;
+ * this also flushes any remaining stdio data.
+ */
 void frontend_eeprom_close(frontend_media_t*);
 void frontend_tf_close(frontend_media_t*);
 int frontend_cf_init(frontend_media_t*, compactflash_t*, const char* path);
+/**
+ * @brief Load an image for the TF card; return zero on success, one on error.
+ */
 int frontend_tf_load(frontend_media_t*, zvb_spi_t*, const char* path);
 void frontend_rtc_bind(ds1307_t*);
 

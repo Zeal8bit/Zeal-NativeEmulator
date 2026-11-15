@@ -40,7 +40,7 @@ static uint8_t notif_alpha(double elapsed)
     /* Fading started! */
     const double fade_left = NOTIF_LIFETIME_SEC - elapsed;
     const double ratio = fade_left / NOTIF_FADE_SEC;
-    return (uint8_t)(255.0 * ratio);
+    return (uint8_t) (255.0 * ratio);
 }
 
 void notif_reset(void)

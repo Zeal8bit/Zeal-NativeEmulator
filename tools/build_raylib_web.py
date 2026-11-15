@@ -8,6 +8,7 @@
 import argparse
 import hashlib
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -27,7 +28,8 @@ def main():
     )
     arguments = parser.parse_args()
     compiler_version = subprocess.check_output(["emcc", "--version"], text=True).splitlines()[0]
-    if f" {EMSCRIPTEN} " not in compiler_version:
+    # Homebrew labels the release compiler 7.0.0-git.
+    if not re.search(r"\b" + re.escape(EMSCRIPTEN) + r"(?:-git)?(?:\s|$)", compiler_version):
         raise SystemExit(f"Activate Emscripten {EMSCRIPTEN} first; found: {compiler_version}")
     with tempfile.TemporaryDirectory(prefix="zeal-raylib-") as temporary_directory:
         build_directory = Path(temporary_directory)

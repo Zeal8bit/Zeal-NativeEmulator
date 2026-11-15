@@ -104,15 +104,36 @@ typedef struct {
  * may complete pending host requests. Callbacks must not recursively run or
  * destroy the machine. Detach host bindings before deinit; deinit also accepts
  * a partially initialized machine after zeal_init fails. */
+/**
+ * @brief Initialize a machine and its devices using the supplied host callbacks and options.
+ */
 int zeal_init(zeal_t*, const zeal_options_t*);
-int zeal_reset(zeal_t*);
-void zeal_deinit(zeal_t*);
+/**
+ * @brief Reset the CPU and devices, invoking the frontend reset hook at each boundary.
+ */
+int                zeal_reset(zeal_t*);
+/**
+ * @brief Release machine resources after the frontend has detached its host bindings.
+ */
+void               zeal_deinit(zeal_t*);
+/**
+ * @brief Advance the machine once and report frame readiness or an execution stop.
+ */
 zeal_step_result_t zeal_step(zeal_t*, bool debug);
 /* Run to a T-state budget (with instruction overshoot), or until stop when
  * budget is zero. Use zeal_step and its FRAME bit to stop at each frame. */
 zeal_run_result_t zeal_run(zeal_t*, unsigned long max_tstates);
+/**
+ * @brief Run the machine for a given number of Z80 T-states (console wait command).
+ */
 zeal_run_result_t zeal_run_for_tstates(zeal_t*, unsigned long tstates);
-void zeal_exit(zeal_t*);
+/**
+ * @brief Request a stop; the frontend is responsible for closing its window and resources.
+ */
+void              zeal_exit(zeal_t*);
 #if CONFIG_ENABLE_DEBUGGER
+/**
+ * @brief Run while the debugger permits execution; return true on a breakpoint or step stop.
+ */
 bool zeal_debugger_run(zeal_t*, unsigned long max_tstates);
 #endif

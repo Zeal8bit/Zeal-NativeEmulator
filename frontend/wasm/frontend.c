@@ -18,12 +18,12 @@
 #include "utils/notif.h"
 #include "utils/vtimer.h"
 
-#define RAYLIB_KEY_COUNT 384
+#define RAYLIB_KEY_COUNT    384
 
 /**
  * @brief Period, in T-states, between host keyboard polls (15ms).
  */
-#define HOST_KEYB_CHECK_PERIOD US_TO_TSTATES(15000)
+#define HOST_KEYB_CHECK_PERIOD   US_TO_TSTATES(15000)
 
 typedef enum {
     KEY_NOT_PRESSED,
@@ -31,8 +31,7 @@ typedef enum {
     KEY_REPEATED,
 } kb_key_state_t;
 
-typedef struct
-{
+typedef struct {
     kb_key_state_t state;
     int duration;
 } kb_keys_t;
@@ -56,10 +55,13 @@ EMSCRIPTEN_KEEPALIVE volatile
 
 static int key_can_repeat(int code)
 {
+    // clang-format off
     const int modifiers[] = {
-        KEY_LEFT_SHIFT, KEY_LEFT_CONTROL, KEY_LEFT_ALT, KEY_LEFT_SUPER,
+        KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
         KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
-        KEY_CAPS_LOCK, KEY_NUM_LOCK};
+        KEY_CAPS_LOCK,   KEY_NUM_LOCK
+    };
+    // clang-format on
 
     for (unsigned int i = 0; i < DIM(modifiers); i++) {
         if (modifiers[i] == code) {
@@ -71,10 +73,9 @@ static int key_can_repeat(int code)
 
 static void zeal_read_keyboard_reset(zeal_t* machine)
 {
-    (void)machine;
+    (void) machine;
     /* Clear Raylib's key states */
-    while (GetKeyPressed()) {
-    }
+    while (GetKeyPressed()) {}
 
     for (int i = 0; i < RAYLIB_KEY_COUNT; i++) {
         RAYLIB_KEYS[i].duration = 0;
@@ -133,7 +134,7 @@ static void zeal_read_keyboard(zeal_t* machine, int delta)
  */
 static void host_keyboard_check_cb(void* userdata)
 {
-    zeal_t* machine = (zeal_t*)userdata;
+    zeal_t* machine = (zeal_t*) userdata;
 
     /* Reschedule for the next periodic check */
     vtimer_schedule_tstates(&host_keyb_timer, HOST_KEYB_CHECK_PERIOD);
@@ -164,8 +165,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
 #endif
         const int screen_w = GetScreenWidth();
         const int screen_h = GetScreenHeight();
-        const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
-        const float screen_ratio = (float)screen_w / screen_h;
+        const float texture_ratio = (float) ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
+        const float screen_ratio  = (float) screen_w / screen_h;
 
         int pos_x = 0;
         int pos_y = 0;
@@ -176,12 +177,12 @@ static int zeal_normal_mode_run(zeal_t* machine)
         if (texture_ratio > screen_ratio) {
             /* Texture is "wider" than the screen, add bars on top/bottom */
             draw_w = screen_w;
-            draw_h = (int)(screen_w / texture_ratio);
+            draw_h = (int) (screen_w / texture_ratio);
             pos_y = (screen_h - draw_h) / 2;
         } else {
             /* Texture is "taller" than the screen, add bars on left/right */
             draw_h = screen_h;
-            draw_w = (int)(screen_h * texture_ratio);
+            draw_w = (int) (screen_h * texture_ratio);
             pos_x = (screen_w - draw_w) / 2;
         }
 
@@ -189,9 +190,9 @@ static int zeal_normal_mode_run(zeal_t* machine)
         BeginDrawing();
         ClearBackground(DARKGRAY);
         DrawTexturePro(output,
-                       (Rectangle){0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT},
-                       (Rectangle){pos_x, pos_y, draw_w, draw_h},
-                       (Vector2){0, 0},
+                       (Rectangle){ 0, 0, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT },
+                       (Rectangle){ pos_x, pos_y, draw_w, draw_h },
+                       (Vector2){ 0, 0 },
                        0.0f,
                        WHITE);
         /* Show notifications on the top-right of the visible content */
@@ -211,7 +212,8 @@ static int zeal_normal_mode_run(zeal_t* machine)
 static void zeal_loop(zeal_t* machine)
 {
     int rendered = 0;
-    /* Yield through Raylib/Asyncify and service browser work every two frames. */
+    /* Calling WindowShouldClose too often slows browser emulation. Yield through
+     * Raylib/Asyncify and service browser work every two rendered frames. */
     while (rendered < 2) {
 
         const int frame_rendered = zeal_normal_mode_run(machine);
@@ -247,15 +249,17 @@ void frontend_reset_input(zeal_t* machine)
 void frontend_open(bool debug)
 {
     SetTraceLogLevel(WIN_LOG_LEVEL);
+    /* Initialize the Raylib window. */
     InitWindow(640, 480, WIN_NAME);
     window_opened = true;
     SetExitKey(KEY_NULL);
     SetTargetFPS(60);
     notif_reset();
+    /* Force rendering the window so Raylib peripherals (e.g. gamepads) attach. */
     BeginDrawing();
     ClearBackground(BLACK);
     EndDrawing();
-    (void)debug;
+    (void) debug;
 }
 
 void frontend_bind_input(zeal_t* machine)

@@ -70,7 +70,7 @@ static void console_quit(zeal_t* machine, int argc, char** argv)
 
 static void console_print_help(zeal_t* machine)
 {
-    (void)machine;
+    (void) machine;
     log_printf("Zeal console commands:\n");
     log_printf("  help                  Show this help\n");
     log_printf("  press <key>           Press and hold a key\n");

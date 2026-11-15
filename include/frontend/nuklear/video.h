@@ -16,13 +16,20 @@ typedef struct {
 } nuklear_video_t;
 extern nuklear_video_t nuklear_video;
 void nuklear_video_init(zvb_t* zvb);
-void nuklear_video_deinit(void);
+void                   nuklear_video_deinit(void);
+/**
+ * @brief Get the texture containing the rendered frame, ready to draw to screen.
+ */
 Texture nuklear_video_output(zvb_t* zvb);
 void nuklear_video_upload(zvb_t* zvb);
 #if CONFIG_ENABLE_DEBUGGER
+/**
+ * @brief Render the selected video-board debugger view into frontend-owned textures.
+ */
 void zvb_render_debug_textures(zvb_t* zvb, dbg_vram_t view);
-static inline const Texture* zvb_get_debug_textures(zvb_t* zvb, int* count) {
-    (void)zvb;
+static inline const Texture* zvb_get_debug_textures(zvb_t* zvb, int* count)
+{
+    (void) zvb;
     if (count) *count = DBG_VIEW_TOTAL;
     return nuklear_video.debug_tex;
 }

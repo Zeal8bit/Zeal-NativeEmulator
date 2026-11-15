@@ -29,22 +29,22 @@
  */
 typedef struct {
     uint16_t entry;
-    char name[16];
+    char     name[16];
     uint32_t size;
     uint32_t offset;
-    uint8_t year[2];
-    uint8_t month;
-    uint8_t day;
-    uint8_t date;
-    uint8_t hours;
-    uint8_t minutes;
-    uint8_t seconds;
+    uint8_t  year[2];
+    uint8_t  month;
+    uint8_t  day;
+    uint8_t  date;
+    uint8_t  hours;
+    uint8_t  minutes;
+    uint8_t  seconds;
 } __attribute__((packed)) romdisk_entry_t;
 
 static inline uint16_t flash_dereference(flash_t* flash, uint16_t os_addr, uint16_t data_addr)
 {
-    uint8_t* addr = &flash->data[os_addr + data_addr];
-    return (addr[0]) | (addr[1] << 8);
+    uint8_t* address = &flash->data[os_addr + data_addr];
+    return (address[0]) | (address[1] << 8);
 }
 
 /**
@@ -58,17 +58,17 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
     const int config_offset = 4;
     const int zeal_computer_target = 1;
 
-    for (size_t i = 0; i < flash->size; i += 16384) {
+    for (size_t page_offset = 0; page_offset < flash->size; page_offset += 16384) {
         /* The address 0x4 of the page shall contain the configuration structure of the OS */
-        int config_addr = flash->data[i + config_offset] | flash->data[i + config_offset];
+        int config_addr = flash->data[page_offset + config_offset] | flash->data[page_offset + config_offset];
         /* The config is always with the first 4KB but after the reset vectors, make sure the
          * first byte is referring to Zeal 8-bit computer (1) */
-        if (config_addr >= 0x40 && config_addr < 0x1000 && flash->data[i + config_addr] == zeal_computer_target) {
-            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%x\n", (uint32_t)i);
+        if (config_addr >= 0x40 && config_addr < 0x1000 && flash->data[page_offset + config_addr] == zeal_computer_target) {
+            log_printf("[FLASH] Zeal 8-bit OS found at offset 0x%x\n", (uint32_t) page_offset);
             if (out_config_addr) {
                 *out_config_addr = config_addr;
             }
-            return (int)i;
+            return (int) page_offset;
         }
     }
 
@@ -78,24 +78,24 @@ static int flash_find_os_page(flash_t* flash, uint32_t* out_config_addr)
 /**
  * @brief Check if the given path is a correct "init" path for Zeal 8-bit OS
  */
-static int flash_is_init_path(const char* s)
+static int flash_is_init_path(const char* init_path)
 {
-    if (s == NULL) {
+    if (init_path == NULL) {
         return 0;
     }
 
     /* Make sure it points to the romdisk */
-    if ((s[0] != 'A' && s[0] != 'a') || s[1] != ':' || s[2] != '/') {
+    if ((init_path[0] != 'A' && init_path[0] != 'a') || init_path[1] != ':' || init_path[2] != '/') {
         return 0;
     }
 
     /* After prefix: max 16 printable chars (romdisk path) */
-    for (size_t i = 0; i < 16; i++) {
-        int c = s[i + 3];
-        if (c == '\0') {
+    for (size_t character_index = 0; character_index < 16; character_index++) {
+        int character = init_path[character_index + 3];
+        if (character == '\0') {
             return 1;
         }
-        if (!isprint(c)) {
+        if (!isprint(character)) {
             return 0;
         }
     }
@@ -103,9 +103,10 @@ static int flash_is_init_path(const char* s)
     return 1;
 }
 
+
 static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
 {
-    int err = 0;
+    int error = 0;
     int romdisk_offset = 0;
     const int romdisk_header = 64;
     uint32_t config_addr = 0;
@@ -127,9 +128,9 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     if (comma) {
         /* Make the filename end before the address */
         *comma = 0;
-        char* endptr;
-        size_t address = strtoul(comma + 1, &endptr, 16);
-        if (address >= flash->size || *endptr != '\0') {
+        char* address_end;
+        size_t address = strtoul(comma + 1, &address_end, 16);
+        if (address >= flash->size || *address_end != '\0') {
             log_err_printf("[FLASH] Invalid user file address, ignoring\n");
         } else {
             romdisk_offset = address;
@@ -139,25 +140,25 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
         romdisk_offset = zealos_offset + 0x4000;
     }
 
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) {
+    int file_descriptor = open(path, O_RDONLY);
+    if (file_descriptor < 0) {
         log_perror("[FLASH] Could not open user file: %s\n", path_sanitize(path));
-        err = fd;
+        error = file_descriptor;
         goto ret;
     }
 
     /* Get the file size and make sure it's not too big for the flash */
-    struct stat st;
-    if (fstat(fd, &st)) {
+    struct stat file_status;
+    if (fstat(file_descriptor, &file_status)) {
         log_perror("[FLASH] Could not stat user file: %s\n", path_sanitize(path));
-        err = -1;
+        error = -1;
         goto ret_close;
     }
-    const size_t size = st.st_size;
+    const size_t size = file_status.st_size;
 
     if (size > (flash->size - romdisk_offset - romdisk_header)) {
         log_err_printf("[FLASH] User file is too big to fit in ROM\n");
-        err = -1;
+        error = -1;
         goto ret_close;
     }
 
@@ -173,7 +174,7 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     };
     /* Find the name pointer of the init program from the configuration structure */
     const uint16_t os_init_addr = flash_dereference(flash, zealos_offset, config_addr + 0xa);
-    const char* os_init_path = (const char*)(&flash->data[zealos_offset + os_init_addr]);
+    const char* os_init_path = (const char*) (&flash->data[zealos_offset + os_init_addr]);
     if (flash_is_init_path(os_init_path)) {
         /* Escape the A:/ prefix */
         snprintf(entry.name, sizeof(entry.name), "%s", os_init_path + 3);
@@ -185,23 +186,24 @@ static int flash_override_romdisk(flash_t* flash, const char* userprog_filename)
     memcpy(romdisk, &entry, sizeof(entry));
 
     /* Read the data directly in flash */
-    int rd = read(fd, flash->data + romdisk_offset + romdisk_header, flash->size);
-    if (rd < 0) {
+    int bytes_read = read(file_descriptor, flash->data + romdisk_offset + romdisk_header, flash->size);
+    if (bytes_read < 0) {
         log_perror("[FLASH] Could not read user file: %s\n", path);
-        err = rd;
+        error = bytes_read;
         goto ret_close;
     }
 
     log_printf("[FLASH] User program %s loaded successfully @ 0x%x\n", path_sanitize(path), romdisk_offset);
 
-    err = 0;
+    error = 0;
     /* Fall-through */
 ret_close:
-    close(fd);
+    close(file_descriptor);
 ret:
     free(path);
-    return err;
+    return error;
 }
+
 
 int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* userprog_filename)
 {
@@ -213,33 +215,34 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
         return -1;
     }
 
-    int fd = open(rom_filename, O_RDONLY);
-    if (fd < 0) {
+    int file_descriptor = open(rom_filename, O_RDONLY);
+    if (file_descriptor < 0) {
         log_perror("[FLASH] Could not open file to load");
-        return fd;
+        return file_descriptor;
     }
 
-    int rd = read(fd, flash->data, flash->size);
-    if (rd < 0) {
+    int bytes_read = read(file_descriptor, flash->data, flash->size);
+    if (bytes_read < 0) {
         log_perror("[FLASH] Could not read file to load");
-        close(fd);
-        return rd;
+        close(file_descriptor);
+        return bytes_read;
     }
 
     log_printf("[FLASH] %s loaded successfully\n", path_sanitize(rom_filename));
 
-    close(fd);
+    close(file_descriptor);
 
     /* Try to load the user program, if any */
     if (userprog_filename != NULL) {
-        int err = flash_override_romdisk(flash, userprog_filename);
-        if (err != 0) return err;
+        int error = flash_override_romdisk(flash, userprog_filename);
+        if (error != 0) return error;
     }
 
     flash_loaded(flash);
 
     return 0;
 }
+
 
 int flash_save_to_file(flash_t* flash, const char* name)
 {
@@ -252,22 +255,22 @@ int flash_save_to_file(flash_t* flash, const char* name)
         return 0;
     }
 
-    int fd = open(name, O_WRONLY | O_TRUNC | O_CREAT, 0666);
-    if (fd < 0) {
+    const int file_descriptor = open(name, O_WRONLY | O_TRUNC | O_CREAT, 0666);
+    if (file_descriptor < 0) {
         log_perror("[FLASH] Could not create file to dump NOR flash");
-        return fd;
+        return file_descriptor;
     }
 
-    ssize_t wr = write(fd, flash->data, flash->size);
-    if (wr < 0 || (size_t)wr != flash->size) {
-        const int error = wr < 0 ? errno : EIO;
+    const ssize_t bytes_written = write(file_descriptor, flash->data, flash->size);
+    if (bytes_written < 0 || (size_t) bytes_written != flash->size) {
+        const int error = bytes_written < 0 ? errno : EIO;
         log_perror("[FLASH] Could not dump to file");
-        close(fd);
+        close(file_descriptor);
         errno = error;
         return -1;
     }
 
-    if (close(fd) < 0) {
+    if (close(file_descriptor) < 0) {
         return -1;
     }
     flash->dirty = 0;

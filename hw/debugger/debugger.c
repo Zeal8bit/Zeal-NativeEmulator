@@ -463,7 +463,8 @@ void debugger_deinit(dbg_t* dbg)
     symbols_t* node = &dbg->symbols;
     while (node) {
         symbols_t* next = node->next;
-        for (unsigned int i = 0; i < node->count; i++) free((void*)node->array[i].name);
+        for (unsigned int i = 0; i < node->count; i++)
+            free((void*) node->array[i].name);
         if (node != &dbg->symbols) free(node);
         node = next;
     }

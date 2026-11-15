@@ -45,7 +45,7 @@ static uint16_t semihost_op_read_int(semihost_t* dev)
     /* Read decimal digits from stdin */
     while (bytes_read < 5) {
         int input = semihost_read_byte(dev);
-        c = (uint8_t)input;
+        c         = (uint8_t) input;
         if (input < 0) {
             break;
         }
@@ -100,7 +100,7 @@ static uint8_t semihost_io_read(device_t* dev, uint32_t addr)
 /* Writes have always been disabled. Do not dispatch inactive operations. */
 static void semihost_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
-    (void)dev;
+    (void) dev;
     (void)addr;
     (void)data;
 }

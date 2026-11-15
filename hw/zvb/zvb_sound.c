@@ -122,7 +122,7 @@ void zvb_sound_init(zvb_sound_t* sound, bool enabled)
 {
     assert(sound);
     memset(sound, 0, sizeof(*sound));
-    (void)enabled;
+    (void) enabled;
     sound->sample_table.baud_count = 0;
     atomic_init(&sound->sample_table.output, 0);
     for (int i = 0; i < VOICE_COUNT; i++) {

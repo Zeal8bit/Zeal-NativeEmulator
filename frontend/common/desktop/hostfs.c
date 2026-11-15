@@ -66,12 +66,12 @@
 #define ZOS_FL_APPEND       (2 << 2)
 #define ZOS_FL_CREAT        (4 << 2)
 
-static void set_status(frontend_hostfs_t *host, uint8_t status)
+static void set_status(frontend_hostfs_t* host, uint8_t status)
 {
     host->core->registers[OPERATION_REG] = status;
 }
 
-static void fs_whoami(frontend_hostfs_t *host)
+static void fs_whoami(frontend_hostfs_t* host)
 {
     set_status(host, 0xD3);
 }
@@ -84,8 +84,8 @@ static int descriptor_valid(hostfs_fd_t* desc)
 
 /**
  * @brief Helper to always make a file name 16 bytes big
-*/
-static void zos_format_name(const char *input_name, char *output_name)
+ */
+static void zos_format_name(const char* input_name, char* output_name)
 {
     size_t input_length = strlen(input_name);
 
@@ -100,18 +100,17 @@ static void zos_format_name(const char *input_name, char *output_name)
     }
 }
 
-
-static char *resolve_path(const char *path, int prefix_len)
+static char* resolve_path(const char* path, int prefix_len)
 {
     if (path == NULL || strlen(path) == 0) return NULL;
 
     // Allocate a buffer for the resolved path
-    char *resolved = calloc(1, PATH_MAX);
+    char* resolved = calloc(1, PATH_MAX);
     if (resolved == NULL) {
         return NULL;
     }
 
-    char *copy = strdup(path);
+    char* copy = strdup(path);
     if (!copy) {
         free(resolved);
         return NULL;
@@ -120,7 +119,7 @@ static char *resolve_path(const char *path, int prefix_len)
     /* This is used for Windows, where the drive letter may be present */
     memcpy(resolved, path, prefix_len);
 
-    char *token = strtok(copy + prefix_len + 1, "/");
+    char* token = strtok(copy + prefix_len + 1, "/");
     while (token != NULL) {
         if (strcmp(token, "..") == 0) {
             size_t len = strlen(resolved);
@@ -128,7 +127,7 @@ static char *resolve_path(const char *path, int prefix_len)
                 /* Remove trailing slash */
                 resolved[len - 1] = '\0';
             }
-            char *last_slash = strrchr(resolved, '/');
+            char* last_slash = strrchr(resolved, '/');
             if (last_slash != NULL) *last_slash = '\0';
         } else if (strcmp(token, ".") != 0) {
             strcat(resolved, "/");
@@ -142,8 +141,7 @@ static char *resolve_path(const char *path, int prefix_len)
     return resolved;
 }
 
-
-static char *get_path(frontend_hostfs_t *host)
+static char* get_path(frontend_hostfs_t* host)
 {
     uint16_t virt_addr = (host->core->registers[2] << 8) | host->core->registers[1];
     static char full_path[PATH_MAX];
@@ -195,7 +193,7 @@ static char *get_path(frontend_hostfs_t *host)
     return full_path;
 }
 
-static FILE *fopen_with_flags(const char *path, int zos_flags)
+static FILE* fopen_with_flags(const char* path, int zos_flags)
 {
     int open_flags = 0;
 
@@ -228,7 +226,7 @@ static FILE *fopen_with_flags(const char *path, int zos_flags)
         return NULL;
 
     // Map zos_flags to fdopen mode string
-    const char *mode_str = NULL;
+    const char* mode_str = NULL;
     int is_read = (zos_flags & 0x3) == ZOS_FL_RDONLY || (zos_flags & 0x3) == ZOS_FL_RDWR;
     int is_write = (zos_flags & 0x3) == ZOS_FL_WRONLY || (zos_flags & 0x3) == ZOS_FL_RDWR;
 
@@ -240,7 +238,7 @@ static FILE *fopen_with_flags(const char *path, int zos_flags)
         mode_str = "r" FOPEN_BINARY;
     }
 
-    FILE *file = fdopen(fd, mode_str);
+    FILE* file = fdopen(fd, mode_str);
     if (!file) {
         close(fd);
         return NULL;
@@ -249,7 +247,7 @@ static FILE *fopen_with_flags(const char *path, int zos_flags)
     return file;
 }
 
-static void populate_opendir(frontend_hostfs_t *host, char* path)
+static void populate_opendir(frontend_hostfs_t* host, char* path)
 {
     DIR *dir = opendir(path);
 
@@ -279,9 +277,9 @@ static void populate_opendir(frontend_hostfs_t *host, char* path)
     set_status(host, ZOS_CANNOT_REGISTER_MORE);
 }
 
-static void fs_open(frontend_hostfs_t *host)
+static void fs_open(frontend_hostfs_t* host)
 {
-    char *path = get_path(host);
+    char*       path = get_path(host);
     struct stat st;
 
     if (path == NULL) {
@@ -304,7 +302,7 @@ static void fs_open(frontend_hostfs_t *host)
         return;
     }
 
-    FILE *file = fopen_with_flags(path, flags);
+    FILE* file = fopen_with_flags(path, flags);
     if (!file) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
@@ -332,8 +330,7 @@ static void fs_open(frontend_hostfs_t *host)
     set_status(host, ZOS_CANNOT_REGISTER_MORE);
 }
 
-
-static void fs_close(frontend_hostfs_t *host)
+static void fs_close(frontend_hostfs_t* host)
 {
     const int desc = host->core->registers[0];
     if (desc >= MAX_OPENED_FILES) {
@@ -353,8 +350,7 @@ static void fs_close(frontend_hostfs_t *host)
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void fs_stat(frontend_hostfs_t *host)
+static void fs_stat(frontend_hostfs_t* host)
 {
     struct stat st;
 
@@ -425,18 +421,17 @@ static void fs_stat(frontend_hostfs_t *host)
 
     /* Write the structure to memory so that the Z80 sees it */
     if (descriptor->is_dir) {
-        mmu_virt_write_array(host->core->mmu, struct_addr, (const uint8_t*)&zos_stat, sizeof(zos_stat));
+        mmu_virt_write_array(host->core->mmu, struct_addr, (const uint8_t*) &zos_stat, sizeof(zos_stat));
     } else {
         const size_t date_size = sizeof(zos_stat) - sizeof(zos_stat.s_size);
-        mmu_virt_write_array(host->core->mmu, struct_addr, (const uint8_t*)&zos_stat.s_date, date_size);
+        mmu_virt_write_array(host->core->mmu, struct_addr, (const uint8_t*) &zos_stat.s_date, date_size);
     }
 
     /* Set success status */
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static int seek_file(frontend_hostfs_t *host, uint16_t struct_addr, FILE* file)
+static int seek_file(frontend_hostfs_t* host, uint16_t struct_addr, FILE* file)
 {
     /* Get the 32-bit offset to start reading from */
     uint8_t offset[4] = { 0 };
@@ -448,8 +443,7 @@ static int seek_file(frontend_hostfs_t *host, uint16_t struct_addr, FILE* file)
     return fseek(file, seek_to, SEEK_SET);
 }
 
-
-static void fs_read(frontend_hostfs_t *host)
+static void fs_read(frontend_hostfs_t* host)
 {
     uint8_t buffer[1024];
 
@@ -466,7 +460,7 @@ static void fs_read(frontend_hostfs_t *host)
         return;
     }
 
-    FILE *file = host->descriptors[desc].file;
+    FILE* file = host->descriptors[desc].file;
     if (file == NULL) {
         set_status(host, ZOS_FAILURE);
         return;
@@ -493,8 +487,8 @@ static void fs_read(frontend_hostfs_t *host)
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void fs_write(frontend_hostfs_t *host) {
+static void fs_write(frontend_hostfs_t* host)
+{
     uint8_t buffer[1024];
 
     const uint16_t struct_addr = (host->core->registers[1] << 8) | host->core->registers[0];
@@ -510,7 +504,7 @@ static void fs_write(frontend_hostfs_t *host) {
         return;
     }
 
-    FILE *file = host->descriptors[desc].file;
+    FILE* file = host->descriptors[desc].file;
     if (file == NULL) {
         set_status(host, ZOS_FAILURE);
         return;
@@ -532,10 +526,9 @@ static void fs_write(frontend_hostfs_t *host) {
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void fs_mkdir(frontend_hostfs_t *host)
+static void fs_mkdir(frontend_hostfs_t* host)
 {
-    char *path = get_path(host);
+    char* path = get_path(host);
     if (path == NULL) {
         set_status(host, ZOS_FAILURE);
         return;
@@ -550,10 +543,9 @@ static void fs_mkdir(frontend_hostfs_t *host)
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void fs_rm(frontend_hostfs_t *host)
+static void fs_rm(frontend_hostfs_t* host)
 {
-    char *path = get_path(host);
+    char* path = get_path(host);
     if (path == NULL) {
         return;
     }
@@ -566,18 +558,16 @@ static void fs_rm(frontend_hostfs_t *host)
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void fs_opendir(frontend_hostfs_t *host)
+static void fs_opendir(frontend_hostfs_t* host)
 {
-    char *path = get_path(host);
+    char* path = get_path(host);
     if (path == NULL) {
         return;
     }
     populate_opendir(host, path);
 }
 
-
-static void fs_readdir(frontend_hostfs_t *host)
+static void fs_readdir(frontend_hostfs_t* host)
 {
     char out_name[ZOS_MAX_NAME_LENGTH];
     int desc = host->core->registers[2];
@@ -622,12 +612,11 @@ static void fs_readdir(frontend_hostfs_t *host)
     const uint8_t is_file = (entry->d_type == DT_REG) ? 1 : 0;
 #endif
     mmu_virt_write_byte(host->core->mmu, buffer_addr++, is_file);
-    mmu_virt_write_array(host->core->mmu, buffer_addr, (const uint8_t*)out_name, ZOS_MAX_NAME_LENGTH);
+    mmu_virt_write_array(host->core->mmu, buffer_addr, (const uint8_t*) out_name, ZOS_MAX_NAME_LENGTH);
     set_status(host, ZOS_SUCCESS);
 }
 
-
-static void handle_operation(frontend_hostfs_t *host, uint8_t operation)
+static void handle_operation(frontend_hostfs_t* host, uint8_t operation)
 {
     switch (operation) {
         case OP_WHOAMI:
@@ -703,7 +692,7 @@ int frontend_hostfs_load_path(frontend_hostfs_t* hostfs, const char* root_path)
     char* final_path = strdup(resolved_path);
 
 #ifdef _WIN32
-    for (char *p = final_path; *p; ++p) {
+    for (char* p = final_path; *p; ++p) {
         if (*p == '\\') *p = '/';
     }
 #endif
@@ -742,7 +731,7 @@ void frontend_hostfs_close(frontend_hostfs_t* host)
             fd->raw = NULL;
         }
     }
-    free((void*)host->root_path);
+    free((void*) host->root_path);
     host->root_path = NULL;
     if (host->core) {
         host->core->dispatch = NULL;

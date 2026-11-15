@@ -11,20 +11,28 @@
 
 #define TSTATE_NS (1000000000UL / CPUFREQ)
 
-#define CHECK_ERR(err) do { if (err) return err; } while (0)
+#define CHECK_ERR(err)  \
+    do {                \
+        if (err)        \
+            return err; \
+    } while (0)
 
 #if CONFIG_ENABLE_DEBUGGER
 int zeal_debugger_init(zeal_t*, dbg_t*);
-static uint8_t debug_read_memory(zeal_t *machine, hwaddr virt_addr)
+/**
+ * @brief Read a byte from memory for the debugger, so write-only areas can still be read
+ */
+static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 {
-    const int phys_addr = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
-    const map_entry_t entry = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
-    device_t *device = entry.dev;
-    const int start_addr = entry.page_from * MMU_PAGE_SIZE;
+    const int phys_addr      = mmu_get_phys_addr(&machine->cpu.mmu, virt_addr);
+    const map_entry_t entry  = machine->cpu.mmu.mem_mapping[phys_addr / MEM_SPACE_ALIGN];
+    device_t* device         = entry.dev;
+    const int start_addr     = entry.page_from * MMU_PAGE_SIZE;
 
-    if (device)
-    {
-        return device->mem_region.debug_read ? device->mem_region.debug_read(device, phys_addr - start_addr) : device->mem_region.read(device, phys_addr - start_addr);
+    if (device) {
+        return device->mem_region.debug_read ?
+                    device->mem_region.debug_read(device, phys_addr - start_addr) :
+                    device->mem_region.read(device, phys_addr - start_addr);
     }
 
     hw_log(machine->host, false, 0, "[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
@@ -49,7 +57,7 @@ int zeal_init(zeal_t* machine, const zeal_options_t* options)
 #endif
     z80_init(&machine->cpu);
     machine->cpu.mmu.parent.host = options->host;
-    mmu_t *mmu = z80_get_mmu(&machine->cpu);
+    mmu_t* mmu = z80_get_mmu(&machine->cpu);
 
     err = flash_init(&machine->rom, &machine->cpu.clock, options->host);
     CHECK_ERR(err);
@@ -95,8 +103,7 @@ int zeal_init(zeal_t* machine, const zeal_options_t* options)
 
     /* Register the devices in the memory space */
     mmu_register_mem_device(mmu, 0x000000, &machine->rom.parent);
-    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX)
-    {
+    if (machine->rom.size < NOR_FLASH_SIZE_KB_MAX) {
         /* Create a mirror in the upper 256KB */
         mmu_register_mem_device(mmu, 0x040000, &machine->rom.parent);
     }
@@ -125,7 +132,7 @@ int zeal_init(zeal_t* machine, const zeal_options_t* options)
     return 0;
 }
 
-int zeal_reset(zeal_t *machine)
+int zeal_reset(zeal_t* machine)
 {
     z80_reset(&machine->cpu);
     if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, false);
@@ -138,8 +145,7 @@ int zeal_reset(zeal_t *machine)
     if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, true);
 
 #if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled)
-    {
+    if (machine->dbg_enabled) {
         machine->dbg_state = ST_PAUSED;
     }
 #endif // CONFIG_ENABLE_DEBUGGER
@@ -153,6 +159,7 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
 #if CONFIG_ENABLE_DEBUGGER
     if (debug) {
         execute = machine->dbg_state != ST_PAUSED;
+        /* A step-over request sets a temporary breakpoint past the call. */
         if (machine->dbg_state == ST_REQ_STEP_OVER) {
             int size = z80_instruction_size(&machine->cpu);
             debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + size);
@@ -160,7 +167,7 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         }
     }
 #else
-    (void)debug;
+    (void) debug;
 #endif
     zeal_step_result_t result = ZEAL_STEP_NONE;
     if (execute) {
@@ -171,6 +178,7 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         }
 #if CONFIG_ENABLE_DEBUGGER
         if (debug) {
+            /* Stop on a single step or a breakpoint. */
             if (machine->dbg_state == ST_REQ_STEP || debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
                 machine->dbg_state = ST_PAUSED;
                 debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
@@ -178,6 +186,7 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
             if (machine->dbg_state == ST_PAUSED) result |= ZEAL_STEP_DEBUG_STOP;
         } else
 #endif
+        /* PC is back to zero: stop on software reset when requested. */
         if (machine->stop_on_reset && machine->cpu.pc == 0) {
             hw_log(machine->host, false, 0, "[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
             machine->should_exit = true;
@@ -206,6 +215,7 @@ static zeal_run_result_t zeal_run_budget(zeal_t* machine, unsigned long max_tsta
     while (!machine->should_exit) {
         reason = zeal_step(machine, debug) & (ZEAL_STEP_STOP | ZEAL_STEP_DEBUG_STOP | ZEAL_STEP_FATAL);
         if (reason != ZEAL_STEP_NONE) break;
+        /* Stop once the requested number of T-states has been spent. */
         if (max_tstates && (machine->cpu.clock.now_ns - start) / TSTATE_NS >= max_tstates) break;
     }
     if (machine->should_exit && reason == ZEAL_STEP_NONE) reason = ZEAL_STEP_STOP;

@@ -15,34 +15,34 @@ static Vector2 snes_mouse_window_scale(float delta_scale)
 {
     const int screen_w = GetScreenWidth();
     const int screen_h = GetScreenHeight();
-    const float texture_ratio = (float)ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
-    const float screen_ratio = (float)screen_w / screen_h;
+    const float texture_ratio = (float) ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
+    const float screen_ratio  = (float) screen_w / screen_h;
     int draw_w = ZVB_MAX_RES_WIDTH;
     int draw_h = ZVB_MAX_RES_HEIGHT;
 
     if (texture_ratio > screen_ratio) {
         draw_w = screen_w;
-        draw_h = (int)(screen_w / texture_ratio);
+        draw_h = (int) (screen_w / texture_ratio);
     } else {
         draw_h = screen_h;
-        draw_w = (int)(screen_h * texture_ratio);
+        draw_w = (int) (screen_h * texture_ratio);
     }
 
     return (Vector2){
-        .x = ((float)ZVB_MAX_RES_WIDTH / draw_w) * delta_scale,
-        .y = ((float)ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale,
+        .x = ((float) ZVB_MAX_RES_WIDTH / draw_w) * delta_scale,
+        .y = ((float) ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale,
     };
 }
 
 static uint8_t snes_mouse_magnitude(float value)
 {
-    int magnitude = (int)roundf(fabsf(value));
+    int magnitude = (int) roundf(fabsf(value));
 
     if (magnitude > SNES_MOUSE_MAG_MASK) {
         magnitude = SNES_MOUSE_MAG_MASK;
     }
 
-    return (uint8_t)magnitude;
+    return (uint8_t) magnitude;
 }
 
 static bool snes_mouse_cursor_in_rect(Rectangle bounds)
@@ -57,8 +57,8 @@ static bool snes_mouse_cursor_in_rect(Rectangle bounds)
 
 static Rectangle snes_mouse_active_bounds(snes_mouse_t* mouse)
 {
-    (void)mouse;
-    return (Rectangle){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()};
+    (void) mouse;
+    return (Rectangle){0, 0, (float) GetScreenWidth(), (float) GetScreenHeight()};
 }
 
 static void snes_mouse_capture(snes_mouse_t* mouse)

@@ -31,7 +31,7 @@ To compile the emulator, you will need the following software:
 
 * **Meson** build system
 * **GCC** or **Clang** compiler
-* Raylib **6.2** (bundled for Linux x86-64, Win64, and WebAssembly; see [dependency details](raylib/README.md)).
+* Raylib **6.2** (native bundles for Linux x86-64 and Win64, plus a WebAssembly build helper; see [dependency details](raylib/README.md)).
 
 ### Hardware Requirements
 

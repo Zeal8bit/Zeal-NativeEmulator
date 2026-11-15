@@ -1,13 +1,16 @@
-# Bundled Raylib dependencies
+# Raylib dependencies
 
-All bundles use Raylib **6.2**, with matching `raylib.h`, `raymath.h`, and
+All dependencies use Raylib **6.2**, with matching `raylib.h`, `raymath.h`, and
 `rlgl.h` headers from the same release. Upstream files are unmodified.
 
 | Directory | Target | Library source |
 | --- | --- | --- |
 | `linux64/` | Linux x86-64 | Official Linux amd64 release, shared library |
 | `win64/` | Windows x86-64, MinGW-w64 | Official Win64 MinGW-w64 release, static library |
-| `web/` | WebAssembly | Built from release sources with Emscripten 7.0.0; see [rebuild instructions](web/README.md) |
+| `web/` | WebAssembly | Generated locally or in CI from release sources with Emscripten 7.0.0; see [build instructions](web/README.md) |
+
+Generated web headers and libraries are ignored by Git. Run
+`python3 tools/build_raylib_web.py` before configuring a fresh WASM build.
 
 ## Native release archives
 

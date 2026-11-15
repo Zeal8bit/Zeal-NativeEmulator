@@ -30,13 +30,13 @@ static const char* snes_adapter_controller_name(const wasm_snes_t* snes_adapter,
 static const char* snes_adapter_device_name(snes_port_device_t device)
 {
     switch (device) {
-    case SNES_PORT_DEVICE_CONTROLLER:
-        return "ctrl";
-    case SNES_PORT_DEVICE_MOUSE:
-        return "mouse";
-    case SNES_PORT_DEVICE_DETACHED:
-    default:
-        return "none";
+        case SNES_PORT_DEVICE_CONTROLLER:
+            return "ctrl";
+        case SNES_PORT_DEVICE_MOUSE:
+            return "mouse";
+        case SNES_PORT_DEVICE_DETACHED:
+        default:
+            return "none";
     }
 }
 
@@ -56,21 +56,22 @@ static void wasm_snes_sample(void* userdata, uint32_t* bits, bool* attached)
     wasm_snes_t* snes_adapter = userdata;
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         switch (snes_adapter->ports[port].device) {
-        case SNES_PORT_DEVICE_MOUSE:
-            bits[port] = snes_mouse_latch(&snes_adapter->mouse);
-            break;
-        case SNES_PORT_DEVICE_CONTROLLER: {
-            int index = snes_adapter->ports[port].controller_index;
-            uint16_t controller_bits = snes_controller_latch(&snes_adapter->controllers[index]);
-            if (index == 0 && snes_adapter->virtual_controller_enabled) {
-                controller_bits &= snes_adapter->virtual_controller_bits;
+            case SNES_PORT_DEVICE_MOUSE:
+                bits[port] = snes_mouse_latch(&snes_adapter->mouse);
+                break;
+            case SNES_PORT_DEVICE_CONTROLLER: {
+                int index = snes_adapter->ports[port].controller_index;
+                uint16_t controller_bits = snes_controller_latch(&snes_adapter->controllers[index]);
+                if (index == 0 && snes_adapter->virtual_controller_enabled) {
+                    controller_bits &= snes_adapter->virtual_controller_bits;
+                }
+                bits[port] = controller_bits | 0xFFFF0000;
             }
-            bits[port] = controller_bits | 0xFFFF0000;
-        } break;
-        case SNES_PORT_DEVICE_DETACHED:
-        default:
-            attached[port] = false;
-            continue;
+                break;
+            case SNES_PORT_DEVICE_DETACHED:
+            default:
+                attached[port] = false;
+                continue;
         }
 
         attached[port] = snes_adapter_port_attached(snes_adapter, port);
@@ -270,7 +271,7 @@ void snes_adapter_set_virtual_button(wasm_snes_t* snes_adapter, uint8_t button, 
     if (pressed) {
         snes_adapter->virtual_controller_bits &= (uint16_t) ~(1u << button);
     } else {
-        snes_adapter->virtual_controller_bits |= (uint16_t)(1u << button);
+        snes_adapter->virtual_controller_bits |= (uint16_t) (1u << button);
     }
     snes_adapter_attach_available_controllers(snes_adapter);
 }

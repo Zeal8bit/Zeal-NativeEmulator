@@ -11,20 +11,20 @@
 #include "utils/log.h"
 #define MAX_LINE_LENGTH 256
 
-bool debugger_load_symbols(dbg_t *dbg, const char *filename)
+bool debugger_load_symbols(dbg_t* dbg, const char* filename)
 {
     if (!dbg || !filename) {
         log_perror("[MAP] No debugger or filename");
         return false;
     }
 
-    FILE *file = fopen(filename, "r");
+    FILE* file = fopen(filename, "r");
     if (!file) {
         log_perror("[MAP] Could not open file to load");
         return false;
     }
 
-    symbols_t *current = &dbg->symbols;
+    symbols_t* current = &dbg->symbols;
 
     char line[MAX_LINE_LENGTH];
     char name[MAX_LINE_LENGTH];
@@ -41,7 +41,7 @@ bool debugger_load_symbols(dbg_t *dbg, const char *filename)
 
             /* If the current array is full, allocate a new symbols_t block */
             if (current->count >= DBG_SYM_COUNT) {
-                current->next = (symbols_t *)calloc(1, sizeof(symbols_t));
+                current->next = (symbols_t*) calloc(1, sizeof(symbols_t));
                 if (!current->next) {
                     fclose(file);
                     log_perror("[MAP] Memory allocation failed");

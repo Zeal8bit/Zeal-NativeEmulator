@@ -12,7 +12,7 @@ typedef struct {
 } wasm_video_t;
 extern wasm_video_t wasm_video;
 void wasm_video_init(zvb_t* zvb);
-void wasm_video_deinit(void);
+void                wasm_video_deinit(void);
 Texture wasm_video_output(zvb_t* zvb);
 void wasm_video_upload(zvb_t* zvb);
 #if CONFIG_PROFILE_RENDER

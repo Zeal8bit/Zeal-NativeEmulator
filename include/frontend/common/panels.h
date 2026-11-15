@@ -14,5 +14,5 @@ typedef struct {
     int height;
 } config_panel_t;
 extern config_panel_t config_panels[FRONTEND_PANEL_COUNT];
-void config_panel_load(config_panel_t*);
+void                  config_panel_load(config_panel_t*);
 void config_panels_save(rini_config*);

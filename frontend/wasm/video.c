@@ -22,12 +22,12 @@ static double last_core_seconds;
 #if CONFIG_PROFILE_RENDER
 static double profile_time(void* userdata)
 {
-    (void)userdata;
+    (void) userdata;
     return GetTime();
 }
 static void profile_render(void* userdata, double start)
 {
-    (void)userdata;
+    (void) userdata;
     const double elapsed = GetTime() - start;
     last_core_seconds = elapsed;
     s_render_profile.zvb_total += elapsed;

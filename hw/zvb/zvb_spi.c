@@ -296,7 +296,7 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
 {
     /* Validate a complete sector before multiplying; never wrap a large
      * guest address or extend the host image with an out-of-range write. */
-    if (!tf->backend.read || (uint64_t)sector >= tf->backend.size / TF_BLK_SIZE) {
+    if (!tf->backend.read || (uint64_t) sector >= tf->backend.size / TF_BLK_SIZE) {
         hw_log(tf->host, true, 0, "[TF] Invalid sector: 0x%x (image size: 0x%zx)\n", sector, tf->backend.size);
         return false;
     }

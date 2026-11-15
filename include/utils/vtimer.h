@@ -36,7 +36,9 @@ typedef struct vtimer_node {
 } vtimer_node_t;
 
 struct vtimer {
+    /* Sorted singly-linked list head (earliest deadline first). */
     vtimer_node_t* head;
+    /* Monotonically increasing time in nanoseconds. */
     uint64_t now_ns;
     uint64_t stall_deadline;
 };
@@ -45,7 +47,7 @@ struct vtimer {
 /**
  * @brief Initialize the virtual timer subsystem.
  *        Resets the internal t-state counter to 0 and clears the timer list.
- *        Must be called once at program startup.
+ *        Must be called when initializing each machine.
  */
 void vtimer_init(vtimer_t* clock);
 

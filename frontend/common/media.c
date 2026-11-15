@@ -147,12 +147,12 @@ int frontend_cf_init(frontend_media_t* media, compactflash_t* cf, const char* fi
 
 static bool tf_seek(void* userdata, uint32_t sector)
 {
-    const uint64_t offset = (uint64_t)sector * 512;
+    const uint64_t offset = (uint64_t) sector * 512;
     if (offset > LONG_MAX) {
         log_err_printf("[TF] Sector offset exceeds host file range: 0x%x\n", sector);
         return false;
     }
-    if (fseek(userdata, (long)offset, SEEK_SET) != 0) {
+    if (fseek(userdata, (long) offset, SEEK_SET) != 0) {
         log_perror("[TF] Could not seek into image");
         return false;
     }
@@ -201,7 +201,7 @@ int frontend_tf_load(frontend_media_t* media, zvb_spi_t* spi, const char* filena
     }
     const zvb_tf_backend_t backend = {
         .userdata = image,
-        .size = (size_t)size,
+        .size     = (size_t) size,
         .seek = tf_seek,
         .read = tf_read,
         .write = tf_write,

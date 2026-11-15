@@ -28,4 +28,7 @@ typedef struct at24c512_t {
 } at24c512_t;
 
 
+/**
+ * @brief Initialize the emulated EEPROM; the frontend supplies its image and persistence sink.
+ */
 int at24c512_init(at24c512_t* eeprom);

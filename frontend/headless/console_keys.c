@@ -21,6 +21,7 @@ typedef struct {
 } console_key_t;
 
 /* Named keys. Single letters (A-Z) and digits (0-9) are handled directly. */
+// clang-format off
 static const console_key_t CONSOLE_KEYS[] = {
     /* Cursor / navigation */
     { "UP",          ZEAL_KEY_UP          },
@@ -90,6 +91,7 @@ static const console_key_t CONSOLE_KEYS[] = {
     { "KP_DIVIDE",   ZEAL_KEY_KP_DIVIDE   },
     { "KP_DECIMAL",  ZEAL_KEY_KP_DECIMAL  },
 };
+// clang-format on
 
 
 static int console_parse_key(const char* name)

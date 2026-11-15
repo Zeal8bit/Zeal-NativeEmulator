@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
 
     int saved = config_save();
     config_unload();
-    (void)saved;
+    (void) saved;
 
 deinit:
     frontend_deinit(&machine);

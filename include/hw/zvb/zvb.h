@@ -286,7 +286,7 @@ void zvb_deinit(zvb_t* zvb);
 static inline zvb_frame_t zvb_frame(const zvb_t* zvb)
 {
     return (zvb_frame_t){zvb->blitter.framebuffer, zvb->blitter.width,
-        zvb->blitter.height, ZVB_MAX_RES_WIDTH * sizeof(uint16_t), zvb->blitter.sequence};
+                          zvb->blitter.height, ZVB_MAX_RES_WIDTH * sizeof(uint16_t), zvb->blitter.sequence};
 }
 
 /* Frame pixels are RGB565, owned by the ZVB until deinit. Rows have the

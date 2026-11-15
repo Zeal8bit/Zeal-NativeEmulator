@@ -141,7 +141,7 @@ void snes_adapter_attach(nuklear_snes_t* snes_adapter, uint8_t index)
 
 }
 
-void snes_adapter_set_controller_port(nuklear_snes_t *snes_adapter, uint8_t index, int port)
+void snes_adapter_set_controller_port(nuklear_snes_t* snes_adapter, uint8_t index, int port)
 {
     if (index >= SNES_GAMEPAD_COUNT) {
         return;
@@ -171,7 +171,7 @@ void snes_adapter_set_controller_port(nuklear_snes_t *snes_adapter, uint8_t inde
         snes_adapter_controller_name(snes_adapter, index), port);
 }
 
-void snes_adapter_set_mouse_port(nuklear_snes_t *snes_adapter, int port)
+void snes_adapter_set_mouse_port(nuklear_snes_t* snes_adapter, int port)
 {
     for (uint8_t i = 0; i < SNES_CONTROLLER_COUNT; i++) {
         if (snes_adapter->ports[i].device == SNES_PORT_DEVICE_MOUSE) {
@@ -193,7 +193,7 @@ void snes_adapter_set_mouse_port(nuklear_snes_t *snes_adapter, int port)
     printf("[SNES] Attached mouse to port %d\n", port);
 }
 
-int snes_adapter_get_controller_port(const nuklear_snes_t *snes_adapter, uint8_t index)
+int snes_adapter_get_controller_port(const nuklear_snes_t* snes_adapter, uint8_t index)
 {
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (snes_adapter->ports[port].device == SNES_PORT_DEVICE_CONTROLLER &&
@@ -205,7 +205,7 @@ int snes_adapter_get_controller_port(const nuklear_snes_t *snes_adapter, uint8_t
     return SNES_PORT_DETACHED;
 }
 
-int snes_adapter_get_mouse_port(const nuklear_snes_t *snes_adapter)
+int snes_adapter_get_mouse_port(const nuklear_snes_t* snes_adapter)
 {
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (snes_adapter->ports[port].device == SNES_PORT_DEVICE_MOUSE) {
@@ -216,7 +216,7 @@ int snes_adapter_get_mouse_port(const nuklear_snes_t *snes_adapter)
     return SNES_PORT_DETACHED;
 }
 
-void snes_adapter_update(nuklear_snes_t *snes_adapter)
+void snes_adapter_update(nuklear_snes_t* snes_adapter)
 {
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         bool available = snes_controller_available(i);
@@ -269,7 +269,7 @@ static void snes_adapter_attach_available_controllers(nuklear_snes_t* snes_adapt
     }
 }
 
-void snes_adapter_set_virtual_button(nuklear_snes_t *snes_adapter, uint8_t button, bool pressed)
+void snes_adapter_set_virtual_button(nuklear_snes_t* snes_adapter, uint8_t button, bool pressed)
 {
     if (button > SNES_BTN_R) {
         return;
@@ -277,21 +277,21 @@ void snes_adapter_set_virtual_button(nuklear_snes_t *snes_adapter, uint8_t butto
 
     snes_adapter->virtual_controller_enabled = true;
     if (pressed) {
-        snes_adapter->virtual_controller_bits &= (uint16_t)~(1u << button);
+        snes_adapter->virtual_controller_bits &= (uint16_t) ~(1u << button);
     } else {
-        snes_adapter->virtual_controller_bits |= (uint16_t)(1u << button);
+        snes_adapter->virtual_controller_bits |= (uint16_t) (1u << button);
     }
     snes_adapter_attach_available_controllers(snes_adapter);
 }
 
-void snes_adapter_clear_virtual_buttons(nuklear_snes_t *snes_adapter)
+void snes_adapter_clear_virtual_buttons(nuklear_snes_t* snes_adapter)
 {
     snes_adapter->virtual_controller_enabled = true;
     snes_adapter->virtual_controller_bits = 0xFFFF;
     snes_adapter_attach_available_controllers(snes_adapter);
 }
 
-void snes_adapter_reset_mouse_scale(nuklear_snes_t *snes_adapter)
+void snes_adapter_reset_mouse_scale(nuklear_snes_t* snes_adapter)
 {
     snes_mouse_reset_scale(&snes_adapter->mouse);
 }

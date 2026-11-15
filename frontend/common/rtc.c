@@ -14,18 +14,18 @@
 #define DS1307_YEAR_REG 0x6
 #define DS1307_CTRL_REG 0x7
 
-
-static inline uint8_t dec_to_bcd(int val) {
+static inline uint8_t dec_to_bcd(int val)
+{
     return ((val / 10) << 4) | (val % 10);
 }
 
-
-static int bcd_to_bin(uint8_t bcd) {
+static int bcd_to_bin(uint8_t bcd)
+{
     return ((bcd >> 4) * 10) + (bcd & 0x0F);
 }
 
-
-static time_t ds1307_to_time(const uint8_t *ram) {
+static time_t ds1307_to_time(const uint8_t* ram)
+{
     struct tm tm_time;
 
     tm_time.tm_sec  = bcd_to_bin(ram[DS1307_SEC_REG] & 0x7F);     // Seconds (mask out CH bit)
@@ -47,7 +47,7 @@ static time_t ds1307_to_time(const uint8_t *ram) {
 
 static void rtc_read_time(void* userdata, int64_t offset, uint8_t* ram)
 {
-    (void)userdata;
+    (void) userdata;
     /* Take into account the potential time difference programmed */
     const time_t now = time(NULL) + offset;
     const struct tm *tm = localtime(&now);
@@ -63,7 +63,7 @@ static void rtc_read_time(void* userdata, int64_t offset, uint8_t* ram)
 
 static int64_t rtc_adjust_time(void* userdata, const uint8_t* ram)
 {
-    (void)userdata;
+    (void) userdata;
     const time_t base = ds1307_to_time(ram);
     const time_t now = time(NULL);
     return base - now;

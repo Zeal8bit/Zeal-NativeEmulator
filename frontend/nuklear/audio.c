@@ -78,8 +78,8 @@ static zvb_pcm_frame_t playback_ac_couple(nuklear_audio_t* sound, zvb_pcm_frame_
         sound->playback_dc_output[channel] = filtered;
         /* A full-range input step can exceed signed PCM after DC removal.
          * Retain filter precision/state, clipping only the DAC sample. */
-        output[channel] = filtered > INT16_MAX ? INT16_MAX :
-                          filtered < INT16_MIN ? INT16_MIN : (int16_t)filtered;
+        output[channel] = filtered > INT16_MAX ? INT16_MAX : filtered < INT16_MIN ? INT16_MIN
+                                                                                  : (int16_t) filtered;
     }
     sound->playback_dc_ready = true;
     return (zvb_pcm_frame_t){output[0], output[1]};
@@ -95,7 +95,7 @@ static void audio_callback(void* rbuf, unsigned int frames)
         g_sound->playback_started = true;
     }
     if (g_sound->playback_started) {
-        double correction = ((double)g_sound->output_count - SOUND_PLAYBACK_TARGET) /
+        double correction = ((double) g_sound->output_count - SOUND_PLAYBACK_TARGET) /
                             (SAMPLE_RATE * SOUND_PLAYBACK_CORRECTION_SECS);
         if (correction > SOUND_PLAYBACK_MAX_CORRECTION) {
             correction = SOUND_PLAYBACK_MAX_CORRECTION;
@@ -116,7 +116,7 @@ static void audio_callback(void* rbuf, unsigned int frames)
             sample.right = first.right + (second.right - first.right) * fraction;
             g_sound->playback_last = sample;
             g_sound->playback_position += g_sound->playback_rate;
-            const uint32_t consumed = (uint32_t)g_sound->playback_position;
+            const uint32_t consumed = (uint32_t) g_sound->playback_position;
             g_sound->playback_position -= consumed;
             g_sound->output_tail = (g_sound->output_tail + consumed) % SAMPLE_OUTPUT_SIZE;
             g_sound->output_count -= consumed;

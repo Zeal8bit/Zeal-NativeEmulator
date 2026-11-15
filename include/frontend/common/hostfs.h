@@ -29,5 +29,5 @@ typedef struct {
 } frontend_hostfs_t;
 extern frontend_hostfs_t frontend_hostfs;
 void frontend_hostfs_bind(frontend_hostfs_t*, zeal_hostfs_t*);
-void frontend_hostfs_close(frontend_hostfs_t*);
+void                     frontend_hostfs_close(frontend_hostfs_t*);
 int frontend_hostfs_load_path(frontend_hostfs_t*, const char* path);

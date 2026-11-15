@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
     snes_adapter_t* core;
     size_t size; // in bytes
-    pio_t *pio;
+    pio_t*          pio;
 
     uint16_t virtual_controller_bits;
     bool virtual_controller_enabled;
@@ -56,15 +56,15 @@ typedef struct {
 } nuklear_snes_t;
 
 int nuklear_snes_init(nuklear_snes_t* snes_adapter, snes_adapter_t* core);
-void snes_adapter_attach(nuklear_snes_t *snes_adapter, uint8_t index);
-void snes_adapter_detach(nuklear_snes_t *snes_adapter);
-void snes_adapter_update(nuklear_snes_t *snes_adapter);
-void snes_adapter_set_controller_port(nuklear_snes_t *snes_adapter, uint8_t index, int port);
-void snes_adapter_set_mouse_port(nuklear_snes_t *snes_adapter, int port);
-void snes_adapter_reset_mouse_scale(nuklear_snes_t *snes_adapter);
-int snes_adapter_get_controller_port(const nuklear_snes_t *snes_adapter, uint8_t index);
-int snes_adapter_get_mouse_port(const nuklear_snes_t *snes_adapter);
-void snes_adapter_set_virtual_button(nuklear_snes_t *snes_adapter, uint8_t button, bool pressed);
-void snes_adapter_clear_virtual_buttons(nuklear_snes_t *snes_adapter);
+void snes_adapter_attach(nuklear_snes_t* snes_adapter, uint8_t index);
+void snes_adapter_detach(nuklear_snes_t* snes_adapter);
+void snes_adapter_update(nuklear_snes_t* snes_adapter);
+void snes_adapter_set_controller_port(nuklear_snes_t* snes_adapter, uint8_t index, int port);
+void snes_adapter_set_mouse_port(nuklear_snes_t* snes_adapter, int port);
+void snes_adapter_reset_mouse_scale(nuklear_snes_t* snes_adapter);
+int  snes_adapter_get_controller_port(const nuklear_snes_t* snes_adapter, uint8_t index);
+int  snes_adapter_get_mouse_port(const nuklear_snes_t* snes_adapter);
+void snes_adapter_set_virtual_button(nuklear_snes_t* snes_adapter, uint8_t button, bool pressed);
+void snes_adapter_clear_virtual_buttons(nuklear_snes_t* snes_adapter);
 
 extern nuklear_snes_t frontend_snes;

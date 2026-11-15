@@ -11,10 +11,12 @@
 
 static void frontend_reset(void* userdata, zeal_t* machine, bool after_devices)
 {
-    (void)userdata;
+    (void) userdata;
     if (!after_devices) {
         frontend_reset_input(machine);
     } else if (config.arguments.uprog_filename) {
+        /* If a user program was specified, re-read the ROM and re-inject it so
+         * that recompiled programs are picked up automatically on reset. */
         flash_load_from_file(&machine->rom, config.images.rom, config.arguments.uprog_filename);
     }
 }
@@ -44,6 +46,7 @@ int frontend_init(zeal_t* machine, bool allow_debugger)
     if (err) return err;
     machine->reset_hook = frontend_reset;
 #if CONFIG_ENABLE_DEBUGGER
+    /* Load symbols if provided. */
     if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file);
     if (config.arguments.breakpoints) debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
 #endif

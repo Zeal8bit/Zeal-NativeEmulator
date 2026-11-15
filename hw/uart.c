@@ -12,8 +12,8 @@
 #include "hw/pio.h"
 #include "hw/uart.h"
 
-
-static void transfer_complete(uart_t* uart) {
+static void transfer_complete(uart_t* uart)
+{
     char c = 0;
     for(uint8_t i = 1; i < 10; i++) {
         c |= uart->tx_fifo[i] << (i - 1);
@@ -21,7 +21,7 @@ static void transfer_complete(uart_t* uart) {
 
     if(c == 0) return; // can't print null, :shrug:
 
-    if (uart->host && uart->host->uart_byte) uart->host->uart_byte(uart->host->userdata, (uint8_t)c);
+    if (uart->host && uart->host->uart_byte) uart->host->uart_byte(uart->host->userdata, (uint8_t) c);
 }
 
 void write_tx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)

@@ -11,9 +11,10 @@ static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
 {
     (void)pin;
     (void)bit;
-    snes_adapter_t* adapter = &((zeal_t*)pio->machine)->snes_adapter;
+    snes_adapter_t* adapter = &((zeal_t*) pio->machine)->snes_adapter;
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (!adapter->attached[port]) {
+            /* Simulate a pull-up resistor on a detached port. */
             pio_set_a_pin(pio, snes_adapter_data_pin(port), 1);
             continue;
         }
@@ -28,7 +29,7 @@ static void snes_adapter_latch(pio_t* pio, uint8_t pin, uint8_t bit)
 {
     (void)pin;
     (void)bit;
-    snes_adapter_t* adapter = &((zeal_t*)pio->machine)->snes_adapter;
+    snes_adapter_t* adapter = &((zeal_t*) pio->machine)->snes_adapter;
     if (adapter->sample) adapter->sample(adapter->userdata, adapter->port_bits, adapter->attached);
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (adapter->attached[port]) {
@@ -44,6 +45,7 @@ int snes_adapter_init(snes_adapter_t* adapter, pio_t* pio)
     for (int i = 0; i < SNES_CONTROLLER_COUNT; i++) {
         adapter->port_bits[i] = 0xffff;
     }
+    /* Listeners are shared for both ports; registering again is safe. */
     pio_listen_a_pin_change(pio, SNES_IO_LATCH, 1, snes_adapter_latch);
     pio_listen_a_pin_change(pio, SNES_IO_CLOCK, 1, snes_adapter_clock);
     return 0;

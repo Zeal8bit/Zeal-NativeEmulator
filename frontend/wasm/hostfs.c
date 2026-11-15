@@ -49,6 +49,7 @@ static void fs_whoami(frontend_hostfs_t* host)
 
 static frontend_hostfs_t* web_hostfs;
 
+// clang-format off
 EM_JS(int, hostfs_web_enabled, (), {
     return Module.hostfsBackend ? 1 : 0;
 });
@@ -56,16 +57,17 @@ EM_JS(int, hostfs_web_enabled, (), {
 EM_JS(void, hostfs_web_start, (int operation, const char* path, int flags, int descriptor, uint32_t offset, uint16_t guest_address, uint16_t length, const uint8_t* write_data), {
     const request = {
         operation,
-        path : path ? UTF8ToString(path) : null,
+        path: path ? UTF8ToString(path) : null,
         flags,
         descriptor,
-        offset : offset >>> 0,
-        guestAddress : guest_address,
+        offset: offset >>> 0,
+        guestAddress: guest_address,
         length,
-        data : write_data ? HEAPU8.slice(write_data, write_data + length) : null,
+        data: write_data ? HEAPU8.slice(write_data, write_data + length) : null,
     };
     Module.hostfsBackend.start(request);
 });
+// clang-format on
 
 EMSCRIPTEN_KEEPALIVE
 void hostfs_web_complete(uint8_t status, uint8_t reg0, uint8_t reg1,
@@ -99,7 +101,7 @@ static char* get_web_path(frontend_hostfs_t* host)
 
     size_t i;
     for (i = 0; i < 255; i++) {
-        path[i] = (char)mmu_virt_read_byte(host->core->mmu, address++);
+        path[i] = (char) mmu_virt_read_byte(host->core->mmu, address++);
         if (path[i] == '\0') return path;
     }
     path[255] = '\0';
@@ -141,10 +143,10 @@ static void handle_web_operation(frontend_hostfs_t* host, uint8_t operation)
         uint8_t raw_offset[4];
         descriptor = mmu_virt_read_byte(host->core->mmu, structure + ZOS_FD_USER_T);
         mmu_virt_read_array(host->core->mmu, structure + ZOS_FD_OFFSET_T, raw_offset, sizeof(raw_offset));
-        offset = (uint32_t)raw_offset[0] |
-                 ((uint32_t)raw_offset[1] << 8) |
-                 ((uint32_t)raw_offset[2] << 16) |
-                 ((uint32_t)raw_offset[3] << 24);
+        offset        = (uint32_t) raw_offset[0] |
+                        ((uint32_t) raw_offset[1] << 8) |
+                        ((uint32_t) raw_offset[2] << 16) |
+                        ((uint32_t) raw_offset[3] << 24);
         guest_address = (host->core->registers[3] << 8) | host->core->registers[2];
         length = (host->core->registers[5] << 8) | host->core->registers[4];
         if (operation == OP_WRITE && length != 0) {
@@ -181,7 +183,7 @@ void frontend_hostfs_bind(frontend_hostfs_t* host, zeal_hostfs_t* core)
 void frontend_hostfs_close(frontend_hostfs_t* host)
 {
     if (web_hostfs == host) web_hostfs = NULL;
-    free((void*)host->root_path);
+    free((void*) host->root_path);
     host->root_path = NULL;
     if (host->core) {
         host->core->dispatch = NULL;

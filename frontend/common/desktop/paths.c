@@ -7,26 +7,29 @@
 #include "utils/paths.h"
 
 #ifdef _WIN32
-    #include <libloaderapi.h>
-    void get_executable_path(char *buffer, size_t size) {
-        GetModuleFileName(NULL, buffer, (DWORD)size);
-    }
+#include <libloaderapi.h>
+void get_executable_path(char* buffer, size_t size)
+{
+    GetModuleFileName(NULL, buffer, (DWORD)size);
+}
 #elif __linux__
-    #include <unistd.h>
-    #include <limits.h>
-    void get_executable_path(char *buffer, size_t size) {
-        ssize_t len = readlink("/proc/self/exe", buffer, size - 1);
-        if (len != -1) buffer[len] = '\0';
-    }
+#include <unistd.h>
+#include <limits.h>
+void get_executable_path(char* buffer, size_t size)
+{
+    ssize_t len = readlink("/proc/self/exe", buffer, size - 1);
+    if (len != -1) buffer[len] = '\0';
+}
 #elif __APPLE__
-    #include <mach-o/dyld.h>
-    #include <limits.h>
-    void get_executable_path(char *buffer, size_t size) {
-        uint32_t bufsize = (uint32_t)size;
-        if (_NSGetExecutablePath(buffer, &bufsize) != 0) {
-            fprintf(stderr, "Buffer too small; need size %u\n", bufsize);
-        }
+#include <mach-o/dyld.h>
+#include <limits.h>
+void get_executable_path(char* buffer, size_t size)
+{
+    uint32_t bufsize = (uint32_t) size;
+    if (_NSGetExecutablePath(buffer, &bufsize) != 0) {
+        fprintf(stderr, "Buffer too small; need size %u\n", bufsize);
     }
+}
 #else
     #error "Unsupported platform"
 #endif

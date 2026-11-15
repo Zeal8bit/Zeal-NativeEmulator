@@ -49,7 +49,8 @@ static void ui_snes_toggle_submenu(snes_ui_submenu_t submenu, uint8_t controller
     s_snes_submenu_controller = controller_index;
 }
 
-static void ui_snes_render_port_options(struct nk_context* ctx, nuklear_snes_t* snes_adapter, snes_ui_submenu_t submenu, uint8_t controller_index) {
+static void ui_snes_render_port_options(struct nk_context* ctx, nuklear_snes_t* snes_adapter, snes_ui_submenu_t submenu, uint8_t controller_index)
+{
     int current_port = submenu == SNES_UI_SUBMENU_MOUSE
         ? snes_adapter_get_mouse_port(snes_adapter)
         : snes_adapter_get_controller_port(snes_adapter, controller_index);

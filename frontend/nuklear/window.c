@@ -2,7 +2,8 @@
 #include "raylib.h"
 #include "utils/config.h"
 #include "hw/zvb/zvb.h"
-void config_window_update(bool dbg_enabled) {
+void config_window_update(bool dbg_enabled)
+{
     if(dbg_enabled) {
         config.debugger.width = GetScreenWidth();
         config.debugger.height = GetScreenHeight();
@@ -19,7 +20,8 @@ void config_window_update(bool dbg_enabled) {
     config.window.display = GetCurrentMonitor();
 }
 
-Vector2 config_aspect_force(Vector2 size) {
+Vector2 config_aspect_force(Vector2 size)
+{
     Vector2 aspect = { .x = 4, .y = 3 };
     // calculate aspect for missing size
 
@@ -32,12 +34,14 @@ Vector2 config_aspect_force(Vector2 size) {
     return size;
 }
 
-bool config_keyboard_passthru(bool dbg_enabled) {
+bool config_keyboard_passthru(bool dbg_enabled)
+{
     if(!dbg_enabled) return false; // only enable passthru in debugger ui
     return config.debugger.keyboard_passthru;
 }
 
-void config_window_set(bool dbg_enabled) {
+void config_window_set(bool dbg_enabled)
+{
 
     int d = config.window.display >= 0 ? config.window.display : GetCurrentMonitor();
     SetWindowMonitor(d);

@@ -39,7 +39,8 @@ static bool ram_dma_access_can_defer(device_t* dev, uint32_t addr)
     return addr < ram->size;
 }
 
-int ram_init(ram_t* r, const hw_host_t* host) {
+int ram_init(ram_t* r, const hw_host_t* host)
+{
     if(r == NULL) {
         return 1;
     }
