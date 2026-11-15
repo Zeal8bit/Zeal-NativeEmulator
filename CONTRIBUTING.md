@@ -26,14 +26,16 @@ For WebAssembly, activate Emscripten **7.0.0** with `emcc`, `em++`, and
 `emar` available, then configure a separate build:
 
 ```sh
+python3 tools/build_raylib_web.py
 meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 ```
 
 The WASM cross file disables the debugger by default; add
 `-Denable_debugger=true` when needed. Serve the generated browser files through
-an HTTP server rather than opening them directly. The bundled web dependency is
-Raylib 6.2; see [its rebuild instructions](raylib/web/README.md). Run the browser
+an HTTP server rather than opening them directly. The helper builds Raylib 6.2
+headers and library in `raylib/web/`, where generated files are ignored by Git;
+see [its build instructions](raylib/web/README.md). Run the browser
 storage and lifecycle checks, when available locally, with
 `node tests/wasm-tests/run.mjs build-wasm`
 ([details](assets/wasm/README.md)). The harnesses are untracked under `tests/`
@@ -74,15 +76,20 @@ variations; avoid reformatting unrelated lines.
 - Use four spaces for indentation, no trailing whitespace, and a final newline.
 - Use `snake_case` for functions and variables, subsystem prefixes for exposed
   names, and `_t` for typedef names. Use `UPPER_SNAKE_CASE` for macros.
+- Choose argument and variable names that describe their role. Avoid single-letter
+  names and opaque abbreviations; prefer names such as `bytes_written`,
+  `page_offset`, and `source_directory`.
 - Put function opening braces on their own line. Put control-flow opening braces
   on the same line as the condition, with a space after `if`, `for`, `while`, and
   `switch`. Write `} else {` and `} else if (...) {` on one line.
+  Keep opening braces for struct, enum, and union definitions on the same line.
 - Use braces for control-flow bodies. Short guard statements such as
   `if (!request) return;` and `if (machine->should_exit) break;` may omit braces
   and stay on one line. Expand braced bodies onto separate lines.
 - Declare one variable or struct member per line. Write one assignment per line;
   do not chain assignments. Split multiple statements onto separate lines.
 - Write one `case` label per line, with its statements on following lines.
+  Indent case labels inside the `switch` and their statements one level further.
   Preserve intentional fallthrough and use a block when a case needs local
   declarations.
 - Name register indexes, address boundaries, masks, dimensions, and timing
@@ -94,6 +101,8 @@ variations; avoid reformatting unrelated lines.
   Avoid bare `unsigned` declarations.
 - Match the prevailing pointer style, such as `const uint8_t* data`. Use `const`
   for inputs and local values that are not modified.
+  Keep a space after C-style casts, as in `(flash_t*) device`. Preserve aligned
+  declarations, assignments, macro values, and related array entries for readability.
 - Keep implementation-only functions and state `static`. Use `static inline`
   for small hot-path helpers where appropriate. Follow the existing device
   callback and initialization patterns instead of duplicating device plumbing.
@@ -127,6 +136,9 @@ short guard statements and `} else {` on one line. Use file-based style in your
 editor so format on save picks up these settings. There is no formatting check
 in CI; inspect `git diff --check`. Do not run a formatter over unrelated project
 code or bundled dependencies.
+
+Use `clang-format off`/`clang-format on` around manually aligned tables when the
+formatter cannot preserve their grouping and spacing.
 
 ## Testing
 

@@ -45,30 +45,30 @@
             if (new Set(this.images.map(image => image.id)).size !== this.images.length) {
                 throw new Error('Configured images must have distinct storage keys');
             }
-            let acquired;
-            const ready = new Promise((resolve, reject) => { acquired = {resolve, reject}; });
+            let lockAcquisition;
+            const lockReady = new Promise((resolve, reject) => { lockAcquisition = {resolve, reject}; });
             this.lockTask = navigator.locks.request(`zeal-images:${this.storage}:${namespace}`,
                 {mode: 'exclusive', ifAvailable: true}, async lock => {
                     if (!lock) throw new Error('Disk images are already in use by another tab');
                     await new Promise(resolve => {
                         this.releaseLock = resolve;
-                        acquired.resolve();
+                        lockAcquisition.resolve();
                     });
                 });
-            this.lockTask.catch(acquired.reject);
-            await ready;
+            this.lockTask.catch(lockAcquisition.reject);
+            await lockReady;
             try {
                 if (this.storage === 'opfs') {
                     if (!navigator.storage?.getDirectory) {
                         throw new Error('OPFS is unavailable; use HTTPS and a browser with OPFS support');
                     }
-                    const root = await navigator.storage.getDirectory();
-                    const app = await root.getDirectoryHandle('zeal-native', {create: true});
-                    this.directory = await app.getDirectoryHandle(namespace, {create: true});
-                    let file;
-                    try { file = await this.directory.getFileHandle('manifest.json'); }
+                    const rootDirectory = await navigator.storage.getDirectory();
+                    const applicationDirectory = await rootDirectory.getDirectoryHandle('zeal-native', {create: true});
+                    this.directory = await applicationDirectory.getDirectoryHandle(namespace, {create: true});
+                    let manifestFile;
+                    try { manifestFile = await this.directory.getFileHandle('manifest.json'); }
                     catch (error) { if (error.name !== 'NotFoundError') throw error; }
-                    this.manifest = file ? JSON.parse(await (await file.getFile()).text())
+                    this.manifest = manifestFile ? JSON.parse(await (await manifestFile.getFile()).text())
                         : {version: 1, images: {}};
                 }
                 if (this.manifest.version !== 1 || !this.manifest.images ||
@@ -126,20 +126,20 @@
             }
         }
 
-        async stageUpdates(names) {
-            const selected = [...new Set(names)].map(name => this.descriptor(name));
-            const next = structuredClone(this.manifest);
+        async stageUpdates(imageNames) {
+            const selected = [...new Set(imageNames)].map(name => this.descriptor(name));
+            const nextManifest = structuredClone(this.manifest);
             const files = [];
             try {
                 for (const image of selected) {
                     const remote = await this.fetchRemote(image);
-                    const file = `${crypto.randomUUID()}.img`;
-                    files.push(file);
-                    if (this.storage === 'opfs') await this.writeFile(file, remote.data);
-                    else this.memory.set(file, remote.data);
-                    next.images[image.id] = {file, etag: remote.etag, lastModified: remote.lastModified};
+                    const filename = `${crypto.randomUUID()}.img`;
+                    files.push(filename);
+                    if (this.storage === 'opfs') await this.writeFile(filename, remote.data);
+                    else this.memory.set(filename, remote.data);
+                    nextManifest.images[image.id] = {file: filename, etag: remote.etag, lastModified: remote.lastModified};
                 }
-                return {manifest: next, files};
+                return {manifest: nextManifest, files};
             } catch (error) {
                 await this.removeFiles(files);
                 throw error;
@@ -147,10 +147,10 @@
         }
 
         async removeFiles(files) {
-            for (const file of files) {
+            for (const filename of files) {
                 try {
-                    if (this.storage === 'opfs') await this.directory.removeEntry(file);
-                    else this.memory.delete(file);
+                    if (this.storage === 'opfs') await this.directory.removeEntry(filename);
+                    else this.memory.delete(filename);
                 } catch (error) {
                     if (error.name !== 'NotFoundError') {
                         // Cleanup happens after commit. An observer must not turn a
@@ -169,11 +169,11 @@
                 await this.removeFiles(staged.files);
                 throw error;
             }
-            const previous = this.manifest;
+            const previousManifest = this.manifest;
             this.manifest = staged.manifest;
-            const retained = new Set(Object.values(this.manifest.images).map(record => record.file));
-            await this.removeFiles(Object.values(previous.images)
-                .map(record => record.file).filter(file => !retained.has(file)));
+            const retainedFiles = new Set(Object.values(this.manifest.images).map(record => record.file));
+            await this.removeFiles(Object.values(previousManifest.images)
+                .map(record => record.file).filter(filename => !retainedFiles.has(filename)));
         }
 
         async loadAll() {
@@ -225,21 +225,21 @@
             return updates;
         }
 
-        async persist(fs) {
+        async persist(filesystem) {
             if (this.storage !== 'opfs') {
                 for (const image of this.images) {
-                    const file = this.manifest.images[image.id].file;
-                    const data = fs.readFile(image.path);
-                    this.memory.set(file, data);
+                    const filename = this.manifest.images[image.id].file;
+                    const data = filesystem.readFile(image.path);
+                    this.memory.set(filename, data);
                 }
             }
             return this.images.map(image => image.name);
         }
 
         async clear() {
-            const next = structuredClone(this.manifest);
-            for (const image of this.images) delete next.images[image.id];
-            await this.commit({manifest: next, files: []});
+            const nextManifest = structuredClone(this.manifest);
+            for (const image of this.images) delete nextManifest.images[image.id];
+            await this.commit({manifest: nextManifest, files: []});
         }
 
         async usage() {

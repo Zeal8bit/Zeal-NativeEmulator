@@ -152,28 +152,6 @@ orderly exit. `saveDiskImages()` still flushes all three devices; `reload()` and
 `exit()` flush before teardown. Memory mode keeps snapshots in the current
 `ZealNative` instance; it does not persist data across page reloads.
 
-The non-threaded OPFS backend commits each filesystem write, so persistent I/O
-has higher latency than memory storage. The device benchmark reports 32 adjacent
-TF sector writes to a 2 MB image and 32 EEPROM page transactions to a 64 KB image.
-It includes a final barrier so comparison with the previous buffered policy
-counts all submitted writes. The separate completion regression does **not**
-use those barriers: it observes each device through native browser OPFS reads,
-leaves both C streams open, kills Chrome, and verifies bytes in a new browser
-process without loading any WASM module.
-
-Local Chrome measurements against the previous device policy (`bdd27b6`), using
-three alternating runs of the same benchmark with all writes drained at the end:
-
-| Workload | Previous median (range) | Completed-write flush median (range) |
-| --- | --- | --- |
-| 32 TF sectors, 2 MB image | 249 ms (224–281) | 233 ms (231–329) |
-| 32 EEPROM pages, 64 KB image | 97 ms (81–98) | 68 ms (64–69) |
-
-These small samples show browser I/O variability, not a general speedup or
-throughput guarantee. The policy moves persistence latency onto each completed
-transaction instead of deferring it to the next seek or explicit barrier. It
-does not add a second OPFS synchronization operation per transaction.
-
 ## Remote updates
 
 Startup checks do not delay booting a local image. A check uses ETag, falling back
@@ -215,6 +193,7 @@ The browser regression harnesses are local, untracked files under
 When the harnesses are available locally, activate Emscripten 7.0.0, then:
 
 ```sh
+python3 tools/build_raylib_web.py
 meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 node tests/wasm-tests/run.mjs build-wasm
@@ -238,5 +217,5 @@ missing executable/file, and copy operations. It writes a screenshot to
 `<build>/wasm-tests/hostfs-zshell.png`. Without `ZEAL_OS_IMAGE`, that check is
 explicitly skipped; the browser HostFS protocol/error tests still run.
 
-See `raylib/web/README.md` for the reproducible dependency rebuild. Native
+See `raylib/web/README.md` for the reproducible dependency build. Native
 Raylib bundles are independent of the web dependency.

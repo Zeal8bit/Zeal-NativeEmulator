@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Rebuild the bundled web dependency from the pinned, unmodified release."""
+# SPDX-FileCopyrightText: 2026 David Higgins <zoul0813@me.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Build the web dependency from the pinned, unmodified Raylib release."""
 
 import argparse
 import hashlib
@@ -21,25 +25,25 @@ def main():
     parser.add_argument(
         "--archive", type=Path, help="Use a previously downloaded source archive"
     )
-    args = parser.parse_args()
-    version = subprocess.check_output(["emcc", "--version"], text=True).splitlines()[0]
-    if f" {EMSCRIPTEN} " not in version:
-        raise SystemExit(f"Activate Emscripten {EMSCRIPTEN} first; found: {version}")
-    with tempfile.TemporaryDirectory(prefix="zeal-raylib-") as temporary:
-        work = Path(temporary)
-        archive = args.archive or work / "raylib.tar.gz"
-        if not args.archive:
+    arguments = parser.parse_args()
+    compiler_version = subprocess.check_output(["emcc", "--version"], text=True).splitlines()[0]
+    if f" {EMSCRIPTEN} " not in compiler_version:
+        raise SystemExit(f"Activate Emscripten {EMSCRIPTEN} first; found: {compiler_version}")
+    with tempfile.TemporaryDirectory(prefix="zeal-raylib-") as temporary_directory:
+        build_directory = Path(temporary_directory)
+        archive = arguments.archive or build_directory / "raylib.tar.gz"
+        if not arguments.archive:
             urllib.request.urlretrieve(URL, archive)
         if hashlib.sha256(archive.read_bytes()).hexdigest() != SHA256:
             raise SystemExit("Raylib source checksum mismatch")
-        with tarfile.open(archive) as source:
-            source.extractall(work, filter="data")
-        src = work / f"raylib-{VERSION}" / "src"
+        with tarfile.open(archive) as source_archive:
+            source_archive.extractall(build_directory, filter="data")
+        source_directory = build_directory / f"raylib-{VERSION}" / "src"
         subprocess.run(
             [
                 "make",
                 "-C",
-                str(src),
+                str(source_directory),
                 "-j8",
                 "PLATFORM=PLATFORM_WEB",
                 "GRAPHICS=GRAPHICS_API_OPENGL_ES3",
@@ -47,11 +51,13 @@ def main():
             ],
             check=True,
         )
-        output = Path(__file__).resolve().parent.parent / "raylib" / "web"
+        output_directory = Path(__file__).resolve().parent.parent / "raylib" / "web"
+        (output_directory / "include").mkdir(parents=True, exist_ok=True)
+        (output_directory / "lib").mkdir(parents=True, exist_ok=True)
         for header in ("raylib.h", "raymath.h", "rlgl.h"):
-            shutil.copyfile(src / header, output / "include" / header)
-        shutil.copyfile(src / "libraylib.web.a", output / "lib" / "libraylib.a")
-        print(f"Updated {output} with Raylib {VERSION}, Emscripten {EMSCRIPTEN}")
+            shutil.copyfile(source_directory / header, output_directory / "include" / header)
+        shutil.copyfile(source_directory / "libraylib.web.a", output_directory / "lib" / "libraylib.a")
+        print(f"Updated {output_directory} with Raylib {VERSION}, Emscripten {EMSCRIPTEN}")
 
 
 if __name__ == "__main__":

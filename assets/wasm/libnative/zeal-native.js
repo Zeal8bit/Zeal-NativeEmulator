@@ -119,15 +119,15 @@
             return this.binaryPromises.get(key);
         }
 
-        ensureDirectory(fs, path) {
-            fs.mkdirTree(path);
+        ensureDirectory(filesystem, path) {
+            filesystem.mkdirTree(path);
         }
 
-        writeBinary(fs, path, data) {
+        writeBinary(filesystem, path, data) {
             const separator = path.lastIndexOf('/');
             const parent = separator > 0 ? path.slice(0, separator) : '';
-            if (parent) this.ensureDirectory(fs, parent);
-            fs.writeFile(path, data);
+            if (parent) this.ensureDirectory(filesystem, parent);
+            filesystem.writeFile(path, data);
         }
 
         async loadModule() {
@@ -157,15 +157,15 @@
             try {
                 const images = await this.diskImages.loadAll();
                 const userProgram = await this.resolveBinary(this.userProgram);
-                const args = [...this.arguments];
+                const runtimeArguments = [...this.arguments];
                 for (const image of this.diskImages.images) {
                     const flag = {romdisk: '-r', eeprom: '-e', tf: '-t'}[image.name];
-                    if (args.includes(flag)) throw new Error(`Configure ${image.name} through diskImages, not ${flag}`);
-                    args.push(flag, image.path);
+                    if (runtimeArguments.includes(flag)) throw new Error(`Configure ${image.name} through diskImages, not ${flag}`);
+                    runtimeArguments.push(flag, image.path);
                 }
-                if (userProgram) args.push('-u', this.userProgramPath);
+                if (userProgram) runtimeArguments.push('-u', this.userProgramPath);
                 const moduleOptions = {
-                    arguments: args,
+                    arguments: runtimeArguments,
                     imageStorage: this.imageStorage,
                     hostfsBackend: this.hostfs,
                     print: this.print,
@@ -247,21 +247,21 @@
         }
 
         runExclusive(operation) {
-            const previous = this.operationPromise || Promise.resolve();
-            const current = previous.catch(() => {}).then(async () => {
+            const previousOperation = this.operationPromise || Promise.resolve();
+            const currentOperation = previousOperation.catch(() => {}).then(async () => {
                 this.loading = true;
                 this.onLoadingChange?.(true);
                 try { return await operation(); }
                 catch (error) { this.reportStorageError(error); throw error; }
             }).finally(() => {
-                if (this.operationPromise === current) {
+                if (this.operationPromise === currentOperation) {
                     this.operationPromise = null;
                     this.loading = false;
                     this.onLoadingChange?.(false);
                 }
             });
-            this.operationPromise = current;
-            return current;
+            this.operationPromise = currentOperation;
+            return currentOperation;
         }
 
         start() {
@@ -336,15 +336,15 @@
             });
         }
 
-        applyImageUpdates(names) {
+        applyImageUpdates(imageNames) {
             return this.runExclusive(async () => {
-                if (!Array.isArray(names)) throw new TypeError('Image names must be an array');
-                if (!names.length) {
+                if (!Array.isArray(imageNames)) throw new TypeError('Image names must be an array');
+                if (!imageNames.length) {
                     if (this.startupError) throw this.startupError;
                     return this.module;
                 }
                 await this.diskImages.open();
-                const staged = await this.diskImages.stageUpdates(names);
+                const staged = await this.diskImages.stageUpdates(imageNames);
                 const running = !!this.module;
                 try {
                     await this.exitModule();

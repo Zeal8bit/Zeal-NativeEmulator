@@ -20,7 +20,10 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson ninja-build unzip
+          sudo apt-get install -y meson ninja-build make unzip
+
+      - name: Build Raylib for WebAssembly
+        run: python3 tools/build_raylib_web.py
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build

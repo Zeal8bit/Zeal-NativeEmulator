@@ -54,9 +54,10 @@ You will then have a `zeal-native` binary that you can run. You can check all th
 
 ### WebAssembly compilation
 
-To compile to WASM, use the following commands:
+Activate **Emscripten 7.0.0**, then compile to WASM with:
 
 ```sh
+python3 tools/build_raylib_web.py
 meson setup build-wasm --cross-file wasm-cross.build
 cd build-wasm
 meson compile
@@ -67,9 +68,8 @@ meson compile
 > `-Denable_debugger=true` to enable it explicitly.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
-Activate **Emscripten 7.0.0** before building. The web build uses the bundled
-**Raylib 6.2** headers and library in `raylib/web`. See its
-[rebuild instructions](raylib/web/README.md) to reproduce the dependency.
+The helper builds **Raylib 6.2** headers and library in `raylib/web/`, where
+generated files are ignored by Git. See its [build instructions](raylib/web/README.md).
 
 Browser images use OPFS through WasmFS by default. Chrome and ordinary HTTPS
 static hosting (including GitHub Pages) are supported without custom headers.
