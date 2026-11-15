@@ -11,7 +11,6 @@ exe_wrapper = 'node'  # allows Meson to run test programs if needed
 raylib_path = '../raylib/web'
 
 [project options]
-wasm_embed_roms = false
 show_fps = false
 enable_debugger = false
 

@@ -17,6 +17,3 @@ wasm_link_args = ['--emit-symbol-map',
              '-sASYNCIFY_STACK_SIZE=65536']
 # Optional overrides supplied by a custom toolchain file.
 wasm_link_args += meson.get_external_property('link_args', [])
-if get_option('wasm_embed_roms')
-    wasm_link_args += ['--embed-file', 'roms']
-endif

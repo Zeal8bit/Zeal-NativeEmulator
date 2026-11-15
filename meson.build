@@ -79,11 +79,6 @@ if build_nuklear or build_wasm
         zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
         graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
     endif
-    run_command('mkdir', '-p', meson.project_build_root() / 'roms', check: true)
-    res = run_command('cp', 'roms/default.img', meson.project_build_root() / 'roms/default.img', check: false)
-    if res.returncode() != 0
-        warning('default.img not found, skipping copy')
-    endif
 endif
 
 if build_nuklear

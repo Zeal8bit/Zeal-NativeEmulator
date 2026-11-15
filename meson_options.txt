@@ -15,6 +15,5 @@ option('profile_render', type: 'boolean', value: false, description: 'Log aggreg
 
 ## WASM / Web Builds
 option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
-option('wasm_embed_roms', type: 'boolean', value: false, description: 'Embed the `roms/` dir in WASM builds')
 
 option('frontend', type: 'combo', choices: ['auto', 'none', 'headless', 'nuklear', 'both', 'wasm'], value: 'auto', description: 'Frontend targets; auto builds both native or the WASM frontend on Emscripten')

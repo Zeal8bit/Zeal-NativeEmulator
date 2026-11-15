@@ -1,5 +1,9 @@
 # WASM images and storage
 
+ROM images are supplied at runtime by the embedding page. The emulator build
+does not copy or embed `default.img`; serve the configured image alongside the
+page or provide its URL through the template configuration.
+
 The browser build uses Raylib 6.2, Emscripten 7.0.0, WasmFS and Asyncify. Chrome
 is the supported browser. Serve over HTTPS (or localhost for development).
 GitHub Pages works without custom response headers, cross-origin isolation,

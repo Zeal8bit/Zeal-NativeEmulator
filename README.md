@@ -115,7 +115,9 @@ Or simply delete the build directory.
 
 You can add `zeal-native` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
 
+ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
+For WASM, the embedding page supplies the ROM image through its template configuration.
 You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
 download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Zeal8bit/Zeal-8-bit-OS/releases) page.
 
