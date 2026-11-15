@@ -3,7 +3,7 @@
 ## Development Setup
 
 Use GCC or Clang, Meson, and Ninja. Graphical builds additionally require
-Raylib 5.5 or newer and its platform dependencies (OpenGL natively, WebGL2
+Raylib 6.2 and its platform dependencies (OpenGL natively, WebGL2
 in browsers). Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
 
 Run commands from the repository root. For development:
