@@ -1,0 +1,103 @@
+name: Pull Request Builds
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    name: Build Linux
+    uses: ./.github/workflows/build-linux.yml
+
+  build-macos-arm:
+    name: Build macOS ARM
+    uses: ./.github/workflows/build-macos-arm.yml
+
+  build-macos-intel:
+    name: Build macOS Intel
+    uses: ./.github/workflows/build-macos-intel.yml
+
+  build-windows:
+    name: Build Windows
+    uses: ./.github/workflows/build-windows.yml
+
+  test-windows:
+    name: Test Windows executables
+    needs: build-windows
+    runs-on: windows-latest
+    steps:
+      - name: Download Windows executables
+        uses: actions/download-artifact@v8
+        with:
+          name: zeal-native-windows
+          path: build
+
+      - name: Test executables
+        shell: pwsh
+        run: |
+          ./build/zeal-native.exe --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./build/zeal-headless.exe --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  build-wasm:
+    name: Build WebAssembly
+    uses: ./.github/workflows/build-wasm.yml
+
+  build-configurations:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core only
+            args: -Dfrontend=none
+            native: false
+            headless: false
+          - name: headless only
+            args: -Dfrontend=headless
+            native: false
+            headless: true
+          - name: Nuklear only
+            args: -Dfrontend=nuklear
+            native: true
+            headless: false
+          - name: debugger and scanline disabled
+            args: -Dfrontend=both -Denable_debugger=false -Dscanline_rendering=false
+            native: true
+            headless: true
+          - name: profiling enabled
+            args: -Dfrontend=both -Dprofile_render=true -Dshow_fps=true
+            native: true
+            headless: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+
+      - name: Build with Meson
+        uses: ./.github/actions/meson-build
+        with:
+          raylib-path: ${{ github.workspace }}/raylib/linux64
+          meson-args: ${{ matrix.args }}
+
+      - name: Test graphical executable
+        if: matrix.native
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/raylib/linux64/lib
+        run: ./build/zeal-native --help
+
+      - name: Test headless executable
+        if: matrix.headless
+        run: ./build/zeal-headless --help

@@ -94,13 +94,13 @@ jobs:
       - name: Create Release Archives
         run: |
           cd artifacts/linux
-          tar -czf ../../zeal-native-linux-x64.tar.gz zeal-native
+          tar -czf ../../zeal-native-linux-x64.tar.gz zeal-native zeal-headless
           cd ../macos-arm
-          tar -czf ../../zeal-native-macos-arm.tar.gz zeal-native
+          tar -czf ../../zeal-native-macos-arm.tar.gz zeal-native zeal-headless
           cd ../macos-intel
-          tar -czf ../../zeal-native-macos-intel.tar.gz zeal-native
+          tar -czf ../../zeal-native-macos-intel.tar.gz zeal-native zeal-headless
           cd ../windows
-          zip ../../zeal-native-windows-x64.zip zeal-native.exe
+          zip ../../zeal-native-windows-x64.zip zeal-native.exe zeal-headless.exe
           cd ../wasm
           zip -r ../../zeal-native-wasm.zip .
           cd ../..
