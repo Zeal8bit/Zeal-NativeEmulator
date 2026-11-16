@@ -1,5 +1,9 @@
 # WASM images and storage
 
+ROM images are supplied at runtime by the embedding page. The emulator build
+does not copy or embed `default.img`; serve the configured image alongside the
+page or provide its URL through the template configuration.
+
 The browser build uses Raylib 6.2, Emscripten 7.0.0, WasmFS and Asyncify. Chrome
 is the supported browser. Serve over HTTPS (or localhost for development).
 GitHub Pages works without custom response headers, cross-origin isolation,
@@ -219,3 +223,17 @@ explicitly skipped; the browser HostFS protocol/error tests still run.
 
 See `raylib/web/README.md` for the reproducible dependency build. Native
 Raylib bundles are independent of the web dependency.
+
+
+### Frontend boundary
+
+Emscripten builds select `frontend/wasm/` (`-Dfrontend=wasm`, or `auto`). It owns
+the Raylib normal-view renderer, browser input/audio, loop, Emscripten exports,
+OPFS startup, and HostFS bridge. It does not compile or link Nuklear, debugger
+panels, or debugger textures. `-Denable_debugger=true` enables only the emulator
+core API. The desktop debugger remains in `frontend/nuklear/`.
+
+The native web template no longer offers a debugger button. For compatibility
+with existing embedding code, `toggleDebugger()` remains callable and returns
+`false`; the old C toggle export is a no-op. FPS, virtual SNES controls, Save,
+reload, exit, and storage APIs retain their behavior and export names.

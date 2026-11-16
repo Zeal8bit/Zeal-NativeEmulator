@@ -31,6 +31,14 @@ jobs:
           cross-file: wasm-cross.build
           meson-args: -Dwasm_template=native
 
+      - name: Build with core debugger enabled
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/meson-build
+        with:
+          build-dir: build-debugger
+          cross-file: wasm-cross.build
+          meson-args: -Dwasm_template=native -Denable_debugger=true
+
       - name: Download latest Zeal 8-bit OS image
         run: |
           curl --fail --location --retry 3 \

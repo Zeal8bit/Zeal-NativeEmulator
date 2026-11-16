@@ -9,10 +9,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
-#include "raylib.h"
-#include "utils/log.h"
+
+#include "hw/host.h"
 #include "utils/helpers.h"
-#include "utils/paths.h"
 #include "hw/mmu.h"
 #include "hw/zvb/zvb.h"
 #include "hw/zvb/default_font.h"
@@ -50,19 +49,7 @@
 #define SIZE_WITH_GRID(TILESIZE, TILECOUNT)    ((((TILESIZE)+1)*TILECOUNT)+1)
 
 
-#if CONFIG_PROFILE_RENDER
-typedef struct {
-    double window_start;
-    double frame_total;
-    double frame_max;
-    double zvb_total;
-    double zvb_max;
-    uint64_t frames;
-    uint64_t zvb_calls;
-} render_profile_t;
 
-static render_profile_t s_render_profile;
-#endif
 
 
 #define ZVB_IO_SIZE         (3 * 16)
@@ -178,7 +165,7 @@ static bool zvb_mem_dma_access_can_defer(device_t* dev, uint32_t addr)
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -208,7 +195,7 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -244,7 +231,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
             return (zvb->current_scanline >> 0) & 0xff;
         case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
         case ZVB_IO_CONFIG_HPOS_LOW: {
-            const uint32_t hpos = (vtimer_now_ns() - zvb->line_start_ns) / ZVB_PIXEL_NS;
+            const uint32_t hpos = (vtimer_now_ns(zvb->timer.clock) - zvb->line_start_ns) / ZVB_PIXEL_NS;
             zvb->ctrl.hpos_latch = (hpos >> 8) & ZVB_HPOS_HIGH_MASK;
             return hpos & ZVB_HPOS_LOW_MASK;
         }
@@ -268,7 +255,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
         case ZVB_IO_CONFIG_EXT_STATUS_REG:
             return zvb_external_interrupts(zvb);
         default:
-            log_err_printf("[ZVB][CTRL] Unknwon register %x\n", addr);
+            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unknwon register %x\n", addr);
             break;
     }
 
@@ -279,7 +266,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
 static uint8_t zvb_io_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
 
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr == ZVB_IO_REV_REG)  {
@@ -351,7 +338,7 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             zvb_update_interrupts(zvb);
             break;
         default:
-            log_err_printf("[ZVB][CTRL] Unsupported write register %x\n", addr);
+            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unsupported write register %x\n", addr);
             break;
     }
 }
@@ -393,7 +380,7 @@ static void zvb_peripheral_write(zvb_t* zvb, uint8_t bank, uint32_t subaddr, uin
 static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns());
+    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     /* Video Board configuration goes from 0x00 to 0x0F included */
     if (addr >= ZVB_IO_SCRAT0_REG && addr <= ZVB_IO_SCRAT3_REG) {
         zvb->scratch[addr - ZVB_IO_SCRAT0_REG] = data;
@@ -412,24 +399,10 @@ static void zvb_io_write(device_t* dev, uint32_t addr, uint8_t data)
 }
 
 
-#if CONFIG_ENABLE_DEBUGGER
-/**
- * @brief Create the CPU Image and its GPU Texture for one VRAM debug view.
- * The image keeps its pixel buffer, which is filled by the CPU debug renderer
- * and uploaded to the texture with UpdateTexture().
- */
-static void zvb_debug_tex_init(zvb_t* dev, dbg_vram_t view, int width, int height)
-{
-    dev->debug_img[view] = GenImageColor(width, height, BLANK);
-    dev->debug_tex[view] = LoadTextureFromImage(dev->debug_img[view]);
-}
-#endif
-
-
 static void zvb_fsm_next(void* userdata);
 
 
-int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested)
+int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu, bool* bus_requested)
 {
     if (dev == NULL || config == NULL || mmu == NULL || bus_requested == NULL) {
         return 1;
@@ -443,6 +416,7 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
     dev->parent.mem_region.dma_access_can_defer = zvb_mem_dma_access_can_defer;
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
+    dev->parent.host = config->host;
     dev->mode = MODE_DEFAULT;
     dev->rendering_enabled = rendering_enabled;
     dev->pio = config->pio;
@@ -453,34 +427,29 @@ int zvb_init(zvb_t* dev, const zvb_config_t* config, mmu_t* mmu, bool* bus_reque
     zvb_tileset_init(&dev->tileset, rendering_enabled);
     zvb_text_init(&dev->text);
     zvb_sprites_init(&dev->sprites, rendering_enabled);
-    zvb_spi_init(&dev->spi);
+    zvb_spi_init(&dev->spi, clock);
+    dev->spi.tf.host = config->host;
     zvb_crc32_init(&dev->peri_crc32);
     zvb_sound_init(&dev->sound, rendering_enabled);
-    zvb_dma_init(&dev->dma, mmu, bus_requested, !config->dma_disabled);
+    zvb_dma_init(&dev->dma, clock, mmu, bus_requested, !config->dma_disabled);
     zvb_rpu_init(&dev->rpu);
-    zvb_timer_init(&dev->peri_timer, zvb_update_interrupts, dev);
+    zvb_timer_init(&dev->peri_timer, clock, zvb_update_interrupts, dev);
 
     if (dev->rendering_enabled) {
-#if CONFIG_ENABLE_DEBUGGER
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER0, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        zvb_debug_tex_init(dev, DBG_TILEMAP_LAYER1, ZVB_DBG_RES_WIDTH, ZVB_DBG_RES_HEIGHT);
-        /* Count the grid in the width. For the tileset, use a 16x32 tiles size */
-        zvb_debug_tex_init(dev, DBG_TILESET, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 32));
-        zvb_debug_tex_init(dev, DBG_PALETTE, SIZE_WITH_GRID(16, 16), SIZE_WITH_GRID(16, 16));
-        zvb_debug_tex_init(dev, DBG_FONT,    SIZE_WITH_GRID(8, 16),  SIZE_WITH_GRID(12, 16));
-#endif
+
         zvb_blitter_init(dev);
+        if (!dev->blitter.framebuffer) return 2;
     }
 
     /* Set the state to STATE_RENDERING, waiting for the next event */
     dev->state = STATE_RENDERING;
-    vtimer_init_node(&dev->timer, zvb_fsm_next, dev);
+    vtimer_init_node(&dev->timer, clock, zvb_fsm_next, dev);
 #if ZVB_SCANLINE_RENDERING
     dev->scanline_requested = !config->scanline_disabled;
     dev->scanline_rendering = dev->scanline_requested;
 #endif
-    vtimer_init_node(&dev->sound_event, zvb_sound_next, dev);
-    dev->sound_clock_ns = vtimer_now_ns();
+    vtimer_init_node(&dev->sound_event, clock, zvb_sound_next, dev);
+    dev->sound_clock_ns = vtimer_now_ns(clock);
     dev->rpu_clock_ns = dev->sound_clock_ns;
     dev->line_start_ns = dev->sound_clock_ns;
     vtimer_schedule_ns(&dev->timer, ZVB_VISIBLE_LINE_NS);
@@ -518,7 +487,7 @@ static void zvb_reset(device_t* dev)
     zvb->blitter.raster_frame = false;
 #endif
     vtimer_cancel(&zvb->sound_event);
-    zvb->sound_clock_ns = vtimer_now_ns();
+    zvb->sound_clock_ns = vtimer_now_ns(zvb->timer.clock);
     zvb->rpu_clock_ns = zvb->sound_clock_ns;
     zvb->line_start_ns = zvb->sound_clock_ns;
     vtimer_schedule_ns(&zvb->timer, ZVB_VISIBLE_LINE_NS);
@@ -531,9 +500,11 @@ static void zvb_reset(device_t* dev)
  */
 static void zvb_render_disabled_mode(zvb_t* zvb)
 {
-    BeginTextureMode(zvb->blitter.main_texture);
-        ClearBackground(BLACK);
-    EndTextureMode();
+    memset(zvb->blitter.framebuffer, 0, ZVB_MAX_RES_WIDTH * ZVB_MAX_RES_HEIGHT * sizeof(uint16_t));
+    zvb->blitter.width = ZVB_MAX_RES_WIDTH;
+    zvb->blitter.height = ZVB_MAX_RES_HEIGHT;
+    zvb->blitter.sequence++;
+
 }
 
 
@@ -584,7 +555,7 @@ void zvb_render(zvb_t* zvb)
     zvb->need_render = false;
 
 #if CONFIG_PROFILE_RENDER
-    const double profile_start = GetTime();
+    const double profile_start = zvb->profile_time ? zvb->profile_time(zvb->profile_userdata) : 0;
 #endif
 
     bool frame_ready = zvb->screen_enabled;
@@ -612,52 +583,9 @@ void zvb_render(zvb_t* zvb)
     }
 
 #if CONFIG_PROFILE_RENDER
-    const double elapsed = GetTime() - profile_start;
-    s_render_profile.zvb_total += elapsed;
-    if (elapsed > s_render_profile.zvb_max) {
-        s_render_profile.zvb_max = elapsed;
-    }
-    s_render_profile.zvb_calls++;
+    if (zvb->profile_render) zvb->profile_render(zvb->profile_userdata, profile_start);
 #endif
 }
-
-#if CONFIG_PROFILE_RENDER
-void zvb_profile_frame(double elapsed_seconds)
-{
-    if (!config.arguments.profile) {
-        return;
-    }
-
-    const double now = GetTime();
-    if (s_render_profile.window_start == 0.0) {
-        s_render_profile.window_start = now;
-    }
-    s_render_profile.frame_total += elapsed_seconds;
-    if (elapsed_seconds > s_render_profile.frame_max) {
-        s_render_profile.frame_max = elapsed_seconds;
-    }
-    s_render_profile.frames++;
-
-    if (now - s_render_profile.window_start < 1.0) {
-        return;
-    }
-
-    const double frame_avg = s_render_profile.frames > 0
-        ? s_render_profile.frame_total / s_render_profile.frames : 0.0;
-    const double zvb_avg = s_render_profile.zvb_calls > 0
-        ? s_render_profile.zvb_total / s_render_profile.zvb_calls : 0.0;
-    log_printf(
-        "[PROFILE][ZVB] frames=%llu frame=%.2f/%.2fms zvb=%.2f/%.2fms\n",
-        (unsigned long long)s_render_profile.frames,
-        frame_avg * 1000.0,
-        s_render_profile.frame_max * 1000.0,
-        zvb_avg * 1000.0,
-        s_render_profile.zvb_max * 1000.0);
-
-    memset(&s_render_profile, 0, sizeof(s_render_profile));
-    s_render_profile.window_start = now;
-}
-#endif
 
 
 void zvb_force_render(zvb_t* zvb)
@@ -798,16 +726,17 @@ void zvb_deinit(zvb_t* zvb)
     vtimer_cancel(&zvb->peri_timer.event);
     vtimer_cancel(&zvb->sound_event);
     zvb_sound_deinit(&zvb->sound);
-    if (!zvb->rendering_enabled) {
-        return;
-    }
-
     zvb_blitter_deinit(zvb);
 
-#if CONFIG_ENABLE_DEBUGGER
-    for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
-        UnloadTexture(zvb->debug_tex[i]);
-        UnloadImage(zvb->debug_img[i]);
+
+}
+
+int zvb_set_frame_output(zvb_t* zvb, bool enabled)
+{
+    if (enabled && !zvb->blitter.framebuffer) {
+        zvb_blitter_init(zvb);
+        if (!zvb->blitter.framebuffer) return 2;
     }
-#endif
+    zvb->rendering_enabled = enabled;
+    return 0;
 }

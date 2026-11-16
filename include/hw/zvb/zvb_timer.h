@@ -35,7 +35,7 @@ typedef struct {
     void* userdata;
 } zvb_timer_t;
 
-void zvb_timer_init(zvb_timer_t* timer, void (*irq_changed)(void*), void* userdata);
+void               zvb_timer_init(zvb_timer_t* timer, vtimer_t* clock, void (*irq_changed)(void*), void* userdata);
 void zvb_timer_reset(zvb_timer_t* timer);
 uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address);
 void zvb_timer_write(zvb_timer_t* timer, uint32_t address, uint8_t data);

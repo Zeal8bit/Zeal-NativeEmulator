@@ -16,12 +16,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "mmu.h"
+#include "utils/vtimer.h"
 
 typedef struct z80 z80;
 struct z80 {
     /* MMU is embedded in the CPU for direct access from the emulation core,
      * eliminating function pointer indirection on every memory access. */
     mmu_t mmu;
+    vtimer_t clock;
 
     /* DMA holds the CPU bus until its release event. */
     bool bus_requested;

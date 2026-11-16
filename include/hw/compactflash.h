@@ -78,8 +78,12 @@ typedef struct {
     size_t      size; // in bytes
 
     // CompactFlash specific
-    int fd;
-    char *file_name;
+    /* Borrowed synchronous backend. Each transfer spans 512 bytes at a byte
+     * offset; false sets failed and terminates execution at this instruction. */
+    void* userdata;
+    bool (*read_sector)(void*, uint64_t offset, uint8_t* data);
+    bool (*write_sector)(void*, uint64_t offset, const uint8_t* data);
+    bool failed;
     size_t total_sectors;
     long data_ofs;
     uint8_t sector_buffer[512];
@@ -91,4 +95,4 @@ typedef struct {
     uint16_t identity[256];
 } compactflash_t;
 
-int compactflash_init(compactflash_t* compactflash, const char *file_name);
+int compactflash_init(compactflash_t* compactflash, size_t total_sectors);

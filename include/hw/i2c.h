@@ -8,6 +8,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "hw/host.h"
 #include <stddef.h>
 
 #include "hw/pio.h"
@@ -30,6 +31,7 @@ typedef enum {
 
 
 typedef struct {
+    const hw_host_t* host;
     int cur_bit;
     uint8_t cur_byte;
     uint8_t dev_addr;

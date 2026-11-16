@@ -31,7 +31,7 @@ To compile the emulator, you will need the following software:
 
 * **Meson** build system
 * **GCC** or **Clang** compiler
-* Raylib **5.5** or newer (already included in the repository for the WebAssembly version).
+* Raylib **6.2** (native bundles for Linux x86-64 and Win64, plus a WebAssembly build helper; see [dependency details](raylib/README.md)).
 
 ### Hardware Requirements
 
@@ -50,7 +50,7 @@ cd build
 meson compile
 ```
 
-You will then have a `zeal-native` binary that you can run. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
+You will then have graphical `zeal-native` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
 
 ### WebAssembly compilation
 
@@ -64,8 +64,8 @@ meson compile
 ```
 
 > [!NOTE]
-> WebAssembly builds disable the debugger by default. Pass
-> `-Denable_debugger=true` to enable it explicitly.
+> WebAssembly builds use the Raylib-only WASM frontend, with no Nuklear debugger UI.
+> `-Denable_debugger=true` enables only the emulator core debugger API.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
 The helper builds **Raylib 6.2** headers and library in `raylib/web/`, where
@@ -115,7 +115,9 @@ Or simply delete the build directory.
 
 You can add `zeal-native` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
 
+ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
+For WASM, the embedding page supplies the ROM image through its template configuration.
 You can copy the `build/os_with_romdisk.img` from your local build of [Zeal 8-bit OS](https://github.com/zeal8bit/Zeal-8-bit-OS) or
 download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Zeal8bit/Zeal-8-bit-OS/releases) page.
 
@@ -148,9 +150,8 @@ Options:
   -m, --map <file>                   Load memory map file (for debugging)
   -g, --debug                        * Enable debug mode
   -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)
-  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)
-                                     Optional tstates number to execute can be given
-  -o, --console                      Read control commands from stdin (implies headless)
+  -n, --headless [<tstates>]         Moved to zeal-headless
+  -o, --console                      Moved to zeal-headless
   -q, --no-reset                     Exit emulator when a reset is detected
       --no-dma                       Disconnect ZVB DMA bus handshake wiring
       --no-scanline-rendering         Use whole-frame rendering (when compiled in)
@@ -183,7 +184,7 @@ run, survives emulated resets, and is not saved to `zeal.ini`.
 `run` is based on emulated Z80 T-states, so tests are deterministic and can run faster than real time. Keys include `A-Z`, `0-9`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ENTER`, `ESC`, `SPACE`, `BACKSPACE`, `TAB`, `SHIFT`, `CTRL`, `ALT` and more.
 
 ```sh
-$ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal-native --headless --console --rom game.elf
+$ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal-headless --headless --console --rom game.elf
 ```
 
 ### Debugger console
@@ -207,7 +208,7 @@ Adding `--debug` turns the console into a headless debugger front-end, using the
 | `mmu`                | Show MMU mappings               |
 
 ```sh
-$ printf 'bp main\nc\nregs\nquit\n' | build/zeal-native --console --debug --rom game.elf
+$ printf 'bp main\nc\nregs\nquit\n' | build/zeal-headless --console --debug --rom game.elf
 ```
 
 ## Supported Features
@@ -320,3 +321,84 @@ You are free to use it for personal and commercial use, the boilerplate present 
 For any suggestion or request, you can contact me at `contact [at] zeal8bit [dot] com`
 
 For feature requests, you can also open an issue or a pull request.
+
+## Emulator core and frontends
+
+`hw/` contains the host-independent emulator and debugger backend. Each
+`zeal_t` owns its CPU, virtual clock, devices, debugger state, and RGB565 frame
+buffer. Host I/O is supplied through instance-bound callbacks; the core does
+not open files, poll input devices, read host time, or present graphics/audio.
+The standalone static library is `libzeal.a` (`zeal_dep` for Meson subprojects).
+
+`frontend/nuklear/` owns the desktop graphical application and all Nuklear
+code, including debugger panels, input, textures, and audio playback.
+`frontend/wasm/` independently owns the browser application: Raylib rendering,
+input and audio, the browser loop, Emscripten exports, OPFS startup, and the
+browser HostFS bridge. It always shows the normal emulator view and never
+builds or links Nuklear, including when the core debugger API is enabled.
+`frontend/headless/` owns the batch and console application.
+
+`frontend/common/` contains shared command-line/INI handling, image files,
+RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
+desktop OS entry point, executable path discovery, and HostFS adapter used
+by Nuklear and headless. Graphical frontend code is not shared between Nuklear
+and WASM. The emulator library has no platform-specific branches.
+
+Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
+headless scripts should replace the executable name with `zeal-headless`; the
+headless flags and console commands are unchanged. The graphical executable
+prints migration guidance when passed `--headless` or `--console`. Headless
+runs retain the existing INI format and default image search paths, and no
+longer load or report graphical gamepad-mapping assets (loaded, empty, or
+missing `gamecontrollerdb.txt` messages).
+
+Select targets explicitly with Meson:
+
+```sh
+meson setup build-headless -Dfrontend=headless
+meson compile -C build-headless
+./build-headless/zeal-headless --rom /path/to/rom.img --headless 1000000
+
+meson setup build-core -Dfrontend=none
+meson compile -C build-core
+```
+
+`frontend` accepts `auto`, `both`, `nuklear`, `headless`, `wasm`, or `none`. `auto`
+selects both native executables and WASM for Emscripten. Core-only and
+headless-only builds require no Raylib, Nuklear, graphics libraries, or assets.
+The debugger and scanline-rendering build options remain independent.
+
+Core consumers initialize a `zeal_t` with `zeal_init` and `zeal_options_t`,
+provide ROM bytes/media callbacks, then call `zeal_step`, `zeal_run`, or
+`zeal_run_for_tstates`. Budgeted runs return elapsed T-states and a stop reason;
+`zeal_step` reports completed frames for callers that present each frame.
+Zero-budget `zeal_run` runs until a stop condition;
+`zeal_run_for_tstates(0)` retains the console's non-debug/debug semantics.
+Calls for one machine are synchronous and must not overlap. Reset is allowed
+inside virtual-timer callbacks; execution budgets use the virtual clock,
+which survives CPU reset. Destroy a machine with `zeal_deinit` before freeing
+its storage, after detaching frontend callbacks and media.
+
+Headless pixel generation remains disabled by default. Set `options.frames`
+or call `zvb_set_frame_output` to enable it; `zvb_frame` returns the current
+buffer, dimensions, byte stride, and frame sequence without running hardware.
+Pixels are RGB565 and owned by the machine. Low-resolution rows still have a
+640-pixel stride. Rendered pixels are finalized during execution at the same
+instruction boundary used by the graphical application. Audio sinks receive
+synthesized stereo PCM; frontend playback owns buffering, resampling, and
+host device access.
+
+Build the browser frontend with the Emscripten toolchain active:
+
+```sh
+meson setup build-wasm --cross-file wasm-cross.build -Dfrontend=wasm
+meson compile -C build-wasm
+```
+
+`auto` selects this frontend for Emscripten, so existing default cross-build
+commands still work. Browser output names and embedding entry points are retained.
+`-Denable_debugger=true` enables the core debugger API only; it does not add a
+browser debugger UI. The old JavaScript `toggleDebugger()` method returns
+`false`, and its C export is retained as a no-op for existing embedders.
+Desktop Nuklear and headless targets require a native toolchain; `frontend=none`
+can build the core library with either native or Emscripten toolchains.

@@ -5,7 +5,8 @@
  */
 
 
-#include <time.h>
+#pragma once
+#include <stdint.h>
 #include <stdbool.h>
 #include "hw/i2c/i2c_device.h"
 
@@ -15,7 +16,10 @@
 typedef struct ds1307_t {
     struct i2c_device_t parent;
     /* Time base in seconds */
-    time_t   time_diff;
+    int64_t time_diff;
+    void* userdata;
+    void (*read_time)(void*, int64_t offset, uint8_t* registers);
+    int64_t (*adjust_time)(void*, const uint8_t* registers);
     /* Current register */
     uint8_t  reg;
     /* Bytes cycles received */

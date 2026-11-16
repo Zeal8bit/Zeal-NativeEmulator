@@ -107,12 +107,12 @@ static void timer_event(void* userdata)
     timer_schedule(timer);
 }
 
-void zvb_timer_init(zvb_timer_t* timer, void (*irq_changed)(void*), void* userdata)
+void zvb_timer_init(zvb_timer_t* timer, vtimer_t* clock, void (*irq_changed)(void*), void* userdata)
 {
     memset(timer, 0, sizeof(*timer));
     timer->irq_changed = irq_changed;
     timer->userdata = userdata;
-    vtimer_init_node(&timer->event, timer_event, timer);
+    vtimer_init_node(&timer->event, clock, timer_event, timer);
     zvb_timer_reset(timer);
 }
 
@@ -128,13 +128,13 @@ void zvb_timer_reset(zvb_timer_t* timer)
     timer->decrement = false;
     timer->enabled = false;
     /* Reset retains the accumulator, auto-reload setting and byte latches. */
-    timer->clock_time = vtimer_now_ns() / TIMER_CLOCK_NS * TIMER_CLOCK_NS;
+    timer->clock_time = vtimer_now_ns(timer->event.clock) / TIMER_CLOCK_NS * TIMER_CLOCK_NS;
     timer_notify(timer, previous_irq);
 }
 
 uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address)
 {
-    timer_sync(timer, vtimer_now_ns());
+    timer_sync(timer, vtimer_now_ns(timer->event.clock));
     switch (address & TIMER_REGISTER_MASK) {
         case TIMER_REG_CTRL:
             return (timer->enabled << TIMER_ENABLE_SHIFT) | (timer->auto_reload << TIMER_AUTO_RELOAD_SHIFT) |
@@ -161,7 +161,7 @@ uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address)
 
 void zvb_timer_write(zvb_timer_t* timer, uint32_t address, uint8_t data)
 {
-    timer_sync(timer, vtimer_now_ns());
+    timer_sync(timer, vtimer_now_ns(timer->event.clock));
     const bool previous_irq = zvb_timer_interrupt(timer);
     const uint16_t word = ((uint16_t)data << 8) | timer->write_latch;
     switch (address & TIMER_REGISTER_MASK) {

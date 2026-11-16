@@ -52,6 +52,6 @@ typedef struct {
     ps2_state_t state;
 } keyboard_t;
 
-int keyboard_init(keyboard_t* keyboard, pio_t* pio);
+int keyboard_init(keyboard_t* keyboard, vtimer_t* clock, pio_t* pio);
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode);
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode);
