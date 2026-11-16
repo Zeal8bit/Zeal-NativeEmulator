@@ -28,6 +28,15 @@
         CREAT: 4 << 2,
     };
 
+    // Only deliberate guest outcomes cross this boundary without diagnostics.
+    // Browser exceptions elsewhere (including the WASM bridge) remain failures.
+    class GuestError extends Error {
+        constructor(status, message) {
+            super(message);
+            this.status = status;
+        }
+    }
+
     class HostFS {
         constructor(directory, {onError = null} = {}) {
             if (!directory) throw new TypeError('HostFS requires a directory handle');
@@ -69,8 +78,38 @@
             this.onError?.(operation, error);
         }
 
-        statusFor(error) {
-            return error?.name === 'NotFoundError' ? STATUS.NO_SUCH_ENTRY : STATUS.FAILURE;
+        isFilesystemError(error, name) {
+            // Handles may come from another same-origin frame.
+            return Object.prototype.toString.call(error) === '[object DOMException]' && error.name === name;
+        }
+
+        async checkWorkspace(write = false) {
+            if (this.directory.queryPermission &&
+                await this.directory.queryPermission({mode: write ? 'readwrite' : 'read'}) !== 'granted') {
+                throw new DOMException('HostFS workspace permission is no longer granted', 'NotAllowedError');
+            }
+            // A missing child and a deleted workspace both produce NotFoundError.
+            // Enumerating the root also works for an empty directory, and does
+            // not create entries or prompt for permissions.
+            const entries = this.directory.values();
+            try { await entries.next(); }
+            finally { await entries.return?.(); }
+        }
+
+        async entryOperation(action, {missingStatus = STATUS.NO_SUCH_ENTRY, write = false,
+            removing = false} = {}) {
+            try { return await action(); }
+            catch (error) {
+                const missing = this.isFilesystemError(error, 'NotFoundError') ||
+                    this.isFilesystemError(error, 'TypeMismatchError');
+                const conflict = (write && this.isFilesystemError(error, 'NoModificationAllowedError')) ||
+                    (removing && this.isFilesystemError(error, 'InvalidModificationError'));
+                if (!missing && !conflict) throw error;
+                // Failure of this probe is infrastructure failure, not a guest
+                // lookup result. Let the workspace exception escape.
+                await this.checkWorkspace(write);
+                throw new GuestError(missing ? missingStatus : STATUS.FAILURE, error.message);
+            }
         }
 
         complete(status, registers = [0, 0, 0, 0, 0, 0]) {
@@ -90,8 +129,9 @@
         }
 
         splitPath(path) {
-            if (typeof path !== 'string' || path.includes('\\')) {
-                throw new DOMException('Invalid HostFS path', 'SecurityError');
+            if (typeof path !== 'string') throw new TypeError('HostFS path must be a string');
+            if (path.includes('\\') || path.includes('\0')) {
+                throw new GuestError(STATUS.FAILURE, 'Invalid HostFS path');
             }
 
             let relative = path;
@@ -99,7 +139,7 @@
             if (drive) {
                 if (drive[1].toLowerCase() !== 'h' ||
                     (drive[2] !== '' && !drive[2].startsWith('/'))) {
-                    throw new DOMException('Invalid HostFS drive path', 'SecurityError');
+                    throw new GuestError(STATUS.FAILURE, 'Invalid HostFS drive path');
                 }
                 relative = drive[2].replace(/^\/+/, '');
             } else {
@@ -110,7 +150,7 @@
 
             const parts = relative.split('/').filter(part => part !== '' && part !== '.');
             if (parts.some(part => part === '..')) {
-                throw new DOMException('HostFS path escapes selected directory', 'SecurityError');
+                throw new GuestError(STATUS.FAILURE, 'HostFS path escapes selected directory');
             }
             return parts;
         }
@@ -125,7 +165,7 @@
 
         async resolveParent(path) {
             const parts = this.splitPath(path);
-            if (!parts.length) throw new DOMException('Root has no parent entry', 'SecurityError');
+            if (!parts.length) throw new GuestError(STATUS.FAILURE, 'Root has no parent entry');
             const name = parts.pop();
             return {parent: await this.directoryFor(parts), name};
         }
@@ -137,10 +177,10 @@
             return index;
         }
 
-        descriptorAt(index, directory = null) {
+        descriptorAt(index, directory = null, missingStatus = STATUS.FAILURE) {
             const descriptor = this.descriptors[index];
             if (!descriptor || (directory !== null && descriptor.directory !== directory)) {
-                throw new DOMException('Invalid HostFS descriptor', 'InvalidStateError');
+                throw new GuestError(missingStatus, 'Invalid HostFS descriptor');
             }
             return descriptor;
         }
@@ -158,7 +198,7 @@
         }
 
         async open(request) {
-            const {parent, name} = await this.resolveParent(request.path);
+            const {parent, name} = await this.entryOperation(() => this.resolveParent(request.path));
             try {
                 const handle = await parent.getDirectoryHandle(name);
                 const index = this.allocate({
@@ -167,20 +207,23 @@
                 if (index < 0) return this.complete(STATUS.CANNOT_REGISTER_MORE);
                 return this.complete(STATUS.SUCCESS, [0, 0, 0, 0, index, 1]);
             } catch (error) {
-                if (error.name !== 'TypeMismatchError' && error.name !== 'NotFoundError') throw error;
+                if (!this.isFilesystemError(error, 'TypeMismatchError') &&
+                    !this.isFilesystemError(error, 'NotFoundError')) throw error;
             }
 
             const access = request.flags & 3;
-            if (access > OPEN_FLAG.RDWR) throw new DOMException('Invalid open mode', 'TypeError');
-            const handle = await parent.getFileHandle(name, {
+            if (access > OPEN_FLAG.RDWR) throw new GuestError(STATUS.FAILURE, 'Invalid open mode');
+            const handle = await this.entryOperation(() => parent.getFileHandle(name, {
                 create: !!(request.flags & OPEN_FLAG.CREAT),
-            });
+            }), {write: !!(request.flags & OPEN_FLAG.CREAT)});
             if ((request.flags & OPEN_FLAG.TRUNC) && access !== OPEN_FLAG.RDONLY) {
-                const writer = await handle.createWritable();
-                await writer.truncate(0);
-                await writer.close();
+                await this.entryOperation(async () => {
+                    const writer = await handle.createWritable();
+                    await writer.truncate(0);
+                    await writer.close();
+                }, {missingStatus: STATUS.FAILURE, write: true});
             }
-            const file = await handle.getFile();
+            const file = await this.entryOperation(() => handle.getFile());
             const index = this.allocate({
                 directory: false,
                 handle,
@@ -199,7 +242,8 @@
 
         async opendir(request) {
             const parts = this.splitPath(request.path);
-            const handle = await this.directoryFor(parts);
+            const handle = await this.entryOperation(() => this.directoryFor(parts));
+            if (!parts.length) await this.checkWorkspace();
             const index = this.allocate({
                 directory: true,
                 handle,
@@ -212,11 +256,11 @@
         }
 
         async stat(request) {
-            const descriptor = this.descriptorAt(request.descriptor);
+            const descriptor = this.descriptorAt(request.descriptor, null, STATUS.NO_SUCH_ENTRY);
             const bytes = new Uint8Array(28);
             const view = new DataView(bytes.buffer);
             if (!descriptor.directory) {
-                const file = await descriptor.handle.getFile();
+                const file = await this.entryOperation(() => descriptor.handle.getFile());
                 view.setUint32(0, Math.min(file.size, 0xffffffff), true);
             }
             bytes.set(this.formatName(descriptor.name), 12);
@@ -227,12 +271,12 @@
         async read(request) {
             const descriptor = this.descriptorAt(request.descriptor, false);
             if (!descriptor.readable) {
-                throw new DOMException('Descriptor is not readable', 'NotAllowedError');
+                throw new GuestError(STATUS.FAILURE, 'Descriptor is not readable');
             }
-            const file = await descriptor.handle.getFile();
-            const bytes = new Uint8Array(
-                await file.slice(request.offset, request.offset + request.length).arrayBuffer()
-            );
+            const bytes = await this.entryOperation(async () => {
+                const file = await descriptor.handle.getFile();
+                return new Uint8Array(await file.slice(request.offset, request.offset + request.length).arrayBuffer());
+            });
             this.writeGuest(request.guestAddress, bytes);
             this.complete(STATUS.SUCCESS, [0, 0, 0, 0, bytes.length & 0xff, bytes.length >>> 8]);
         }
@@ -240,16 +284,18 @@
         async write(request) {
             const descriptor = this.descriptorAt(request.descriptor, false);
             if (!descriptor.writable) {
-                throw new DOMException('Descriptor is not writable', 'NotAllowedError');
+                throw new GuestError(STATUS.FAILURE, 'Descriptor is not writable');
             }
-            const file = await descriptor.handle.getFile();
-            const position = descriptor.append ? file.size : request.offset;
-            const writer = await descriptor.handle.createWritable({keepExistingData: true});
-            try {
-                await writer.write({type: 'write', position, data: request.data});
-            } finally {
-                await writer.close();
-            }
+            await this.entryOperation(async () => {
+                const file = await descriptor.handle.getFile();
+                const position = descriptor.append ? file.size : request.offset;
+                const writer = await descriptor.handle.createWritable({keepExistingData: true});
+                try {
+                    await writer.write({type: 'write', position, data: request.data});
+                } finally {
+                    await writer.close();
+                }
+            }, {missingStatus: STATUS.FAILURE, write: true});
             this.complete(STATUS.SUCCESS, [
                 0, 0, 0, 0, request.data.length & 0xff, request.data.length >>> 8,
             ]);
@@ -264,12 +310,13 @@
         async readdir(request) {
             const descriptor = this.descriptorAt(request.descriptor, true);
             if (!descriptor.entries) {
-                descriptor.entries = [];
-                for await (const entry of descriptor.handle.values()) {
-                    if (entry.kind === 'file' || entry.kind === 'directory') {
-                        descriptor.entries.push(entry);
+                descriptor.entries = await this.entryOperation(async () => {
+                    const entries = [];
+                    for await (const entry of descriptor.handle.values()) {
+                        if (entry.kind === 'file' || entry.kind === 'directory') entries.push(entry);
                     }
-                }
+                    return entries;
+                });
             }
             const entry = descriptor.entries[descriptor.position++];
             if (!entry) return this.complete(STATUS.NO_MORE_ENTRIES);
@@ -281,20 +328,24 @@
         }
 
         async mkdir(request) {
-            const {parent, name} = await this.resolveParent(request.path);
-            try {
-                await parent.getDirectoryHandle(name);
-                throw new DOMException('Directory already exists', 'InvalidModificationError');
-            } catch (error) {
-                if (error.name !== 'NotFoundError') throw error;
-            }
-            await parent.getDirectoryHandle(name, {create: true});
+            await this.entryOperation(async () => {
+                const {parent, name} = await this.resolveParent(request.path);
+                try {
+                    await parent.getDirectoryHandle(name);
+                    throw new GuestError(STATUS.FAILURE, 'Directory already exists');
+                } catch (error) {
+                    if (!this.isFilesystemError(error, 'NotFoundError')) throw error;
+                }
+                await parent.getDirectoryHandle(name, {create: true});
+            }, {missingStatus: STATUS.FAILURE, write: true});
             this.complete(STATUS.SUCCESS);
         }
 
         async remove(request) {
-            const {parent, name} = await this.resolveParent(request.path);
-            await parent.removeEntry(name);
+            await this.entryOperation(async () => {
+                const {parent, name} = await this.resolveParent(request.path);
+                await parent.removeEntry(name);
+            }, {missingStatus: STATUS.FAILURE, write: true, removing: true});
             this.complete(STATUS.SUCCESS);
         }
 
@@ -310,11 +361,14 @@
                 [OPERATION.MKDIR]: this.mkdir,
                 [OPERATION.RM]: this.remove,
             };
-            const operation = operations[request.operation];
-            if (!operation) return this.complete(STATUS.FAILURE);
-            Promise.resolve(operation.call(this, request)).catch(error => {
-                this.diagnose(`operation ${request.operation}`, error);
-                this.complete(this.statusFor(error));
+            const operation = Object.hasOwn(operations, request.operation) ? operations[request.operation] : null;
+            Promise.resolve().then(() => {
+                if (!operation) throw new Error(`Unknown HostFS operation: ${request.operation}`);
+                return operation.call(this, request);
+            }).catch(error => {
+                if (error instanceof GuestError) return this.complete(error.status);
+                try { this.diagnose(`operation ${request.operation}`, error); }
+                finally { this.complete(STATUS.FAILURE); }
             });
         }
     }

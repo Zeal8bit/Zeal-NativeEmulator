@@ -99,11 +99,13 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
 
 static int key_can_repeat(int code)
 {
+    // clang-format off
     const int modifiers[] = {
         KEY_LEFT_SHIFT,  KEY_LEFT_CONTROL,  KEY_LEFT_ALT,  KEY_LEFT_SUPER,
         KEY_RIGHT_SHIFT, KEY_RIGHT_CONTROL, KEY_RIGHT_ALT, KEY_RIGHT_SUPER,
         KEY_CAPS_LOCK,   KEY_NUM_LOCK
     };
+    // clang-format on
 
     for (unsigned int i = 0; i < DIM(modifiers); i++) {
         if (modifiers[i] == code) {
@@ -766,6 +768,10 @@ int zeal_run(zeal_t* machine)
     uint64_t emulated_epoch = vtimer_now_ns();
 #endif
     while (!machine->should_exit && !WindowShouldClose()) {
+#ifdef PLATFORM_WEB
+        zeal_service_web();
+        if (machine->should_exit) break;
+#endif
 #if CONFIG_ENABLE_DEBUGGER
         if(!machine->dbg.running) {
             break;

@@ -4,6 +4,10 @@
     const reloadButton = document.getElementById('reload');
     const saveImagesButton = document.getElementById('save-images');
     const clearImagesButton = document.getElementById('clear-images');
+    const updateButton = document.getElementById('update-images');
+    const updateStatus = document.getElementById('image-updates');
+    const storageStatus = document.getElementById('storage-status');
+    const availableUpdates = new Set();
     const mountButton = document.getElementById('mount-hostfs');
     const hostfsStatus = document.getElementById('hostfs-status');
     let mountedHostFS = null;
@@ -28,13 +32,15 @@
         romdisk: 'default.img',
         // eeprom: 'eeprom.img',
         // tf: 'tf.img',
-        imagePersistence: true,
-        onImageConflict(image) {
-            const useRemote = window.confirm(
-                `${image.key} changed on the server, but your local image has saved changes.\n\n` +
-                'Use the updated server image? Press Cancel to keep your local image.'
-            );
-            return useRemote ? 'remote' : 'local';
+        imageStorage: 'opfs',
+        onImageUpdateAvailable(image) {
+            availableUpdates.add(image.name);
+            updateStatus.textContent = `Remote images changed: ${[...availableUpdates].join(', ')}. ` +
+                'Replacement discards local image changes and guest RAM.';
+            updateButton.hidden = false;
+        },
+        onStorageError(error) {
+            storageStatus.textContent = `Storage error: ${error.message || error}`;
         },
         print(text) {
             appendLog(consoleOutput, text);
@@ -47,6 +53,7 @@
             reloadButton.disabled = loading;
             saveImagesButton.disabled = loading;
             clearImagesButton.disabled = loading;
+            updateButton.disabled = loading;
             updateHostFSButton();
         },
     });
@@ -124,18 +131,30 @@
         try {
             const saved = await emulator.saveDiskImages();
             appendLog(consoleOutput, `Disk images saved: ${saved.join(', ') || 'none'}`);
+            storageStatus.textContent = 'Storage flushed successfully';
         } catch (error) {
             reportError(error);
         }
     });
     clearImagesButton.addEventListener('click', async () => {
+        if (!window.confirm('Delete local disk images and restart from remote sources? Guest RAM state will be lost.')) return;
         try {
             await emulator.clearDiskImages();
-            appendLog(consoleOutput, 'Cached disk images cleared');
-            await emulator.reload();
+            availableUpdates.clear();
+            updateButton.hidden = true;
+            updateStatus.textContent = '';
+            appendLog(consoleOutput, 'Local disk images cleared');
         } catch (error) {
             reportError(error);
         }
+    });
+    updateButton.addEventListener('click', async () => {
+        try {
+            await emulator.applyImageUpdates([...availableUpdates]);
+            availableUpdates.clear();
+            updateButton.hidden = true;
+            updateStatus.textContent = 'Selected images updated';
+        } catch (error) { reportError(error); }
     });
     mountButton.addEventListener('click', toggleHostFS);
     document.getElementById('toggle-debugger').addEventListener('click', () => {

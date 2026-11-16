@@ -156,7 +156,6 @@ if (host_machine.system() == 'emscripten')
     endif
 
     wasm_lib_sources = files(
-        'assets/wasm/libnative/indexeddb.js',
         'assets/wasm/libnative/disk-images.js',
         'assets/wasm/libnative/hostfs.js',
         'assets/wasm/libnative/zeal-native.js',

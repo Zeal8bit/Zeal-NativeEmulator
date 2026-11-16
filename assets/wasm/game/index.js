@@ -4,6 +4,8 @@
     const emulator = new ZealNative({
         canvas,
         romdisk: 'default.img',
+        imageStorage: 'opfs',
+        onImageUpdateAvailable: image => console.info('Image update available:', image),
         userProgram: 'microbe.bin',
     });
 

@@ -528,10 +528,17 @@ static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
             log_printf("\n");
 #endif
             const size_t written = fwrite(tf->reply, 1, TF_BLK_SIZE, tf->img);
+            /* Complete the submitted sector before acknowledging it. On the
+             * pinned, non-threaded WasmFS OPFS backend, fflush waits for the
+             * backing write's writable-stream close; no extra sync is needed. */
+            const int flushed = fflush(tf->img);
             if (written < TF_BLK_SIZE) {
                 log_err_printf("[TF] Warning could only write %zu/%d bytes to the image file\n", written, TF_BLK_SIZE);
             }
-            tf->reply[0] = written == TF_BLK_SIZE ? TF_WRITE_ACCEPTED : TF_WRITE_ERROR;
+            if (flushed != 0) {
+                log_perror("[TF] Could not flush completed sector");
+            }
+            tf->reply[0] = written == TF_BLK_SIZE && flushed == 0 ? TF_WRITE_ACCEPTED : TF_WRITE_ERROR;
             tf->reply[1] = TF_BUSY_BYTE;
             tf->reply[2] = TF_IDLE_BYTE;
             tf->reply_idx = 0;
