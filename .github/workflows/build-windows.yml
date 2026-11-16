@@ -28,5 +28,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-windows
-          path: build/zeal-native.exe
+          path: |
+            build/zeal-native.exe
+            build/zeal-headless.exe
           retention-days: 30

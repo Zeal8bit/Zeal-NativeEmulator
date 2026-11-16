@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "hw/zeal.h"
-#include "utils/log.h"
+#include "hw/host.h"
 #include "debugger/debugger_impl.h"
 #include "debugger/zeal_debugger.h"
 
@@ -76,7 +76,7 @@ static int zeal_debugger_get_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        log_printf("TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
+        hw_log(dbg->host, false, 0, "TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
             val[i] = machine->dbg_read_memory(machine, (uint16_t) (addr + i));
@@ -99,7 +99,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        log_printf("TODO: PHYSICAL ADDRESS WRITE\n");
+        hw_log(dbg->host, false, 0, "TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
         mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
     } else {
@@ -131,7 +131,7 @@ static void zeal_debugger_continue_cb(dbg_t* dbg) {
 
 static void zeal_debugger_reset_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
-    log_printf("[SYSTEM] Reset\n");
+    hw_log(dbg->host, false, 0, "[SYSTEM] Reset\n");
     zeal_reset(machine);
 }
 
@@ -164,7 +164,7 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
 
         dbg_mmu_t* mmu = (dbg_mmu_t*) arg;
         if (arg == NULL) {
-            log_err_printf("[DEBUGGER] Invalid NULL argument for operation ZEAL_DBG_OP_GET_MMU\n");
+            hw_log(dbg->host, true, 0, "[DEBUGGER] Invalid NULL argument for operation ZEAL_DBG_OP_GET_MMU\n");
             return false;
         }
         for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
@@ -178,7 +178,7 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
             };
             /* Get the device being mapped there */
             if (value >= MEM_MAPPING_SIZE) {
-                log_err_printf("[DEBUGGER] MMU value cannot exceed total memory space\n");
+                hw_log(dbg->host, true, 0, "[DEBUGGER] MMU value cannot exceed total memory space\n");
                 return false;
             }
             const device_t* mapped_dev = machine->cpu.mmu.mem_mapping[value].dev;
@@ -204,15 +204,9 @@ extern const instr_data_t disassembled_ed_opcodes[256];
 extern const instr_data_t disassembled_ixiy_opcodes[256];
 
 
-static const instr_data_t* process_ed_instr(uint8_t snd)
+static const instr_data_t* process_ed_instr(dbg_t* dbg, uint8_t snd)
 {
-    static char fmt[2][64];
-    static instr_data_t opcode = {
-        .fmt = fmt[0],
-        .fmt_lab = fmt[1],
-        .size = 4,
-        .label = true
-    };
+    instr_data_t* opcode = &dbg->ed_opcode;
     const char* regs_16[] = { "bc", "de", "hl", "sp"};
     const int reg_idx = (snd >> 4) & 3;
     const char* pair = regs_16[reg_idx];
@@ -220,19 +214,19 @@ static const instr_data_t* process_ed_instr(uint8_t snd)
 
     if ((snd & 0x4B) == 0x4B) {
         /* Special case for LD dd, (nn) */
-        sprintf(opcode.fmt, "ld     %s, (0x%%04x)", pair);
-        sprintf(opcode.fmt_lab, "ld     %s, (%%s)", pair);
+        sprintf(opcode->fmt, "ld     %s, (0x%%04x)", pair);
+        sprintf(opcode->fmt_lab, "ld     %s, (%%s)", pair);
     } else if ((snd & 0x43) == 0x43) {
         /* Special case for LD (nn), dd */
-        sprintf(opcode.fmt, "ld     (0x%%04x), %s", pair);
-        sprintf(opcode.fmt_lab, "ld     (%%s), %s", pair);
+        sprintf(opcode->fmt, "ld     (0x%%04x), %s", pair);
+        sprintf(opcode->fmt_lab, "ld     (%%s), %s", pair);
     }
 
-    return &opcode;
+    return opcode;
 }
 
 
-static const char* processes_ixiy_cb(uint8_t fourth)
+static const char* processes_ixiy_cb(dbg_t* dbg, uint8_t fourth)
 {
     switch (fourth){
         case 0x06: return "rlc (i%c%+d)";
@@ -243,7 +237,7 @@ static const char* processes_ixiy_cb(uint8_t fourth)
         case 0x2e: return "sra (i%c%+d)";
         case 0x3e: return "srl (i%c%+d)";
         default: {
-            static char fmt[] = "bit 0,(i%c%+d)";
+            char* fmt = dbg->ixiy_fmt;
             /* Set the bit value */
             const char bit = (fourth >> 3) & 0x7;
             fmt[4] = bit + '0';
@@ -266,7 +260,7 @@ static const char* processes_ixiy_cb(uint8_t fourth)
 }
 
 
-static int process_ixiy_opcodes(const uint8_t mem[4], dbg_instr_t* instr)
+static int process_ixiy_opcodes(dbg_t* dbg, const uint8_t mem[4], dbg_instr_t* instr)
 {
     /* Choose between IX and IY register */
     const char reg_letter = (mem[0] == 0xdd) ? 'x' : 'y';
@@ -275,7 +269,7 @@ static int process_ixiy_opcodes(const uint8_t mem[4], dbg_instr_t* instr)
     /* special case for 0xCB and 16-bit LD instructions */
     if (opcode->fmt == NULL) {
         if (mem[1] == 0xCB) {
-            const char* fmt = processes_ixiy_cb(mem[3]);
+            const char* fmt = processes_ixiy_cb(dbg, mem[3]);
             snprintf(instr->instruction, sizeof(instr->instruction), fmt, reg_letter, mem[2]);
         } else if ((mem[1] & 0xf8) == 0x70) {
             /* Special case because the opcode contains the parameter */
@@ -320,7 +314,7 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
 
     /* Instructions are never bigger than 4 bytes on the Z80 */
     if (zeal_debugger_get_mem(dbg, address, 4, instr->opcodes) != 0) {
-        log_err_printf("[DEBUGGER] Error disassembling address: %x\n", address);
+        hw_log(dbg->host, true, 0, "[DEBUGGER] Error disassembling address: %x\n", address);
         return -1;
     }
     memcpy(mem, instr->opcodes, 4);
@@ -341,7 +335,7 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
         opcode = disassembled_ed_opcodes + mem[1];
         /* Check if the array entry is populated */
         if (opcode->fmt == NULL) {
-            opcode = process_ed_instr(mem[1]);
+            opcode = process_ed_instr(dbg, mem[1]);
         } else {
             no_param_instr = true;
         }
@@ -350,7 +344,7 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
         /* CB instructions must not be treated like other 2-byte instructions */
         no_param_instr = true;
     } else if (is_fd || is_dd) {
-        return process_ixiy_opcodes(mem, instr);
+        return process_ixiy_opcodes(dbg, mem, instr);
     } else {
         opcode = disassembled_z80_opcodes + mem[0];
     }
@@ -401,6 +395,8 @@ int zeal_debugger_init(zeal_t* machine, dbg_t* dbg)
         return -1;
     }
 
+    dbg->ed_opcode = (instr_data_t){ .fmt = dbg->ed_fmt[0], .fmt_lab = dbg->ed_fmt[1], .size = 4, .label = true };
+    memcpy(dbg->ixiy_fmt, "bit 0,(i%c%+d)", sizeof(dbg->ixiy_fmt));
     dbg->arg = machine;
     dbg->pause_cb = zeal_debugger_pause_cb;
     dbg->is_paused_cb = zeal_debugger_is_paused_cb;

@@ -2,7 +2,6 @@ sources += files([
         'flash.c',
         'hostfs.c',
         'keyboard.c',
-        'main.c',
         'mmu.c',
         'pio.c',
         'ram.c',
@@ -18,7 +17,7 @@ sources += files([
 subdir('userport/snes_adapter')
 
 if get_option('enable_debugger')
-    sources += files(['zeal_debugger.c', 'zeal_input.c'])
+    sources += files('zeal_debugger.c')
     subdir('debugger')
 endif
 

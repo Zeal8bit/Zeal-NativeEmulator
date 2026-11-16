@@ -2,9 +2,9 @@
 
 ## Development Setup
 
-Use GCC or Clang, Meson, Ninja, and Raylib 5.5 or newer. Install the platform
-dependencies required by Raylib. Native builds need OpenGL support; browser
-builds need WebGL2. See [README.md](README.md) for platform and runtime details.
+Use GCC or Clang, Meson, and Ninja. Graphical builds additionally require
+Raylib 6.2 and its platform dependencies (OpenGL natively, WebGL2
+in browsers). Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
 
 Run commands from the repository root. For development:
 
@@ -31,8 +31,9 @@ meson setup build-wasm --cross-file wasm-cross.build
 meson compile -C build-wasm
 ```
 
-The WASM cross file disables the debugger by default; add
-`-Denable_debugger=true` when needed. Serve the generated browser files through
+The WASM cross file disables the core debugger API by default; add
+`-Denable_debugger=true` when needed. The WASM frontend never includes the
+Nuklear debugger UI. Serve the generated browser files through
 an HTTP server rather than opening them directly. The helper builds Raylib 6.2
 headers and library in `raylib/web/`, where generated files are ignored by Git;
 see [its build instructions](raylib/web/README.md). Run the browser
@@ -45,14 +46,17 @@ and are not included in a fresh checkout or run by CI.
 
 | Path | Purpose |
 | --- | --- |
-| `hw/main.c`, `hw/zeal.c` | Application entry point and machine integration. |
-| `hw/` | CPU, memory, buses, storage, and other emulated devices. |
-| `hw/zvb/` | Video-board components; `blitter/` contains the software renderer. |
-| `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend, UI panels, and machine integration. |
-| `hw/userport/` | User-port device implementations. |
-| `app/console/` | Headless console and debugger command handling. |
+| `hw/` | Host-independent CPU, memory, buses, device protocols, and machine lifecycle. |
+| `hw/zvb/` | Video-board components and RGB565 software frame generation. |
+| `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend and machine integration. |
+| `hw/userport/` | SNES serial protocol. |
+| `frontend/common/` | CLI/INI, image files, HostFS, RTC and stream adapters. |
+| `frontend/nuklear/` | Desktop-only window loop, input, audio playback, and all Nuklear debugger UI. |
+| `frontend/wasm/` | Independent Raylib browser frontend, Emscripten exports, OPFS startup and browser HostFS. |
+| `frontend/common/desktop/` | Desktop OS startup, paths and HostFS shared by Nuklear and headless. |
+| `frontend/headless/` | Batch execution and console/debugger commands. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
-| `utils/` | Configuration, paths, logging support, notifications, FIFO, and virtual timers. |
+| `utils/` | Portable FIFO and per-machine virtual timers. |
 | `assets/` | Fonts, resources, and browser templates/support code. |
 | `raylib/` | Bundled platform libraries, headers, and license. |
 | `tools/` | Build-time resource and WASM helper scripts. |
@@ -112,7 +116,8 @@ variations; avoid reformatting unrelated lines.
 - Preserve existing SPDX copyright and license headers. Add an appropriate SPDX
   header to new project source files. Comments should explain behavior, intent,
   or constraints; avoid references to private implementation sources.
-- Use the helpers in `include/utils/log.h` for component diagnostics. Preserve
+- Use instance-bound `hw_host_t` callbacks for core diagnostics and the helpers
+  in `include/utils/log.h` for frontend diagnostics. Preserve
   useful debug logging and its existing verbosity controls.
 - Keep platform and optional-feature code behind the existing build macros.
   Changes must remain buildable with the relevant feature enabled and disabled.
@@ -152,7 +157,7 @@ Use a known ROM to check the affected behavior in the debugger or headless
 console. Headless commands advance a specified number of emulated CPU T-states:
 
 ```sh
-printf 'run 10000\nquit\n' | ./build-dev/zeal-native --console --rom /path/to/rom.img
+printf 'run 10000\nquit\n' | ./build-dev/zeal-headless --console --rom /path/to/rom.img
 ```
 
 Use scratch images when checking storage writes. For UI or rendering changes,
@@ -178,3 +183,27 @@ meson compile -C build-sanitize
 The existing platform CI workflows compile builds; they do not replace focused
 behavior checks. Record the build configurations, workloads, and local checks
 used to validate a change, along with any unavailable target validation.
+
+## Boundary validation
+
+Build `-Dfrontend=none` and `-Dfrontend=headless` without graphical paths, then
+build both frontends with debugger/scanline support disabled and profiling
+enabled. `zeal_dep` exports the core headers, feature definitions, and portable
+link dependencies. Do not add host macros, graphical dependencies, or frontend
+includes to this dependency. Keep mutable core data in machine/device contexts;
+shared lookup tables must be immutable.
+
+Use local harnesses for CPU/device timing, independent contexts, frames/PCM,
+console transcripts, INI serialization, and scratch-media persistence. Match
+against the unchanged build before accepting an ownership refactor. Native
+and browser appearance/input still need interactive verification in addition
+to build and API checks. The legacy Makefile does not build the pre-split
+baseline (it compiles debugger sources without their required definitions and
+omits required sources); it remains unsupported. Use Meson.
+
+WASM-specific code and link flags belong in `frontend/wasm/`. Keep all Nuklear
+code in `frontend/nuklear/`; neither frontend may include or compile the other.
+There is no shared graphics layer. Core-debugger-enabled WASM builds must still
+exclude Nuklear, debugger panels, and debug textures. Preserve build-root web
+artifact names when changing Meson: declaring the executable in a subdirectory
+would change the existing browser URLs.

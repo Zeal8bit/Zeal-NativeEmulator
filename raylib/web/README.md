@@ -9,8 +9,8 @@ Source: https://github.com/raysan5/raylib/archive/refs/tags/6.2.tar.gz
 
 SHA-256: `df7a13129b1bec9e73a6962efff170beba310ee6eab8f94cd000b7316b4db5ee`
 
-After activating Emscripten 7.0.0, run from the repository root before configuring
-the emulator's web build:
+With Emscripten 7.0.0 on PATH (from the SDK or Homebrew), run from the repository
+root before configuring the emulator's web build:
 
 ```sh
 python3 tools/build_raylib_web.py

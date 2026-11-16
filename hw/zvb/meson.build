@@ -15,9 +15,7 @@ zvb_sources = files([
     'zvb_sound.c'
 ])
 
-if get_option('enable_debugger')
-    zvb_sources += files('debug.c')
-endif
+
 
 zvb_sources += files('blitter/software.c')
 

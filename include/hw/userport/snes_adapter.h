@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "raylib.h"
 #include "hw/device.h"
 #include "hw/pio.h"
 
@@ -14,21 +13,6 @@ struct zeal_t;
 #define SNES_IO_CLOCK  3
 
 #define SNES_CONTROLLER_COUNT   2
-#define SNES_GAMEPAD_COUNT      4
-#define SNES_MOUSE_DEFAULT_PORT 1
-#define SNES_PORT_DETACHED      -1
-
-// Convert host-window mouse pixels to SNES mouse mickeys. The mouse test app divides deltas by 4.
-#define SNES_MOUSE_DELTA_SCALE      1.0f
-#define SNES_MOUSE_DELTA_SCALE_MIN  0.25f
-#define SNES_MOUSE_DELTA_SCALE_MAX  8.0f
-#define SNES_MOUSE_DELTA_SCALE_STEP 0.05f
-#define SNES_MOUSE_DEFAULT_SPEED    SNES_MOUSE_SPEED_SLOW
-
-// Thumbstick axis threshold for D-pad emulation (range -1.0 to 1.0)
-#define SNES_STICK_DEADZONE 0.5f
-// Trigger axis threshold for L/R emulation (range -1.0 to 1.0)
-#define SNES_TRIGGER_DEADZONE 0.5f
 // -------------------------------------------------------------------------
 // Standard controller button bit positions (16-bit serial protocol, active low)
 // -------------------------------------------------------------------------
@@ -91,52 +75,18 @@ struct zeal_t;
 #define SNES_MOUSE_X_SIGN_BIT   24   // 1 = moving left, 0 = moving right
 #define SNES_MOUSE_X_MAG_SHIFT  25   // 7-bit magnitude in bits 25-31
 
+/* The frontend samples input at guest LATCH. Returned packets are shifted
+ * by the hardware; repeated latches may sample the same host frame. */
 typedef struct {
-    int index;      // gamepad index
-    int port;
-    bool attached;
-} snes_controller_t;
-
-typedef struct {
-    bool attached;
-    bool captured;
-    bool capture_button_down;
-    struct zeal_t* machine;
-    float delta_scale;
-} snes_mouse_t;
-
-typedef enum {
-    SNES_PORT_DEVICE_DETACHED,
-    SNES_PORT_DEVICE_CONTROLLER,
-    SNES_PORT_DEVICE_MOUSE,
-} snes_port_device_t;
-
-typedef struct {
-    snes_port_device_t device;
-    int controller_index;
-} snes_port_assignment_t;
-
-typedef struct {
-    device_t parent;
-    size_t size; // in bytes
-    pio_t *pio;
-
+    pio_t* pio;
     uint32_t port_bits[SNES_CONTROLLER_COUNT];
-    uint16_t virtual_controller_bits;
-    bool virtual_controller_enabled;
-    snes_port_assignment_t ports[SNES_CONTROLLER_COUNT];
-    snes_controller_t controllers[SNES_GAMEPAD_COUNT];
-    snes_mouse_t mouse;
+    bool attached[SNES_CONTROLLER_COUNT];
+    void* userdata;
+    void (*sample)(void*, uint32_t* packets, bool* attached);
+    void (*trace)(void*, bool latch, const uint32_t* packets);
 } snes_adapter_t;
 
-int snes_adapter_init(snes_adapter_t* snes_adapter, pio_t* pio);
-void snes_adapter_attach(snes_adapter_t *snes_adapter, uint8_t index);
-void snes_adapter_detach(snes_adapter_t *snes_adapter);
-void snes_adapter_update(snes_adapter_t *snes_adapter);
-void snes_adapter_set_controller_port(snes_adapter_t *snes_adapter, uint8_t index, int port);
-void snes_adapter_set_mouse_port(snes_adapter_t *snes_adapter, int port);
-void snes_adapter_reset_mouse_scale(snes_adapter_t *snes_adapter);
-int snes_adapter_get_controller_port(const snes_adapter_t *snes_adapter, uint8_t index);
-int snes_adapter_get_mouse_port(const snes_adapter_t *snes_adapter);
-void snes_adapter_set_virtual_button(snes_adapter_t *snes_adapter, uint8_t button, bool pressed);
-void snes_adapter_clear_virtual_buttons(snes_adapter_t *snes_adapter);
+int snes_adapter_init(snes_adapter_t*, pio_t*);
+
+uint32_t snes_mouse_packet(uint8_t x_mag, bool x_negative, uint8_t y_mag, bool y_negative,
+    uint8_t speed, bool left, bool right);

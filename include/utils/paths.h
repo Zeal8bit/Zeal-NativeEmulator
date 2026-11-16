@@ -30,8 +30,11 @@
     #define HOME_SANITIZE "~"
     #define FOPEN_BINARY  ""
     #define OPEN_BINARY   0
-#elif PLATFORM_WEB
+#else
+    #include <limits.h>
+    #ifndef PATH_MAX
     #define PATH_MAX 4096
+    #endif
     #define HOME_VAR      "HOME"
     #define HOME_SANITIZE "~"
     #define FOPEN_BINARY  ""

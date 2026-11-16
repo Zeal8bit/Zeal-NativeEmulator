@@ -1,7 +1,1 @@
-sources += files([
-    'fifo.c',
-    'paths.c',
-    'config.c',
-    'notif.c',
-    'vtimer.c',
-])
+sources += files('fifo.c', 'vtimer.c')

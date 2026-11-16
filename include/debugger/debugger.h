@@ -55,7 +55,6 @@ debug_event_t debugger_check_event(dbg_t *dbg);
 void debugger_handle_event(dbg_t *dbg, debug_event_t event);
 
 /* Symbol management */
-bool debugger_load_symbols(dbg_t *dbg, const char *symbol_file);
 const char* debugger_get_symbol(dbg_t *dbg, hwaddr address);
 bool debugger_find_symbol(dbg_t *dbg, const char *symbol_name, hwaddr *address);
 

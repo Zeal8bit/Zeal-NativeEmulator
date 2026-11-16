@@ -22,14 +22,18 @@ jobs:
         with:
           raylib-path: ${{ github.workspace }}/raylib/linux64
 
-      # Test execution after having an AppImage
-      #- name: Test Executable
-      #  run: |
-      #    LD_LIBRARY_PATH=${{ github.workspace }}/raylib/linux64/lib ./build/zeal-native --help
+      - name: Test executables
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/raylib/linux64/lib
+        run: |
+          ./build/zeal-native --help
+          ./build/zeal-headless --help
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
           name: zeal-native-linux
-          path: build/zeal-native
+          path: |
+            build/zeal-native
+            build/zeal-headless
           retention-days: 30

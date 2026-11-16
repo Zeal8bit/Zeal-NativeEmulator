@@ -157,9 +157,6 @@
         } catch (error) { reportError(error); }
     });
     mountButton.addEventListener('click', toggleHostFS);
-    document.getElementById('toggle-debugger').addEventListener('click', () => {
-        emulator.toggleDebugger();
-    });
     document.getElementById('toggle-fps').addEventListener('click', () => {
         emulator.toggleFps();
     });

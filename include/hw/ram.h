@@ -26,4 +26,4 @@ typedef struct {
 #endif
 } ram_t;
 
-int ram_init(ram_t *);
+int ram_init(ram_t*, const hw_host_t* host);

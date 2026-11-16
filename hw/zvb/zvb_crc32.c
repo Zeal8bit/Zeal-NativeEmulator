@@ -12,8 +12,6 @@
 #include <assert.h>
 #include <string.h>
 
-#include "raylib.h"
-#include "utils/log.h"
 #include "utils/helpers.h"
 #include "hw/pio.h"
 #include "hw/zvb/zvb_crc32.h"

@@ -12,7 +12,7 @@
  *  - added opcodes size tables;
  */
 
-#include "utils/log.h"
+#include "hw/host.h"
 #include "hw/z80.h"
 #include "utils/vtimer.h"
 
@@ -809,7 +809,7 @@ static inline void process_interrupts(z80* const z)
                 call(z, rw(z, (z->i << 8) | z->int_data));
                 break;
 
-            default: fprintf(stderr, "unsupported interrupt mode %d\n", z->interrupt_mode); break;
+            default: hw_log(z->mmu.parent.host, true, 0, "unsupported interrupt mode %d\n", z->interrupt_mode); break;
         }
 
         return;
@@ -822,6 +822,7 @@ void z80_init(z80* const z)
 {
     /* MMU is embedded in the CPU, init it first so device sub-system is ready */
     mmu_init(&z->mmu);
+    vtimer_init(&z->clock);
 
     z80_reset(z);
 }
@@ -899,7 +900,7 @@ int z80_instruction_size(z80* const z)
         /* If the size is 0, the instruction is invalid */
         return (size != 0) ? size : 2;
     } else {
-        log_err_printf("[Z80] Invalid size for opcode %x\n", opcode);
+        hw_log(z->mmu.parent.host, true, 0, "[Z80] Invalid size for opcode %x\n", opcode);
     }
     return 1;
 }
@@ -910,7 +911,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
 {
     const unsigned long cycles = z->cyc;
     if (z->bus_requested) {
-        z->cyc += vtimer_stall_bus(stall_limit, &z->bus_requested);
+        z->cyc += vtimer_stall_bus(&z->clock, stall_limit, &z->bus_requested);
     } else {
         if (z->halted) {
             exec_opcode(z, 0x00);
@@ -918,7 +919,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
             const uint8_t opcode = nextb(z);
             exec_opcode(z, opcode);
         }
-        vtimer_tick(z->cyc - cycles);
+        vtimer_tick(&z->clock, z->cyc - cycles);
     }
 
     /* Events during a bus hold must become pending before acceptance. Never
@@ -926,7 +927,7 @@ static unsigned long z80_step_bounded(z80* const z, unsigned long stall_limit)
     if (!z->bus_requested) {
         const unsigned long before_interrupt = z->cyc;
         process_interrupts(z);
-        vtimer_tick(z->cyc - before_interrupt);
+        vtimer_tick(&z->clock, z->cyc - before_interrupt);
     }
     return z->cyc - cycles;
 }
@@ -950,11 +951,11 @@ unsigned long z80_run_for(z80* const z, unsigned long tstates)
 // outputs to stdout a debug trace of the emulator
 void z80_debug_output(z80* const z)
 {
-    log_printf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
+    hw_log(z->mmu.parent.host, false, 0, "PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
            "IX: %04X, IY: %04X, I: %02X, R: %02X",
            z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r);
 
-    log_printf("\t(%02X %02X %02X %02X), cyc: %lu\n", rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
+    hw_log(z->mmu.parent.host, false, 0, "\t(%02X %02X %02X %02X), cyc: %lu\n", rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
            z->cyc);
 }
 
@@ -1435,7 +1436,7 @@ void exec_opcode(z80* const z, uint8_t opcode)
         case 0xDD: exec_opcode_ddfd(z, nextb(z), &z->ix); break;
         case 0xFD: exec_opcode_ddfd(z, nextb(z), &z->iy); break;
 
-        default: fprintf(stderr, "unknown opcode %02X\n", opcode); break;
+        default: hw_log(z->mmu.parent.host, true, 0, "unknown opcode %02X\n", opcode); break;
     }
 }
 
@@ -1688,7 +1689,7 @@ void exec_opcode_dcb(z80* const z, uint8_t opcode, uint16_t addr)
         case 2: result = val & ~(1 << y_); break; // res y, (iz+d)
         case 3: result = val | (1 << y_); break;  // set y, (iz+d)
 
-        default: fprintf(stderr, "unknown XYCB opcode: %02X\n", opcode); break;
+        default: hw_log(z->mmu.parent.host, true, 0, "unknown XYCB opcode: %02X\n", opcode); break;
     }
 
     // ld r[z], rot[y] (iz+d)
@@ -1965,7 +1966,7 @@ void exec_opcode_ed(z80* const z, uint8_t opcode)
             z->mem_ptr = get_hl(z) + 1;
         } break; // rld
 
-        default: fprintf(stderr, "unknown ED opcode: %02X\n", opcode); break;
+        default: hw_log(z->mmu.parent.host, true, 0, "unknown ED opcode: %02X\n", opcode); break;
     }
 }
 

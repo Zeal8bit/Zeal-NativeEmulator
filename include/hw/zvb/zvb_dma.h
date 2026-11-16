@@ -100,7 +100,7 @@ typedef struct {
  * @brief Initialize the DMA controller with physical bus handshake connectivity.
  * @param bus_requested Non-NULL CPU request line, valid until DMA teardown.
  */
-void zvb_dma_init(zvb_dma_t* dma, mmu_t* mmu, bool* bus_requested, bool bus_connected);
+void zvb_dma_init(zvb_dma_t* dma, vtimer_t* clock, mmu_t* mmu, bool* bus_requested, bool bus_connected);
 
 
 /**

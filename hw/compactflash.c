@@ -11,16 +11,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <limits.h>
-/* Required for file operations */
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <fcntl.h>
-
 #include "hw/compactflash.h"
-#include "utils/paths.h"
-#include "utils/log.h"
+#include "hw/host.h"
 
 static uint8_t compactflash_read_data(compactflash_t* cf);
 static void compactflash_write_data(compactflash_t* cf, uint8_t value);
@@ -30,11 +22,6 @@ static uint16_t le16(uint16_t v)
 {
     uint8_t *p = (uint8_t *)&v;
     return p[0] | (p[1] << 8);
-}
-
-static void perror_exit(compactflash_t *cf, char *str) {
-    log_perror("[COMPACTFLASH] ERROR '%s' %s\n", cf->file_name, str);
-    exit(1);
 }
 
 static uint8_t io_read(device_t* dev, uint32_t addr)
@@ -71,7 +58,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
             cf->lba_mode = (value & 0x40) != 0; // Bit 6 indicates LBA mode
             break;
         default:
-            log_printf("[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
+            hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
             break;
         }
 }
@@ -79,17 +66,17 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
 static uint32_t compactflash_data_ofs(compactflash_t* cf)
 {
     if (!cf->master) {
-        log_printf("[COMPACTFLASH] Slave device does not support data access.\n");
+        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Slave device does not support data access.\n");
         return -1;
     }
     if (!cf->lba_mode) {
-        log_printf("[COMPACTFLASH] CHS mode not supported.\n");
+        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] CHS mode not supported.\n");
         return -1;
     }
     uint32_t sector = ((cf->lba_24 & 0xF) << 24) | (cf->lba_16 << 16)
         | (cf->lba_8 << 8) | (cf->lba_0 << 0);
     if (sector + cf->sec_cnt >= cf->total_sectors) {
-        log_printf("[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
+        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
         return -1;
     }
     return sector*512;
@@ -119,21 +106,12 @@ static void data_state(compactflash_t* cf, compactflash_state_t state)
 
 static void compactflash_read_sector_buffer(compactflash_t* cf)
 {
-    if (lseek(cf->fd, cf->data_ofs, SEEK_SET) == -1)
-        perror_exit(cf, "seek()");
-    int bytes_read = read(cf->fd, cf->sector_buffer, 512);
-    if (bytes_read == -1)
-        perror_exit(cf, "read()");
-    if (bytes_read < 512)
-        memset(cf->sector_buffer + bytes_read, 0, 512 - bytes_read);
+    if (!cf->read_sector || !cf->read_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) cf->failed = true;
 }
 
 static void compactflash_write_sector_buffer(compactflash_t* cf)
 {
-    if (lseek(cf->fd, cf->data_ofs, SEEK_SET) == -1)
-        perror_exit(cf, "seek()");
-    if (write(cf->fd, cf->sector_buffer, 512) == -1)
-        perror_exit(cf, "write()");
+    if (!cf->write_sector || !cf->write_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) cf->failed = true;
 }
 
 static uint8_t compactflash_read_data(compactflash_t* cf)
@@ -210,42 +188,11 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
     }
 }
 
-int compactflash_init(compactflash_t* cf, const char *file_name)
+int compactflash_init(compactflash_t* cf, size_t total_sectors)
 {
-    struct stat st;
-
-    if (file_name == NULL) {
-        /* No CompactFlash file specified */
-        return 1;
-    }
-
-    int fd = open(file_name, O_RDWR);
-    if (fd < 0) {
-        log_perror("[COMPACTFLASH] Could not open file");
-        /* Continue without CF emulation */
-        return 1;
-    }
-
-    if (fstat(fd, &st) == -1) {
-        log_perror("[COMPACTFLASH] Could not stat file");
-        close(fd);
-        return 1;
-    }
-
-    if (st.st_size < 1024 * 1024) {
-        log_err_printf("[COMPACTFLASH] Image must be at least 1MB big\n");
-        close(fd);
-        return 1;
-    }
-
-    /* Round up the total amount of sectors */
-    size_t total_sectors = (st.st_size + 511) / 512;
-
     *cf = (compactflash_t) {
-        .fd = fd,
         .size = 8,
         .total_sectors = total_sectors,
-        .file_name = strdup(file_name),
         .status = (1 << IDE_STAT_RDY) | (1 << IDE_STAT_DSC),
         .lba_24 = 0xE0,
         .sec_cnt = 1,

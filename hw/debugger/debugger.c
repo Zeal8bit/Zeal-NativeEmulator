@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "debugger/debugger.h"
-#include "utils/log.h"
+#include "hw/host.h"
 
 #define MAX_LINE_LENGTH     256
 
@@ -95,13 +95,18 @@ void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
     }
 
     /* Copy the string to be able to odify it */
-    char *copy = strdup(list);
+    char* copy = malloc(strlen(list) + 1);
+    if (copy) strcpy(copy, list);
     if (!copy) {
         return;
     }
 
-    char *tok = strtok(copy, ",");
-    while (tok) {
+    char* tok = copy;
+    while (*tok) {
+        tok += strspn(tok, ",");
+        if (!*tok) break;
+        char* next = tok + strcspn(tok, ",");
+        if (*next) *next++ = 0;
         char *endptr = NULL;
         /* strtoul will auto-detect the base */
         hwaddr val = strtoul(tok, &endptr, 0);
@@ -114,11 +119,11 @@ void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
             if (debugger_find_symbol(dbg, tok, &addr)) {
                 debugger_set_breakpoint(dbg, addr);
             } else {
-                log_printf("[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
+                hw_log(dbg->host, false, 0, "[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
             }
         }
 
-        tok = strtok(NULL, ",");
+        tok = next;
     }
 
     free(copy);
@@ -359,53 +364,6 @@ void debugger_handle_event(dbg_t *dbg, debug_event_t event)
 
 
 /* Symbol management */
-bool debugger_load_symbols(dbg_t *dbg, const char *filename)
-{
-    if (!dbg || !filename) {
-        log_perror("[MAP] No debugger or filename");
-        return false;
-    }
-
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        log_perror("[MAP] Could not open file to load");
-        return false;
-    }
-
-    symbols_t *current = &dbg->symbols;
-
-    char line[MAX_LINE_LENGTH];
-    char name[MAX_LINE_LENGTH];
-    unsigned int address;
-    char type[MAX_LINE_LENGTH];
-
-    while (fgets(line, sizeof(line), file)) {
-        /* Parse the line and ensure it contains "addr" */
-        if (sscanf(line, "%s = $%x ; %s,", name, &address, type) == 3 && strcmp(type, "addr,") == 0 ) {
-            /* Store the symbol */
-            current->array[current->count].name = strdup(name);
-            current->array[current->count].addr = (hwaddr)address;
-            current->count++;
-
-            /* If the current array is full, allocate a new symbols_t block */
-            if (current->count >= DBG_SYM_COUNT) {
-                current->next = (symbols_t *)calloc(1, sizeof(symbols_t));
-                if (!current->next) {
-                    fclose(file);
-                    log_perror("[MAP] Memory allocation failed");
-                    return false;  // Memory allocation failed
-                }
-                current = current->next;
-            }
-        }
-    }
-
-    fclose(file);
-    log_printf("[MAP] %s loaded successfully\n", filename);
-    return true;
-}
-
-
 const char* debugger_get_symbol(dbg_t *dbg, hwaddr address)
 {
     if (dbg == NULL) {
@@ -499,10 +457,16 @@ void debugger_init(dbg_t *dbg)
 }
 
 
-void debugger_deinit(dbg_t *dbg)
+void debugger_deinit(dbg_t* dbg)
 {
-    if (dbg == NULL) {
-        return;
+    if (!dbg) return;
+    symbols_t* node = &dbg->symbols;
+    while (node) {
+        symbols_t* next = node->next;
+        for (unsigned int i = 0; i < node->count; i++)
+            free((void*) node->array[i].name);
+        if (node != &dbg->symbols) free(node);
+        node = next;
     }
-    (void) dbg;
+    memset(&dbg->symbols, 0, sizeof(dbg->symbols));
 }
