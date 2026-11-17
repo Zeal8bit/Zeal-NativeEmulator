@@ -17,6 +17,7 @@
 #include <FL/Fl_Button.H>
 #include <FL/fl_draw.H>
 #include <FL/platform.H>
+#include <FL/Fl_Image_Surface.H>
 #include "ui.h"
 
 namespace zui {
@@ -33,6 +34,16 @@ constexpr int TOOLBAR_H = 34;
 constexpr int STATUS_H = 22;
 constexpr int DEFAULT_RIGHT_W = 400;
 constexpr int DEFAULT_BOTTOM_H = 280;
+
+/* The UI is built before the machine exists: decide on the build flag */
+static bool debugger_compiled()
+{
+#if CONFIG_ENABLE_DEBUGGER
+    return true;
+#else
+    return false;
+#endif
+}
 
 MainWindow* main_window()
 {
@@ -470,7 +481,7 @@ MainWindow::MainWindow(bool debug)
     m_screen = new ScreenView(0, m_menubar_h, w(), h() - m_menubar_h - STATUS_H);
     m_screen->end();
     m_dock->end();
-    if (fz_debugger()) {
+    if (debugger_compiled()) {
         m_debugger = new Debugger(m_dock);
         begin();
         m_toolbar = m_debugger->toolbar(0, m_menubar_h, w(), TOOLBAR_H);
@@ -575,6 +586,13 @@ void MainWindow::apply_window_config(bool debug)
     if (X < 0 || X > sx + sw - 40) X = sx + (sw - W) / 2;
     if (Y < 0 || Y > sy + sh - 40) Y = sy + (sh - H) / 2;
     resize(X, Y, W, H);
+
+    /* The saved debugger screen size (P_VIDEO) determines the dock sizes */
+    const config_panel_t* video = &config_panels[0];
+    if (debug && video->width > 0 && video->height > 0) {
+        m_dock->dock_sizes(m_dock->w() - video->width - DockLayout::SPLITTER,
+                           m_dock->h() - video->height - DockLayout::SPLITTER);
+    }
 }
 
 void MainWindow::capture_window_config(bool debug)
@@ -620,6 +638,7 @@ void MainWindow::reset_layout()
     for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
         config_panels[i].hidden = s_panel_hidden_default[i];
     }
+    config_panels[0].width = config_panels[0].height = 0;
     m_dock->dock_sizes(DEFAULT_RIGHT_W, DEFAULT_BOTTOM_H);
     if (m_debugger) m_debugger->reset_layout();
     if (m_debug) {
@@ -639,7 +658,7 @@ void MainWindow::build_menus()
     mb->add("&File/&Quit", FL_COMMAND + 'q', cb_quit);
 
     mb->add("&Machine/&Reset", FL_COMMAND + FL_SHIFT + FL_BackSpace, cb_reset, nullptr, FL_MENU_DIVIDER);
-    if (fz_debugger()) {
+    if (debugger_compiled()) {
         mb->add("&Machine/&Debugger", FL_COMMAND + (FL_F + 1), cb_toggle_debugger, nullptr, FL_MENU_TOGGLE);
 
         mb->add("&Debug/&Continue", FL_COMMAND + (FL_F + 5), cb_continue);
@@ -662,7 +681,7 @@ void MainWindow::build_menus()
         mb->add("&View/Scanline Rendering", 0, cb_scanline, nullptr, FL_MENU_TOGGLE);
     }
     mb->add("&View/Show FPS", 0, cb_show_fps, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
-    if (fz_debugger()) {
+    if (debugger_compiled()) {
         char path[96];
         for (int index : s_toggle_panels) {
             snprintf(path, sizeof(path), "&View/Debugger Panels/%s", config_panels[index].title);
@@ -914,9 +933,46 @@ bool ui_closed(void)
     return s_closed || s_window == nullptr;
 }
 
+/* Developer aid: ZEAL_FLTK_SCREENSHOT=<file.ppm> saves the main window after
+ * ZEAL_FLTK_SCREENSHOT_DELAY seconds (default 3), to check the UI headlessly. */
+static void maybe_screenshot()
+{
+#if FL_API_VERSION >= 10400
+    static bool done;
+    const char* path = getenv("ZEAL_FLTK_SCREENSHOT");
+    if (done || path == nullptr || s_window == nullptr) return;
+    const char* delay = getenv("ZEAL_FLTK_SCREENSHOT_DELAY");
+    if (now_seconds() < (delay ? atof(delay) : 3.0)) return;
+    done = true;
+    Fl_Image_Surface surface(s_window->w(), s_window->h(), 1);
+    Fl_Surface_Device::push_current(&surface);
+    surface.draw(s_window);
+    Fl_RGB_Image* image = surface.image();
+    Fl_Surface_Device::pop_current();
+    if (image && image->d() >= 3) {
+        FILE* f = fopen(path, "wb");
+        if (f) {
+            const uchar* data = (const uchar*) image->data()[0];
+            /* data_w/data_h: pixel size, larger than w/h on high-DPI screens */
+            const int pw = image->data_w();
+            const int ph = image->data_h();
+            const int line = image->ld() ? image->ld() : pw * image->d();
+            fprintf(f, "P6 %d %d 255\n", pw, ph);
+            for (int y = 0; y < ph; y++) {
+                for (int x = 0; x < pw; x++) fwrite(data + y * line + x * image->d(), 1, 3, f);
+            }
+            fclose(f);
+            fprintf(stderr, "[UI] Screenshot saved to %s\n", path);
+        }
+    }
+    delete image;
+#endif
+}
+
 void ui_wait(double seconds)
 {
     if (s_window == nullptr) return;
+    maybe_screenshot();
     if (s_snes_dirty) s_window->rebuild_snes_menu();
     if (now_seconds() - s_status_at > 0.25) s_window->update_status();
     Fl::wait(seconds);
