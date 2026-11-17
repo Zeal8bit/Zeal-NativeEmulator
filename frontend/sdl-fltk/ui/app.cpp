@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <FL/Fl_Sys_Menu_Bar.H>
 #include <FL/Fl_Button.H>
 #include <FL/fl_draw.H>

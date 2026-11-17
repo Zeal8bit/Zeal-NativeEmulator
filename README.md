@@ -52,6 +52,32 @@ meson compile
 
 You will then have graphical `zeal-native` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
 
+### SDL3 + FLTK frontend (optional)
+
+`zeal-fltk` is an alternative desktop frontend that does not use Raylib: FLTK
+provides the windows, native menus, keyboard/mouse input and the docked
+debugger, and SDL3 (initialized without video) provides audio and gamepads.
+It accepts the same command-line options and configuration file as `zeal-native`.
+
+Requirements: **FLTK 1.3.8 or newer** (1.4 recommended, with `fltk-config` on
+`PATH`), **SDL 3**, OpenGL and a C++17 compiler.
+
+```sh
+brew install fltk sdl3                     # macOS
+sudo apt install libfltk1.3-dev libsdl3-dev libgl-dev   # Debian/Ubuntu (25.04+)
+meson setup build-fltk -Dfrontend=sdl-fltk
+meson compile -C build-fltk
+./build-fltk/zeal-fltk
+```
+
+Shortcuts use Cmd on macOS and Ctrl elsewhere, as in `zeal-native`:
+Cmd/Ctrl+F1 toggles the debugger, F5/F6/F10/F11/F9 (with Cmd/Ctrl) continue,
+pause, step over, step into and toggle a breakpoint, Shift+=/- scale the
+window, Shift+0/9 change the volume and Shift+Backspace resets. A middle click
+on the screen captures the mouse for the SNES mouse adapter. In the debugger,
+registers and memory are editable while paused, and the dock sizes and visible
+panels are saved with the configuration.
+
 ### WebAssembly compilation
 
 Activate **Emscripten 7.0.0**, then compile to WASM with:
@@ -337,11 +363,15 @@ input and audio, the browser loop, Emscripten exports, OPFS startup, and the
 browser HostFS bridge. It always shows the normal emulator view and never
 builds or links Nuklear, including when the core debugger API is enabled.
 `frontend/headless/` owns the batch and console application.
+`frontend/sdl-fltk/` owns the optional SDL3 + FLTK desktop application: its C
+files drive the machine, audio and gamepads, and its C++ `ui/` files hold the
+FLTK windows and debugger. The two halves only meet through
+`include/frontend/sdl-fltk/bridge.h`, so the C++ code never includes `hw/zeal.h`.
 
 `frontend/common/` contains shared command-line/INI handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
 desktop OS entry point, executable path discovery, and HostFS adapter used
-by Nuklear and headless. Graphical frontend code is not shared between Nuklear
+by Nuklear, SDL/FLTK and headless. Graphical frontend code is not shared between Nuklear
 and WASM. The emulator library has no platform-specific branches.
 
 Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
@@ -363,8 +393,9 @@ meson setup build-core -Dfrontend=none
 meson compile -C build-core
 ```
 
-`frontend` accepts `auto`, `both`, `nuklear`, `headless`, `wasm`, or `none`. `auto`
-selects both native executables and WASM for Emscripten. Core-only and
+`frontend` accepts `auto`, `both`, `nuklear`, `headless`, `sdl-fltk`, `wasm`, or
+`none`. `auto` selects both native executables and WASM for Emscripten;
+`sdl-fltk` builds only `zeal-fltk`. Core-only and
 headless-only builds require no Raylib, Nuklear, graphics libraries, or assets.
 The debugger and scanline-rendering build options remain independent.
 

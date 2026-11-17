@@ -99,6 +99,8 @@ if build_sdlfltk
         fltk_ldflags += ['-framework', 'ApplicationServices']
     endif
     fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
+    # fltk-config omits libGL on some distributions (FLTK 1.3); macOS uses the framework.
+    gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
     subdir('frontend/sdl-fltk')
     if not build_nuklear
         subdir('assets')
@@ -111,7 +113,7 @@ if build_sdlfltk
     sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
-        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep],
+        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep],
         cpp_args: host_args + sdlfltk_args + ['-std=c++17'], install: true)
     run_target('run-fltk', command: [exec])
 endif

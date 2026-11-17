@@ -56,7 +56,8 @@ void snes_controller_load_mappings(void)
     if (!SDL_WasInit(SDL_INIT_GAMEPAD)) return;
 
     /* Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path */
-    char path[PATH_MAX];
+    /* Room for a PATH_MAX directory plus the relative database path */
+    char path[PATH_MAX + 64];
     char exe_dir[PATH_MAX];
     const char* found = NULL;
     const char* config_dir = get_config_dir();

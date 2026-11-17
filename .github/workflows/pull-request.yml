@@ -101,3 +101,52 @@ jobs:
       - name: Test headless executable
         if: matrix.headless
         run: ./build/zeal-headless --help
+
+  build-sdl-fltk:
+    name: Build SDL/FLTK (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    # Ubuntu 24.04 has no SDL3 package; build Linux in a newer container.
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            container: ''
+            args: ''
+          - name: macOS, no debugger
+            runner: macos-latest
+            container: ''
+            args: -Denable_debugger=false -Dscanline_rendering=false
+          - name: Linux
+            runner: ubuntu-latest
+            container: ubuntu:25.04
+            args: ''
+          - name: Linux, no debugger
+            runner: ubuntu-latest
+            container: ubuntu:25.04
+            args: -Denable_debugger=false -Dscanline_rendering=false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install meson ninja pkg-config fltk sdl3
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y meson ninja-build gcc g++ pkg-config libsdl3-dev libfltk1.3-dev libgl-dev libx11-dev
+
+      - name: Build with Meson
+        uses: ./.github/actions/meson-build
+        with:
+          meson-args: -Dfrontend=sdl-fltk ${{ matrix.args }}
+
+      - name: Test executable
+        run: ./build/zeal-fltk --help
