@@ -485,8 +485,10 @@ public:
         fl_color(COLOR_SURFACE);
         fl_rectf(x(), y(), w(), h());
         const int cur = m_data->current();
-        char extra[24] = "";
-        if (cur >= 0) snprintf(extra, sizeof(extra), "#%d%s", cur, m_data->selected >= 0 ? "  PINNED" : "");
+        char extra[40] = "";
+        if (cur >= 0) {
+            snprintf(extra, sizeof(extra), "#%d  16x%d", cur, m_data->info[cur].height);
+        }
         draw_header(x(), y(), w(), "SPRITE", extra);
 
         /* Screen map: where every on-screen sprite sits */
@@ -497,8 +499,9 @@ public:
         fl_rect(m_mx - 1, m_my - 1, m_mw + 2, m_mh + 2);
         fl_font(FL_HELVETICA, 10);
         fl_color(COLOR_DIM);
-        char res[24];
-        snprintf(res, sizeof(res), "%dx%d", m_data->screen_w, m_data->screen_h);
+        char res[48];
+        snprintf(res, sizeof(res), "%dx%d%s", m_data->screen_w, m_data->screen_h,
+                 m_data->selected >= 0 ? "   pinned (click again to release)" : "");
         fl_draw(res, m_mx + 3, m_my + m_mh - 4);
         fl_push_clip(m_mx, m_my, m_mw, m_mh);
         for (int pass = 0; pass < 2; pass++) {
@@ -524,7 +527,7 @@ public:
             return;
         }
 
-        /* Magnified sprite on the left, attributes on the right */
+        /* Magnified sprite with its state flags beside it */
         const fz_sprite_t& sp = m_data->info[cur];
         const int scale = 4;
         compose_sprite(*m_data, cur, scale, false, m_buf);
@@ -532,35 +535,67 @@ public:
         fl_color(COLOR_BORDER);
         fl_rect(x() + 11, ty - 1, FZ_SPRITE_W * scale + 2, FZ_SPRITE_MAX_H * scale + 2);
 
-        const bool up = config.debugger.hex_upper;
+        const int lh = data_line_height();
         const int ax = x() + 12 + FZ_SPRITE_W * scale + 14;
-        int ay = ty + 10;
-        char v[48];
-        auto row = [&](const char* label, const char* value, Fl_Color c) {
+        int ay = ty + 12;
+        auto info = [&](const char* label, const char* value, Fl_Color c) {
             fl_font(FL_HELVETICA, 10);
             fl_color(COLOR_DIM);
             fl_draw(label, ax, ay);
             fl_font(DATA_FONT, DATA_SIZE);
             fl_color(c);
-            fl_draw(value, ax + 52, ay);
-            ay += data_line_height() + 1;
+            fl_draw(value, ax + 48, ay);
+            ay += lh + 2;
         };
-        snprintf(v, sizeof(v), up ? "$%03X %d" : "$%03x %d", sp.x, sp.screen_x);
-        row("X", v, COLOR_TEXT);
-        snprintf(v, sizeof(v), up ? "$%03X %d" : "$%03x %d", sp.y, sp.screen_y);
-        row("Y", v, COLOR_TEXT);
-        snprintf(v, sizeof(v), "%d%s", sp.tile, sp.bank ? " B1" : "");
-        row("TILE", v, COLOR_CYAN);
-        snprintf(v, sizeof(v), "%d", sp.palette);
-        row("PAL", v, COLOR_TEXT);
-        snprintf(v, sizeof(v), "16x%d", sp.height);
-        row("SIZE", v, COLOR_TEXT);
+        info("STATE", sp.on_screen ? "on screen" : "off screen", sp.on_screen ? COLOR_GREEN : COLOR_AMBER);
+        char v[48];
         snprintf(v, sizeof(v), "%s%s", sp.flip_x ? "X " : "", sp.flip_y ? "Y" : (sp.flip_x ? "" : "-"));
-        row("FLIP", v, COLOR_TEXT);
-        row("PRIO", sp.behind_fg ? "behind" : "front", sp.behind_fg ? COLOR_DIM : COLOR_TEXT);
-        snprintf(v, sizeof(v), up ? "%04X %04X" : "%04x %04x", sp.raw_flags, sp.raw_extra);
-        row("RAW", v, COLOR_DIM);
-        row("STATE", sp.on_screen ? "on screen" : "off screen", sp.on_screen ? COLOR_GREEN : COLOR_AMBER);
+        info("FLIP", v, COLOR_TEXT);
+        info("PRIO", sp.behind_fg ? "behind" : "front", sp.behind_fg ? COLOR_DIM : COLOR_TEXT);
+        info("BANK", sp.bank ? "1" : "0", COLOR_TEXT);
+
+        /* Numbers: explicit HEX and DEC columns */
+        const bool up = config.debugger.hex_upper;
+        const int col_label = x() + 12;
+        const int col_hex = col_label + 64;
+        const int col_dec = col_hex + 78;
+        int ry = ty + FZ_SPRITE_MAX_H * scale + 22;
+        fl_font(FL_HELVETICA, 10);
+        fl_color(COLOR_DIM);
+        fl_draw("HEX", col_hex, ry);
+        fl_draw("DEC", col_dec, ry);
+        fl_color(COLOR_BORDER);
+        fl_xyline(col_label, ry + 4, x() + w() - 12);
+        ry += lh + 2;
+        char hex[24], dec[24];
+        auto num = [&](const char* label, const char* h, const char* d, Fl_Color c) {
+            fl_font(FL_HELVETICA, 10);
+            fl_color(COLOR_DIM);
+            fl_draw(label, col_label, ry);
+            fl_font(DATA_FONT, DATA_SIZE);
+            fl_color(c);
+            if (h) fl_draw(h, col_hex, ry);
+            if (d) fl_draw(d, col_dec, ry);
+            ry += lh + 2;
+        };
+        snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.x);
+        snprintf(dec, sizeof(dec), "%u", sp.x);
+        num("X", hex, dec, COLOR_TEXT);
+        snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.y);
+        snprintf(dec, sizeof(dec), "%u", sp.y);
+        num("Y", hex, dec, COLOR_TEXT);
+        snprintf(dec, sizeof(dec), "%d, %d", sp.screen_x, sp.screen_y);
+        num("SCREEN", nullptr, dec, sp.on_screen ? COLOR_GREEN : COLOR_AMBER);
+        snprintf(hex, sizeof(hex), up ? "$%03X" : "$%03x", sp.tile);
+        snprintf(dec, sizeof(dec), "%u", sp.tile);
+        num("TILE", hex, dec, COLOR_CYAN);
+        snprintf(hex, sizeof(hex), up ? "$%X" : "$%x", sp.palette);
+        snprintf(dec, sizeof(dec), "%u", sp.palette);
+        num("PALETTE", hex, dec, COLOR_TEXT);
+        snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.raw_flags);
+        num("FLAGS", hex, nullptr, COLOR_DIM);
+        snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.raw_extra);
+        num("EXTRA", hex, nullptr, COLOR_DIM);
     }
 
     int handle(int event) override
