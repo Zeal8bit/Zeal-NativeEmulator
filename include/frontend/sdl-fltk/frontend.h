@@ -50,6 +50,7 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse);
 #if CONFIG_ENABLE_DEBUGGER
 /* VRAM debug rasteriser (debug_video.c) */
 bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out);
+bool fltk_debug_sprite(zvb_t* zvb, int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask);
 void fltk_debug_video_free(void);
 #endif
 

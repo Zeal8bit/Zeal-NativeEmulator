@@ -150,6 +150,30 @@ bool fz_vram_render(dbg_vram_t view, fz_image_t* out)
 #endif
 }
 
+bool fz_gfx_screen(int* width, int* height)
+{
+    if (fltk_machine == NULL || !zvb_is_gfx_mode(&fltk_machine->zvb)) return false;
+    const int mode = fltk_machine->zvb.mode;
+    const bool mode_320 = mode == MODE_GFX_320_8BIT || mode == MODE_GFX_320_4BIT;
+    if (width) *width = mode_320 ? 320 : 640;
+    if (height) *height = mode_320 ? 240 : 480;
+    return true;
+}
+
+bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    if (fltk_machine == NULL) return false;
+    return fltk_debug_sprite(&fltk_machine->zvb, index, info, rgb, mask);
+#else
+    (void) index;
+    (void) info;
+    (void) rgb;
+    (void) mask;
+    return false;
+#endif
+}
+
 /* ------------------------------------------------------------------ */
 /*  SNES adapter                                                       */
 /* ------------------------------------------------------------------ */
