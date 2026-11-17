@@ -111,12 +111,36 @@ static bool dbg_ready()
     return fz_debugger() != nullptr;
 }
 
+/** Registers to display: exact when paused, the mid-frame sample while
+ *  running (reading them here would always land on the frame boundary). */
 static regs_t current_regs()
+{
+    regs_t regs;
+    memset(&regs, 0, sizeof(regs));
+    if (!dbg_ready()) return regs;
+    if (!fz_paused() && fz_live_sample(&regs, nullptr, 0, nullptr, 0)) return regs;
+    debugger_get_registers(fz_debugger(), &regs);
+    return regs;
+}
+
+/** Registers for editing: always the exact current state. */
+static regs_t exact_regs()
 {
     regs_t regs;
     memset(&regs, 0, sizeof(regs));
     if (dbg_ready()) debugger_get_registers(fz_debugger(), &regs);
     return regs;
+}
+
+/** Memory at the stack/HL as displayed: sampled while running. */
+static void display_memory(hwaddr addr, int len, uint8_t* out, bool stack)
+{
+    if (!fz_paused()) {
+        const bool ok = stack ? fz_live_sample(nullptr, out, len, nullptr, 0)
+                              : fz_live_sample(nullptr, nullptr, 0, out, len);
+        if (ok) return;
+    }
+    debugger_read_memory(fz_debugger(), addr, len, out);
 }
 
 /* ------------------------------------------------------------------ */
@@ -386,10 +410,10 @@ public:
         }
         if (paused && force) m_have_prev = true;
         if (dbg_ready()) {
-            debugger_read_memory(fz_debugger(), m_regs.hl, 8, m_peek_hl);
-            debugger_read_memory(fz_debugger(), m_regs.sp, 2, m_peek_sp);
+            display_memory(m_regs.hl, 8, m_peek_hl, false);
+            display_memory(m_regs.sp, 2, m_peek_sp, true);
         }
-        extra(paused ? "PAUSED" : "LIVE");
+        extra(paused ? "PAUSED" : "SAMPLED");
         redraw();
     }
 
@@ -510,7 +534,7 @@ public:
                 }
                 const int f = hit_chip(ex, ey);
                 if (f >= 0 && m_paused && dbg_ready()) {
-                    regs_t regs = current_regs();
+                    regs_t regs = exact_regs();
                     regs.f ^= (uint8_t) (1u << (7 - f));
                     debugger_set_registers(fz_debugger(), &regs);
                     request_refresh();
@@ -632,7 +656,7 @@ private:
         if (end == text || (end && *end) || !dbg_ready() || !fz_paused()) {
             fl_beep();
         } else {
-            regs_t regs = current_regs();
+            regs_t regs = exact_regs();
             reg_set(regs, self->m_edit_id, (uint16_t) v);
             debugger_set_registers(fz_debugger(), &regs);
         }
@@ -685,10 +709,11 @@ public:
         const int cw = char_width();
         const int asc = text_baseline(lh);
         const int rows = (h() - HEADER_H - 8) / lh;
-        const int count = rows < 128 ? rows : 128;
+        int count = rows < 128 ? rows : 128;
+        if (!fz_paused() && count > 32) count = 32; /* size of the live sample */
         if (count <= 0) return;
         uint8_t mem[256];
-        debugger_read_memory(fz_debugger(), m_regs.sp, count * 2, mem);
+        display_memory(m_regs.sp, count * 2, mem, true);
         fl_push_clip(x(), top(), w(), h() - HEADER_H);
         fl_font(DATA_FONT, DATA_SIZE);
         char text[16];
@@ -1135,7 +1160,7 @@ private:
                 debugger_continue(dbg);
                 break;
             case 1: {
-                regs_t regs = current_regs();
+                regs_t regs = exact_regs();
                 regs.pc = (uint16_t) addr;
                 debugger_set_registers(dbg, &regs);
                 break;

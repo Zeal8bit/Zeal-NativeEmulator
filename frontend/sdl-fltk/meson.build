@@ -7,6 +7,7 @@ sdlfltk_sources = files(
     'keyboard.c',
     'mouse.c',
     'profile.c',
+    'sampler.c',
     'snes_adapter.c',
 )
 sdlfltk_cpp_sources = files(

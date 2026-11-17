@@ -36,6 +36,13 @@ bool   fz_debugger_enabled(void);
 void   fz_debugger_set_enabled(bool enabled);
 bool   fz_paused(void);
 
+/**
+ * While running, the CPU state sampled at a random point of the last ~100 ms
+ * (the UI itself only runs between frames). Returns false if no sample yet.
+ * Any output pointer may be NULL.
+ */
+bool fz_live_sample(regs_t* regs, uint8_t* stack, int stack_len, uint8_t* hl, int hl_len);
+
 /* Audio volume in percent (0-100) */
 int  fz_volume(void);
 void fz_volume_set(int percent);
