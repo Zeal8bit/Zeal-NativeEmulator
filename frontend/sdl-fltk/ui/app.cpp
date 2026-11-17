@@ -27,8 +27,10 @@ static bool s_closed;
 static bool s_snes_dirty;
 static double s_status_at;
 
+#if CONFIG_ENABLE_DEBUGGER
 /* Default visibility of the debugger panels, before loading the config */
 static bool s_panel_hidden_default[FRONTEND_PANEL_COUNT];
+#endif
 
 constexpr int TOOLBAR_H = 34;
 constexpr int STATUS_H = 22;
@@ -88,8 +90,12 @@ bool parse_address(const char* text, hwaddr* out)
             return true;
         }
     }
+#if CONFIG_ENABLE_DEBUGGER
     dbg_t* dbg = fz_debugger();
     return dbg != nullptr && debugger_find_symbol(dbg, text, out);
+#else
+    return false;
+#endif
 }
 
 static float scale_quantize_tenths(float scale, float step)
@@ -371,6 +377,7 @@ static void cb_scanline(Fl_Widget* w, void*)
     notif_show("Scanline rendering: %s", fz_scanline() ? "on" : "off");
 }
 
+#if CONFIG_ENABLE_DEBUGGER
 static void cb_panel(Fl_Widget* w, void* data)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
@@ -378,11 +385,14 @@ static void cb_panel(Fl_Widget* w, void* data)
     config_panels[index].hidden = !(item && item->value());
     if (s_window && s_window->debugger()) s_window->debugger()->apply_panel_visibility();
 }
+#endif
 
+#if CONFIG_ENABLE_DEBUGGER
 static void cb_reset_layout(Fl_Widget*, void*)
 {
     if (s_window) s_window->reset_layout();
 }
+#endif
 
 static void change_volume(int delta)
 {
@@ -587,12 +597,14 @@ void MainWindow::apply_window_config(bool debug)
     if (Y < 0 || Y > sy + sh - 40) Y = sy + (sh - H) / 2;
     resize(X, Y, W, H);
 
+#if CONFIG_ENABLE_DEBUGGER
     /* The saved debugger screen size (P_VIDEO) determines the dock sizes */
     const config_panel_t* video = &config_panels[0];
     if (debug && video->width > 0 && video->height > 0) {
         m_dock->dock_sizes(m_dock->w() - video->width - DockLayout::SPLITTER,
                            m_dock->h() - video->height - DockLayout::SPLITTER);
     }
+#endif
 }
 
 void MainWindow::capture_window_config(bool debug)
@@ -635,10 +647,12 @@ void MainWindow::toggle_fullscreen()
 
 void MainWindow::reset_layout()
 {
+#if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
         config_panels[i].hidden = s_panel_hidden_default[i];
     }
     config_panels[0].width = config_panels[0].height = 0;
+#endif
     m_dock->dock_sizes(DEFAULT_RIGHT_W, DEFAULT_BOTTOM_H);
     if (m_debugger) m_debugger->reset_layout();
     if (m_debug) {
@@ -649,7 +663,9 @@ void MainWindow::reset_layout()
     update_menus();
 }
 
+#if CONFIG_ENABLE_DEBUGGER
 static const int s_toggle_panels[] = { 2, 4, 1, 3, 5, 6, 7 };
+#endif
 
 void MainWindow::build_menus()
 {
@@ -681,7 +697,8 @@ void MainWindow::build_menus()
         mb->add("&View/Scanline Rendering", 0, cb_scanline, nullptr, FL_MENU_TOGGLE);
     }
     mb->add("&View/Show FPS", 0, cb_show_fps, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
-    if (debugger_compiled()) {
+#if CONFIG_ENABLE_DEBUGGER
+    {
         char path[96];
         for (int index : s_toggle_panels) {
             snprintf(path, sizeof(path), "&View/Debugger Panels/%s", config_panels[index].title);
@@ -689,6 +706,7 @@ void MainWindow::build_menus()
         }
         mb->add("&View/Reset Layout", 0, cb_reset_layout);
     }
+#endif
 
     mb->add("&Audio/Volume &Up", FL_COMMAND + FL_SHIFT + '0', cb_volume_up);
     mb->add("&Audio/Volume &Down", FL_COMMAND + FL_SHIFT + '9', cb_volume_down);
@@ -717,11 +735,13 @@ void MainWindow::update_menus()
     set_toggle(mb, "&View/Scanline Rendering", fz_scanline());
     set_toggle(mb, "&View/Show FPS", show_fps);
     set_toggle(mb, "&Audio/&Mute", fz_muted());
+#if CONFIG_ENABLE_DEBUGGER
     char path[96];
     for (int index : s_toggle_panels) {
         snprintf(path, sizeof(path), "&View/Debugger Panels/%s", config_panels[index].title);
         set_toggle(mb, path, !config_panels[index].hidden, dbg);
     }
+#endif
 #if FL_API_VERSION >= 10400
     static_cast<Fl_Sys_Menu_Bar*>(mb)->update();
 #endif
@@ -797,6 +817,8 @@ void MainWindow::frame_presented()
 void MainWindow::update_status()
 {
     char state[64];
+    snprintf(state, sizeof(state), fz_debugger_enabled() ? "Running (debugger)" : "Running");
+#if CONFIG_ENABLE_DEBUGGER
     dbg_t* dbg = fz_debugger();
     if (fz_paused() && dbg) {
         regs_t regs;
@@ -804,9 +826,8 @@ void MainWindow::update_status()
         char pc[8];
         snprintf(pc, sizeof(pc), hex16_fmt(), regs.pc);
         snprintf(state, sizeof(state), "Paused at $%s", pc);
-    } else {
-        snprintf(state, sizeof(state), fz_debugger_enabled() ? "Running (debugger)" : "Running");
     }
+#endif
     m_status_state->copy_label(state);
 
     char info[96];
@@ -888,10 +909,12 @@ bool config_keyboard_passthru(bool dbg_enabled)
 
 int ui_open(bool debug)
 {
+#if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
         s_panel_hidden_default[i] = config_panels[i].hidden;
         config_panel_load(&config_panels[i]);
     }
+#endif
 
     /* Cocoa (macOS system menubar) must exist before any menu is built */
     fl_open_display();

@@ -1641,7 +1641,7 @@ void Debugger::capture_layout()
 
 struct Debugger::Impl {};
 Debugger::Debugger(DockLayout*) : m(nullptr) {}
-Debugger::~Debugger() {}
+Debugger::~Debugger() { delete m; }
 Fl_Group* Debugger::toolbar(int x, int y, int w, int h) { return new Fl_Group(x, y, w, h); }
 void Debugger::refresh(bool) {}
 void Debugger::goto_memory(hwaddr) {}
