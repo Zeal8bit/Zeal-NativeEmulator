@@ -10,10 +10,11 @@ endif
 build_nuklear = frontend == 'nuklear' or frontend == 'both'
 build_headless = frontend == 'headless' or frontend == 'both'
 build_wasm = frontend == 'wasm'
+build_sdlfltk = frontend == 'sdl-fltk'
 if build_wasm and not is_web
     error('frontend=wasm requires an Emscripten cross file (for example wasm-cross.build)')
 endif
-if is_web and (build_nuklear or build_headless)
+if is_web and (build_nuklear or build_headless or build_sdlfltk)
     error('Emscripten supports frontend=wasm (or auto) and frontend=none; nuklear and headless are native frontends')
 endif
 
@@ -37,7 +38,7 @@ core = static_library('zeal', sources, include_directories: includes,
 zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
 
-if build_nuklear or build_headless or build_wasm
+if build_nuklear or build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')
     host_args = ['-D_XOPEN_SOURCE=700',
         '-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version())]
@@ -45,7 +46,7 @@ if build_nuklear or build_headless or build_wasm
         host_args += '-D_DARWIN_C_SOURCE'
     endif
 endif
-if build_nuklear or build_headless
+if build_nuklear or build_headless or build_sdlfltk
     subdir('frontend/common/desktop')
 endif
 
@@ -87,6 +88,32 @@ if build_nuklear
         dependencies: zeal_dep, c_args: host_args + graphics_args,
         link_args: graphics_link + meson.get_external_property('link_args', []), install: true)
     run_target('run', command: [exec])
+endif
+if build_sdlfltk
+    add_languages('cpp', native: false)
+    sdl3_dep = dependency('sdl3')
+    fltk_config = find_program('fltk-config')
+    fltk_cxxflags = run_command(fltk_config, '--use-gl', '--cxxflags', check: true).stdout().strip().split()
+    fltk_ldflags = run_command(fltk_config, '--use-gl', '--ldflags', check: true).stdout().strip().split()
+    if host_machine.system() == 'darwin'
+        fltk_ldflags += ['-framework', 'ApplicationServices']
+    endif
+    fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
+    subdir('frontend/sdl-fltk')
+    if not build_nuklear
+        subdir('assets')
+    endif
+    sdlfltk_args = ['-DFRONTEND_HEADLESS=0',
+        '-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
+    if get_option('show_fps')
+        sdlfltk_args += '-DCONFIG_SHOW_FPS=1'
+    endif
+    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
+        dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
+    exec = executable('zeal-fltk', sdlfltk_cpp_sources,
+        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep],
+        cpp_args: host_args + sdlfltk_args + ['-std=c++17'], install: true)
+    run_target('run-fltk', command: [exec])
 endif
 if build_wasm
     subdir('frontend/wasm')
