@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* "Video & Profiler" tool window. Graphics work happens in a different
+/* "Video" tool window. Graphics work happens in a different
  * phase than stepping code, so these viewers get their own window (as in
  * Mesen) that can sit beside the debugger or on a second monitor:
  *
- *   [Layer 0][Layer 1][Tileset][Palette][Font][Profiler]        zoom [2x]
+ *   [Layer 0][Layer 1][Tileset][Palette][Font] [Sprites]        zoom [2x]
  *   +------------------------------------------+--------------------+
  *   | VRAM view (scrollable, zoomable)         | INSPECTOR          |
  *   |                                          |  magnified cell    |
@@ -29,11 +29,11 @@ namespace zui {
 
 #if CONFIG_ENABLE_DEBUGGER
 
-enum { VIEW_SPRITES = DBG_VIEW_TOTAL, VIEW_PROFILER };
+enum { VIEW_SPRITES = DBG_VIEW_TOTAL, VIEW_COUNT };
 constexpr int TOP_H = 38;
 constexpr int INSPECTOR_W = 270;
 
-static const char* s_view_names[] = { "Layer 0", "Layer 1", "Tileset", "Palette", "Font", "Sprites", "Profiler" };
+static const char* s_view_names[] = { "Layer 0", "Layer 1", "Tileset", "Palette", "Font", "Sprites" };
 
 /* ------------------------------------------------------------------ */
 /*  Segmented view switcher                                            */
@@ -651,111 +651,7 @@ private:
     int m_mx = 0, m_my = 0, m_mw = 0, m_mh = 0;
 };
 
-/* ------------------------------------------------------------------ */
-/*  Profiler (semihost counters)                                       */
-/* ------------------------------------------------------------------ */
 
-class ProfilerView : public Fl_Widget {
-public:
-    ProfilerView(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H)
-    {
-        tooltip("Click a counter to toggle break-on-update");
-    }
-
-    void draw() override
-    {
-        fl_color(COLOR_SURFACE);
-        fl_rectf(x(), y(), w(), h());
-        draw_header(x(), y(), w(), "SEMIHOST COUNTERS", "* running   ! break on update");
-        const int lh = data_line_height() + 4;
-        const int cols[] = { 12, 70, 300, 520 };
-        int yy = y() + HEADER_H + 10;
-        fl_font(FL_HELVETICA, 11);
-        fl_color(COLOR_DIM);
-        const char* heads[] = { "#", "MICROSECONDS  min / avg / max", "MILLISECONDS  min / avg / max", "TOTAL  us / ms" };
-        for (int i = 0; i < 4; i++) fl_draw(heads[i], x() + cols[i], yy + 12);
-        yy += 22;
-        fl_color(COLOR_BORDER);
-        fl_xyline(x() + 8, yy - 4, x() + w() - 8);
-        fl_font(DATA_FONT, DATA_SIZE);
-        const int asc = lh - fl_descent() - (lh - fl_height()) / 2;
-        char text[96];
-        m_rows_y = yy;
-        m_row_h = lh;
-        for (int i = 0; i < fz_semihost_counter_count(); i++) {
-            fz_counter_t c;
-            if (!fz_semihost_counter(i, &c)) continue;
-            const int ry = yy + i * lh;
-            if (i == m_hover) {
-                fl_color(COLOR_HOVER);
-                fl_rectf(x() + 4, ry, w() - 8, lh);
-            }
-            if (c.break_on_update) {
-                fl_color(COLOR_BREAK);
-                fl_rectf(x() + 4, ry, 3, lh);
-            }
-            snprintf(text, sizeof(text), "%d%s%s", i, c.running ? "*" : "", c.break_on_update ? "!" : "");
-            fl_color(c.running ? COLOR_GREEN : c.break_on_update ? COLOR_BREAK : COLOR_CYAN);
-            fl_draw(text, x() + cols[0], ry + asc);
-            fl_color(COLOR_TEXT);
-            snprintf(text, sizeof(text), "%llu / %llu / %llu", (unsigned long long) c.min_us,
-                     (unsigned long long) c.avg_us, (unsigned long long) c.max_us);
-            fl_draw(text, x() + cols[1], ry + asc);
-            snprintf(text, sizeof(text), "%llu / %llu / %llu", (unsigned long long) c.min_us / 1000,
-                     (unsigned long long) c.avg_us / 1000, (unsigned long long) c.max_us / 1000);
-            fl_draw(text, x() + cols[2], ry + asc);
-            fl_color(COLOR_AMBER);
-            snprintf(text, sizeof(text), "%llu / %llu", (unsigned long long) c.total_us,
-                     (unsigned long long) c.total_us / 1000);
-            fl_draw(text, x() + cols[3], ry + asc);
-        }
-    }
-
-    int handle(int event) override
-    {
-        switch (event) {
-            case FL_ENTER:
-                return 1;
-            case FL_LEAVE:
-                m_hover = -1;
-                redraw();
-                return 1;
-            case FL_MOVE: {
-                const int r = row_at(Fl::event_y());
-                if (r != m_hover) {
-                    m_hover = r;
-                    redraw();
-                }
-                return 1;
-            }
-            case FL_MOUSEWHEEL:
-                return 1;
-            case FL_PUSH: {
-                const int r = row_at(Fl::event_y());
-                if (r >= 0) {
-                    fz_semihost_toggle_break(r);
-                    redraw();
-                }
-                return 1;
-            }
-            default:
-                break;
-        }
-        return Fl_Widget::handle(event);
-    }
-
-private:
-    int row_at(int ey) const
-    {
-        if (m_row_h <= 0 || ey < m_rows_y) return -1;
-        const int r = (ey - m_rows_y) / m_row_h;
-        return r < fz_semihost_counter_count() ? r : -1;
-    }
-
-    int m_rows_y = 0;
-    int m_row_h = 0;
-    int m_hover = -1;
-};
 
 /* ------------------------------------------------------------------ */
 /*  Window                                                             */
@@ -763,16 +659,16 @@ private:
 
 class VideoWindow : public Fl_Double_Window {
 public:
-    VideoWindow() : Fl_Double_Window(980, 660, FZ_WIN_NAME " - Video & Profiler")
+    VideoWindow() : Fl_Double_Window(980, 660, FZ_WIN_NAME " - Video")
     {
         color(COLOR_BG);
         int sx = 8;
-        for (int i = 0; i <= VIEW_PROFILER; i++) {
-            const int sw = i == VIEW_PROFILER ? 84 : 76;
+        for (int i = 0; i < VIEW_COUNT; i++) {
+            const int sw = 76;
             Segment* s = new Segment(sx, 6, sw, TOP_H - 10, s_view_names[i]);
             s->callback(cb_view, (void*) (intptr_t) i);
             if (i == 0) s->setonly();
-            sx += sw + (i == VIEW_SPRITES ? 14 : 2);
+            sx += sw + (i == DBG_FONT ? 14 : 2);
         }
         m_zoom = new Fl_Choice(w() - 90, 8, 80, TOP_H - 14);
         m_zoom->add("1x|2x|3x|4x");
@@ -795,8 +691,6 @@ public:
         m_sprite_inspector->hide();
         m_sheet->inspector = m_sprite_inspector;
         m_sprite_inspector->sheet = m_sheet;
-        m_profiler = new ProfilerView(0, TOP_H, w(), h() - TOP_H);
-        m_profiler->hide();
         resizable(m_scroll);
         end();
         size_range(520, 320);
@@ -812,7 +706,6 @@ public:
         m_scroll->resize(0, TOP_H, W - INSPECTOR_W - 4, H - TOP_H);
         m_inspector->resize(W - INSPECTOR_W, TOP_H, INSPECTOR_W, H - TOP_H);
         m_sprite_inspector->resize(W - INSPECTOR_W, TOP_H, INSPECTOR_W, H - TOP_H);
-        m_profiler->resize(0, TOP_H, W, H - TOP_H);
     }
 
     void draw() override
@@ -828,9 +721,7 @@ public:
         const double now = now_seconds();
         if (!force && (paused || now - m_last < 0.25)) return;
         m_last = now;
-        if (m_view == VIEW_PROFILER) {
-            m_profiler->redraw();
-        } else if (m_view == VIEW_SPRITES) {
+        if (m_view == VIEW_SPRITES) {
             m_sprites.update();
             m_sheet->zoom = m_zoom->value() + 1;
             m_sheet->relayout();
@@ -846,16 +737,8 @@ public:
     void set_view(int view)
     {
         m_view = view;
-        const bool profiler = view == VIEW_PROFILER;
         const bool sprites = view == VIEW_SPRITES;
-        if (profiler) {
-            m_scroll->hide();
-            m_inspector->hide();
-            m_sprite_inspector->hide();
-            m_zoom->hide();
-            m_profiler->show();
-        } else {
-            m_profiler->hide();
+        {
             m_scroll->show();
             m_zoom->show();
             if (sprites) {
@@ -901,7 +784,6 @@ private:
     SpriteData m_sprites;
     SpriteSheet* m_sheet;
     SpriteInspector* m_sprite_inspector;
-    ProfilerView* m_profiler;
 };
 
 static VideoWindow* s_window;

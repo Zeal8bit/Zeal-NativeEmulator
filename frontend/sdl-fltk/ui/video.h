@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* "Video & Profiler" tool window: VRAM viewers and semihost counters. */
+/* "Video" tool window: VRAM and sprite viewers. */
 #pragma once
 
 namespace zui {
@@ -16,6 +16,7 @@ struct LayoutConfig {
     int screen_h = 0;
     int right_w = 0;
     int breakpoints_h = 0;
+    int watch_h = 0;
     int video_x = -1;
     int video_y = -1;
     int video_w = 0;

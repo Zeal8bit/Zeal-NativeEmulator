@@ -20,6 +20,7 @@
 #include <FL/platform.H>
 #include <FL/Fl_Image_Surface.H>
 #include "ui.h"
+#include "tool_window.h"
 
 namespace zui {
 
@@ -263,6 +264,13 @@ static void cb_video_window(Fl_Widget*, void*)
     Debugger* d = s_window->debugger();
     d->show_video_window(!d->video_window_shown());
     s_window->update_menus();
+}
+
+static void cb_tool_window(Fl_Widget*, void* data)
+{
+    const char* id = static_cast<const char*>(data);
+    tool_window_show(id, !tool_window_shown(id));
+    if (s_window) s_window->update_menus();
 }
 #endif
 
@@ -561,7 +569,11 @@ void MainWindow::build_menus()
     }
     mb->add("&View/Show FPS", 0, cb_show_fps, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
 #if CONFIG_ENABLE_DEBUGGER
-    mb->add("&View/&Video && Profiler Window", FL_COMMAND + FL_SHIFT + 'v', cb_video_window, nullptr, FL_MENU_TOGGLE);
+    mb->add("&View/&Video Window", FL_COMMAND + FL_SHIFT + 'v', cb_video_window, nullptr, FL_MENU_TOGGLE);
+    mb->add("&View/&Code && Profiler Window", FL_COMMAND + FL_SHIFT + 'c', cb_tool_window,
+            (void*) TOOL_CODE, FL_MENU_TOGGLE);
+    mb->add("&View/&Hardware Window", FL_COMMAND + FL_SHIFT + 'h', cb_tool_window,
+            (void*) TOOL_HARDWARE, FL_MENU_TOGGLE);
     mb->add("&View/Reset Debugger Layout", 0, cb_reset_layout);
 #endif
 
@@ -592,8 +604,10 @@ void MainWindow::update_menus()
     set_toggle(mb, "&View/Scanline Rendering", fz_scanline());
     set_toggle(mb, "&View/Show FPS", show_fps);
     set_toggle(mb, "&Audio/&Mute", fz_muted());
-    set_toggle(mb, "&View/&Video && Profiler Window",
+    set_toggle(mb, "&View/&Video Window",
                m_debugger && m_debugger->video_window_shown(), m_debugger != nullptr);
+    set_toggle(mb, "&View/&Code && Profiler Window", tool_window_shown(TOOL_CODE), m_debugger != nullptr);
+    set_toggle(mb, "&View/&Hardware Window", tool_window_shown(TOOL_HARDWARE), m_debugger != nullptr);
 #if FL_API_VERSION >= 10400
     static_cast<Fl_Sys_Menu_Bar*>(mb)->update();
 #endif

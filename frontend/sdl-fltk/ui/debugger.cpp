@@ -34,7 +34,8 @@
 #include <FL/fl_draw.H>
 #include <FL/fl_utf8.h>
 #include <FL/fl_ask.H>
-#include "ui.h"
+#include "panel.h"
+#include "tool_window.h"
 #include "video.h"
 
 #if CONFIG_ENABLE_DEBUGGER
@@ -47,136 +48,7 @@ namespace zui {
 
 #if CONFIG_ENABLE_DEBUGGER
 
-constexpr int BAR_H = 30;
-
 static Debugger::Impl* s_impl;
-static void request_refresh();
-static void goto_memory(hwaddr addr);
-static void goto_disassembly(hwaddr addr);
-
-static void hex16(char* out, size_t size, unsigned value)
-{
-    snprintf(out, size, hex16_fmt(), value & 0xFFFF);
-}
-
-static void hex8(char* out, size_t size, unsigned value)
-{
-    snprintf(out, size, hex8_fmt(), value & 0xFF);
-}
-
-static int char_width()
-{
-    fl_font(DATA_FONT, DATA_SIZE);
-    return (int) fl_width("0");
-}
-
-static int text_baseline(int line_h)
-{
-    fl_font(DATA_FONT, DATA_SIZE);
-    return line_h - fl_descent() - (line_h - fl_height()) / 2;
-}
-
-static void style_input(Fl_Input* in)
-{
-    in->textfont(DATA_FONT);
-    in->textsize(DATA_SIZE);
-    in->color(COLOR_BG);
-    in->textcolor(COLOR_TEXT);
-    in->cursor_color(COLOR_AMBER);
-    in->selection_color(COLOR_SELECT);
-    in->box(FL_BORDER_BOX);
-}
-
-static void style_button(Fl_Button* b)
-{
-    b->labelsize(12);
-    b->box(FL_FLAT_BOX);
-    b->down_box(FL_FLAT_BOX);
-    b->color(COLOR_RAISED);
-    b->selection_color(COLOR_BORDER);
-    b->labelcolor(COLOR_TEXT);
-    b->clear_visible_focus();
-}
-
-static void style_check(Fl_Check_Button* b)
-{
-    b->labelsize(12);
-    b->labelcolor(COLOR_TEXT);
-    b->selection_color(COLOR_AMBER);
-    b->clear_visible_focus();
-}
-
-static bool dbg_ready()
-{
-    return fz_debugger() != nullptr;
-}
-
-/** Registers to display: exact when paused, the mid-frame sample while
- *  running (reading them here would always land on the frame boundary). */
-static regs_t current_regs()
-{
-    regs_t regs;
-    memset(&regs, 0, sizeof(regs));
-    if (!dbg_ready()) return regs;
-    if (!fz_paused() && fz_live_sample(&regs, nullptr, 0, nullptr, 0)) return regs;
-    debugger_get_registers(fz_debugger(), &regs);
-    return regs;
-}
-
-/** Registers for editing: always the exact current state. */
-static regs_t exact_regs()
-{
-    regs_t regs;
-    memset(&regs, 0, sizeof(regs));
-    if (dbg_ready()) debugger_get_registers(fz_debugger(), &regs);
-    return regs;
-}
-
-/** Memory at the stack/HL as displayed: sampled while running. */
-static void display_memory(hwaddr addr, int len, uint8_t* out, bool stack)
-{
-    if (!fz_paused()) {
-        const bool ok = stack ? fz_live_sample(nullptr, out, len, nullptr, 0)
-                              : fz_live_sample(nullptr, nullptr, 0, out, len);
-        if (ok) return;
-    }
-    debugger_read_memory(fz_debugger(), addr, len, out);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Panel: surface with a retro header strip                           */
-/* ------------------------------------------------------------------ */
-
-class Panel : public Fl_Group {
-public:
-    Panel(int X, int Y, int W, int H, const char* title)
-        : Fl_Group(X, Y, W, H), m_title(title)
-    {
-        box(FL_FLAT_BOX);
-        color(COLOR_SURFACE);
-    }
-
-    void extra(const char* text)
-    {
-        if (strcmp(m_extra, text) == 0) return;
-        snprintf(m_extra, sizeof(m_extra), "%s", text);
-        damage(FL_DAMAGE_ALL, x(), y(), w(), HEADER_H);
-    }
-
-    void draw() override
-    {
-        Fl_Group::draw();
-        draw_header(x(), y(), w(), m_title, m_extra);
-    }
-
-    int top() const { return y() + HEADER_H; }
-    const char* extra_text() const { return m_extra; }
-    virtual void refresh(bool paused, bool force) = 0;
-
-private:
-    const char* m_title;
-    char m_extra[64] = "";
-};
 
 /* ------------------------------------------------------------------ */
 /*  Toolbar                                                            */
@@ -1901,6 +1773,7 @@ constexpr int DEFAULT_LEFT_W = FZ_SCREEN_WIDTH;
 constexpr int DEFAULT_SCREEN_H = FZ_SCREEN_HEIGHT;
 constexpr int DEFAULT_RIGHT_W = 300;
 constexpr int DEFAULT_BREAKPOINTS_H = 150;
+constexpr int DEFAULT_WATCH_H = 170;
 constexpr int DEFAULT_DISASM_W = 420;
 constexpr int DEFAULT_MEMORY_H = 300;
 
@@ -1913,6 +1786,7 @@ static void layout_load()
     g_layout.screen_h = config_get("FLTK_DBG_SCREEN_HEIGHT", 0);
     g_layout.right_w = config_get("FLTK_DBG_RIGHT_WIDTH", 0);
     g_layout.breakpoints_h = config_get("FLTK_DBG_BREAKPOINTS_HEIGHT", 0);
+    g_layout.watch_h = config_get("FLTK_DBG_WATCH_HEIGHT", 0);
     g_layout.video_x = config_get("FLTK_VIDEO_X", -1);
     g_layout.video_y = config_get("FLTK_VIDEO_Y", -1);
     g_layout.video_w = config_get("FLTK_VIDEO_WIDTH", 0);
@@ -1928,6 +1802,7 @@ static void layout_save(rini_config* ini)
     rini_set_config_value(ini, "FLTK_DBG_SCREEN_HEIGHT", c.screen_h, "Screen height");
     rini_set_config_value(ini, "FLTK_DBG_RIGHT_WIDTH", c.right_w, "CPU/stack column width");
     rini_set_config_value(ini, "FLTK_DBG_BREAKPOINTS_HEIGHT", c.breakpoints_h, "Breakpoints height");
+    rini_set_config_value(ini, "FLTK_DBG_WATCH_HEIGHT", c.watch_h, "Watch height");
     rini_set_config_value(ini, "FLTK_VIDEO_X", c.video_x, "Video window X");
     rini_set_config_value(ini, "FLTK_VIDEO_Y", c.video_y, "Video window Y");
     rini_set_config_value(ini, "FLTK_VIDEO_WIDTH", c.video_w, "Video window width");
@@ -1943,7 +1818,9 @@ struct Debugger::Impl {
     SplitPane* left = nullptr;   /* screen / memory */
     SplitPane* rest = nullptr;   /* disassembly | right */
     SplitPane* right = nullptr;  /* registers / lower */
-    SplitPane* lower = nullptr;  /* stack / breakpoints */
+    SplitPane* lower = nullptr;  /* stack / tail */
+    SplitPane* tail = nullptr;   /* watch / breakpoints */
+    Panel* watch = nullptr;
     RegistersView* regs = nullptr;
     StackView* stack = nullptr;
     BreakpointsPanel* breakpoints = nullptr;
@@ -1961,25 +1838,27 @@ struct Debugger::Impl {
         toolbar->update(paused, current_regs().pc);
         regs->refresh(paused, force);
         stack->refresh(paused, force);
+        watch->refresh(paused, force);
         breakpoints->refresh(paused, force);
         disasm->refresh(paused, force);
         memory->refresh(paused, force);
         video_window_refresh(paused, force);
+        tool_windows_refresh(paused, force);
     }
 };
 
-static void request_refresh()
+void request_refresh()
 {
     if (s_impl) s_impl->refresh(true);
     if (main_window()) main_window()->update_status();
 }
 
-static void goto_memory(hwaddr addr)
+void goto_memory(hwaddr addr)
 {
     if (s_impl) s_impl->memory->go(addr);
 }
 
-static void goto_disassembly(hwaddr addr)
+void goto_disassembly(hwaddr addr)
 {
     if (s_impl) s_impl->disasm->go(addr);
 }
@@ -2003,7 +1882,7 @@ Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(new Impl)
     m->dock = dock;
     m->screen = screen;
     layout_load();
-    config_save_hook = layout_save;
+    persist_register(layout_save);
 
     dock->begin();
     m->root = new SplitPane(0, 0, 1400, 800, true, false);
@@ -2024,12 +1903,17 @@ Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(new Impl)
     m->lower->end();
     m->stack = new StackView(0, 0, DEFAULT_RIGHT_W, 200);
     m->stack->end();
+    m->tail = new SplitPane(0, 0, DEFAULT_RIGHT_W, 300, false, true);
+    m->tail->end();
+    m->watch = create_watch_panel(0, 0, DEFAULT_RIGHT_W, DEFAULT_WATCH_H);
+    m->watch->end();
     m->breakpoints = new BreakpointsPanel(0, 0, DEFAULT_RIGHT_W, DEFAULT_BREAKPOINTS_H);
     m->breakpoints->end();
     dock->end();
 
     m->left->set(screen, m->memory, DEFAULT_SCREEN_H, 120, 140);
-    m->lower->set(m->stack, m->breakpoints, DEFAULT_BREAKPOINTS_H, 60, 90);
+    m->tail->set(m->watch, m->breakpoints, DEFAULT_BREAKPOINTS_H, 60, 90);
+    m->lower->set(m->stack, m->tail, DEFAULT_WATCH_H + DEFAULT_BREAKPOINTS_H + SplitPane::GAP, 60, 160);
     m->right->set(m->regs, m->lower, RegistersView::preferred_height(), 120, 150);
     m->rest->set(m->disasm, m->right, DEFAULT_RIGHT_W, 260, 240);
     m->root->set(m->left, m->rest, default_left_w(), MemoryPanel::preferred_width(), 520);
@@ -2038,13 +1922,17 @@ Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(new Impl)
     dock->set_root(m->root, [impl](bool expanded) {
         impl->root->collapse(!expanded);
         impl->left->collapse(!expanded);
-        if (!expanded) video_window_suspend();
+        if (!expanded) {
+            video_window_suspend();
+            tool_windows_suspend();
+        }
     });
 }
 
 Debugger::~Debugger()
 {
     video_window_destroy();
+    tool_windows_destroy();
     s_impl = nullptr;
     delete m;
 }
@@ -2074,15 +1962,19 @@ void Debugger::default_body_size(int& w, int& h) const
 void Debugger::apply_layout()
 {
     const LayoutConfig& c = g_layout;
+    const int bps_h = c.breakpoints_h > 0 ? c.breakpoints_h : DEFAULT_BREAKPOINTS_H;
+    const int watch_h = c.watch_h > 0 ? c.watch_h : DEFAULT_WATCH_H;
     m->root->fixed_size(c.left_w > 0 ? c.left_w : default_left_w());
     m->left->fixed_size(c.screen_h > 0 ? c.screen_h : DEFAULT_SCREEN_H);
     m->rest->fixed_size(c.right_w > 0 ? c.right_w : DEFAULT_RIGHT_W);
-    m->lower->fixed_size(c.breakpoints_h > 0 ? c.breakpoints_h : DEFAULT_BREAKPOINTS_H);
-    if (c.video_shown && m->dock->docks_visible()) {
-        /* Open it once the main window is on screen, so it floats above it */
+    m->lower->fixed_size(watch_h + bps_h + SplitPane::GAP);
+    m->tail->fixed_size(bps_h);
+    if (m->dock->docks_visible()) {
+        /* Open tool windows once the main window is on screen, so they float above it */
         Fl::add_timeout(0.3, [](void*) {
             if (main_window() && main_window()->shown() && main_window()->debug_layout()) {
-                video_window_show(true);
+                if (g_layout.video_shown) video_window_show(true);
+                tool_windows_resume();
                 main_window()->update_menus();
             }
         });
@@ -2095,7 +1987,8 @@ void Debugger::capture_layout()
     g_layout.left_w = m->root->fixed_size();
     g_layout.screen_h = m->left->fixed_size();
     g_layout.right_w = m->rest->fixed_size();
-    g_layout.breakpoints_h = m->lower->fixed_size();
+    g_layout.breakpoints_h = m->tail->fixed_size();
+    g_layout.watch_h = m->lower->fixed_size() - m->tail->fixed_size() - SplitPane::GAP;
     video_window_capture_config();
 }
 
@@ -2103,6 +1996,7 @@ void Debugger::reset_layout()
 {
     g_layout = LayoutConfig();
     video_window_show(false);
+    tool_windows_reset();
     apply_layout();
 }
 
