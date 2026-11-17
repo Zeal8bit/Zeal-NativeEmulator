@@ -427,7 +427,7 @@ public:
             fl_draw(s_reg_names[id], nx, ry + asc);
             if (reg_is_8bit(id)) hex8(text, sizeof(text), reg_get(m_regs, id));
             else hex16(text, sizeof(text), reg_get(m_regs, id));
-            if (id == m_hover && m_paused) {
+            if (id == m_hover && !reg_is_8bit(id)) {
                 fl_color(COLOR_HOVER);
                 fl_rectf(vx - 3, ry, cw * 4 + 6, lh);
             }
@@ -503,7 +503,8 @@ public:
                 redraw();
                 return 1;
             case FL_MOVE: {
-                const int id = hit_value(Fl::event_x(), Fl::event_y());
+                int id = hit_value(Fl::event_x(), Fl::event_y());
+                if (id < 0) id = hit_name(Fl::event_x(), Fl::event_y());
                 if (id != m_hover) {
                     m_hover = id;
                     redraw();
@@ -516,14 +517,14 @@ public:
             case FL_PUSH: {
                 if (m_edit->visible() && Fl::event_inside(m_edit)) break;
                 const int ex = Fl::event_x(), ey = Fl::event_y();
-                const int name = hit_name(ex, ey);
-                if (name >= 0 && !reg_is_8bit(name)) {
-                    goto_memory(reg_get(m_regs, name));
-                    return 1;
-                }
-                const int id = hit_value(ex, ey);
-                if (id >= 0 && m_paused) {
-                    begin_edit(id);
+                int id = hit_name(ex, ey);
+                if (id < 0) id = hit_value(ex, ey);
+                if (id >= 0) {
+                    if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                        context_menu(id);
+                    } else if (!reg_is_8bit(id)) {
+                        goto_memory(reg_get(m_regs, id));
+                    }
                     return 1;
                 }
                 const int f = hit_chip(ex, ey);
@@ -607,16 +608,45 @@ private:
         if (id < 0) return;
         const unsigned v = reg_get(m_regs, id);
         if (reg_is_8bit(id)) {
-            snprintf(tip, sizeof(tip), "%s = %u", s_reg_names[id], v);
+            snprintf(tip, sizeof(tip), "%s = %u\nRight-click: edit", s_reg_names[id], v);
         } else {
             const int hi = (v >> 8) & 0xFF, lo = v & 0xFF;
-            snprintf(tip, sizeof(tip), "%s = %u (signed %d)\nhigh %u '%c'   low %u '%c'%s",
+            snprintf(tip, sizeof(tip), "%s = %u (signed %d)\nhigh %u '%c'   low %u '%c'\n"
+                     "Click: show in memory    Right-click: more",
                      s_reg_names[id], v, (int) (int16_t) v, hi, isprint(hi) ? hi : '.', lo,
-                     isprint(lo) ? lo : '.', m_paused ? "\nClick to edit" : "");
+                     isprint(lo) ? lo : '.');
         }
         int nx, vx, ry;
         cell(id, nx, vx, ry);
         Fl_Tooltip::enter_area(this, vx - x(), ry - y(), char_width() * 4, data_line_height(), tip);
+    }
+
+    void context_menu(int id)
+    {
+        const bool addr = !reg_is_8bit(id);
+        const uint16_t value = reg_get(m_regs, id);
+        const int addr_only = addr ? 0 : FL_MENU_INACTIVE;
+        const int pause_only = m_paused ? 0 : FL_MENU_INACTIVE;
+        Fl_Menu_Item items[] = {
+            { "Show in Memory", 0, nullptr, nullptr, addr_only, 0, 0, 0, 0 },
+            { "Show in Disassembly", 0, nullptr, nullptr, addr_only | FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Edit Value...", 0, nullptr, nullptr, pause_only, 0, 0, 0, 0 },
+            { "Copy Value", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        };
+        const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
+        if (picked == nullptr) return;
+        char text[8];
+        switch ((int) (picked - items)) {
+            case 0: goto_memory(value); break;
+            case 1: goto_disassembly(value); break;
+            case 2: begin_edit(id); break;
+            case 3:
+                if (addr) hex16(text, sizeof(text), value); else hex8(text, sizeof(text), value);
+                Fl::copy(text, (int) strlen(text), 1);
+                break;
+            default: break;
+        }
     }
 
     void begin_edit(int id)
@@ -679,7 +709,7 @@ public:
     {
         resizable(nullptr);
         end();
-        tooltip("Click: show in memory    Double-click: show the word in the disassembly");
+        tooltip("Click: show the slot in memory    Right-click: more");
     }
 
     void refresh(bool paused, bool force) override
@@ -727,6 +757,7 @@ public:
             const int index = m_first + i;
             const unsigned addr = (m_regs.sp + index * 2) & 0xFFFF;
             const unsigned word = mem[i * 2] | (mem[i * 2 + 1] << 8);
+            if (i < (int) (sizeof(m_words) / sizeof(m_words[0]))) m_words[i] = (uint16_t) word;
             if (i == m_hover) {
                 fl_color(COLOR_HOVER);
                 fl_rectf(x(), ry, w(), lh);
@@ -786,10 +817,8 @@ public:
                 const int r = row_at(Fl::event_y());
                 if (r < 0 || !dbg_ready()) return 1;
                 const hwaddr addr = (m_regs.sp + (m_first + r) * 2) & 0xFFFF;
-                if (Fl::event_clicks() > 0) {
-                    uint8_t word[2];
-                    debugger_read_memory(fz_debugger(), addr, 2, word);
-                    goto_disassembly(word[0] | (word[1] << 8));
+                if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                    context_menu(addr, m_words[r]);
                 } else {
                     goto_memory(addr);
                 }
@@ -817,9 +846,39 @@ private:
         return r < (h() - HEADER_H - 8) / data_line_height() ? r : -1;
     }
 
+    void context_menu(hwaddr slot, uint16_t value)
+    {
+        Fl_Menu_Item items[] = {
+            { "Show Slot in Memory", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Show Value in Memory", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Show Value in Disassembly", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Copy Value", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        };
+        const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
+        if (picked == nullptr) return;
+        char text[8];
+        switch ((int) (picked - items)) {
+            case 0: goto_memory(slot); break;
+            case 1: goto_memory(value); break;
+            case 2: goto_disassembly(value); break;
+            case 3:
+                hex16(text, sizeof(text), value);
+                Fl::copy(text, (int) strlen(text), 1);
+                break;
+            case 4:
+                hex16(text, sizeof(text), slot);
+                Fl::copy(text, (int) strlen(text), 1);
+                break;
+            default: break;
+        }
+    }
+
     regs_t m_regs = {};
     int m_hover = -1;
     int m_first = 0; /* first word shown, relative to SP (mouse wheel) */
+    uint16_t m_words[128] = {};
 };
 
 /* ------------------------------------------------------------------ */
