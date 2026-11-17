@@ -76,6 +76,14 @@ void fz_keys_release_all(void)
     s_press_count = 0;
 }
 
+void fz_keys_release_nonmodifiers(void)
+{
+    for (int code = 0; code < HOST_KEY_COUNT; code++) {
+        if (key_can_repeat(code)) s_host_down[code] = false;
+    }
+    s_press_count = 0;
+}
+
 void fltk_keyboard_reset(void)
 {
     fz_keys_release_all();

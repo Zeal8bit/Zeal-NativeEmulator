@@ -81,6 +81,7 @@ int fltk_to_zeal_key(int key)
         case FL_Tab:         return ZEAL_KEY_TAB;
         case FL_BackSpace:   return ZEAL_KEY_BACKSPACE;
         case FL_Insert:      return ZEAL_KEY_INSERT;
+        case FL_Help:        return ZEAL_KEY_INSERT; /* Mac "Help" key position */
         case FL_Delete:      return ZEAL_KEY_DELETE;
         case FL_Right:       return ZEAL_KEY_RIGHT;
         case FL_Left:        return ZEAL_KEY_LEFT;
@@ -334,6 +335,17 @@ void ScreenView::pointer_motion()
 #endif
 }
 
+/** Physical key of the current event. With Num Lock off, FLTK turns keypad
+ *  keys into arrows/Home/End; the original key keeps them keypad keys. */
+static int host_key()
+{
+#if FL_API_VERSION >= 10303 || FL_MAJOR_VERSION > 1 || (FL_MAJOR_VERSION == 1 && FL_MINOR_VERSION > 3)
+    const int original = Fl::event_original_key();
+    if (original >= FL_KP && original <= FL_KP_Last) return original;
+#endif
+    return Fl::event_key();
+}
+
 int ScreenView::handle(int event)
 {
     switch (event) {
@@ -369,20 +381,32 @@ int ScreenView::handle(int event)
         case FL_MOUSEWHEEL:
             fz_mouse_wheel((float) -Fl::event_dy());
             return 1;
-        case FL_KEYDOWN: {
-            const bool passthru = config_keyboard_passthru(fz_debugger_enabled());
-            MainWindow* mw = main_window();
-            if (!passthru && mw && mw->menubar() && mw->menubar()->menu()) {
-                /* Let menu shortcuts through; everything else is the machine's */
-                if (mw->menubar()->menu()->test_shortcut()) return 0;
-            }
-            const int key = fltk_to_zeal_key(Fl::event_key());
-            if (key != 0) fz_key_event(key, true);
-            return 1;
-        }
+        case FL_KEYDOWN:
         case FL_KEYUP: {
-            const int key = fltk_to_zeal_key(Fl::event_key());
-            if (key != 0) fz_key_event(key, false);
+            const bool down = event == FL_KEYDOWN;
+            if (down && !config_keyboard_passthru(fz_debugger_enabled())) {
+                MainWindow* mw = main_window();
+                /* Let menu shortcuts through; everything else is the machine's */
+                if (mw && mw->menubar() && mw->menubar()->menu() &&
+                    mw->menubar()->menu()->test_shortcut()) {
+                    return 0;
+                }
+            }
+            const int key = fltk_to_zeal_key(host_key());
+#ifdef __APPLE__
+            /* macOS reports Caps Lock as its toggle state (down when it turns
+             * on, up when it turns off): every event is one physical press. */
+            if (key == ZEAL_KEY_CAPS_LOCK) {
+                fz_key_event(key, true);
+                fz_key_event(key, false);
+                return 1;
+            }
+            /* macOS sends no key-up for keys released while Cmd is held */
+            if (!down && (key == ZEAL_KEY_LEFT_SUPER || key == ZEAL_KEY_RIGHT_SUPER)) {
+                fz_keys_release_nonmodifiers();
+            }
+#endif
+            if (key != 0) fz_key_event(key, down);
             return 1;
         }
         default:

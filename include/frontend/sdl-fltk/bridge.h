@@ -57,6 +57,8 @@ fz_video_mode_t fz_video_mode(void);
 /* Keyboard: logical zeal_key_t codes (hw/keys.h) */
 void fz_key_event(int zeal_key, bool down);
 void fz_keys_release_all(void);
+/** Release every held key except modifiers and lock keys. */
+void fz_keys_release_nonmodifiers(void);
 
 /* SNES mouse fed from the screen widget */
 void fz_mouse_motion(float dx, float dy);
