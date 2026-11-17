@@ -43,9 +43,24 @@ const char* notif_current_text();
 /*  Key mapping                                                        */
 /* ------------------------------------------------------------------ */
 
+/* macOS derives Fl::event_key() from charactersIgnoringModifiers, which keeps
+ * Shift for digits/punctuation (Shift+; reports ':'). Map shifted characters
+ * back to the physical key on a US layout; Shift itself is sent separately. */
+static int unshift_us(int key)
+{
+    static const char shifted[]   = ":\"<>?_+{}|~!@#$%^&*()";
+    static const char unshifted[] = ";',./-=[]\\`1234567890";
+    if (key >= 'A' && key <= 'Z') return key - 'A' + 'a';
+    for (int i = 0; shifted[i]; i++) {
+        if (key == (unsigned char) shifted[i]) return (unsigned char) unshifted[i];
+    }
+    return key;
+}
+
 int fltk_to_zeal_key(int key)
 {
-    /* Printable keys: FLTK reports the unshifted ASCII character */
+    key = unshift_us(key);
+    /* Printable keys: the unshifted ASCII character */
     if (key >= 'a' && key <= 'z') return ZEAL_KEY_A + (key - 'a');
     if (key >= '0' && key <= '9') return ZEAL_KEY_ZERO + (key - '0');
     switch (key) {
