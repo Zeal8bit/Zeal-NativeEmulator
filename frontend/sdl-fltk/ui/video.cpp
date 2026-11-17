@@ -153,6 +153,11 @@ class Inspector : public Fl_Widget {
 public:
     Inspector(int X, int Y, int W, int H, VramImage* image) : Fl_Widget(X, Y, W, H), m_image(image) {}
 
+    int handle(int event) override
+    {
+        return event == FL_MOUSEWHEEL ? 1 : Fl_Widget::handle(event);
+    }
+
     void draw() override
     {
         fl_color(COLOR_SURFACE);
@@ -384,6 +389,8 @@ public:
                 }
                 return 1;
             }
+            case FL_MOUSEWHEEL:
+                return 1;
             case FL_PUSH: {
                 const int r = row_at(Fl::event_y());
                 if (r >= 0) {

@@ -84,6 +84,29 @@ void load_fonts()
     fprintf(stderr, "[UI] %s not found, using a system monospace font\n", FONT_FILE);
 }
 
+void apply_ui_font()
+{
+    /* Use the system monospace font for UI text (labels, buttons, menus,
+     * tooltips, status bar, overlays) by remapping FLTK's default sans faces
+     * onto the courier slots, after pointing those at a good system mono. */
+#if defined(__APPLE__)
+    Fl::set_font(FL_COURIER, "Menlo-Regular");
+    Fl::set_font(FL_COURIER_BOLD, "Menlo-Bold");
+    Fl::set_font(FL_COURIER_ITALIC, "Menlo-Italic");
+    Fl::set_font(FL_COURIER_BOLD_ITALIC, "Menlo-BoldItalic");
+#elif defined(_WIN32)
+    Fl::set_font(FL_COURIER, " Consolas");
+    Fl::set_font(FL_COURIER_BOLD, "BConsolas");
+    Fl::set_font(FL_COURIER_ITALIC, "IConsolas");
+    Fl::set_font(FL_COURIER_BOLD_ITALIC, "PConsolas");
+#endif
+    /* Linux/BSD: FLTK's courier slots already resolve to fontconfig "mono" */
+    Fl::set_font(FL_HELVETICA, FL_COURIER);
+    Fl::set_font(FL_HELVETICA_BOLD, FL_COURIER_BOLD);
+    Fl::set_font(FL_HELVETICA_ITALIC, FL_COURIER_ITALIC);
+    Fl::set_font(FL_HELVETICA_BOLD_ITALIC, FL_COURIER_BOLD_ITALIC);
+}
+
 void apply_theme()
 {
     Fl::scheme("gtk+");

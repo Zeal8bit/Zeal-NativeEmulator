@@ -58,6 +58,8 @@ extern int DATA_SIZE;
 extern bool g_pixel_font;
 
 void load_fonts();
+/** System monospace font for all UI text (replaces Helvetica). */
+void apply_ui_font();
 void apply_theme();
 int  data_line_height();
 /** Panel header: raised strip, amber accent bar, title and optional right text. */

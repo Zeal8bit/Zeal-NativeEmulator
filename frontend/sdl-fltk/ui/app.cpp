@@ -769,9 +769,7 @@ int ui_open(bool debug)
 
     /* Cocoa (macOS system menubar) must exist before any menu is built */
     fl_open_display();
-#ifdef __APPLE__
-    Fl::set_font(FL_COURIER, "Menlo");
-#endif
+    apply_ui_font();
     apply_theme();
     load_fonts();
 #if FL_API_VERSION >= 10400

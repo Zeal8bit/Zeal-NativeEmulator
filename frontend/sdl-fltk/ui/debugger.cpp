@@ -519,6 +519,8 @@ public:
                 }
                 return 1;
             }
+            case FL_MOUSEWHEEL:
+                return 1;
             case FL_PUSH: {
                 if (m_edit->visible() && Fl::event_inside(m_edit)) break;
                 const int ex = Fl::event_x(), ey = Fl::event_y();
@@ -693,10 +695,11 @@ public:
         (void) paused;
         (void) force;
         m_regs = current_regs();
-        char text[24];
+        char text[32];
         char sp[8];
         hex16(sp, sizeof(sp), m_regs.sp);
-        snprintf(text, sizeof(text), "SP $%s", sp);
+        if (m_first > 0) snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
+        else snprintf(text, sizeof(text), "SP $%s", sp);
         extra(text);
         redraw();
     }
@@ -709,28 +712,39 @@ public:
         const int cw = char_width();
         const int asc = text_baseline(lh);
         const int rows = (h() - HEADER_H - 8) / lh;
+        /* While running only the sampled top of the stack (32 words) exists;
+         * never scroll past the point where the view stops being full. */
+        const int limit = fz_paused() ? 0x8000 : 32;
+        clamp_first(rows, limit);
         int count = rows < 128 ? rows : 128;
-        if (!fz_paused() && count > 32) count = 32; /* size of the live sample */
+        if (m_first + count > limit) count = limit - m_first;
         if (count <= 0) return;
-        uint8_t mem[256];
-        display_memory(m_regs.sp, count * 2, mem, true);
+        uint8_t mem[256 + 64];
+        if (fz_paused()) {
+            debugger_read_memory(fz_debugger(), (m_regs.sp + m_first * 2) & 0xFFFF, count * 2, mem);
+        } else {
+            uint8_t sample[64];
+            display_memory(m_regs.sp, 64, sample, true);
+            memcpy(mem, sample + m_first * 2, (size_t) count * 2);
+        }
         fl_push_clip(x(), top(), w(), h() - HEADER_H);
         fl_font(DATA_FONT, DATA_SIZE);
         char text[16];
         for (int i = 0; i < count; i++) {
             const int ry = top() + 4 + i * lh;
-            const unsigned addr = (m_regs.sp + i * 2) & 0xFFFF;
+            const int index = m_first + i;
+            const unsigned addr = (m_regs.sp + index * 2) & 0xFFFF;
             const unsigned word = mem[i * 2] | (mem[i * 2 + 1] << 8);
             if (i == m_hover) {
                 fl_color(COLOR_HOVER);
                 fl_rectf(x(), ry, w(), lh);
             }
-            if (i == 0) {
+            if (index == 0) {
                 fl_color(COLOR_AMBER);
                 fl_draw(">", x() + 6, ry + asc);
             }
             fl_color(COLOR_DIM);
-            snprintf(text, sizeof(text), "+%02X", (i * 2) & 0xFF);
+            snprintf(text, sizeof(text), index * 2 < 0x100 ? "+%02X" : "+%X", index * 2);
             fl_draw(text, x() + 6 + cw * 2, ry + asc);
             hex16(text, sizeof(text), addr);
             fl_color(COLOR_CYAN);
@@ -764,10 +778,22 @@ public:
                 }
                 return 1;
             }
+            case FL_MOUSEWHEEL:
+                m_first += Fl::event_dy() * 2;
+                clamp_first((h() - HEADER_H - 8) / data_line_height(), fz_paused() ? 0x8000 : 32);
+                {
+                    char text[32], sp[8];
+                    hex16(sp, sizeof(sp), m_regs.sp);
+                    if (m_first > 0) snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
+                    else snprintf(text, sizeof(text), "SP $%s", sp);
+                    extra(text);
+                }
+                redraw();
+                return 1;
             case FL_PUSH: {
                 const int r = row_at(Fl::event_y());
                 if (r < 0 || !dbg_ready()) return 1;
-                const hwaddr addr = (m_regs.sp + r * 2) & 0xFFFF;
+                const hwaddr addr = (m_regs.sp + (m_first + r) * 2) & 0xFFFF;
                 if (Fl::event_clicks() > 0) {
                     uint8_t word[2];
                     debugger_read_memory(fz_debugger(), addr, 2, word);
@@ -784,6 +810,14 @@ public:
     }
 
 private:
+    void clamp_first(int rows, int limit)
+    {
+        int max_first = limit - (rows < limit ? rows : limit);
+        if (max_first < 0) max_first = 0;
+        if (m_first > max_first) m_first = max_first;
+        if (m_first < 0) m_first = 0;
+    }
+
     int row_at(int ey) const
     {
         if (ey < top() + 4) return -1;
@@ -793,6 +827,7 @@ private:
 
     regs_t m_regs = {};
     int m_hover = -1;
+    int m_first = 0; /* first word shown, relative to SP (mouse wheel) */
 };
 
 /* ------------------------------------------------------------------ */
@@ -860,6 +895,8 @@ public:
                 }
                 return 1;
             }
+            case FL_MOUSEWHEEL:
+                return 1;
             case FL_PUSH: {
                 const int r = row_at(Fl::event_y());
                 if (r < 0) return 1;
@@ -1302,6 +1339,7 @@ public:
 
     int handle(int event) override
     {
+        if (event == FL_MOUSEWHEEL) return 1;
         if (event == FL_PUSH && m_valid) {
             const int seg_w = (w() - 8) / ZEAL_DBG_MMU_PAGES;
             const int i = (Fl::event_x() - x() - 4) / seg_w;
