@@ -12,8 +12,10 @@
 #include <FL/Fl_Gl_Window.H>
 #include <FL/Fl_Group.H>
 #include <FL/Fl_Box.H>
+#include <FL/Fl_Button.H>
 #include <FL/Fl_Menu_Bar.H>
 #include <cstdint>
+#include <functional>
 
 extern "C" {
 #include "frontend/sdl-fltk/bridge.h"
@@ -25,20 +27,96 @@ extern "C" {
 
 namespace zui {
 
-/* Palette shared by the custom-drawn widgets */
-constexpr Fl_Color COLOR_BG        = 0x1E1F2200;
-constexpr Fl_Color COLOR_PANEL     = 0x2B2D3100;
-constexpr Fl_Color COLOR_TEXT      = 0xDCDFE400;
-constexpr Fl_Color COLOR_DIM       = 0x7F848E00;
-constexpr Fl_Color COLOR_ACCENT    = 0x3D8BFD00;
-constexpr Fl_Color COLOR_PC        = 0x1F4E8C00;
-constexpr Fl_Color COLOR_BREAK     = 0xE0484800;
-constexpr Fl_Color COLOR_HOVER     = 0x3A3F4B00;
-constexpr Fl_Color COLOR_LABEL     = 0xE5C07B00;
-constexpr Fl_Color COLOR_CHANGED   = 0xFF79C600;
+/* ------------------------------------------------------------------ */
+/*  Theme (theme.cpp): flat dark surfaces with retro phosphor accents  */
+/* ------------------------------------------------------------------ */
 
-constexpr Fl_Font  MONO_FONT       = FL_COURIER;
-constexpr int      MONO_SIZE       = 13;
+constexpr Fl_Color COLOR_BG       = 0x111215'00;  /* window / gaps */
+constexpr Fl_Color COLOR_SURFACE  = 0x181A1F'00;  /* panel body */
+constexpr Fl_Color COLOR_RAISED   = 0x20232A'00;  /* headers, bars */
+constexpr Fl_Color COLOR_BORDER   = 0x2E323B'00;
+constexpr Fl_Color COLOR_HOVER    = 0x262A33'00;
+constexpr Fl_Color COLOR_TEXT     = 0xD7DAE0'00;
+constexpr Fl_Color COLOR_DIM      = 0x5E6575'00;
+constexpr Fl_Color COLOR_AMBER    = 0xFFB454'00;  /* headers, labels, PC */
+constexpr Fl_Color COLOR_CYAN     = 0x5CCFE6'00;  /* addresses, links */
+constexpr Fl_Color COLOR_GREEN    = 0x95E06C'00;  /* running, lit flags */
+constexpr Fl_Color COLOR_PC       = 0x2A3320'00;  /* current instruction row */
+constexpr Fl_Color COLOR_SELECT   = 0x1F3A57'00;
+constexpr Fl_Color COLOR_BREAK    = 0xFF5F57'00;
+constexpr Fl_Color COLOR_CHANGED  = 0xFF8FD0'00;
+/* Older names kept for the main window */
+constexpr Fl_Color COLOR_PANEL    = COLOR_RAISED;
+constexpr Fl_Color COLOR_ACCENT   = COLOR_CYAN;
+constexpr Fl_Color COLOR_LABEL    = COLOR_AMBER;
+
+constexpr int HEADER_H = 24;
+
+/** Font for data views: BigBlue Terminal (8x16 pixel font) when available. */
+extern Fl_Font DATA_FONT;
+extern int DATA_SIZE;
+extern bool g_pixel_font;
+
+void load_fonts();
+void apply_theme();
+int  data_line_height();
+/** Panel header: raised strip, amber accent bar, title and optional right text. */
+void draw_header(int x, int y, int w, const char* title, const char* extra = nullptr);
+
+enum class Icon { Play, Pause, StepInto, StepOver, RunTo, Reset, Breakpoint };
+void draw_icon(Icon icon, int x, int y, int size, Fl_Color color);
+
+class IconButton : public Fl_Button {
+public:
+    IconButton(int x, int y, int w, int h, Icon icon, const char* text = nullptr);
+    void icon(Icon icon) { m_icon = icon; redraw(); }
+    void text(const char* text) { m_text = text; redraw(); }
+    void icon_color(Fl_Color c) { m_color = c; redraw(); }
+    void draw() override;
+    int handle(int event) override;
+
+private:
+    Icon m_icon;
+    const char* m_text;
+    Fl_Color m_color = 0;
+};
+
+/** Two children separated by a draggable divider. One side keeps a fixed
+ *  size (in pixels) while the other takes the remaining space. */
+class SplitPane : public Fl_Group {
+public:
+    static constexpr int GAP = 5;
+
+    SplitPane(int x, int y, int w, int h, bool horizontal, bool fixed_second);
+    void set(Fl_Widget* a, Fl_Widget* b, int fixed_size, int min_a = 80, int min_b = 80);
+    /** Collapsed: only the first child is shown, filling the pane. */
+    void collapse(bool collapsed);
+    bool collapsed() const { return m_collapsed; }
+    void fixed_size(int size);
+    int fixed_size() const { return m_fixed; }
+    void on_change(std::function<void()> cb) { m_changed = std::move(cb); }
+
+    void resize(int x, int y, int w, int h) override;
+    int handle(int event) override;
+    void draw() override;
+    void layout();
+
+private:
+    int extent() const;
+    bool over_divider(int ex, int ey) const;
+
+    Fl_Widget* m_a = nullptr;
+    Fl_Widget* m_b = nullptr;
+    bool m_horizontal;
+    bool m_fixed_second;
+    bool m_collapsed = false;
+    bool m_dragging = false;
+    bool m_cursor_set = false;
+    int m_fixed = 200;
+    int m_min_a = 80;
+    int m_min_b = 80;
+    std::function<void()> m_changed;
+};
 
 /** Convert an FLTK key code to a zeal_key_t, or 0 (ZEAL_KEY_NULL). */
 int fltk_to_zeal_key(int fltk_key);
@@ -80,38 +158,21 @@ private:
 
 /* ------------------------------------------------------------------ */
 
-/** Lays out the screen with optional right and bottom docks, separated by
- *  draggable splitters. Works with any FLTK >= 1.3 (no Fl_Flex/Fl_Tile). */
+/** Main window body: either the screen alone, or the debugger's layout
+ *  (which contains the same screen widget). */
 class DockLayout : public Fl_Group {
 public:
-    static constexpr int SPLITTER = 5;
-
     DockLayout(int x, int y, int w, int h);
-    void set_children(Fl_Widget* screen, Fl_Widget* right, Fl_Widget* bottom);
+    /** Root widget of the layout; `expand(bool)` shows/hides the debugger. */
+    void set_root(Fl_Widget* root, std::function<void(bool)> expand);
     void docks_visible(bool visible);
     bool docks_visible() const { return m_docks; }
-    void dock_sizes(int right_w, int bottom_h);
-    int right_width() const { return m_right_w; }
-    int bottom_height() const { return m_bottom_h; }
-    /** Size of the screen area for a given layout size. */
-    void screen_size_for(int w, int h, int& sw, int& sh) const;
-
     void resize(int x, int y, int w, int h) override;
-    int handle(int event) override;
-    void draw() override;
-    void layout();
 
 private:
-    enum Drag { DRAG_NONE, DRAG_RIGHT, DRAG_BOTTOM };
-    Drag hit(int ex, int ey) const;
-
-    Fl_Widget* m_screen = nullptr;
-    Fl_Widget* m_right = nullptr;
-    Fl_Widget* m_bottom = nullptr;
+    Fl_Widget* m_root = nullptr;
+    std::function<void(bool)> m_expand;
     bool m_docks = false;
-    int m_right_w = 400;
-    int m_bottom_h = 300;
-    Drag m_drag = DRAG_NONE;
 };
 
 /* ------------------------------------------------------------------ */
@@ -178,16 +239,23 @@ double now_seconds();
 
 class Debugger {
 public:
-    Debugger(DockLayout* dock);
+    /** Builds the debugger layout around `screen` inside `dock`. */
+    Debugger(DockLayout* dock, ScreenView* screen);
     ~Debugger();
 
     Fl_Group* toolbar(int x, int y, int w, int h);
     void refresh(bool force);
     void goto_memory(hwaddr addr);
     void goto_disassembly(hwaddr addr);
-    void apply_panel_visibility();
-    void reset_layout();
+    /** Window size that fits the default debugger layout (body only). */
+    void default_body_size(int& w, int& h) const;
+    /** Restore/save split sizes from/to config_panels. */
+    void apply_layout();
     void capture_layout();
+    void reset_layout();
+    /** Separate Video & Profiler tool window. */
+    void show_video_window(bool show);
+    bool video_window_shown() const;
 
     struct Impl;
 private:

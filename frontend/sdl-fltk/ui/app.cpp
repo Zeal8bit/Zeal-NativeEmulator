@@ -28,15 +28,9 @@ static bool s_closed;
 static bool s_snes_dirty;
 static double s_status_at;
 
-#if CONFIG_ENABLE_DEBUGGER
-/* Default visibility of the debugger panels, before loading the config */
-static bool s_panel_hidden_default[FRONTEND_PANEL_COUNT];
-#endif
 
 constexpr int TOOLBAR_H = 34;
 constexpr int STATUS_H = 22;
-constexpr int DEFAULT_RIGHT_W = 400;
-constexpr int DEFAULT_BOTTOM_H = 280;
 
 /* The UI is built before the machine exists: decide on the build flag */
 static bool debugger_compiled()
@@ -147,143 +141,27 @@ DockLayout::DockLayout(int x, int y, int w, int h)
     end();
 }
 
-void DockLayout::set_children(Fl_Widget* screen, Fl_Widget* right, Fl_Widget* bottom)
+void DockLayout::set_root(Fl_Widget* root, std::function<void(bool)> expand)
 {
-    m_screen = screen;
-    m_right = right;
-    m_bottom = bottom;
-    if (screen) add(screen);
-    if (right) add(right);
-    if (bottom) add(bottom);
+    m_root = root;
+    m_expand = std::move(expand);
+    if (root->parent() != this) add(root);
+    root->resize(x(), y(), w(), h());
     docks_visible(m_docks);
 }
 
 void DockLayout::docks_visible(bool visible)
 {
-    m_docks = visible && m_right && m_bottom;
-    if (m_right) {
-        if (m_docks) m_right->show(); else m_right->hide();
-    }
-    if (m_bottom) {
-        if (m_docks) m_bottom->show(); else m_bottom->hide();
-    }
-    layout();
+    m_docks = visible && m_expand;
+    if (m_expand) m_expand(m_docks);
+    if (m_root) m_root->resize(x(), y(), w(), h());
     redraw();
-}
-
-void DockLayout::dock_sizes(int right_w, int bottom_h)
-{
-    if (right_w > 0) m_right_w = right_w;
-    if (bottom_h > 0) m_bottom_h = bottom_h;
-    layout();
-    redraw();
-}
-
-void DockLayout::screen_size_for(int w, int h, int& sw, int& sh) const
-{
-    if (!m_docks) {
-        sw = w;
-        sh = h;
-        return;
-    }
-    sw = w - m_right_w - SPLITTER;
-    sh = h - m_bottom_h - SPLITTER;
-}
-
-void DockLayout::layout()
-{
-    if (m_screen == nullptr) return;
-    if (!m_docks) {
-        m_screen->resize(x(), y(), w(), h());
-        return;
-    }
-    /* Keep every area usable while the window shrinks */
-    const int min_screen_w = 160;
-    const int min_screen_h = 120;
-    if (m_right_w > w() - min_screen_w - SPLITTER) m_right_w = w() - min_screen_w - SPLITTER;
-    if (m_right_w < 220) m_right_w = 220;
-    if (m_bottom_h > h() - min_screen_h - SPLITTER) m_bottom_h = h() - min_screen_h - SPLITTER;
-    if (m_bottom_h < 120) m_bottom_h = 120;
-
-    const int sw = w() - m_right_w - SPLITTER;
-    const int sh = h() - m_bottom_h - SPLITTER;
-    m_screen->resize(x(), y(), sw, sh);
-    m_right->resize(x() + sw + SPLITTER, y(), m_right_w, sh);
-    m_bottom->resize(x(), y() + sh + SPLITTER, w(), m_bottom_h);
 }
 
 void DockLayout::resize(int nx, int ny, int nw, int nh)
 {
     Fl_Widget::resize(nx, ny, nw, nh);
-    layout();
-}
-
-DockLayout::Drag DockLayout::hit(int ex, int ey) const
-{
-    if (!m_docks) return DRAG_NONE;
-    const int sw = w() - m_right_w - SPLITTER;
-    const int sh = h() - m_bottom_h - SPLITTER;
-    if (ey >= y() + sh && ey < y() + sh + SPLITTER) return DRAG_BOTTOM;
-    if (ex >= x() + sw && ex < x() + sw + SPLITTER && ey < y() + sh) return DRAG_RIGHT;
-    return DRAG_NONE;
-}
-
-int DockLayout::handle(int event)
-{
-    static Fl_Cursor s_cursor = FL_CURSOR_DEFAULT;
-    auto set_cursor = [this](Fl_Cursor c) {
-        if (c != s_cursor && window()) {
-            window()->cursor(c);
-            s_cursor = c;
-        }
-    };
-
-    switch (event) {
-        case FL_MOVE: {
-            const Drag d = hit(Fl::event_x(), Fl::event_y());
-            set_cursor(d == DRAG_RIGHT ? FL_CURSOR_WE : d == DRAG_BOTTOM ? FL_CURSOR_NS : FL_CURSOR_DEFAULT);
-            if (d != DRAG_NONE) return 1;
-            break;
-        }
-        case FL_LEAVE:
-            if (m_drag == DRAG_NONE) set_cursor(FL_CURSOR_DEFAULT);
-            break;
-        case FL_PUSH:
-            m_drag = hit(Fl::event_x(), Fl::event_y());
-            if (m_drag != DRAG_NONE) return 1;
-            break;
-        case FL_DRAG:
-            if (m_drag == DRAG_RIGHT) {
-                m_right_w = x() + w() - Fl::event_x() - SPLITTER / 2;
-            } else if (m_drag == DRAG_BOTTOM) {
-                m_bottom_h = y() + h() - Fl::event_y() - SPLITTER / 2;
-            } else {
-                break;
-            }
-            layout();
-            redraw();
-            return 1;
-        case FL_RELEASE:
-            if (m_drag != DRAG_NONE) {
-                m_drag = DRAG_NONE;
-                return 1;
-            }
-            break;
-        default:
-            break;
-    }
-    return Fl_Group::handle(event);
-}
-
-void DockLayout::draw()
-{
-    Fl_Group::draw();
-    if (!m_docks) return;
-    const int sw = w() - m_right_w - SPLITTER;
-    const int sh = h() - m_bottom_h - SPLITTER;
-    fl_color(COLOR_HOVER);
-    fl_rectf(x() + sw + SPLITTER / 2, y() + sh / 2 - 12, 1, 24);
-    fl_rectf(x() + w() / 2 - 12, y() + sh + SPLITTER / 2, 24, 1);
+    if (m_root) m_root->resize(nx, ny, nw, nh);
 }
 
 /* ------------------------------------------------------------------ */
@@ -379,12 +257,12 @@ static void cb_scanline(Fl_Widget* w, void*)
 }
 
 #if CONFIG_ENABLE_DEBUGGER
-static void cb_panel(Fl_Widget* w, void* data)
+static void cb_video_window(Fl_Widget*, void*)
 {
-    const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
-    const int index = (int) (intptr_t) data;
-    config_panels[index].hidden = !(item && item->value());
-    if (s_window && s_window->debugger()) s_window->debugger()->apply_panel_visibility();
+    if (!s_window || !s_window->debugger()) return;
+    Debugger* d = s_window->debugger();
+    d->show_video_window(!d->video_window_shown());
+    s_window->update_menus();
 }
 #endif
 
@@ -493,13 +371,13 @@ MainWindow::MainWindow(bool debug)
     m_screen->end();
     m_dock->end();
     if (debugger_compiled()) {
-        m_debugger = new Debugger(m_dock);
+        m_debugger = new Debugger(m_dock, m_screen);
         begin();
         m_toolbar = m_debugger->toolbar(0, m_menubar_h, w(), TOOLBAR_H);
         end();
         m_toolbar->hide();
     } else {
-        m_dock->set_children(m_screen, nullptr, nullptr);
+        m_dock->set_root(m_screen, nullptr);
     }
     end();
 
@@ -571,8 +449,8 @@ void MainWindow::apply_window_config(bool debug)
         W = config.debugger.width;
         H = config.debugger.height;
         if (W <= 0 || H <= 0) {
-            W = FZ_SCREEN_WIDTH + m_dock->right_width() + DockLayout::SPLITTER;
-            H = FZ_SCREEN_HEIGHT + m_dock->bottom_height() + DockLayout::SPLITTER + chrome_height();
+            m_debugger->default_body_size(W, H);
+            H += chrome_height();
         }
     } else {
         int sw = config.window.width;
@@ -598,20 +476,14 @@ void MainWindow::apply_window_config(bool debug)
     if (Y < 0 || Y > sy + sh - 40) Y = sy + (sh - H) / 2;
     resize(X, Y, W, H);
 
-#if CONFIG_ENABLE_DEBUGGER
-    /* The saved debugger screen size (P_VIDEO) determines the dock sizes */
-    const config_panel_t* video = &config_panels[0];
-    if (debug && video->width > 0 && video->height > 0) {
-        m_dock->dock_sizes(m_dock->w() - video->width - DockLayout::SPLITTER,
-                           m_dock->h() - video->height - DockLayout::SPLITTER);
-    }
-#endif
+    if (debug && m_debugger) m_debugger->apply_layout();
 }
 
 void MainWindow::capture_window_config(bool debug)
 {
     if (fullscreen_active()) return;
     if (debug) {
+        if (m_debugger) m_debugger->capture_layout();
         config.debugger.x = x();
         config.debugger.y = y();
         config.debugger.width = w();
@@ -648,13 +520,6 @@ void MainWindow::toggle_fullscreen()
 
 void MainWindow::reset_layout()
 {
-#if CONFIG_ENABLE_DEBUGGER
-    for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
-        config_panels[i].hidden = s_panel_hidden_default[i];
-    }
-    config_panels[0].width = config_panels[0].height = 0;
-#endif
-    m_dock->dock_sizes(DEFAULT_RIGHT_W, DEFAULT_BOTTOM_H);
     if (m_debugger) m_debugger->reset_layout();
     if (m_debug) {
         config.debugger.width = config.debugger.height = -1;
@@ -664,9 +529,6 @@ void MainWindow::reset_layout()
     update_menus();
 }
 
-#if CONFIG_ENABLE_DEBUGGER
-static const int s_toggle_panels[] = { 2, 4, 1, 3, 5, 6, 7 };
-#endif
 
 void MainWindow::build_menus()
 {
@@ -699,14 +561,8 @@ void MainWindow::build_menus()
     }
     mb->add("&View/Show FPS", 0, cb_show_fps, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
 #if CONFIG_ENABLE_DEBUGGER
-    {
-        char path[96];
-        for (int index : s_toggle_panels) {
-            snprintf(path, sizeof(path), "&View/Debugger Panels/%s", config_panels[index].title);
-            mb->add(path, 0, cb_panel, (void*) (intptr_t) index, FL_MENU_TOGGLE);
-        }
-        mb->add("&View/Reset Layout", 0, cb_reset_layout);
-    }
+    mb->add("&View/&Video && Profiler Window", FL_COMMAND + FL_SHIFT + 'v', cb_video_window, nullptr, FL_MENU_TOGGLE);
+    mb->add("&View/Reset Debugger Layout", 0, cb_reset_layout);
 #endif
 
     mb->add("&Audio/Volume &Up", FL_COMMAND + FL_SHIFT + '0', cb_volume_up);
@@ -736,13 +592,8 @@ void MainWindow::update_menus()
     set_toggle(mb, "&View/Scanline Rendering", fz_scanline());
     set_toggle(mb, "&View/Show FPS", show_fps);
     set_toggle(mb, "&Audio/&Mute", fz_muted());
-#if CONFIG_ENABLE_DEBUGGER
-    char path[96];
-    for (int index : s_toggle_panels) {
-        snprintf(path, sizeof(path), "&View/Debugger Panels/%s", config_panels[index].title);
-        set_toggle(mb, path, !config_panels[index].hidden, dbg);
-    }
-#endif
+    set_toggle(mb, "&View/&Video && Profiler Window",
+               m_debugger && m_debugger->video_window_shown(), m_debugger != nullptr);
 #if FL_API_VERSION >= 10400
     static_cast<Fl_Sys_Menu_Bar*>(mb)->update();
 #endif
@@ -912,7 +763,6 @@ int ui_open(bool debug)
 {
 #if CONFIG_ENABLE_DEBUGGER
     for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
-        s_panel_hidden_default[i] = config_panels[i].hidden;
         config_panel_load(&config_panels[i]);
     }
 #endif
@@ -922,11 +772,8 @@ int ui_open(bool debug)
 #ifdef __APPLE__
     Fl::set_font(FL_COURIER, "Menlo");
 #endif
-    Fl::scheme("gtk+");
-    Fl::background(0x2b, 0x2d, 0x31);
-    Fl::background2(0x1e, 0x1f, 0x22);
-    Fl::foreground(0xdc, 0xdf, 0xe4);
-    Fl::set_color(FL_SELECTION_COLOR, 0x3d, 0x8b, 0xfd);
+    apply_theme();
+    load_fonts();
 #if FL_API_VERSION >= 10400
     Fl::use_high_res_GL(1);
 #endif

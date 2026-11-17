@@ -90,6 +90,13 @@ typedef struct {
 extern config_t config;
 
 /**
+ * @brief Optional frontend hook, called by config_save() to append
+ * frontend-specific keys before the file is written.
+ */
+typedef void (*config_save_hook_t)(rini_config* ini);
+extern config_save_hook_t config_save_hook;
+
+/**
  * @brief Usage message for CLI
  */
 int usage(const char *progname);

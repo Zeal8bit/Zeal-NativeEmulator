@@ -10,3 +10,4 @@ tests/*
 raylib/web/*
 !raylib/web/README.md
 !raylib/web/LICENSE.txt
+sdl3/

@@ -2,6 +2,7 @@
 
 ## Build Options
 option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
+option('sdl3_static', type : 'boolean', value : false, description : 'Link SDL3 statically (sdl-fltk; e.g. built with tools/build_sdl3.py)')
 
 ## Debugger
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')

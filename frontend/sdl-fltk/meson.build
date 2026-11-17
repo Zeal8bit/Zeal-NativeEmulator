@@ -13,6 +13,8 @@ sdlfltk_cpp_sources = files(
     'ui/app.cpp',
     'ui/debugger.cpp',
     'ui/screen.cpp',
+    'ui/theme.cpp',
+    'ui/video.cpp',
 )
 if get_option('enable_debugger')
     sdlfltk_sources += files('debug_video.c')

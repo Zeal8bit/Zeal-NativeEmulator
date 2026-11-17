@@ -376,6 +376,8 @@ void config_parse_file(const char* file) {
     config.debugger.hex_upper = rini_get_config_value_fallback(config.ini, "DEBUG_HEX_UPPER", 1);
 }
 
+config_save_hook_t config_save_hook = NULL;
+
 int config_save(void)
 {
     rini_config ini = rini_load_config(NULL);
@@ -426,6 +428,8 @@ int config_save(void)
 
     config_panels_save(&ini);
 #endif // CONFIG_ENABLE_DEBUGGER
+
+    if (config_save_hook) config_save_hook(&ini);
 
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);

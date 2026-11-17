@@ -91,7 +91,7 @@ if build_nuklear
 endif
 if build_sdlfltk
     add_languages('cpp', native: false)
-    sdl3_dep = dependency('sdl3')
+    sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
     fltk_config = find_program('fltk-config')
     fltk_cxxflags = run_command(fltk_config, '--use-gl', '--cxxflags', check: true).stdout().strip().split()
     fltk_ldflags = run_command(fltk_config, '--use-gl', '--ldflags', check: true).stdout().strip().split()
@@ -101,6 +101,13 @@ if build_sdlfltk
     fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
     # fltk-config omits libGL on some distributions (FLTK 1.3); macOS uses the framework.
     gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
+    # Registers the bundled pixel font for the debugger on Linux/BSD.
+    fontconfig_dep = dependency('fontconfig', required: false,
+        disabler: false)
+    sdlfltk_ui_args = []
+    if fontconfig_dep.found() and host_machine.system() not in ['darwin', 'windows']
+        sdlfltk_ui_args += '-DZUI_HAVE_FONTCONFIG=1'
+    endif
     subdir('frontend/sdl-fltk')
     if not build_nuklear
         subdir('assets')
@@ -113,8 +120,8 @@ if build_sdlfltk
     sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
-        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep],
-        cpp_args: host_args + sdlfltk_args + ['-std=c++17'], install: true)
+        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep],
+        cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
     run_target('run-fltk', command: [exec])
 endif
 if build_wasm

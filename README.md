@@ -63,20 +63,42 @@ Requirements: **FLTK 1.3.8 or newer** (1.4 recommended, with `fltk-config` on
 `PATH`), **SDL 3**, OpenGL and a C++17 compiler.
 
 ```sh
-brew install fltk sdl3                     # macOS
-sudo apt install libfltk1.3-dev libsdl3-dev libgl-dev   # Debian/Ubuntu (25.04+)
+# macOS
+brew install fltk sdl3
 meson setup build-fltk -Dfrontend=sdl-fltk
 meson compile -C build-fltk
 ./build-fltk/zeal-fltk
 ```
 
+Ubuntu 22.04 and 24.04 have no SDL3 package. `tools/build_sdl3.py` builds the
+pinned, checksum-verified SDL3 release as a static library into `sdl3/linux64`
+(ignored by Git), so `zeal-fltk` does not need SDL3 installed at runtime:
+
+```sh
+sudo apt install meson ninja-build g++ pkg-config cmake libfltk1.3-dev libgl-dev \
+    libx11-dev libfontconfig-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+python3 tools/build_sdl3.py
+meson setup build-fltk -Dfrontend=sdl-fltk -Dsdl3_static=true \
+    -Dpkg_config_path=$PWD/sdl3/linux64/lib/pkgconfig
+meson compile -C build-fltk
+```
+
+Distributions that package SDL3 (Ubuntu 25.04+, Debian 13+) can use
+`libsdl3-dev` instead and skip the helper and the two extra options.
+
 Shortcuts use Cmd on macOS and Ctrl elsewhere, as in `zeal-native`:
 Cmd/Ctrl+F1 toggles the debugger, F5/F6/F10/F11/F9 (with Cmd/Ctrl) continue,
 pause, step over, step into and toggle a breakpoint, Shift+=/- scale the
 window, Shift+0/9 change the volume and Shift+Backspace resets. A middle click
-on the screen captures the mouse for the SNES mouse adapter. In the debugger,
-registers and memory are editable while paused, and the dock sizes and visible
-panels are saved with the configuration.
+on the screen captures the mouse for the SNES mouse adapter.
+
+The debugger keeps everything needed while stepping visible at once: screen and
+memory editor (with the MMU page map) on the left, disassembly in the centre,
+and CPU registers, stack and breakpoints on the right. Right-click the
+disassembly for run-to-cursor and set-PC; registers, flags and memory are
+editable while paused. The VRAM viewers and the semihost profiler open in a
+separate Video & Profiler window (Cmd/Ctrl+Shift+V). Split sizes are saved under
+`FLTK_*` keys in the configuration file, so they do not disturb Nuklear's layout.
 
 ### WebAssembly compilation
 

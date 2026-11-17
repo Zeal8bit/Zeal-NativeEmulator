@@ -4,25 +4,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Docked debugger: toolbar, CPU registers (right top), Disassembler and
- * Breakpoints tabs (right), Memory/VRAM/MMU/Semihost tabs (bottom). */
+/* Debugger layout. Everything needed while stepping stays visible together,
+ * no tabs (in the spirit of Mesen and no$sns):
+ *
+ *   +---------------------------------------------------------------+
+ *   | toolbar: run/pause  step  over  run-to | break  reset | state  |
+ *   +----------------+---------------------+-----------------------+
+ *   | screen         | disassembly         | CPU registers, flags  |
+ *   |                |                     +-----------------------+
+ *   +----------------+                     | stack (SP+n)          |
+ *   | memory + MMU   |                     +-----------------------+
+ *   |                |                     | breakpoints           |
+ *   +----------------+---------------------+-----------------------+
+ *
+ * Graphics viewers and the profiler live in a separate tool window
+ * (video.cpp). Split sizes are saved under FLTK_* config keys. */
 
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
-#include <FL/Fl_Tabs.H>
-#include <FL/Fl_Button.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Check_Button.H>
-#include <FL/Fl_Hold_Browser.H>
 #include <FL/Fl_Choice.H>
-#include <FL/Fl_Scroll.H>
 #include <FL/Fl_Scrollbar.H>
+#include <FL/Fl_Tooltip.H>
+#include <FL/Fl_Menu_Item.H>
 #include <FL/fl_draw.H>
 #include <FL/fl_utf8.h>
 #include <FL/fl_ask.H>
 #include "ui.h"
+#include "video.h"
 
 #if CONFIG_ENABLE_DEBUGGER
 extern "C" {
@@ -34,17 +47,12 @@ namespace zui {
 
 #if CONFIG_ENABLE_DEBUGGER
 
-/* Indices in config_panels (frontend/common/panels.c) */
-enum {
-    P_VIDEO = 0, P_BREAKPOINTS = 1, P_CPU = 2, P_MEMORY = 3,
-    P_DISASSEMBLER = 4, P_VRAM = 5, P_MMU = 6, P_SEMIHOST = 7,
-};
-
-constexpr int BAR_H = 30;       /* input rows on top of panels */
-constexpr int TAB_H = 26;       /* Fl_Tabs header */
-constexpr int CPU_H = 228;      /* register panel height */
+constexpr int BAR_H = 30;
 
 static Debugger::Impl* s_impl;
+static void request_refresh();
+static void goto_memory(hwaddr addr);
+static void goto_disassembly(hwaddr addr);
 
 static void hex16(char* out, size_t size, unsigned value)
 {
@@ -56,14 +64,27 @@ static void hex8(char* out, size_t size, unsigned value)
     snprintf(out, size, hex8_fmt(), value & 0xFF);
 }
 
+static int char_width()
+{
+    fl_font(DATA_FONT, DATA_SIZE);
+    return (int) fl_width("0");
+}
+
+static int text_baseline(int line_h)
+{
+    fl_font(DATA_FONT, DATA_SIZE);
+    return line_h - fl_descent() - (line_h - fl_height()) / 2;
+}
+
 static void style_input(Fl_Input* in)
 {
-    in->textfont(MONO_FONT);
-    in->textsize(MONO_SIZE);
+    in->textfont(DATA_FONT);
+    in->textsize(DATA_SIZE);
     in->color(COLOR_BG);
     in->textcolor(COLOR_TEXT);
-    in->cursor_color(COLOR_TEXT);
-    in->box(FL_FLAT_BOX);
+    in->cursor_color(COLOR_AMBER);
+    in->selection_color(COLOR_SELECT);
+    in->box(FL_BORDER_BOX);
 }
 
 static void style_button(Fl_Button* b)
@@ -71,109 +92,183 @@ static void style_button(Fl_Button* b)
     b->labelsize(12);
     b->box(FL_FLAT_BOX);
     b->down_box(FL_FLAT_BOX);
-    b->color(COLOR_HOVER);
-    b->selection_color(COLOR_ACCENT);
+    b->color(COLOR_RAISED);
+    b->selection_color(COLOR_BORDER);
     b->labelcolor(COLOR_TEXT);
     b->clear_visible_focus();
 }
 
-static void style_browser(Fl_Browser* b)
+static void style_check(Fl_Check_Button* b)
 {
-    b->textfont(MONO_FONT);
-    b->textsize(MONO_SIZE);
-    b->color(COLOR_BG);
-    b->textcolor(COLOR_TEXT);
-    b->selection_color(COLOR_PC);
-    b->box(FL_FLAT_BOX);
-    b->column_char('\t');
+    b->labelsize(12);
+    b->labelcolor(COLOR_TEXT);
+    b->selection_color(COLOR_AMBER);
+    b->clear_visible_focus();
 }
 
-static void request_refresh();
-static void goto_memory(hwaddr addr);
-static void goto_disassembly(hwaddr addr);
+static bool dbg_ready()
+{
+    return fz_debugger() != nullptr;
+}
+
+static regs_t current_regs()
+{
+    regs_t regs;
+    memset(&regs, 0, sizeof(regs));
+    if (dbg_ready()) debugger_get_registers(fz_debugger(), &regs);
+    return regs;
+}
 
 /* ------------------------------------------------------------------ */
-/*  Panel base                                                         */
+/*  Panel: surface with a retro header strip                           */
 /* ------------------------------------------------------------------ */
 
 class Panel : public Fl_Group {
 public:
-    Panel(int X, int Y, int W, int H, const char* label = nullptr)
-        : Fl_Group(X, Y, W, H, label)
+    Panel(int X, int Y, int W, int H, const char* title)
+        : Fl_Group(X, Y, W, H), m_title(title)
     {
         box(FL_FLAT_BOX);
-        color(COLOR_PANEL);
-        labelsize(12);
-        selection_color(COLOR_PANEL);
+        color(COLOR_SURFACE);
     }
+
+    void extra(const char* text)
+    {
+        if (strcmp(m_extra, text) == 0) return;
+        snprintf(m_extra, sizeof(m_extra), "%s", text);
+        damage(FL_DAMAGE_ALL, x(), y(), w(), HEADER_H);
+    }
+
+    void draw() override
+    {
+        Fl_Group::draw();
+        draw_header(x(), y(), w(), m_title, m_extra);
+    }
+
+    int top() const { return y() + HEADER_H; }
+    const char* extra_text() const { return m_extra; }
     virtual void refresh(bool paused, bool force) = 0;
+
+private:
+    const char* m_title;
+    char m_extra[64] = "";
 };
 
 /* ------------------------------------------------------------------ */
 /*  Toolbar                                                            */
 /* ------------------------------------------------------------------ */
 
+class StatePill : public Fl_Widget {
+public:
+    StatePill(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H) {}
+
+    void set(bool paused, uint16_t pc)
+    {
+        if (paused) {
+            char addr[8];
+            hex16(addr, sizeof(addr), pc);
+            snprintf(m_text, sizeof(m_text), "PAUSED $%s", addr);
+        } else {
+            snprintf(m_text, sizeof(m_text), "RUNNING");
+        }
+        m_paused = paused;
+        redraw();
+    }
+
+    void draw() override
+    {
+        fl_font(DATA_FONT, DATA_SIZE);
+        const int tw = (int) fl_width(m_text);
+        const int pw = tw + 32;
+        const int px = x() + w() - pw;
+        const Fl_Color c = m_paused ? COLOR_AMBER : COLOR_GREEN;
+        fl_color(COLOR_BG);
+        fl_rectf(x(), y(), w(), h());
+        fl_color(COLOR_RAISED);
+        fl_rectf(px, y() + 2, pw, h() - 4);
+        fl_color(c);
+        fl_rect(px, y() + 2, pw, h() - 4);
+        fl_pie(px + 9, y() + h() / 2 - 4, 8, 8, 0, 360);
+        fl_draw(m_text, px + 24, y() + (h() + fl_height()) / 2 - fl_descent());
+    }
+
+private:
+    char m_text[32] = "RUNNING";
+    bool m_paused = false;
+};
+
 class Toolbar : public Fl_Group {
 public:
     Toolbar(int X, int Y, int W, int H) : Fl_Group(X, Y, W, H)
     {
         box(FL_FLAT_BOX);
-        color(COLOR_PANEL);
+        color(COLOR_BG);
         int bx = X + 8;
         const int by = Y + 4;
         const int bh = H - 8;
-        auto make = [&](const char* label, int w, Fl_Callback* cb, const char* tip) {
-            Fl_Button* b = new Fl_Button(bx, by, w, bh, label);
-            style_button(b);
+        auto make = [&](Icon icon, const char* text, int w, Fl_Callback* cb, const char* tip) {
+            IconButton* b = new IconButton(bx, by, w, bh, icon, text);
             b->callback(cb);
             b->tooltip(tip);
-            bx += w + 6;
+            bx += w + 4;
             return b;
         };
-        m_run = make("Pause", 84, cb_run, "Pause or continue execution (Cmd/Ctrl+F5, F6)");
-        make("Step Into", 84, cb_step, "Execute one instruction (Cmd/Ctrl+F11)");
-        make("Step Over", 84, cb_step_over, "Step over calls (Cmd/Ctrl+F10)");
+        m_run = make(Icon::Pause, "Pause", 96, cb_run, "Pause / continue (Cmd/Ctrl+F6, Cmd/Ctrl+F5)");
+        m_run->icon_color(COLOR_GREEN);
+        make(Icon::StepInto, "Step", 72, cb_step, "Step into (Cmd/Ctrl+F11)");
+        make(Icon::StepOver, "Over", 72, cb_step_over, "Step over (Cmd/Ctrl+F10)");
+        m_run_to = make(Icon::RunTo, "Run to", 84, cb_run_to, "Run to the line selected in the disassembly");
         bx += 12;
-        make("Breakpoint", 84, cb_breakpoint, "Toggle a breakpoint at PC (Cmd/Ctrl+F9)");
-        make("Reset", 70, cb_reset, "Reset the machine (Cmd/Ctrl+Shift+Backspace)");
-        m_state = new Fl_Box(bx + 12, by, 260, bh);
-        m_state->labelsize(12);
-        m_state->labelfont(FL_HELVETICA_BOLD);
-        m_state->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        Fl_Box* spacer = new Fl_Box(X + W - 1, Y, 1, H);
-        resizable(spacer);
+        IconButton* bp = make(Icon::Breakpoint, "Break", 78, cb_breakpoint, "Toggle a breakpoint at PC (Cmd/Ctrl+F9)");
+        bp->icon_color(COLOR_BREAK);
+        make(Icon::Reset, "Reset", 76, cb_reset, "Reset the machine (Cmd/Ctrl+Shift+Backspace)");
+        m_pill = new StatePill(X + W - 230, by, 222, bh);
+        resizable(nullptr);
         end();
     }
 
-    void update(bool paused)
+    void resize(int X, int Y, int W, int H) override
     {
-        m_run->label(paused ? "Continue" : "Pause");
-        if (paused) {
-            regs_t regs;
-            debugger_get_registers(fz_debugger(), &regs);
-            char pc[8];
-            hex16(pc, sizeof(pc), regs.pc);
-            snprintf(m_text, sizeof(m_text), "PAUSED at $%s", pc);
-            m_state->labelcolor(COLOR_LABEL);
-        } else {
-            snprintf(m_text, sizeof(m_text), "RUNNING");
-            m_state->labelcolor(fl_rgb_color(0x6c, 0xc6, 0x6c));
+        const int dx = X - x();
+        const int dy = Y - y();
+        Fl_Widget::resize(X, Y, W, H);
+        for (int i = 0; i < children(); i++) {
+            Fl_Widget* c = child(i);
+            if (c == m_pill) continue;
+            c->resize(c->x() + dx, c->y() + dy, c->w(), c->h());
         }
-        m_state->label(m_text);
-        redraw();
+        m_pill->resize(X + W - 230, Y + 4, 222, H - 8);
     }
+
+    void update(bool paused, uint16_t pc)
+    {
+        m_run->icon(paused ? Icon::Play : Icon::Pause);
+        m_run->text(paused ? "Continue" : "Pause");
+        if (paused) m_run_to->activate(); else m_run_to->deactivate();
+        m_pill->set(paused, pc);
+    }
+
+    void draw() override
+    {
+        Fl_Group::draw();
+        fl_color(COLOR_BORDER);
+        fl_xyline(x(), y() + h() - 1, x() + w() - 1);
+    }
+
+    static void cb_run_to(Fl_Widget*, void*);
 
 private:
     static void cb_run(Fl_Widget*, void*)
     {
-        dbg_t* dbg = fz_debugger();
-        if (fz_paused()) debugger_continue(dbg); else debugger_pause(dbg);
+        if (!dbg_ready()) return;
+        if (fz_paused()) debugger_continue(fz_debugger()); else debugger_pause(fz_debugger());
         request_refresh();
     }
-    static void cb_step(Fl_Widget*, void*)      { debugger_step(fz_debugger()); }
-    static void cb_step_over(Fl_Widget*, void*) { debugger_step_over(fz_debugger()); }
+    static void cb_step(Fl_Widget*, void*)      { if (dbg_ready()) debugger_step(fz_debugger()); }
+    static void cb_step_over(Fl_Widget*, void*) { if (dbg_ready()) debugger_step_over(fz_debugger()); }
     static void cb_breakpoint(Fl_Widget*, void*)
     {
+        if (!dbg_ready()) return;
         debugger_breakpoint(fz_debugger());
         request_refresh();
     }
@@ -183,9 +278,9 @@ private:
         request_refresh();
     }
 
-    Fl_Button* m_run;
-    Fl_Box* m_state;
-    char m_text[48] = "";
+    IconButton* m_run;
+    IconButton* m_run_to;
+    StatePill* m_pill;
 };
 
 /* ------------------------------------------------------------------ */
@@ -234,151 +329,608 @@ static void reg_set(regs_t& r, int id, uint16_t v)
     }
 }
 
-class CpuPanel : public Panel {
+/** Inline editor that cancels on Escape or focus loss. */
+class InlineEdit : public Fl_Input {
 public:
-    CpuPanel(int X, int Y, int W, int H) : Panel(X, Y, W, H)
+    InlineEdit(int X, int Y, int W, int H) : Fl_Input(X, Y, W, H) {}
+    int handle(int event) override
     {
-        Fl_Box* title = new Fl_Box(X + 8, Y + 4, 200, 20, "REGISTERS");
-        title->labelsize(11);
-        title->labelfont(FL_HELVETICA_BOLD);
-        title->labelcolor(COLOR_DIM);
-        title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-
-        const int row_h = 25;
-        for (int id = 0; id < R_COUNT; id++) {
-            const int col = id / 7;
-            const int row = id % 7;
-            const int fx = X + 8 + col * 140;
-            const int fy = Y + 28 + row * row_h;
-            Fl_Button* name = new Fl_Button(fx, fy, 40, row_h - 3, s_reg_names[id]);
-            name->box(FL_FLAT_BOX);
-            name->color(COLOR_PANEL);
-            name->labelfont(MONO_FONT);
-            name->labelsize(MONO_SIZE);
-            name->labelcolor(COLOR_ACCENT);
-            name->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-            name->clear_visible_focus();
-            name->callback(cb_goto, (void*) (intptr_t) id);
-            name->tooltip(reg_is_8bit(id) ? nullptr : "Show this address in the memory viewer");
-            Fl_Input* in = new Fl_Input(fx + 42, fy, 64, row_h - 3);
-            style_input(in);
-            in->maximum_size(reg_is_8bit(id) ? 2 : 4);
-            in->when(FL_WHEN_ENTER_KEY_ALWAYS);
-            in->callback(cb_edit, (void*) (intptr_t) id);
-            in->tooltip("Edit while paused; press Enter to apply");
-            m_inputs[id] = in;
+        if (event == FL_KEYBOARD && Fl::event_key() == FL_Escape) {
+            hide();
+            if (parent()) parent()->redraw();
+            return 1;
         }
-
-        static const char* flag_names[6] = { "S", "Z", "H", "P/V", "N", "C" };
-        static const int flag_bits[6] = { 7, 6, 4, 2, 1, 0 };
-        const int fy = Y + 28 + 7 * row_h + 6;
-        for (int i = 0; i < 6; i++) {
-            Fl_Check_Button* b = new Fl_Check_Button(X + 8 + i * 46, fy, 46, 22, flag_names[i]);
-            b->labelsize(12);
-            b->labelcolor(COLOR_TEXT);
-            b->selection_color(COLOR_ACCENT);
-            b->clear_visible_focus();
-            b->callback(cb_flag, (void*) (intptr_t) flag_bits[i]);
-            m_flags[i] = b;
-            m_flag_bits[i] = flag_bits[i];
+        if (event == FL_UNFOCUS) {
+            const int r = Fl_Input::handle(event);
+            hide();
+            if (parent()) parent()->redraw();
+            return r;
         }
+        return Fl_Input::handle(event);
+    }
+};
+
+class RegistersView : public Panel {
+public:
+    RegistersView(int X, int Y, int W, int H) : Panel(X, Y, W, H, "CPU")
+    {
+        m_edit = new InlineEdit(X, Y, 10, 10);
+        style_input(m_edit);
+        m_edit->box(FL_FLAT_BOX);
+        m_edit->color(COLOR_SELECT);
+        m_edit->when(FL_WHEN_ENTER_KEY_ALWAYS);
+        m_edit->callback(cb_commit, this);
+        m_edit->hide();
         resizable(nullptr);
         end();
     }
 
+    static int preferred_height()
+    {
+        const int lh = data_line_height();
+        return HEADER_H + 8 + 7 * lh + 22 + lh + 4 + 12 + 2 * lh + 10;
+    }
+
     void refresh(bool paused, bool force) override
     {
-        dbg_t* dbg = fz_debugger();
-        regs_t regs;
-        debugger_get_registers(dbg, &regs);
-        char text[8];
+        m_regs = current_regs();
+        m_paused = paused;
         for (int id = 0; id < R_COUNT; id++) {
-            const uint16_t value = reg_get(regs, id);
-            Fl_Input* in = m_inputs[id];
+            const uint16_t v = reg_get(m_regs, id);
             if (paused && force) {
-                m_changed[id] = m_have_prev && value != m_prev[id];
-                m_prev[id] = value;
+                m_changed[id] = m_have_prev && v != m_prev[id];
+                m_prev[id] = v;
             } else if (!paused) {
                 m_changed[id] = false;
             }
-            if (Fl::focus() != in) {
-                if (reg_is_8bit(id)) hex8(text, sizeof(text), value);
-                else hex16(text, sizeof(text), value);
-                if (strcmp(in->value(), text) != 0) in->value(text);
-            }
-            in->textcolor(m_changed[id] ? COLOR_CHANGED : COLOR_TEXT);
-            if (paused) in->activate(); else in->deactivate();
-            m_values[id] = value;
         }
         if (paused && force) m_have_prev = true;
-        for (int i = 0; i < 6; i++) {
-            m_flags[i]->value((regs.f >> m_flag_bits[i]) & 1);
-            if (paused) m_flags[i]->activate(); else m_flags[i]->deactivate();
+        if (dbg_ready()) {
+            debugger_read_memory(fz_debugger(), m_regs.hl, 8, m_peek_hl);
+            debugger_read_memory(fz_debugger(), m_regs.sp, 2, m_peek_sp);
         }
+        extra(paused ? "PAUSED" : "LIVE");
         redraw();
     }
 
-    uint16_t value(int id) const { return m_values[id]; }
+    void draw() override
+    {
+        fl_color(COLOR_SURFACE);
+        fl_rectf(x(), y(), w(), h());
+        draw_header(x(), y(), w(), "CPU", extra_text());
+        const int lh = data_line_height();
+        const int cw = char_width();
+        const int asc = text_baseline(lh);
+        char text[48];
+
+        fl_font(DATA_FONT, DATA_SIZE);
+        for (int id = 0; id < R_COUNT; id++) {
+            int nx, vx, ry;
+            cell(id, nx, vx, ry);
+            fl_color(reg_is_8bit(id) ? COLOR_DIM : COLOR_CYAN);
+            fl_draw(s_reg_names[id], nx, ry + asc);
+            if (reg_is_8bit(id)) hex8(text, sizeof(text), reg_get(m_regs, id));
+            else hex16(text, sizeof(text), reg_get(m_regs, id));
+            if (id == m_hover && m_paused) {
+                fl_color(COLOR_HOVER);
+                fl_rectf(vx - 3, ry, cw * 4 + 6, lh);
+            }
+            fl_color(m_changed[id] ? COLOR_CHANGED : COLOR_TEXT);
+            fl_draw(text, vx, ry + asc);
+        }
+
+        /* Flags as chips: F register bit 7..0 = S Z 5 H 3 P/V N C */
+        static const char* names[8] = { "S", "Z", "5", "H", "3", "P", "N", "C" };
+        const int fy = flags_y();
+        fl_color(COLOR_DIM);
+        fl_font(FL_HELVETICA, 10);
+        fl_draw("FLAGS", x() + 10, fy - 5);
+        fl_font(DATA_FONT, DATA_SIZE);
+        for (int i = 0; i < 8; i++) {
+            int cx, cwid;
+            chip(i, cx, cwid);
+            const int bit = 7 - i;
+            const bool on = (m_regs.f >> bit) & 1;
+            const bool undocumented = bit == 5 || bit == 3;
+            if (on) {
+                fl_color(undocumented ? COLOR_DIM : COLOR_GREEN);
+                fl_rectf(cx, fy, cwid, lh + 4);
+                fl_color(COLOR_BG);
+            } else {
+                fl_color(COLOR_BORDER);
+                fl_rect(cx, fy, cwid, lh + 4);
+                fl_color(undocumented ? COLOR_BORDER : COLOR_DIM);
+            }
+            fl_draw(names[i], cx + (cwid - (int) fl_width(names[i])) / 2, fy + 2 + asc);
+        }
+
+        /* What HL and SP point at */
+        int py = fy + lh + 4 + 12;
+        fl_color(COLOR_CYAN);
+        fl_draw("(HL)", x() + 10, py + asc);
+        int n = 0;
+        int fit = (w() - 20 - cw * 5) / (cw * 3);
+        if (fit > 8) fit = 8;
+        for (int i = 0; i < fit && n < (int) sizeof(text) - 4; i++) {
+            n += snprintf(text + n, sizeof(text) - n, hex8_fmt(), m_peek_hl[i]);
+            text[n++] = ' ';
+            text[n] = '\0';
+        }
+        fl_color(COLOR_TEXT);
+        fl_draw(text, x() + 10 + cw * 5, py + asc);
+        py += lh;
+        const unsigned top_word = (unsigned) (m_peek_sp[0] | (m_peek_sp[1] << 8));
+        fl_color(COLOR_CYAN);
+        fl_draw("(SP)", x() + 10, py + asc);
+        hex16(text, sizeof(text), top_word);
+        fl_color(COLOR_TEXT);
+        fl_draw(text, x() + 10 + cw * 5, py + asc);
+        const char* sym = dbg_ready() ? debugger_get_symbol(fz_debugger(), top_word) : nullptr;
+        if (sym) {
+            fl_color(COLOR_AMBER);
+            fl_draw(sym, x() + 10 + cw * 10, py + asc);
+        }
+
+        if (m_edit->visible()) draw_child(*m_edit);
+    }
+
+    int handle(int event) override
+    {
+        if (m_edit->visible() && (event == FL_KEYBOARD || event == FL_KEYUP || event == FL_SHORTCUT)) {
+            return Fl_Group::handle(event);
+        }
+        switch (event) {
+            case FL_ENTER:
+                return 1;
+            case FL_LEAVE:
+                m_hover = -1;
+                redraw();
+                return 1;
+            case FL_MOVE: {
+                const int id = hit_value(Fl::event_x(), Fl::event_y());
+                if (id != m_hover) {
+                    m_hover = id;
+                    redraw();
+                    tooltip_for(id);
+                }
+                return 1;
+            }
+            case FL_PUSH: {
+                if (m_edit->visible() && Fl::event_inside(m_edit)) break;
+                const int ex = Fl::event_x(), ey = Fl::event_y();
+                const int name = hit_name(ex, ey);
+                if (name >= 0 && !reg_is_8bit(name)) {
+                    goto_memory(reg_get(m_regs, name));
+                    return 1;
+                }
+                const int id = hit_value(ex, ey);
+                if (id >= 0 && m_paused) {
+                    begin_edit(id);
+                    return 1;
+                }
+                const int f = hit_chip(ex, ey);
+                if (f >= 0 && m_paused && dbg_ready()) {
+                    regs_t regs = current_regs();
+                    regs.f ^= (uint8_t) (1u << (7 - f));
+                    debugger_set_registers(fz_debugger(), &regs);
+                    request_refresh();
+                }
+                return 1;
+            }
+            default:
+                break;
+        }
+        return Fl_Group::handle(event);
+    }
 
 private:
-    static void cb_goto(Fl_Widget* w, void* data)
+    void cell(int id, int& name_x, int& value_x, int& row_y) const
     {
-        const int id = (int) (intptr_t) data;
-        if (reg_is_8bit(id)) return;
-        CpuPanel* self = static_cast<CpuPanel*>(w->parent());
-        goto_memory(self->m_values[id]);
+        const int lh = data_line_height();
+        const int cw = char_width();
+        const int col = id / 7;
+        const int row = id % 7;
+        name_x = x() + 10 + col * (w() / 2);
+        value_x = name_x + cw * 4;
+        row_y = y() + HEADER_H + 8 + row * lh;
     }
 
-    static void cb_edit(Fl_Widget* w, void* data)
+    int flags_y() const
     {
-        const int id = (int) (intptr_t) data;
-        if (!fz_paused()) return;
-        const char* text = static_cast<Fl_Input*>(w)->value();
+        return y() + HEADER_H + 8 + 7 * data_line_height() + 22;
+    }
+
+    void chip(int i, int& cx, int& cw) const
+    {
+        cw = (w() - 20) / 8 - 4;
+        if (cw > 30) cw = 30;
+        cx = x() + 10 + i * (cw + 4);
+    }
+
+    int hit_value(int ex, int ey) const
+    {
+        const int lh = data_line_height();
+        const int cw = char_width();
+        for (int id = 0; id < R_COUNT; id++) {
+            int nx, vx, ry;
+            cell(id, nx, vx, ry);
+            if (ex >= vx - 3 && ex < vx + cw * 4 + 3 && ey >= ry && ey < ry + lh) return id;
+        }
+        return -1;
+    }
+
+    int hit_name(int ex, int ey) const
+    {
+        const int lh = data_line_height();
+        const int cw = char_width();
+        for (int id = 0; id < R_COUNT; id++) {
+            int nx, vx, ry;
+            cell(id, nx, vx, ry);
+            if (ex >= nx && ex < nx + cw * 3 && ey >= ry && ey < ry + lh) return id;
+        }
+        return -1;
+    }
+
+    int hit_chip(int ex, int ey) const
+    {
+        const int fy = flags_y();
+        if (ey < fy || ey >= fy + data_line_height() + 4) return -1;
+        for (int i = 0; i < 8; i++) {
+            int cx, cw;
+            chip(i, cx, cw);
+            if (ex >= cx && ex < cx + cw) return i;
+        }
+        return -1;
+    }
+
+    void tooltip_for(int id)
+    {
+        static char tip[128];
+        if (id < 0) return;
+        const unsigned v = reg_get(m_regs, id);
+        if (reg_is_8bit(id)) {
+            snprintf(tip, sizeof(tip), "%s = %u", s_reg_names[id], v);
+        } else {
+            const int hi = (v >> 8) & 0xFF, lo = v & 0xFF;
+            snprintf(tip, sizeof(tip), "%s = %u (signed %d)\nhigh %u '%c'   low %u '%c'%s",
+                     s_reg_names[id], v, (int) (int16_t) v, hi, isprint(hi) ? hi : '.', lo,
+                     isprint(lo) ? lo : '.', m_paused ? "\nClick to edit" : "");
+        }
+        int nx, vx, ry;
+        cell(id, nx, vx, ry);
+        Fl_Tooltip::enter_area(this, vx - x(), ry - y(), char_width() * 4, data_line_height(), tip);
+    }
+
+    void begin_edit(int id)
+    {
+        int nx, vx, ry;
+        cell(id, nx, vx, ry);
+        char text[8];
+        if (reg_is_8bit(id)) hex8(text, sizeof(text), reg_get(m_regs, id));
+        else hex16(text, sizeof(text), reg_get(m_regs, id));
+        m_edit_id = id;
+        m_edit->resize(vx - 3, ry, char_width() * 4 + 8, data_line_height());
+        m_edit->maximum_size(reg_is_8bit(id) ? 2 : 4);
+        m_edit->value(text);
+        m_edit->show();
+        m_edit->take_focus();
+#if FL_API_VERSION >= 10400
+        m_edit->insert_position(0, (int) strlen(text));
+#else
+        m_edit->position(0, (int) strlen(text));
+#endif
+        redraw();
+    }
+
+    static void cb_commit(Fl_Widget*, void* data)
+    {
+        RegistersView* self = static_cast<RegistersView*>(data);
+        const char* text = self->m_edit->value();
         char* end = nullptr;
         const unsigned long v = strtoul(text[0] == '$' ? text + 1 : text, &end, 16);
-        if (end == text || (end && *end != '\0')) {
+        self->m_edit->hide();
+        if (end == text || (end && *end) || !dbg_ready() || !fz_paused()) {
             fl_beep();
-            request_refresh();
-            return;
+        } else {
+            regs_t regs = current_regs();
+            reg_set(regs, self->m_edit_id, (uint16_t) v);
+            debugger_set_registers(fz_debugger(), &regs);
         }
-        dbg_t* dbg = fz_debugger();
-        regs_t regs;
-        debugger_get_registers(dbg, &regs);
-        reg_set(regs, id, (uint16_t) v);
-        debugger_set_registers(dbg, &regs);
-        Fl::focus(nullptr);
         request_refresh();
     }
 
-    static void cb_flag(Fl_Widget* w, void* data)
-    {
-        if (!fz_paused()) return;
-        const int bit = (int) (intptr_t) data;
-        dbg_t* dbg = fz_debugger();
-        regs_t regs;
-        debugger_get_registers(dbg, &regs);
-        if (static_cast<Fl_Check_Button*>(w)->value()) regs.f |= (uint8_t) (1u << bit);
-        else regs.f &= (uint8_t) ~(1u << bit);
-        debugger_set_registers(dbg, &regs);
-        request_refresh();
-    }
-
-    Fl_Input* m_inputs[R_COUNT] = {};
-    Fl_Check_Button* m_flags[6] = {};
-    int m_flag_bits[6] = {};
-    uint16_t m_values[R_COUNT] = {};
+    InlineEdit* m_edit;
+    int m_edit_id = -1;
+    regs_t m_regs = {};
+    bool m_paused = false;
     uint16_t m_prev[R_COUNT] = {};
     bool m_changed[R_COUNT] = {};
     bool m_have_prev = false;
+    uint8_t m_peek_hl[8] = {};
+    uint8_t m_peek_sp[2] = {};
+    int m_hover = -1;
 };
 
 /* ------------------------------------------------------------------ */
-/*  Disassembler                                                       */
+/*  Stack                                                              */
+/* ------------------------------------------------------------------ */
+
+class StackView : public Panel {
+public:
+    StackView(int X, int Y, int W, int H) : Panel(X, Y, W, H, "STACK")
+    {
+        resizable(nullptr);
+        end();
+        tooltip("Click: show in memory    Double-click: show the word in the disassembly");
+    }
+
+    void refresh(bool paused, bool force) override
+    {
+        (void) paused;
+        (void) force;
+        m_regs = current_regs();
+        char text[24];
+        char sp[8];
+        hex16(sp, sizeof(sp), m_regs.sp);
+        snprintf(text, sizeof(text), "SP $%s", sp);
+        extra(text);
+        redraw();
+    }
+
+    void draw() override
+    {
+        Panel::draw();
+        if (!dbg_ready()) return;
+        const int lh = data_line_height();
+        const int cw = char_width();
+        const int asc = text_baseline(lh);
+        const int rows = (h() - HEADER_H - 8) / lh;
+        const int count = rows < 128 ? rows : 128;
+        if (count <= 0) return;
+        uint8_t mem[256];
+        debugger_read_memory(fz_debugger(), m_regs.sp, count * 2, mem);
+        fl_push_clip(x(), top(), w(), h() - HEADER_H);
+        fl_font(DATA_FONT, DATA_SIZE);
+        char text[16];
+        for (int i = 0; i < count; i++) {
+            const int ry = top() + 4 + i * lh;
+            const unsigned addr = (m_regs.sp + i * 2) & 0xFFFF;
+            const unsigned word = mem[i * 2] | (mem[i * 2 + 1] << 8);
+            if (i == m_hover) {
+                fl_color(COLOR_HOVER);
+                fl_rectf(x(), ry, w(), lh);
+            }
+            if (i == 0) {
+                fl_color(COLOR_AMBER);
+                fl_draw(">", x() + 6, ry + asc);
+            }
+            fl_color(COLOR_DIM);
+            snprintf(text, sizeof(text), "+%02X", (i * 2) & 0xFF);
+            fl_draw(text, x() + 6 + cw * 2, ry + asc);
+            hex16(text, sizeof(text), addr);
+            fl_color(COLOR_CYAN);
+            fl_draw(text, x() + 6 + cw * 6, ry + asc);
+            hex16(text, sizeof(text), word);
+            fl_color(COLOR_TEXT);
+            fl_draw(text, x() + 6 + cw * 12, ry + asc);
+            const char* sym = debugger_get_symbol(fz_debugger(), word);
+            if (sym) {
+                fl_color(COLOR_AMBER);
+                fl_draw(sym, x() + 6 + cw * 17, ry + asc);
+            }
+        }
+        fl_pop_clip();
+    }
+
+    int handle(int event) override
+    {
+        switch (event) {
+            case FL_ENTER:
+                return 1;
+            case FL_LEAVE:
+                m_hover = -1;
+                redraw();
+                return 1;
+            case FL_MOVE: {
+                const int r = row_at(Fl::event_y());
+                if (r != m_hover) {
+                    m_hover = r;
+                    redraw();
+                }
+                return 1;
+            }
+            case FL_PUSH: {
+                const int r = row_at(Fl::event_y());
+                if (r < 0 || !dbg_ready()) return 1;
+                const hwaddr addr = (m_regs.sp + r * 2) & 0xFFFF;
+                if (Fl::event_clicks() > 0) {
+                    uint8_t word[2];
+                    debugger_read_memory(fz_debugger(), addr, 2, word);
+                    goto_disassembly(word[0] | (word[1] << 8));
+                } else {
+                    goto_memory(addr);
+                }
+                return 1;
+            }
+            default:
+                break;
+        }
+        return Fl_Group::handle(event);
+    }
+
+private:
+    int row_at(int ey) const
+    {
+        if (ey < top() + 4) return -1;
+        const int r = (ey - top() - 4) / data_line_height();
+        return r < (h() - HEADER_H - 8) / data_line_height() ? r : -1;
+    }
+
+    regs_t m_regs = {};
+    int m_hover = -1;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Breakpoints                                                        */
+/* ------------------------------------------------------------------ */
+
+class BreakpointList : public Fl_Widget {
+public:
+    BreakpointList(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H) {}
+
+    std::vector<hwaddr> addrs;
+
+    void draw() override
+    {
+        fl_color(COLOR_SURFACE);
+        fl_rectf(x(), y(), w(), h());
+        const int lh = data_line_height();
+        const int cw = char_width();
+        const int asc = text_baseline(lh);
+        fl_push_clip(x(), y(), w(), h());
+        if (addrs.empty()) {
+            fl_color(COLOR_DIM);
+            fl_font(FL_HELVETICA, 11);
+            fl_draw("No breakpoints. Click the disassembly gutter or add one below.",
+                    x() + 8, y() + 4, w() - 16, lh * 2, FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_WRAP);
+        }
+        fl_font(DATA_FONT, DATA_SIZE);
+        char text[8];
+        for (size_t i = 0; i < addrs.size(); i++) {
+            const int ry = y() + 2 + (int) i * lh;
+            if ((int) i == m_hover) {
+                fl_color(COLOR_HOVER);
+                fl_rectf(x(), ry, w(), lh);
+                fl_color(COLOR_BREAK);
+                fl_draw("x", x() + w() - cw * 2, ry + asc);
+            }
+            fl_color(COLOR_BREAK);
+            fl_pie(x() + 8, ry + (lh - 9) / 2, 9, 9, 0, 360);
+            hex16(text, sizeof(text), addrs[i]);
+            fl_color(COLOR_CYAN);
+            fl_draw(text, x() + 24, ry + asc);
+            const char* sym = debugger_get_symbol(fz_debugger(), addrs[i]);
+            if (sym) {
+                fl_color(COLOR_AMBER);
+                fl_draw(sym, x() + 24 + cw * 6, ry + asc);
+            }
+        }
+        fl_pop_clip();
+    }
+
+    int handle(int event) override
+    {
+        switch (event) {
+            case FL_ENTER:
+                return 1;
+            case FL_LEAVE:
+                m_hover = -1;
+                redraw();
+                return 1;
+            case FL_MOVE: {
+                const int r = row_at(Fl::event_y());
+                if (r != m_hover) {
+                    m_hover = r;
+                    redraw();
+                }
+                return 1;
+            }
+            case FL_PUSH: {
+                const int r = row_at(Fl::event_y());
+                if (r < 0) return 1;
+                if (Fl::event_x() >= x() + w() - char_width() * 3) {
+                    debugger_clear_breakpoint(fz_debugger(), addrs[r]);
+                    request_refresh();
+                } else {
+                    goto_disassembly(addrs[r]);
+                }
+                return 1;
+            }
+            default:
+                break;
+        }
+        return Fl_Widget::handle(event);
+    }
+
+private:
+    int row_at(int ey) const
+    {
+        const int r = (ey - y() - 2) / data_line_height();
+        return ey >= y() + 2 && r < (int) addrs.size() ? r : -1;
+    }
+
+    int m_hover = -1;
+};
+
+class BreakpointsPanel : public Panel {
+public:
+    BreakpointsPanel(int X, int Y, int W, int H) : Panel(X, Y, W, H, "BREAKPOINTS")
+    {
+        m_list = new BreakpointList(X, Y, 10, 10);
+        m_input = new Fl_Input(X, Y, 10, 10);
+        style_input(m_input);
+        m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
+        m_input->callback(cb_add, this);
+        m_input->tooltip("Address (hex) or symbol, then Enter");
+        m_add = new Fl_Button(X, Y, 10, 10, "Add");
+        style_button(m_add);
+        m_add->callback(cb_add, this);
+        resizable(m_list);
+        end();
+        resize(X, Y, W, H);
+    }
+
+    void refresh(bool paused, bool force) override
+    {
+        (void) paused;
+        (void) force;
+        if (!dbg_ready()) return;
+        hwaddr bps[DBG_MAX_POINTS];
+        const int count = debugger_get_breakpoints(fz_debugger(), bps, DBG_MAX_POINTS);
+        m_list->addrs.assign(bps, bps + (count > 0 ? count : 0));
+        char text[16];
+        snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
+        extra(text);
+        m_list->redraw();
+    }
+
+    void resize(int X, int Y, int W, int H) override
+    {
+        Fl_Widget::resize(X, Y, W, H);
+        const int iy = Y + H - BAR_H + 4;
+        m_list->resize(X, Y + HEADER_H, W, H - HEADER_H - BAR_H);
+        m_input->resize(X + 6, iy, W - 72, BAR_H - 8);
+        m_add->resize(X + W - 62, iy, 56, BAR_H - 8);
+    }
+
+private:
+    static void cb_add(Fl_Widget*, void* data)
+    {
+        BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
+        hwaddr addr;
+        if (dbg_ready() && parse_address(self->m_input->value(), &addr)) {
+            debugger_set_breakpoint(fz_debugger(), addr);
+            self->m_input->value("");
+            request_refresh();
+        } else {
+            fl_beep();
+        }
+    }
+
+    BreakpointList* m_list;
+    Fl_Input* m_input;
+    Fl_Button* m_add;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Disassembly                                                        */
 /* ------------------------------------------------------------------ */
 
 class DisasmView : public Fl_Widget {
 public:
     DisasmView(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H) {}
+
+    int selected = -1;
 
     void go(hwaddr addr)
     {
@@ -390,7 +942,7 @@ public:
     /** Keep PC visible without jumping on every step. */
     void follow(hwaddr pc)
     {
-        for (size_t i = 0; i + 1 < m_rows.size(); i++) {
+        for (size_t i = 0; i + 3 < m_rows.size(); i++) {
             if (m_rows[i].addr == pc) return;
         }
         go(pc);
@@ -399,37 +951,38 @@ public:
     void draw() override
     {
         fl_push_clip(x(), y(), w(), h());
-        fl_color(COLOR_BG);
+        fl_color(COLOR_SURFACE);
         fl_rectf(x(), y(), w(), h());
-        dbg_t* dbg = fz_debugger();
-        if (dbg == nullptr) {
+        fl_color(COLOR_BG);
+        fl_rectf(x(), y(), GUTTER, h());
+        if (!dbg_ready()) {
             fl_pop_clip();
             return;
         }
-        regs_t regs;
-        debugger_get_registers(dbg, &regs);
+        dbg_t* dbg = fz_debugger();
+        const regs_t regs = current_regs();
         const bool paused = fz_paused();
-
-        fl_font(MONO_FONT, MONO_SIZE);
-        const int lh = fl_height() + 3;
-        const int cw = (int) fl_width("0");
-        const int text_dy = lh - fl_descent() - 2;
-        const int x_addr = x() + 22;
+        const int lh = data_line_height();
+        const int cw = char_width();
+        const int asc = text_baseline(lh);
+        const int x_addr = x() + GUTTER + 6;
         const int x_bytes = x_addr + cw * 6;
         const int x_instr = x_bytes + cw * 12;
+        fl_font(DATA_FONT, DATA_SIZE);
 
         m_rows.clear();
         hwaddr addr = m_base;
-        int yy = y() + 2;
+        int yy = y() + 4;
         char buf[96];
         while (yy + lh <= y() + h() && addr <= 0xFFFF) {
             dbg_instr_t instr;
             memset(&instr, 0, sizeof(instr));
             const int size = debugger_disassemble_address(dbg, addr, &instr);
             if (instr.label[0]) {
-                fl_color(COLOR_LABEL);
+                if (yy > y() + 4) yy += 4;
+                fl_color(COLOR_AMBER);
                 snprintf(buf, sizeof(buf), "%s:", instr.label);
-                fl_draw(buf, x_addr, yy + text_dy);
+                fl_draw(buf, x_addr, yy + asc);
                 yy += lh;
                 if (yy + lh > y() + h()) break;
             }
@@ -438,24 +991,32 @@ public:
             const bool is_bp = debugger_is_breakpoint_set(dbg, addr);
             if (is_pc) {
                 fl_color(COLOR_PC);
-                fl_rectf(x(), yy, w(), lh);
+                fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
+                fl_color(COLOR_GREEN);
+                fl_rectf(x() + GUTTER, yy, 2, lh);
+            } else if ((int) addr == selected) {
+                fl_color(COLOR_SELECT);
+                fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
             } else if ((int) addr == m_hover) {
                 fl_color(COLOR_HOVER);
-                fl_rectf(x(), yy, w(), lh);
+                fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
             }
             if (is_bp) {
                 fl_color(COLOR_BREAK);
-                fl_pie(x() + 5, yy + (lh - 11) / 2, 11, 11, 0, 360);
+                fl_pie(x() + 5, yy + (lh - 10) / 2, 10, 10, 0, 360);
+            } else if ((int) addr == m_hover) {
+                fl_color(COLOR_BORDER);
+                fl_pie(x() + 5, yy + (lh - 10) / 2, 10, 10, 0, 360);
             }
             if (is_pc) {
-                fl_color(COLOR_LABEL);
+                fl_color(COLOR_GREEN);
                 const int cy = yy + lh / 2;
-                fl_polygon(x() + 9, cy - 5, x() + 17, cy, x() + 9, cy + 5);
+                fl_polygon(x() + 11, cy - 5, x() + 19, cy, x() + 11, cy + 5);
             }
 
             hex16(buf, sizeof(buf), addr);
-            fl_color(is_pc ? COLOR_TEXT : COLOR_DIM);
-            fl_draw(buf, x_addr, yy + text_dy);
+            fl_color(is_pc ? COLOR_GREEN : COLOR_CYAN);
+            fl_draw(buf, x_addr, yy + asc);
 
             const int n = size > 0 ? (size > 4 ? 4 : size) : 1;
             int bx = 0;
@@ -464,10 +1025,11 @@ public:
                 buf[bx++] = ' ';
                 buf[bx] = '\0';
             }
-            fl_draw(buf, x_bytes, yy + text_dy);
+            fl_color(COLOR_DIM);
+            fl_draw(buf, x_bytes, yy + asc);
 
-            fl_color(COLOR_TEXT);
-            fl_draw(instr.instruction, x_instr, yy + text_dy);
+            fl_color(is_pc ? COLOR_GREEN : COLOR_TEXT);
+            fl_draw(instr.instruction, x_instr, yy + asc);
 
             m_rows.push_back({ yy, lh, addr });
             yy += lh;
@@ -497,30 +1059,41 @@ public:
             case FL_PUSH: {
                 const int addr = row_at(Fl::event_y());
                 if (addr < 0) return 1;
-                if (Fl::event_x() < x() + 20 || Fl::event_clicks() > 0) {
+                if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                    selected = addr;
+                    redraw();
+                    context_menu((hwaddr) addr);
+                    return 1;
+                }
+                if (Fl::event_x() < x() + GUTTER || Fl::event_clicks() > 0) {
                     debugger_toggle_breakpoint(fz_debugger(), (hwaddr) addr);
                     Fl::event_clicks(0);
                     request_refresh();
+                } else {
+                    selected = addr;
+                    redraw();
                 }
                 return 1;
             }
             case FL_MOUSEWHEEL: {
                 const int dy = Fl::event_dy();
-                for (int i = 0; i < (dy > 0 ? dy : -dy) * 2; i++) {
+                const int steps = (dy > 0 ? dy : -dy) * 3;
+                for (int i = 0; i < steps; i++) {
                     if (dy > 0) {
-                        if (m_rows.size() < 2) break;
+                        dbg_instr_t instr;
+                        const int size = debugger_disassemble_address(fz_debugger(), m_base, &instr);
+                        const hwaddr next = (hwaddr) (m_base + (size > 0 ? size : 1));
+                        if (next > 0xFFFF) break;
                         m_history.push_back(m_base);
-                        m_base = m_rows[1].addr;
+                        m_base = next;
                     } else if (!m_history.empty()) {
                         m_base = m_history.back();
                         m_history.pop_back();
                     } else if (m_base > 0) {
                         m_base--;
                     }
-                    redraw();
-                    /* Rows are recomputed on draw; keep scrolling coarse */
-                    break;
                 }
+                redraw();
                 return 1;
             }
             default:
@@ -530,6 +1103,7 @@ public:
     }
 
 private:
+    static constexpr int GUTTER = 22;
     struct Row { int y; int h; hwaddr addr; };
 
     int row_at(int ey) const
@@ -540,6 +1114,48 @@ private:
         return -1;
     }
 
+    void context_menu(hwaddr addr)
+    {
+        const int pause_only = fz_paused() ? 0 : FL_MENU_INACTIVE;
+        Fl_Menu_Item items[] = {
+            { "Run to Cursor", 0, nullptr, nullptr, pause_only, 0, 0, 0, 0 },
+            { "Set PC Here", 0, nullptr, nullptr, pause_only | FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Toggle Breakpoint", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Show in Memory", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        };
+        const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
+        if (picked == nullptr) return;
+        dbg_t* dbg = fz_debugger();
+        char text[8];
+        switch ((int) (picked - items)) {
+            case 0:
+                debugger_set_temporary_breakpoint(dbg, addr);
+                debugger_continue(dbg);
+                break;
+            case 1: {
+                regs_t regs = current_regs();
+                regs.pc = (uint16_t) addr;
+                debugger_set_registers(dbg, &regs);
+                break;
+            }
+            case 2:
+                debugger_toggle_breakpoint(dbg, addr);
+                break;
+            case 3:
+                goto_memory(addr);
+                break;
+            case 4:
+                hex16(text, sizeof(text), addr);
+                Fl::copy(text, (int) strlen(text), 1);
+                break;
+            default:
+                break;
+        }
+        request_refresh();
+    }
+
     hwaddr m_base = 0;
     std::vector<hwaddr> m_history;
     std::vector<Row> m_rows;
@@ -548,183 +1164,141 @@ private:
 
 class DisasmPanel : public Panel {
 public:
-    DisasmPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
+    DisasmPanel(int X, int Y, int W, int H) : Panel(X, Y, W, H, "DISASSEMBLY")
     {
-        m_input = new Fl_Input(X + 6, Y + 4, 140, BAR_H - 8);
+        m_input = new Fl_Input(X, Y, 10, 10);
         style_input(m_input);
         m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
         m_input->callback(cb_go, this);
         m_input->tooltip("Address (hex) or symbol, then Enter");
-        Fl_Button* go = new Fl_Button(X + 150, Y + 4, 40, BAR_H - 8, "Go");
-        style_button(go);
-        go->callback(cb_go, this);
-        Fl_Button* pc = new Fl_Button(X + 194, Y + 4, 40, BAR_H - 8, "PC");
-        style_button(pc);
-        pc->callback(cb_pc, this);
-        pc->tooltip("Show the current PC");
-        m_follow = new Fl_Check_Button(X + 240, Y + 4, 100, BAR_H - 8, "Follow PC");
-        m_follow->labelsize(12);
-        m_follow->labelcolor(COLOR_TEXT);
-        m_follow->selection_color(COLOR_ACCENT);
+        m_pc = new Fl_Button(X, Y, 10, 10, "PC");
+        style_button(m_pc);
+        m_pc->callback(cb_pc, this);
+        m_pc->tooltip("Jump to the current PC and follow it");
+        m_follow = new Fl_Check_Button(X, Y, 10, 10, "Follow PC");
+        style_check(m_follow);
         m_follow->value(1);
-        m_follow->clear_visible_focus();
-        Fl_Box* hint = new Fl_Box(X + 340, Y + 4, W - 346, BAR_H - 8);
-        m_view = new DisasmView(X, Y + BAR_H, W, H - BAR_H);
-        m_view->tooltip("Click the gutter or double-click a line to toggle a breakpoint");
+        m_view = new DisasmView(X, Y, 10, 10);
+        m_view->tooltip("Gutter click / double-click: breakpoint    Right-click: more");
         resizable(m_view);
-        (void) hint;
         end();
+        resize(X, Y, W, H);
     }
 
     void refresh(bool paused, bool force) override
     {
-        if (paused && force && m_follow->value()) {
-            regs_t regs;
-            debugger_get_registers(fz_debugger(), &regs);
-            m_view->follow(regs.pc);
-        }
+        if (paused && force && m_follow->value()) m_view->follow(current_regs().pc);
         m_view->redraw();
     }
 
-    void go(hwaddr addr) { m_view->go(addr); }
+    void go(hwaddr addr)
+    {
+        m_follow->value(0);
+        m_view->selected = (int) addr;
+        m_view->go(addr);
+    }
+
+    int selected() const { return m_view->selected; }
+
+    void resize(int X, int Y, int W, int H) override
+    {
+        Fl_Widget::resize(X, Y, W, H);
+        const int by = Y + HEADER_H + 4;
+        m_input->resize(X + 6, by, 140, BAR_H - 8);
+        m_pc->resize(X + 150, by, 40, BAR_H - 8);
+        m_follow->resize(X + 196, by, 96, BAR_H - 8);
+        m_view->resize(X, Y + HEADER_H + BAR_H, W, H - HEADER_H - BAR_H);
+    }
 
 private:
     static void cb_go(Fl_Widget*, void* data)
     {
         DisasmPanel* self = static_cast<DisasmPanel*>(data);
         hwaddr addr;
-        if (parse_address(self->m_input->value(), &addr)) {
-            self->m_follow->value(0);
-            self->m_view->go(addr);
-        } else {
-            fl_beep();
-        }
+        if (parse_address(self->m_input->value(), &addr)) self->go(addr);
+        else fl_beep();
     }
 
     static void cb_pc(Fl_Widget*, void* data)
     {
         DisasmPanel* self = static_cast<DisasmPanel*>(data);
-        regs_t regs;
-        debugger_get_registers(fz_debugger(), &regs);
         self->m_follow->value(1);
-        self->m_view->go(regs.pc);
+        self->m_view->go(current_regs().pc);
     }
 
     Fl_Input* m_input;
+    Fl_Button* m_pc;
     Fl_Check_Button* m_follow;
     DisasmView* m_view;
 };
 
 /* ------------------------------------------------------------------ */
-/*  Breakpoints                                                        */
-/* ------------------------------------------------------------------ */
-
-class BreakpointsPanel : public Panel {
-public:
-    BreakpointsPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
-    {
-        m_list = new Fl_Hold_Browser(X, Y, W, H - BAR_H);
-        style_browser(m_list);
-        static const int widths[] = { 70, 0 };
-        m_list->column_widths(widths);
-        m_list->callback(cb_list, this);
-        m_list->tooltip("Double-click to show in the disassembler");
-        const int by = Y + H - BAR_H + 4;
-        m_input = new Fl_Input(X + 6, by, 140, BAR_H - 8);
-        style_input(m_input);
-        m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
-        m_input->callback(cb_add, this);
-        m_input->tooltip("Address (hex) or symbol, then Enter");
-        Fl_Button* add = new Fl_Button(X + 150, by, 50, BAR_H - 8, "Add");
-        style_button(add);
-        add->callback(cb_add, this);
-        Fl_Button* del = new Fl_Button(X + 204, by, 64, BAR_H - 8, "Remove");
-        style_button(del);
-        del->callback(cb_remove, this);
-        Fl_Button* clr = new Fl_Button(X + 272, by, 60, BAR_H - 8, "Clear");
-        style_button(clr);
-        clr->callback(cb_clear, this);
-        resizable(m_list);
-        end();
-    }
-
-    void refresh(bool paused, bool force) override
-    {
-        (void) paused;
-        (void) force;
-        hwaddr bps[DBG_MAX_POINTS];
-        const int count = debugger_get_breakpoints(fz_debugger(), bps, DBG_MAX_POINTS);
-        std::vector<hwaddr> now(bps, bps + (count > 0 ? count : 0));
-        if (now == m_addrs && !m_dirty) return;
-        m_addrs = now;
-        m_dirty = false;
-        const int selected = m_list->value();
-        m_list->clear();
-        char line[128];
-        char addr[8];
-        for (hwaddr a : m_addrs) {
-            hex16(addr, sizeof(addr), a);
-            const char* sym = debugger_get_symbol(fz_debugger(), a);
-            snprintf(line, sizeof(line), "@.$%s\t@.%s", addr, sym ? sym : "");
-            m_list->add(line);
-        }
-        if (selected > 0 && selected <= m_list->size()) m_list->value(selected);
-    }
-
-    void invalidate() { m_dirty = true; }
-
-private:
-    static void cb_list(Fl_Widget*, void* data)
-    {
-        BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
-        const int line = self->m_list->value();
-        if (line > 0 && Fl::event_clicks() > 0) {
-            Fl::event_clicks(0);
-            goto_disassembly(self->m_addrs[line - 1]);
-        }
-    }
-
-    static void cb_add(Fl_Widget*, void* data)
-    {
-        BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
-        hwaddr addr;
-        if (parse_address(self->m_input->value(), &addr)) {
-            debugger_set_breakpoint(fz_debugger(), addr);
-            self->m_input->value("");
-            request_refresh();
-        } else {
-            fl_beep();
-        }
-    }
-
-    static void cb_remove(Fl_Widget*, void* data)
-    {
-        BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
-        const int line = self->m_list->value();
-        if (line > 0 && line <= (int) self->m_addrs.size()) {
-            debugger_clear_breakpoint(fz_debugger(), self->m_addrs[line - 1]);
-            request_refresh();
-        }
-    }
-
-    static void cb_clear(Fl_Widget*, void* data)
-    {
-        BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
-        for (hwaddr a : self->m_addrs) debugger_clear_breakpoint(fz_debugger(), a);
-        request_refresh();
-    }
-
-    Fl_Hold_Browser* m_list;
-    Fl_Input* m_input;
-    std::vector<hwaddr> m_addrs;
-    bool m_dirty = true;
-};
-
-/* ------------------------------------------------------------------ */
-/*  Memory viewer                                                      */
+/*  Memory editor with MMU page strip                                  */
 /* ------------------------------------------------------------------ */
 
 #include "cp437.inc"
+
+/** The four 16 KB pages of the Z80 address space and what is mapped there. */
+class MmuStrip : public Fl_Widget {
+public:
+    MmuStrip(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H)
+    {
+        tooltip("MMU: physical address and device of each 16 KB page. Click a page to view it.");
+    }
+
+    void refresh()
+    {
+        m_valid = dbg_ready() && debugger_custom(fz_debugger(), ZEAL_DBG_OP_GET_MMU, &m_info);
+        redraw();
+    }
+
+    void draw() override
+    {
+        fl_color(COLOR_SURFACE);
+        fl_rectf(x(), y(), w(), h());
+        if (!m_valid) return;
+        const int seg_w = (w() - 8) / ZEAL_DBG_MMU_PAGES;
+        char text[64], v[8];
+        for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
+            const dbg_mmu_entry_t* e = &m_info.entries[i];
+            const int sx = x() + 4 + i * seg_w;
+            fl_color(COLOR_RAISED);
+            fl_rectf(sx, y() + 3, seg_w - 3, h() - 6);
+            fl_color(device_color(e->device));
+            fl_rectf(sx, y() + 3, 2, h() - 6);
+            hex16(v, sizeof(v), e->virt_addr);
+            snprintf(text, sizeof(text), config.debugger.hex_upper ? "%s  %05X  %s" : "%s  %05x  %s",
+                     v, (unsigned) e->phys_addr, e->device ? e->device : "--");
+            fl_font(FL_HELVETICA, 11);
+            fl_color(e->device ? COLOR_TEXT : COLOR_DIM);
+            fl_draw(text, sx + 7, y() + 3, seg_w - 12, h() - 6, FL_ALIGN_LEFT | FL_ALIGN_CLIP);
+        }
+    }
+
+    int handle(int event) override
+    {
+        if (event == FL_PUSH && m_valid) {
+            const int seg_w = (w() - 8) / ZEAL_DBG_MMU_PAGES;
+            const int i = (Fl::event_x() - x() - 4) / seg_w;
+            if (i >= 0 && i < ZEAL_DBG_MMU_PAGES) goto_memory(m_info.entries[i].virt_addr);
+            return 1;
+        }
+        return Fl_Widget::handle(event);
+    }
+
+private:
+    static Fl_Color device_color(const char* name)
+    {
+        if (name == nullptr) return COLOR_BORDER;
+        unsigned hsh = 0;
+        for (const char* p = name; *p; p++) hsh = hsh * 31 + (unsigned char) *p;
+        static const Fl_Color palette[] = { COLOR_AMBER, COLOR_CYAN, COLOR_GREEN, COLOR_CHANGED };
+        return palette[hsh % 4];
+    }
+
+    dbg_mmu_t m_info = {};
+    bool m_valid = false;
+};
 
 class MemView : public Fl_Widget {
 public:
@@ -739,23 +1313,26 @@ public:
     }
 
     bool cp437 = false;
+    int follow_addr = -1;
 
-    void go(hwaddr addr)
+    void go(hwaddr addr, bool select = true)
     {
         addr &= 0xFFFF;
-        m_sel = (int) addr;
-        m_nibble = -1;
+        if (select) {
+            m_sel = (int) addr;
+            m_nibble = -1;
+        }
         const int row = (int) addr / COLS;
         const int rows = visible_rows();
-        if (row < m_top || row >= m_top + rows - 1) m_top = row;
+        if (row < m_top || row >= m_top + rows - 1) m_top = row - (select ? 0 : rows / 3);
         clamp_top();
         sync_bar();
         redraw();
     }
 
-    /** Remember memory at a pause so the next pause highlights changes. */
     void snapshot()
     {
+        if (!dbg_ready()) return;
         m_prev.swap(m_snapshot);
         debugger_read_memory(fz_debugger(), 0, 0x10000, m_snapshot.data());
         m_have_prev = m_have_snapshot;
@@ -769,77 +1346,77 @@ public:
         redraw();
     }
 
-    int visible_rows() const
-    {
-        fl_font(MONO_FONT, MONO_SIZE);
-        const int lh = fl_height() + 3;
-        return (h() - 4) / lh;
-    }
+    int visible_rows() const { return (h() - 4) / data_line_height(); }
 
-    void sync_bar()
-    {
-        const int rows = visible_rows();
-        m_bar->value(m_top, rows, 0, ROWS_TOTAL);
-    }
+    void sync_bar() { m_bar->value(m_top, visible_rows(), 0, ROWS_TOTAL); }
 
     void draw() override
     {
         fl_push_clip(x(), y(), w(), h());
-        fl_color(COLOR_BG);
+        fl_color(COLOR_SURFACE);
         fl_rectf(x(), y(), w(), h());
-        fl_font(MONO_FONT, MONO_SIZE);
-        const int lh = fl_height() + 3;
-        const int cw = (int) fl_width("0");
-        const int text_dy = lh - fl_descent() - 2;
+        if (!dbg_ready()) {
+            fl_pop_clip();
+            return;
+        }
+        const int lh = data_line_height();
+        const int asc = text_baseline(lh);
+        geometry(char_width());
         const int rows = visible_rows();
-        geometry(cw);
 
-        uint8_t mem[COLS * 256];
-        const int count_rows = rows < 256 ? rows : 256;
+        uint8_t mem[COLS * 128];
+        const int count_rows = rows < 128 ? rows : 128;
         const int start = m_top * COLS;
         int len = count_rows * COLS;
         if (start + len > 0x10000) len = 0x10000 - start;
         if (len > 0) debugger_read_memory(fz_debugger(), (hwaddr) start, len, mem);
 
+        /* Faint guides every 4 bytes */
+        fl_color(COLOR_BG);
+        for (int g = 4; g < COLS; g += 4) fl_rectf(m_hex_x + hex_offset(g) - m_cw + m_cw / 2, y(), 1, h());
+
+        fl_font(DATA_FONT, DATA_SIZE);
         char buf[16];
+        const bool paused = fz_paused();
         for (int r = 0; r < count_rows; r++) {
             const int row_addr = start + r * COLS;
             if (row_addr >= 0x10000) break;
             const int yy = y() + 2 + r * lh;
             hex16(buf, sizeof(buf), (unsigned) row_addr);
-            fl_color(COLOR_ACCENT);
-            fl_draw(buf, x() + 6, yy + text_dy);
+            fl_color(COLOR_CYAN);
+            fl_draw(buf, x() + 6, yy + asc);
             for (int c = 0; c < COLS; c++) {
                 const int addr = row_addr + c;
                 const uint8_t b = mem[r * COLS + c];
                 const bool sel = addr == m_sel;
                 const bool hover = addr == m_hover;
-                const bool changed = m_have_prev && fz_paused() && b != m_prev[addr];
-                if (sel || hover) {
-                    fl_color(sel ? COLOR_PC : COLOR_HOVER);
-                    fl_rectf(m_hex_x + hex_offset(c) - 2, yy, cw * 2 + 4, lh);
-                    fl_rectf(m_ascii_x + c * cw, yy, cw, lh);
+                const bool followed = follow_addr >= 0 && (addr == follow_addr || addr == follow_addr + 1);
+                const bool changed = m_have_prev && paused && b != m_prev[addr];
+                if (sel || hover || followed) {
+                    fl_color(sel ? COLOR_SELECT : followed ? COLOR_PC : COLOR_HOVER);
+                    fl_rectf(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + 4, lh);
+                    fl_rectf(m_ascii_x + c * m_cw, yy, m_cw, lh);
                 }
                 if (sel && m_nibble >= 0) {
                     snprintf(buf, sizeof(buf), config.debugger.hex_upper ? "%X_" : "%x_", m_nibble);
-                    fl_color(COLOR_LABEL);
+                    fl_color(COLOR_AMBER);
                 } else {
                     hex8(buf, sizeof(buf), b);
                     fl_color(changed ? COLOR_CHANGED : b == 0 ? COLOR_DIM : COLOR_TEXT);
                 }
-                fl_draw(buf, m_hex_x + hex_offset(c), yy + text_dy);
+                fl_draw(buf, m_hex_x + hex_offset(c), yy + asc);
 
                 char ch[8];
                 if (cp437) {
-                    const unsigned cp = s_cp437[b] ? s_cp437[b] : '.';
+                    const unsigned cp = s_cp437[b] ? s_cp437[b] : ' ';
                     const int n = fl_utf8encode(cp, ch);
                     ch[n] = '\0';
                 } else {
                     ch[0] = isprint(b) ? (char) b : '.';
                     ch[1] = '\0';
                 }
-                fl_color(changed ? COLOR_CHANGED : isprint(b) || cp437 ? COLOR_TEXT : COLOR_DIM);
-                fl_draw(ch, m_ascii_x + c * cw, yy + text_dy);
+                fl_color(changed ? COLOR_CHANGED : (isprint(b) || cp437) ? COLOR_TEXT : COLOR_DIM);
+                fl_draw(ch, m_ascii_x + c * m_cw, yy + asc);
             }
         }
         fl_pop_clip();
@@ -859,6 +1436,16 @@ public:
                 if (a != m_hover) {
                     m_hover = a;
                     redraw();
+                    if (a >= 0 && dbg_ready()) {
+                        static char tip[64];
+                        uint8_t b = 0;
+                        debugger_read_memory(fz_debugger(), (hwaddr) a, 1, &b);
+                        char ad[8];
+                        hex16(ad, sizeof(ad), (unsigned) a);
+                        const char* sym = debugger_get_symbol(fz_debugger(), (hwaddr) a);
+                        snprintf(tip, sizeof(tip), "$%s = %u%s%s", ad, b, sym ? "   " : "", sym ? sym : "");
+                        Fl_Tooltip::enter_area(this, Fl::event_x() - x() - 4, Fl::event_y() - y() - 4, 8, 8, tip);
+                    }
                 }
                 return 1;
             }
@@ -905,14 +1492,13 @@ private:
     {
         m_cw = cw;
         m_hex_x = x() + 6 + cw * 6;
-        m_ascii_x = m_hex_x + hex_offset(COLS) + cw * 2;
+        m_ascii_x = m_hex_x + hex_offset(COLS) + cw;
     }
 
     int addr_at(int ex, int ey)
     {
-        fl_font(MONO_FONT, MONO_SIZE);
-        const int lh = fl_height() + 3;
-        geometry((int) fl_width("0"));
+        const int lh = data_line_height();
+        geometry(char_width());
         const int r = (ey - y() - 2) / lh;
         if (ey < y() + 2 || r >= visible_rows()) return -1;
         int c = -1;
@@ -988,41 +1574,73 @@ private:
 
 class MemoryPanel : public Panel {
 public:
-    MemoryPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
+    /** Width that shows a full 16-byte row with its ASCII column. */
+    static int preferred_width()
     {
-        m_input = new Fl_Input(X + 6, Y + 4, 140, BAR_H - 8);
+        const int cw = char_width();
+        return 6 + cw * 6 + (16 * 3 + 1) * cw + cw + 16 * cw + 8 + 14;
+    }
+
+    MemoryPanel(int X, int Y, int W, int H) : Panel(X, Y, W, H, "MEMORY")
+    {
+        m_input = new Fl_Input(X, Y, 10, 10);
         style_input(m_input);
         m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
         m_input->callback(cb_go, this);
         m_input->tooltip("Address (hex) or symbol, then Enter");
-        Fl_Button* go = new Fl_Button(X + 150, Y + 4, 40, BAR_H - 8, "Go");
-        style_button(go);
-        go->callback(cb_go, this);
-        m_cp437 = new Fl_Check_Button(X + 198, Y + 4, 80, BAR_H - 8, "CP437");
-        m_cp437->labelsize(12);
-        m_cp437->labelcolor(COLOR_TEXT);
-        m_cp437->selection_color(COLOR_ACCENT);
-        m_cp437->clear_visible_focus();
+        m_follow = new Fl_Choice(X, Y, 10, 10);
+        m_follow->add("Free|PC|SP|HL|DE|BC|IX|IY");
+        m_follow->value(0);
+        m_follow->textsize(12);
+        m_follow->clear_visible_focus();
+        m_follow->tooltip("Keep the view on the address held by a register");
+        m_follow->callback(cb_follow, this);
+        m_cp437 = new Fl_Check_Button(X, Y, 10, 10, "CP437");
+        style_check(m_cp437);
         m_cp437->callback(cb_cp437, this);
-        Fl_Box* hint = new Fl_Box(X + 284, Y + 4, W - 290, BAR_H - 8,
-                                  "Click a byte, type hex to edit, arrows to move");
-        hint->labelsize(11);
-        hint->labelcolor(COLOR_DIM);
-        hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_CLIP);
-
-        m_bar = new Fl_Scrollbar(X + W - 16, Y + BAR_H, 16, H - BAR_H);
+        m_mmu = new MmuStrip(X, Y, 10, 10);
+        m_bar = new Fl_Scrollbar(X, Y, 10, 10);
         m_bar->type(FL_VERTICAL);
         m_bar->linesize(1);
+        m_bar->color(COLOR_SURFACE);
         m_bar->callback(cb_bar, this);
-        m_view = new MemView(X, Y + BAR_H, W - 16, H - BAR_H, m_bar);
+        m_view = new MemView(X, Y, 10, 10, m_bar);
         resizable(m_view);
         end();
-        m_view->sync_bar();
+        resize(X, Y, W, H);
+    }
+
+    void resize(int X, int Y, int W, int H) override
+    {
+        Fl_Widget::resize(X, Y, W, H);
+        const int by = Y + HEADER_H + 4;
+        m_input->resize(X + 6, by, 130, BAR_H - 8);
+        m_follow->resize(X + 142, by, 74, BAR_H - 8);
+        m_cp437->resize(X + 224, by, 74, BAR_H - 8);
+        const int my = Y + HEADER_H + BAR_H;
+        const int mh = 26;
+        m_mmu->resize(X, my, W, mh);
+        m_bar->resize(X + W - 14, my + mh, 14, H - (my + mh - Y));
+        m_view->resize(X, my + mh, W - 14, H - (my + mh - Y));
     }
 
     void refresh(bool paused, bool force) override
     {
         if (paused && force) m_view->snapshot();
+        m_mmu->refresh();
+        const int follow = m_follow->value();
+        if (follow > 0) {
+            const regs_t r = current_regs();
+            const uint16_t values[] = { 0, r.pc, r.sp, r.hl, r.de, r.bc, r.ix, r.iy };
+            m_view->follow_addr = values[follow];
+            m_view->go(values[follow], false);
+            char text[32];
+            snprintf(text, sizeof(text), "FOLLOW %s", m_follow->text());
+            extra(text);
+        } else {
+            m_view->follow_addr = -1;
+            extra("");
+        }
         m_view->redraw();
     }
 
@@ -1031,6 +1649,9 @@ public:
         char text[8];
         hex16(text, sizeof(text), addr);
         m_input->value(text);
+        m_follow->value(0);
+        m_view->follow_addr = -1;
+        extra("");
         m_view->go(addr);
     }
 
@@ -1039,8 +1660,13 @@ private:
     {
         MemoryPanel* self = static_cast<MemoryPanel*>(data);
         hwaddr addr;
-        if (parse_address(self->m_input->value(), &addr)) self->m_view->go(addr);
+        if (parse_address(self->m_input->value(), &addr)) self->go(addr);
         else fl_beep();
+    }
+
+    static void cb_follow(Fl_Widget*, void* data)
+    {
+        static_cast<MemoryPanel*>(data)->refresh(fz_paused(), false);
     }
 
     static void cb_cp437(Fl_Widget*, void* data)
@@ -1057,462 +1683,85 @@ private:
     }
 
     Fl_Input* m_input;
+    Fl_Choice* m_follow;
     Fl_Check_Button* m_cp437;
+    MmuStrip* m_mmu;
     Fl_Scrollbar* m_bar;
     MemView* m_view;
 };
 
 /* ------------------------------------------------------------------ */
-/*  MMU                                                                */
+/*  Debugger                                                           */
 /* ------------------------------------------------------------------ */
 
-class MmuPanel : public Panel {
-public:
-    MmuPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
-    {
-        m_list = new Fl_Hold_Browser(X, Y, W, H);
-        style_browser(m_list);
-        static const int widths[] = { 60, 110, 120, 0 };
-        m_list->column_widths(widths);
-        m_list->callback(cb_list, this);
-        m_list->tooltip("Double-click a page to view it in the memory viewer");
-        resizable(m_list);
-        end();
-    }
+constexpr int DEFAULT_LEFT_W = FZ_SCREEN_WIDTH;
+constexpr int DEFAULT_SCREEN_H = FZ_SCREEN_HEIGHT;
+constexpr int DEFAULT_RIGHT_W = 300;
+constexpr int DEFAULT_BREAKPOINTS_H = 150;
+constexpr int DEFAULT_DISASM_W = 420;
+constexpr int DEFAULT_MEMORY_H = 300;
 
-    void refresh(bool paused, bool force) override
-    {
-        (void) paused;
-        (void) force;
-        dbg_mmu_t info;
-        memset(&info, 0, sizeof(info));
-        const int selected = m_list->value();
-        m_list->clear();
-        m_list->add("@B49@C7@bPage\t@B49@C7@bVirtual\t@B49@C7@bPhysical\t@B49@C7@bDevice");
-        if (!debugger_custom(fz_debugger(), ZEAL_DBG_OP_GET_MMU, &info)) {
-            m_list->add("@.Could not get MMU information");
-            return;
-        }
-        char line[160], v[8], p[16];
-        for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
-            const dbg_mmu_entry_t* e = &info.entries[i];
-            hex16(v, sizeof(v), e->virt_addr);
-            snprintf(p, sizeof(p), config.debugger.hex_upper ? "%06X" : "%06x", (unsigned) e->phys_addr);
-            snprintf(line, sizeof(line), "@.%d\t@.$%s\t@.$%s\t@.%s", i, v, p, e->device ? e->device : "Unmapped");
-            m_list->add(line);
-            m_virt[i] = e->virt_addr;
-        }
-        if (selected > 1 && selected <= m_list->size()) m_list->value(selected);
-    }
+static int default_left_w();
+LayoutConfig g_layout;
 
-private:
-    static void cb_list(Fl_Widget*, void* data)
-    {
-        MmuPanel* self = static_cast<MmuPanel*>(data);
-        const int line = self->m_list->value();
-        if (line >= 2 && line < 2 + ZEAL_DBG_MMU_PAGES && Fl::event_clicks() > 0) {
-            Fl::event_clicks(0);
-            goto_memory(self->m_virt[line - 2]);
-        }
-    }
-
-    Fl_Hold_Browser* m_list;
-    uint16_t m_virt[ZEAL_DBG_MMU_PAGES] = {};
-};
-
-/* ------------------------------------------------------------------ */
-/*  VRAM viewer                                                        */
-/* ------------------------------------------------------------------ */
-
-class VramImage : public Fl_Widget {
-public:
-    VramImage(int X, int Y, int W, int H, Fl_Box* info) : Fl_Widget(X, Y, W, H), m_info(info) {}
-
-    void update(dbg_vram_t view, int zoom)
-    {
-        m_view = view;
-        m_zoom = zoom;
-        m_valid = fz_video_mode() != FZ_VIDEO_BITMAP && fz_vram_render(view, &m_img);
-        if (!m_valid) {
-            size(300, 40);
-            redraw();
-            return;
-        }
-        const int W = m_img.width * zoom;
-        const int H = m_img.height * zoom;
-        m_scaled.resize((size_t) W * H * 3);
-        for (int yy = 0; yy < H; yy++) {
-            const uint8_t* src = m_img.pixels + (size_t) (yy / zoom) * m_img.width * 3;
-            uint8_t* dst = &m_scaled[(size_t) yy * W * 3];
-            for (int xx = 0; xx < W; xx++) {
-                const uint8_t* p = src + (xx / zoom) * 3;
-                *dst++ = p[0];
-                *dst++ = p[1];
-                *dst++ = p[2];
-            }
-        }
-        if (w() != W || h() != H) {
-            size(W, H);
-            if (parent()) parent()->redraw();
-        }
-        redraw();
-    }
-
-    void draw() override
-    {
-        if (!m_valid) {
-            fl_color(COLOR_DIM);
-            fl_font(FL_HELVETICA, 12);
-            fl_draw("Not available in bitmap mode", x() + 8, y() + 20);
-            return;
-        }
-        fl_draw_image(m_scaled.data(), x(), y(), w(), h(), 3);
-        if (m_hover_cell >= 0) draw_preview();
-    }
-
-    int handle(int event) override
-    {
-        switch (event) {
-            case FL_ENTER:
-                return 1;
-            case FL_LEAVE:
-                m_hover_cell = -1;
-                m_info->copy_label("");
-                redraw();
-                return 1;
-            case FL_MOVE:
-                hover(Fl::event_x(), Fl::event_y());
-                return 1;
-            default:
-                break;
-        }
-        return Fl_Widget::handle(event);
-    }
-
-private:
-    void hover(int ex, int ey)
-    {
-        if (!m_valid) return;
-        const int px = (ex - x()) / m_zoom;
-        const int py = (ey - y()) / m_zoom;
-        const int cw = m_img.cell_width + 1;
-        const int ch = m_img.cell_height + 1;
-        const int cx = px / cw;
-        const int cy = py / ch;
-        const int cell = cy * m_img.columns + cx;
-        if (px < 0 || py < 0 || cx >= m_img.columns || (cy + 1) * ch > m_img.height) {
-            m_hover_cell = -1;
-        } else {
-            m_hover_cell = cell;
-            m_hover_x = cx;
-            m_hover_y = cy;
-            m_mouse_x = ex;
-            m_mouse_y = ey;
-        }
-        char text[64] = "";
-        if (m_hover_cell >= 0) {
-            switch (m_view) {
-                case DBG_TILEMAP_LAYER0:
-                case DBG_TILEMAP_LAYER1:
-                    snprintf(text, sizeof(text), "Cell (%d, %d)  index %d", cx, cy, cell);
-                    break;
-                case DBG_TILESET: snprintf(text, sizeof(text), "Tile %d", cell); break;
-                case DBG_PALETTE: snprintf(text, sizeof(text), "Color %d", cell); break;
-                case DBG_FONT: snprintf(text, sizeof(text), "Char %d (0x%02X)", cell, cell); break;
-                default: break;
-            }
-        }
-        m_info->copy_label(text);
-        redraw();
-    }
-
-    void draw_preview()
-    {
-        const int cw = m_img.cell_width + 2;
-        const int ch = m_img.cell_height + 2;
-        const int scale = 6;
-        int bx = m_mouse_x + 16;
-        int by = m_mouse_y + 16;
-        const int bw = cw * scale + 8;
-        const int bh = ch * scale + 8;
-        if (bx + bw > x() + w()) bx = m_mouse_x - bw - 8;
-        if (by + bh > y() + h()) by = m_mouse_y - bh - 8;
-        fl_color(COLOR_PANEL);
-        fl_rectf(bx, by, bw, bh);
-        const int sx0 = m_hover_x * (m_img.cell_width + 1);
-        const int sy0 = m_hover_y * (m_img.cell_height + 1);
-        for (int yy = 0; yy < ch; yy++) {
-            for (int xx = 0; xx < cw; xx++) {
-                const int sx = sx0 + xx;
-                const int sy = sy0 + yy;
-                if (sx >= m_img.width || sy >= m_img.height) continue;
-                const uint8_t* p = m_img.pixels + ((size_t) sy * m_img.width + sx) * 3;
-                fl_color(fl_rgb_color(p[0], p[1], p[2]));
-                fl_rectf(bx + 4 + xx * scale, by + 4 + yy * scale, scale, scale);
-            }
-        }
-    }
-
-    Fl_Box* m_info;
-    fz_image_t m_img = {};
-    std::vector<uint8_t> m_scaled;
-    dbg_vram_t m_view = DBG_TILEMAP_LAYER0;
-    int m_zoom = 1;
-    bool m_valid = false;
-    int m_hover_cell = -1;
-    int m_hover_x = 0;
-    int m_hover_y = 0;
-    int m_mouse_x = 0;
-    int m_mouse_y = 0;
-};
-
-class VramPanel : public Panel {
-public:
-    VramPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
-    {
-        m_choice = new Fl_Choice(X + 6, Y + 4, 110, BAR_H - 8);
-        m_choice->add("Layer 0|Layer 1|Tileset|Palette|Font");
-        m_choice->value(0);
-        m_choice->textsize(12);
-        m_choice->callback(cb_change, this);
-        m_choice->clear_visible_focus();
-        m_zoom = new Fl_Choice(X + 122, Y + 4, 60, BAR_H - 8);
-        m_zoom->add("1x|2x|3x");
-        m_zoom->value(0);
-        m_zoom->textsize(12);
-        m_zoom->callback(cb_change, this);
-        m_zoom->clear_visible_focus();
-        m_info = new Fl_Box(X + 190, Y + 4, W - 196, BAR_H - 8);
-        m_info->labelsize(12);
-        m_info->labelfont(MONO_FONT);
-        m_info->labelcolor(COLOR_LABEL);
-        m_info->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        m_scroll = new Fl_Scroll(X, Y + BAR_H, W, H - BAR_H);
-        m_scroll->box(FL_FLAT_BOX);
-        m_scroll->color(COLOR_BG);
-        m_image = new VramImage(X, Y + BAR_H, 10, 10, m_info);
-        m_scroll->end();
-        resizable(m_scroll);
-        end();
-    }
-
-    void refresh(bool paused, bool force) override
-    {
-        (void) paused;
-        (void) force;
-        m_image->update((dbg_vram_t) m_choice->value(), m_zoom->value() + 1);
-        m_scroll->redraw();
-    }
-
-private:
-    static void cb_change(Fl_Widget*, void* data)
-    {
-        VramPanel* self = static_cast<VramPanel*>(data);
-        self->m_scroll->scroll_to(0, 0);
-        self->refresh(fz_paused(), true);
-    }
-
-    Fl_Choice* m_choice;
-    Fl_Choice* m_zoom;
-    Fl_Box* m_info;
-    Fl_Scroll* m_scroll;
-    VramImage* m_image;
-};
-
-/* ------------------------------------------------------------------ */
-/*  Semihost counters                                                  */
-/* ------------------------------------------------------------------ */
-
-class SemihostPanel : public Panel {
-public:
-    SemihostPanel(int X, int Y, int W, int H, const char* label) : Panel(X, Y, W, H, label)
-    {
-        m_list = new Fl_Hold_Browser(X, Y, W, H - 22);
-        style_browser(m_list);
-        static const int widths[] = { 50, 210, 170, 0 };
-        m_list->column_widths(widths);
-        m_list->callback(cb_list, this);
-        m_list->tooltip("Click a counter to toggle break-on-update");
-        Fl_Box* foot = new Fl_Box(X + 6, Y + H - 22, W - 12, 22,
-                                  "* running   ! break on update (click a row to toggle)");
-        foot->labelsize(11);
-        foot->labelcolor(COLOR_DIM);
-        foot->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        resizable(m_list);
-        end();
-    }
-
-    void refresh(bool paused, bool force) override
-    {
-        (void) paused;
-        (void) force;
-        const int selected = m_list->value();
-        m_list->clear();
-        m_list->add("@B49@C7@b#\t@B49@C7@bus (min, avg, max)\t@B49@C7@bms (min, avg, max)\t@B49@C7@btotal (us, ms)");
-        char line[192];
-        for (int i = 0; i < fz_semihost_counter_count(); i++) {
-            fz_counter_t c;
-            if (!fz_semihost_counter(i, &c)) continue;
-            snprintf(line, sizeof(line), "%s%d%s%s\t@.%llu, %llu, %llu\t@.%llu, %llu, %llu\t@.%llu, %llu",
-                     c.break_on_update ? "@C3@." : "@.", i, c.running ? "*" : "", c.break_on_update ? "!" : "",
-                     (unsigned long long) c.min_us, (unsigned long long) c.avg_us, (unsigned long long) c.max_us,
-                     (unsigned long long) c.min_us / 1000, (unsigned long long) c.avg_us / 1000,
-                     (unsigned long long) c.max_us / 1000,
-                     (unsigned long long) c.total_us, (unsigned long long) c.total_us / 1000);
-            m_list->add(line);
-        }
-        if (selected > 1 && selected <= m_list->size()) m_list->value(selected);
-    }
-
-private:
-    static void cb_list(Fl_Widget*, void* data)
-    {
-        SemihostPanel* self = static_cast<SemihostPanel*>(data);
-        const int line = self->m_list->value();
-        if (line >= 2 && Fl::event() == FL_RELEASE) {
-            fz_semihost_toggle_break(line - 2);
-            self->refresh(fz_paused(), true);
-        }
-    }
-
-    Fl_Hold_Browser* m_list;
-};
-
-/* ------------------------------------------------------------------ */
-/*  Docks                                                              */
-/* ------------------------------------------------------------------ */
-
-static Fl_Tabs* make_tabs(int X, int Y, int W, int H)
+static void layout_load()
 {
-    Fl_Tabs* tabs = new Fl_Tabs(X, Y, W, H);
-    tabs->box(FL_FLAT_BOX);
-    tabs->color(COLOR_HOVER);
-    tabs->selection_color(COLOR_PANEL);
-    tabs->labelsize(12);
-    return tabs;
+    g_layout.left_w = config_get("FLTK_DBG_LEFT_WIDTH", 0);
+    g_layout.screen_h = config_get("FLTK_DBG_SCREEN_HEIGHT", 0);
+    g_layout.right_w = config_get("FLTK_DBG_RIGHT_WIDTH", 0);
+    g_layout.breakpoints_h = config_get("FLTK_DBG_BREAKPOINTS_HEIGHT", 0);
+    g_layout.video_x = config_get("FLTK_VIDEO_X", -1);
+    g_layout.video_y = config_get("FLTK_VIDEO_Y", -1);
+    g_layout.video_w = config_get("FLTK_VIDEO_WIDTH", 0);
+    g_layout.video_h = config_get("FLTK_VIDEO_HEIGHT", 0);
+    g_layout.video_shown = config_get("FLTK_VIDEO_SHOWN", 0) != 0;
 }
 
-static void style_tab(Fl_Group* g)
+static void layout_save(rini_config* ini)
 {
-    g->labelsize(12);
-    g->labelcolor(COLOR_TEXT);
-    g->selection_color(COLOR_PANEL);
+    const LayoutConfig& c = g_layout;
+    rini_set_config_comment_line(ini, "SDL/FLTK debugger layout");
+    rini_set_config_value(ini, "FLTK_DBG_LEFT_WIDTH", c.left_w, "Screen/memory column width");
+    rini_set_config_value(ini, "FLTK_DBG_SCREEN_HEIGHT", c.screen_h, "Screen height");
+    rini_set_config_value(ini, "FLTK_DBG_RIGHT_WIDTH", c.right_w, "CPU/stack column width");
+    rini_set_config_value(ini, "FLTK_DBG_BREAKPOINTS_HEIGHT", c.breakpoints_h, "Breakpoints height");
+    rini_set_config_value(ini, "FLTK_VIDEO_X", c.video_x, "Video window X");
+    rini_set_config_value(ini, "FLTK_VIDEO_Y", c.video_y, "Video window Y");
+    rini_set_config_value(ini, "FLTK_VIDEO_WIDTH", c.video_w, "Video window width");
+    rini_set_config_value(ini, "FLTK_VIDEO_HEIGHT", c.video_h, "Video window height");
+    rini_set_config_value(ini, "FLTK_VIDEO_SHOWN", c.video_shown, "Video window open");
 }
-
-/** Right dock: CPU registers on top (fixed height) and tabs below. */
-class RightDock : public Fl_Group {
-public:
-    RightDock(int X, int Y, int W, int H) : Fl_Group(X, Y, W, H)
-    {
-        box(FL_FLAT_BOX);
-        color(COLOR_BG);
-    }
-
-    void set(CpuPanel* cpu, Fl_Tabs* tabs)
-    {
-        m_cpu = cpu;
-        m_tabs = tabs;
-        layout();
-    }
-
-    void resize(int X, int Y, int W, int H) override
-    {
-        Fl_Widget::resize(X, Y, W, H);
-        layout();
-    }
-
-    void layout()
-    {
-        if (!m_cpu || !m_tabs) return;
-        const bool cpu = !config_panels[P_CPU].hidden;
-        const int ch = cpu ? CPU_H : 0;
-        if (cpu) m_cpu->show(); else m_cpu->hide();
-        m_cpu->resize(x(), y(), w(), CPU_H);
-        m_tabs->resize(x(), y() + ch + (cpu ? 4 : 0), w(), h() - ch - (cpu ? 4 : 0));
-        redraw();
-    }
-
-private:
-    CpuPanel* m_cpu = nullptr;
-    Fl_Tabs* m_tabs = nullptr;
-};
-
-struct TabEntry {
-    int panel;
-    Panel* widget;
-};
 
 struct Debugger::Impl {
     DockLayout* dock = nullptr;
+    ScreenView* screen = nullptr;
     Toolbar* toolbar = nullptr;
-    RightDock* right = nullptr;
-    Fl_Tabs* right_tabs = nullptr;
-    Fl_Tabs* bottom_tabs = nullptr;
-    CpuPanel* cpu = nullptr;
-    DisasmPanel* disasm = nullptr;
+    SplitPane* root = nullptr;   /* left | rest */
+    SplitPane* left = nullptr;   /* screen / memory */
+    SplitPane* rest = nullptr;   /* disassembly | right */
+    SplitPane* right = nullptr;  /* registers / lower */
+    SplitPane* lower = nullptr;  /* stack / breakpoints */
+    RegistersView* regs = nullptr;
+    StackView* stack = nullptr;
     BreakpointsPanel* breakpoints = nullptr;
+    DisasmPanel* disasm = nullptr;
     MemoryPanel* memory = nullptr;
-    VramPanel* vram = nullptr;
-    MmuPanel* mmu = nullptr;
-    SemihostPanel* semihost = nullptr;
-    std::vector<TabEntry> right_entries;
-    std::vector<TabEntry> bottom_entries;
     double last_refresh = 0;
-
-    void apply_visibility(Fl_Tabs* tabs, const std::vector<TabEntry>& entries)
-    {
-        Fl_Widget* current = tabs->value();
-        for (const TabEntry& e : entries) {
-            if (tabs->find(e.widget) < tabs->children()) tabs->remove(e.widget);
-        }
-        const int cx = tabs->x();
-        const int cy = tabs->y() + TAB_H;
-        const int cw = tabs->w();
-        const int ch = tabs->h() - TAB_H;
-        Fl_Widget* first = nullptr;
-        bool keep = false;
-        for (const TabEntry& e : entries) {
-            if (config_panels[e.panel].hidden) continue;
-            e.widget->resize(cx, cy, cw, ch);
-            tabs->add(e.widget);
-            if (!first) first = e.widget;
-            if (e.widget == current) keep = true;
-        }
-        if (keep) tabs->value(current);
-        else if (first) tabs->value(first);
-        tabs->redraw();
-    }
-
-    void refresh_panel(Panel* p, bool paused, bool force)
-    {
-        if (p && p->visible_r()) p->refresh(paused, force);
-    }
 
     void refresh(bool force)
     {
-        /* Nothing to show until the machine is bound and the UI complete */
-        if (fz_debugger() == nullptr || toolbar == nullptr) return;
+        if (!dbg_ready() || toolbar == nullptr) return;
         const bool paused = fz_paused();
         const double now = now_seconds();
-        if (!force) {
-            if (paused || now - last_refresh < 0.1) return;
-        }
+        if (!force && (paused || now - last_refresh < 0.1)) return;
         last_refresh = now;
-        toolbar->update(paused);
-        refresh_panel(cpu, paused, force);
+        toolbar->update(paused, current_regs().pc);
+        regs->refresh(paused, force);
+        stack->refresh(paused, force);
         breakpoints->refresh(paused, force);
-        refresh_panel(disasm, paused, force);
-        /* Memory snapshots must be taken at every pause, visible or not */
-        if (paused && force) memory->refresh(paused, force);
-        else refresh_panel(memory, paused, force);
-        refresh_panel(mmu, paused, force);
-        refresh_panel(semihost, paused, force);
-        /* The VRAM rasteriser is costly: refresh at most ~4 Hz while running */
-        static double s_vram_at;
-        if (vram->visible_r() && (force || now - s_vram_at > 0.25)) {
-            s_vram_at = now;
-            vram->refresh(paused, force);
-        }
+        disasm->refresh(paused, force);
+        memory->refresh(paused, force);
+        video_window_refresh(paused, force);
     }
 };
 
@@ -1522,83 +1771,77 @@ static void request_refresh()
     if (main_window()) main_window()->update_status();
 }
 
-static void select_tab(Fl_Tabs* tabs, Panel* panel, int index)
-{
-    if (config_panels[index].hidden) {
-        config_panels[index].hidden = false;
-        if (main_window() && main_window()->debugger()) main_window()->debugger()->apply_panel_visibility();
-        if (main_window()) main_window()->update_menus();
-    }
-    tabs->value(panel);
-}
-
 static void goto_memory(hwaddr addr)
 {
-    if (!s_impl) return;
-    select_tab(s_impl->bottom_tabs, s_impl->memory, P_MEMORY);
-    s_impl->memory->go(addr);
+    if (s_impl) s_impl->memory->go(addr);
 }
 
 static void goto_disassembly(hwaddr addr)
 {
-    if (!s_impl) return;
-    select_tab(s_impl->right_tabs, s_impl->disasm, P_DISASSEMBLER);
-    s_impl->disasm->go(addr);
+    if (s_impl) s_impl->disasm->go(addr);
 }
 
-static void cb_tabs(Fl_Widget*, void*)
+void Toolbar::cb_run_to(Fl_Widget*, void*)
 {
-    if (s_impl) s_impl->refresh(true);
+    if (!s_impl || !dbg_ready() || !fz_paused()) return;
+    const int addr = s_impl->disasm->selected();
+    if (addr < 0) {
+        notif_show("Select a line in the disassembly first");
+        return;
+    }
+    debugger_set_temporary_breakpoint(fz_debugger(), (hwaddr) addr);
+    debugger_continue(fz_debugger());
+    request_refresh();
 }
 
-Debugger::Debugger(DockLayout* dock) : m(new Impl)
+Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(new Impl)
 {
     s_impl = m;
     m->dock = dock;
-    Fl_Widget* screen = dock->child(0);
-    const int W = 400;
-    const int H = 600;
+    m->screen = screen;
+    layout_load();
+    config_save_hook = layout_save;
 
     dock->begin();
-    m->right = new RightDock(0, 0, W, H);
-    m->cpu = new CpuPanel(0, 0, W, CPU_H);
-    m->right_tabs = make_tabs(0, CPU_H + 4, W, H - CPU_H - 4);
-    m->disasm = new DisasmPanel(0, CPU_H + 4 + TAB_H, W, H - CPU_H - 4 - TAB_H, "Disassembler");
-    style_tab(m->disasm);
-    m->breakpoints = new BreakpointsPanel(0, CPU_H + 4 + TAB_H, W, H - CPU_H - 4 - TAB_H, "Breakpoints");
-    style_tab(m->breakpoints);
-    m->right_tabs->end();
-    m->right_tabs->callback(cb_tabs);
-    m->right_tabs->when(FL_WHEN_CHANGED);
+    m->root = new SplitPane(0, 0, 1400, 800, true, false);
+    m->root->end();
+    m->left = new SplitPane(0, 0, default_left_w(), 800, false, false);
+    m->left->end();
+    m->memory = new MemoryPanel(0, 0, default_left_w(), DEFAULT_MEMORY_H);
+    m->memory->end();
+    m->rest = new SplitPane(0, 0, 700, 800, true, true);
+    m->rest->end();
+    m->disasm = new DisasmPanel(0, 0, DEFAULT_DISASM_W, 800);
+    m->disasm->end();
+    m->right = new SplitPane(0, 0, DEFAULT_RIGHT_W, 800, false, false);
     m->right->end();
-    m->right->set(m->cpu, m->right_tabs);
-
-    const int BW = 1000;
-    const int BH = 300;
-    m->bottom_tabs = make_tabs(0, 0, BW, BH);
-    m->memory = new MemoryPanel(0, TAB_H, BW, BH - TAB_H, "Memory");
-    style_tab(m->memory);
-    m->vram = new VramPanel(0, TAB_H, BW, BH - TAB_H, "VRAM");
-    style_tab(m->vram);
-    m->mmu = new MmuPanel(0, TAB_H, BW, BH - TAB_H, "MMU");
-    style_tab(m->mmu);
-    m->semihost = new SemihostPanel(0, TAB_H, BW, BH - TAB_H, "Semihost");
-    style_tab(m->semihost);
-    m->bottom_tabs->end();
-    m->bottom_tabs->callback(cb_tabs);
-    m->bottom_tabs->when(FL_WHEN_CHANGED);
+    m->regs = new RegistersView(0, 0, DEFAULT_RIGHT_W, RegistersView::preferred_height());
+    m->regs->end();
+    m->lower = new SplitPane(0, 0, DEFAULT_RIGHT_W, 400, false, true);
+    m->lower->end();
+    m->stack = new StackView(0, 0, DEFAULT_RIGHT_W, 200);
+    m->stack->end();
+    m->breakpoints = new BreakpointsPanel(0, 0, DEFAULT_RIGHT_W, DEFAULT_BREAKPOINTS_H);
+    m->breakpoints->end();
     dock->end();
 
-    m->right_entries = { { P_DISASSEMBLER, m->disasm }, { P_BREAKPOINTS, m->breakpoints } };
-    m->bottom_entries = { { P_MEMORY, m->memory }, { P_VRAM, m->vram },
-                          { P_MMU, m->mmu }, { P_SEMIHOST, m->semihost } };
+    m->left->set(screen, m->memory, DEFAULT_SCREEN_H, 120, 140);
+    m->lower->set(m->stack, m->breakpoints, DEFAULT_BREAKPOINTS_H, 60, 90);
+    m->right->set(m->regs, m->lower, RegistersView::preferred_height(), 120, 150);
+    m->rest->set(m->disasm, m->right, DEFAULT_RIGHT_W, 260, 240);
+    m->root->set(m->left, m->rest, default_left_w(), MemoryPanel::preferred_width(), 520);
 
-    dock->set_children(screen, m->right, m->bottom_tabs);
-    apply_panel_visibility();
+    Impl* impl = m;
+    dock->set_root(m->root, [impl](bool expanded) {
+        impl->root->collapse(!expanded);
+        impl->left->collapse(!expanded);
+        if (!expanded) video_window_suspend();
+    });
 }
 
 Debugger::~Debugger()
 {
+    video_window_destroy();
     s_impl = nullptr;
     delete m;
 }
@@ -1613,42 +1856,79 @@ void Debugger::refresh(bool force) { m->refresh(force); }
 void Debugger::goto_memory(hwaddr addr) { zui::goto_memory(addr); }
 void Debugger::goto_disassembly(hwaddr addr) { zui::goto_disassembly(addr); }
 
-void Debugger::apply_panel_visibility()
+static int default_left_w()
 {
-    m->apply_visibility(m->right_tabs, m->right_entries);
-    m->apply_visibility(m->bottom_tabs, m->bottom_entries);
-    m->right->layout();
-    m->refresh(true);
+    const int pref = MemoryPanel::preferred_width();
+    return pref > DEFAULT_LEFT_W ? pref : DEFAULT_LEFT_W;
 }
 
-void Debugger::reset_layout()
+void Debugger::default_body_size(int& w, int& h) const
 {
-    apply_panel_visibility();
-    m->right_tabs->value(m->disasm);
-    m->bottom_tabs->value(m->memory);
+    w = default_left_w() + DEFAULT_DISASM_W + DEFAULT_RIGHT_W + 2 * SplitPane::GAP;
+    h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H + SplitPane::GAP;
+}
+
+void Debugger::apply_layout()
+{
+    const LayoutConfig& c = g_layout;
+    m->root->fixed_size(c.left_w > 0 ? c.left_w : default_left_w());
+    m->left->fixed_size(c.screen_h > 0 ? c.screen_h : DEFAULT_SCREEN_H);
+    m->rest->fixed_size(c.right_w > 0 ? c.right_w : DEFAULT_RIGHT_W);
+    m->lower->fixed_size(c.breakpoints_h > 0 ? c.breakpoints_h : DEFAULT_BREAKPOINTS_H);
+    if (c.video_shown && m->dock->docks_visible()) {
+        /* Open it once the main window is on screen, so it floats above it */
+        Fl::add_timeout(0.3, [](void*) {
+            if (main_window() && main_window()->shown() && main_window()->debug_layout()) {
+                video_window_show(true);
+                main_window()->update_menus();
+            }
+        });
+    }
 }
 
 void Debugger::capture_layout()
 {
     if (!m->dock->docks_visible()) return;
-    int sw, sh;
-    m->dock->screen_size_for(m->dock->w(), m->dock->h(), sw, sh);
-    config_panels[P_VIDEO].width = sw;
-    config_panels[P_VIDEO].height = sh;
+    g_layout.left_w = m->root->fixed_size();
+    g_layout.screen_h = m->left->fixed_size();
+    g_layout.right_w = m->rest->fixed_size();
+    g_layout.breakpoints_h = m->lower->fixed_size();
+    video_window_capture_config();
+}
+
+void Debugger::reset_layout()
+{
+    g_layout = LayoutConfig();
+    video_window_show(false);
+    apply_layout();
+}
+
+void Debugger::show_video_window(bool show)
+{
+    video_window_show(show);
+    if (show) m->refresh(true);
+}
+
+bool Debugger::video_window_shown() const
+{
+    return zui::video_window_shown();
 }
 
 #else /* !CONFIG_ENABLE_DEBUGGER */
 
 struct Debugger::Impl {};
-Debugger::Debugger(DockLayout*) : m(nullptr) {}
+Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(nullptr) { dock->set_root(screen, nullptr); }
 Debugger::~Debugger() { delete m; }
 Fl_Group* Debugger::toolbar(int x, int y, int w, int h) { return new Fl_Group(x, y, w, h); }
 void Debugger::refresh(bool) {}
 void Debugger::goto_memory(hwaddr) {}
 void Debugger::goto_disassembly(hwaddr) {}
-void Debugger::apply_panel_visibility() {}
-void Debugger::reset_layout() {}
+void Debugger::default_body_size(int& w, int& h) const { w = FZ_SCREEN_WIDTH; h = FZ_SCREEN_HEIGHT; }
+void Debugger::apply_layout() {}
 void Debugger::capture_layout() {}
+void Debugger::reset_layout() {}
+void Debugger::show_video_window(bool) {}
+bool Debugger::video_window_shown() const { return false; }
 
 #endif
 
