@@ -476,12 +476,13 @@ public:
         fl_draw(text, x() + 10 + cw * 5, py + asc);
         py += lh;
         const unsigned top_word = (unsigned) (m_peek_sp[0] | (m_peek_sp[1] << 8));
+        const bool sp_word = m_regs.sp <= 0xFFFE; /* no stack word above $FFFE */
         fl_color(COLOR_CYAN);
         fl_draw("(SP)", x() + 10, py + asc);
-        hex16(text, sizeof(text), top_word);
-        fl_color(COLOR_TEXT);
+        if (sp_word) hex16(text, sizeof(text), top_word); else snprintf(text, sizeof(text), "----");
+        fl_color(sp_word ? COLOR_TEXT : COLOR_DIM);
         fl_draw(text, x() + 10 + cw * 5, py + asc);
-        const char* sym = dbg_ready() ? debugger_get_symbol(fz_debugger(), top_word) : nullptr;
+        const char* sym = (dbg_ready() && sp_word) ? debugger_get_symbol(fz_debugger(), top_word) : nullptr;
         if (sym) {
             fl_color(COLOR_AMBER);
             fl_draw(sym, x() + 10 + cw * 10, py + asc);
@@ -734,12 +735,21 @@ public:
         const int cw = char_width();
         const int asc = text_baseline(lh);
         const int rows = (h() - HEADER_H - 8) / lh;
-        /* While running only the sampled top of the stack (32 words) exists;
-         * never scroll past the point where the view stops being full. */
-        const int limit = fz_paused() ? 0x8000 : 32;
+        /* Only whole words between SP and the end of the address space can be
+         * stack (it grows down; never wrap to $0000); while running, only the
+         * sampled 32 words exist. Never scroll past a full view. */
+        const int limit = stack_limit();
         clamp_first(rows, limit);
         int count = rows < 128 ? rows : 128;
         if (m_first + count > limit) count = limit - m_first;
+        m_count = count > 0 ? count : 0;
+        if (limit <= 0) {
+            fl_font(FL_HELVETICA, 11);
+            fl_color(COLOR_DIM);
+            fl_draw("Empty: SP is at the top of memory.", x() + 10, top() + 4, w() - 20, lh,
+                    FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_CLIP);
+            return;
+        }
         if (count <= 0) return;
         uint8_t mem[256 + 64];
         if (fz_paused()) {
@@ -803,7 +813,7 @@ public:
             }
             case FL_MOUSEWHEEL:
                 m_first += Fl::event_dy() * 2;
-                clamp_first((h() - HEADER_H - 8) / data_line_height(), fz_paused() ? 0x8000 : 32);
+                clamp_first((h() - HEADER_H - 8) / data_line_height(), stack_limit());
                 {
                     char text[32], sp[8];
                     hex16(sp, sizeof(sp), m_regs.sp);
@@ -831,6 +841,14 @@ public:
     }
 
 private:
+    /** Words from SP up to the top of memory (or the sample while running). */
+    int stack_limit() const
+    {
+        const int words = (0x10000 - (int) m_regs.sp) / 2;
+        const int sampled = fz_paused() ? words : 32;
+        return words < sampled ? words : sampled;
+    }
+
     void clamp_first(int rows, int limit)
     {
         int max_first = limit - (rows < limit ? rows : limit);
@@ -843,7 +861,7 @@ private:
     {
         if (ey < top() + 4) return -1;
         const int r = (ey - top() - 4) / data_line_height();
-        return r < (h() - HEADER_H - 8) / data_line_height() ? r : -1;
+        return r < m_count ? r : -1;
     }
 
     void context_menu(hwaddr slot, uint16_t value)
@@ -879,6 +897,7 @@ private:
     int m_hover = -1;
     int m_first = 0; /* first word shown, relative to SP (mouse wheel) */
     uint16_t m_words[128] = {};
+    int m_count = 0; /* rows drawn */
 };
 
 /* ------------------------------------------------------------------ */
