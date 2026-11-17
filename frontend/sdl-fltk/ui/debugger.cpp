@@ -8,7 +8,7 @@
  * no tabs (in the spirit of Mesen and no$sns):
  *
  *   +---------------------------------------------------------------+
- *   | toolbar: run/pause  step  over  run-to | break  reset | state  |
+ *   | toolbar: run/pause  step  over  run-to | reset          | state  |
  *   +----------------+---------------------+-----------------------+
  *   | screen         | disassembly         | CPU registers, flags  |
  *   |                |                     +-----------------------+
@@ -243,8 +243,6 @@ public:
         make(Icon::StepOver, "Over", 72, cb_step_over, "Step over (Cmd/Ctrl+F10)");
         m_run_to = make(Icon::RunTo, "Run to", 84, cb_run_to, "Run to the line selected in the disassembly");
         bx += 12;
-        IconButton* bp = make(Icon::Breakpoint, "Break", 78, cb_breakpoint, "Toggle a breakpoint at PC (Cmd/Ctrl+F9)");
-        bp->icon_color(COLOR_BREAK);
         make(Icon::Reset, "Reset", 76, cb_reset, "Reset the machine (Cmd/Ctrl+Shift+Backspace)");
         m_pill = new StatePill(X + W - 230, by, 222, bh);
         resizable(nullptr);
@@ -290,12 +288,6 @@ private:
     }
     static void cb_step(Fl_Widget*, void*)      { if (dbg_ready()) debugger_step(fz_debugger()); }
     static void cb_step_over(Fl_Widget*, void*) { if (dbg_ready()) debugger_step_over(fz_debugger()); }
-    static void cb_breakpoint(Fl_Widget*, void*)
-    {
-        if (!dbg_ready()) return;
-        debugger_breakpoint(fz_debugger());
-        request_refresh();
-    }
     static void cb_reset(Fl_Widget*, void*)
     {
         fz_reset();
