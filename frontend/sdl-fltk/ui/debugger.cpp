@@ -826,6 +826,19 @@ private:
 /*  Breakpoints                                                        */
 /* ------------------------------------------------------------------ */
 
+/** Filled red dot = enabled breakpoint, red ring = disabled. */
+static void draw_breakpoint_marker(int X, int Y, int size, bool enabled)
+{
+    fl_color(COLOR_BREAK);
+    if (enabled) {
+        fl_pie(X, Y, size, size, 0, 360);
+    } else {
+        fl_line_style(FL_SOLID, 2);
+        fl_arc(X + 1, Y + 1, size - 2, size - 2, 0, 360);
+        fl_line_style(0);
+    }
+}
+
 class BreakpointList : public Fl_Widget {
 public:
     BreakpointList(int X, int Y, int W, int H) : Fl_Widget(X, Y, W, H) {}
@@ -850,21 +863,27 @@ public:
         char text[8];
         for (size_t i = 0; i < addrs.size(); i++) {
             const int ry = y() + 2 + (int) i * lh;
+            const bool enabled = debugger_is_breakpoint_enabled(fz_debugger(), addrs[i]);
             if ((int) i == m_hover) {
                 fl_color(COLOR_HOVER);
                 fl_rectf(x(), ry, w(), lh);
                 fl_color(COLOR_BREAK);
                 fl_draw("x", x() + w() - cw * 2, ry + asc);
             }
-            fl_color(COLOR_BREAK);
-            fl_pie(x() + 8, ry + (lh - 9) / 2, 9, 9, 0, 360);
+            draw_breakpoint_marker(x() + 7, ry + (lh - 11) / 2, 11, enabled);
             hex16(text, sizeof(text), addrs[i]);
-            fl_color(COLOR_CYAN);
-            fl_draw(text, x() + 24, ry + asc);
+            fl_color(enabled ? COLOR_CYAN : COLOR_DIM);
+            fl_draw(text, x() + 26, ry + asc);
             const char* sym = debugger_get_symbol(fz_debugger(), addrs[i]);
             if (sym) {
-                fl_color(COLOR_AMBER);
-                fl_draw(sym, x() + 24 + cw * 6, ry + asc);
+                fl_color(enabled ? COLOR_AMBER : COLOR_DIM);
+                fl_draw(sym, x() + 26 + cw * 6, ry + asc);
+            }
+            if (!enabled) {
+                fl_font(FL_HELVETICA, 10);
+                fl_color(COLOR_DIM);
+                fl_draw("off", x() + w() - cw * 2 - 30, ry + asc);
+                fl_font(DATA_FONT, DATA_SIZE);
             }
         }
         fl_pop_clip();
@@ -891,9 +910,17 @@ public:
                 return 1;
             case FL_PUSH: {
                 const int r = row_at(Fl::event_y());
+                if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                    context_menu(r);
+                    return 1;
+                }
                 if (r < 0) return 1;
-                if (Fl::event_x() >= x() + w() - char_width() * 3) {
-                    debugger_clear_breakpoint(fz_debugger(), addrs[r]);
+                dbg_t* dbg = fz_debugger();
+                if (Fl::event_x() < x() + 24) {
+                    debugger_enable_breakpoint(dbg, addrs[r], !debugger_is_breakpoint_enabled(dbg, addrs[r]));
+                    request_refresh();
+                } else if (Fl::event_x() >= x() + w() - char_width() * 3) {
+                    debugger_clear_breakpoint(dbg, addrs[r]);
                     request_refresh();
                 } else {
                     goto_disassembly(addrs[r]);
@@ -913,6 +940,37 @@ private:
         return ey >= y() + 2 && r < (int) addrs.size() ? r : -1;
     }
 
+    void context_menu(int row)
+    {
+        dbg_t* dbg = fz_debugger();
+        const bool has_row = row >= 0;
+        const bool enabled = has_row && debugger_is_breakpoint_enabled(dbg, addrs[row]);
+        const int row_only = has_row ? 0 : FL_MENU_INACTIVE;
+        const int any = addrs.empty() ? FL_MENU_INACTIVE : 0;
+        Fl_Menu_Item items[] = {
+            { enabled ? "Disable" : "Enable", 0, nullptr, nullptr, row_only, 0, 0, 0, 0 },
+            { "Remove", 0, nullptr, nullptr, row_only, 0, 0, 0, 0 },
+            { "Show in Disassembly", 0, nullptr, nullptr, row_only | FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Enable All", 0, nullptr, nullptr, any, 0, 0, 0, 0 },
+            { "Disable All", 0, nullptr, nullptr, any, 0, 0, 0, 0 },
+            { "Remove All", 0, nullptr, nullptr, any, 0, 0, 0, 0 },
+            { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        };
+        const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
+        if (picked == nullptr) return;
+        const std::vector<hwaddr> all = addrs;
+        switch ((int) (picked - items)) {
+            case 0: debugger_enable_breakpoint(dbg, addrs[row], !enabled); break;
+            case 1: debugger_clear_breakpoint(dbg, addrs[row]); break;
+            case 2: goto_disassembly(addrs[row]); return;
+            case 3: for (hwaddr a : all) debugger_enable_breakpoint(dbg, a, true); break;
+            case 4: for (hwaddr a : all) debugger_enable_breakpoint(dbg, a, false); break;
+            case 5: for (hwaddr a : all) debugger_clear_breakpoint(dbg, a); break;
+            default: break;
+        }
+        request_refresh();
+    }
+
     int m_hover = -1;
 };
 
@@ -929,6 +987,7 @@ public:
         m_add = new Fl_Button(X, Y, 10, 10, "Add");
         style_button(m_add);
         m_add->callback(cb_add, this);
+        m_list->tooltip("Dot: enable/disable    Address: show in disassembly    x: remove    Right-click: more");
         resizable(m_list);
         end();
         resize(X, Y, W, H);
@@ -942,8 +1001,11 @@ public:
         hwaddr bps[DBG_MAX_POINTS];
         const int count = debugger_get_breakpoints(fz_debugger(), bps, DBG_MAX_POINTS);
         m_list->addrs.assign(bps, bps + (count > 0 ? count : 0));
-        char text[16];
-        snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
+        int off = 0;
+        for (hwaddr a : m_list->addrs) off += !debugger_is_breakpoint_enabled(fz_debugger(), a);
+        char text[32];
+        if (off > 0) snprintf(text, sizeof(text), "%d  (%d OFF)", count, off);
+        else snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
         extra(text);
         m_list->redraw();
     }
@@ -1042,7 +1104,8 @@ public:
             }
 
             const bool is_pc = paused && addr == regs.pc;
-            const bool is_bp = debugger_is_breakpoint_set(dbg, addr);
+            const bool is_bp = debugger_has_breakpoint(dbg, addr);
+            const bool bp_on = is_bp && debugger_is_breakpoint_enabled(dbg, addr);
             if (is_pc) {
                 fl_color(COLOR_PC);
                 fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
@@ -1056,8 +1119,7 @@ public:
                 fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
             }
             if (is_bp) {
-                fl_color(COLOR_BREAK);
-                fl_pie(x() + 5, yy + (lh - 10) / 2, 10, 10, 0, 360);
+                draw_breakpoint_marker(x() + 5, yy + (lh - 10) / 2, 10, bp_on);
             } else if ((int) addr == m_hover) {
                 fl_color(COLOR_BORDER);
                 fl_pie(x() + 5, yy + (lh - 10) / 2, 10, 10, 0, 360);
@@ -1171,10 +1233,15 @@ private:
     void context_menu(hwaddr addr)
     {
         const int pause_only = fz_paused() ? 0 : FL_MENU_INACTIVE;
+        dbg_t* bp_dbg = fz_debugger();
+        const bool has_bp = debugger_has_breakpoint(bp_dbg, addr);
+        const bool bp_on = has_bp && debugger_is_breakpoint_enabled(bp_dbg, addr);
         Fl_Menu_Item items[] = {
             { "Run to Cursor", 0, nullptr, nullptr, pause_only, 0, 0, 0, 0 },
             { "Set PC Here", 0, nullptr, nullptr, pause_only | FL_MENU_DIVIDER, 0, 0, 0, 0 },
-            { "Toggle Breakpoint", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { has_bp ? "Remove Breakpoint" : "Add Breakpoint", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { bp_on ? "Disable Breakpoint" : "Enable Breakpoint", 0, nullptr, nullptr,
+              (has_bp ? 0 : FL_MENU_INACTIVE) | FL_MENU_DIVIDER, 0, 0, 0, 0 },
             { "Show in Memory", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
             { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
             { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
@@ -1198,9 +1265,12 @@ private:
                 debugger_toggle_breakpoint(dbg, addr);
                 break;
             case 3:
-                goto_memory(addr);
+                debugger_enable_breakpoint(dbg, addr, !bp_on);
                 break;
             case 4:
+                goto_memory(addr);
+                break;
+            case 5:
                 hex16(text, sizeof(text), addr);
                 Fl::copy(text, (int) strlen(text), 1);
                 break;

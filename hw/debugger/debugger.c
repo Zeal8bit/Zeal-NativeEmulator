@@ -14,10 +14,25 @@
 
 #define MAX_LINE_LENGTH     256
 
+/* User (permanent) breakpoint at the address, enabled or disabled */
 static breakpoint_t* find_breakpoint(dbg_t *dbg, hwaddr address)
 {
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->breakpoints[i].active &&
+        if (dbg->breakpoints[i].active && !dbg->breakpoints[i].temporary &&
+            dbg->breakpoints[i].addr == address)
+        {
+            return &dbg->breakpoints[i];
+        }
+    }
+
+    return NULL;
+}
+
+/* Temporary breakpoint at the address (step over, run to cursor) */
+static breakpoint_t* find_temporary_breakpoint(dbg_t *dbg, hwaddr address)
+{
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        if (dbg->breakpoints[i].active && dbg->breakpoints[i].temporary &&
             dbg->breakpoints[i].addr == address)
         {
             return &dbg->breakpoints[i];
@@ -43,21 +58,53 @@ bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    return find_breakpoint(dbg, address) != NULL;
+    const breakpoint_t* brk = find_breakpoint(dbg, address);
+    return (brk != NULL && !brk->disabled) || find_temporary_breakpoint(dbg, address) != NULL;
+}
+
+bool debugger_has_breakpoint(dbg_t *dbg, hwaddr address)
+{
+    return dbg != NULL && find_breakpoint(dbg, address) != NULL;
+}
+
+bool debugger_is_breakpoint_enabled(dbg_t *dbg, hwaddr address)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    const breakpoint_t* brk = find_breakpoint(dbg, address);
+    return brk != NULL && !brk->disabled;
+}
+
+bool debugger_enable_breakpoint(dbg_t *dbg, hwaddr address, bool enabled)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    if (brk == NULL) {
+        return false;
+    }
+    brk->disabled = !enabled;
+    return true;
 }
 
 
 bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address)
 {
-    /* No need to set a temporary breakpoint if there is a real breakpoint already */
+    if (dbg == NULL) {
+        return false;
+    }
+    /* No need to set a temporary breakpoint if execution stops there already */
     if (debugger_is_breakpoint_set(dbg, address)) {
         return false;
     }
-    /* Add a temporary breakpoint */
+    /* Add a temporary breakpoint (also on top of a disabled user breakpoint) */
     breakpoint_t* brk = find_free_breakpoint(dbg);
     if (brk != NULL) {
         brk->active = true;
         brk->temporary = true;
+        brk->disabled = false;
         brk->addr = address;
     }
     return brk != NULL;
@@ -68,20 +115,27 @@ bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    /* If the breakpoint already exists as a temporary one, make it permanent */
+    /* Setting an existing (possibly disabled) breakpoint enables it */
     breakpoint_t* brk = find_breakpoint(dbg, address);
     if (brk != NULL) {
-        const bool was_temp = brk->temporary;
-        /* Make it permanent in any case */
+        const bool was_disabled = brk->disabled;
+        brk->disabled = false;
+        return was_disabled;
+    }
+    /* If the breakpoint already exists as a temporary one, make it permanent */
+    brk = find_temporary_breakpoint(dbg, address);
+    if (brk != NULL) {
         brk->temporary = false;
-        /* Count it as a new breakpoint if it was temporary */
-        return was_temp;
+        brk->disabled = false;
+        /* Count it as a new breakpoint since it was temporary */
+        return true;
     }
 
     brk = find_free_breakpoint(dbg);
     if (brk != NULL) {
         brk->active = true;
         brk->temporary = false;
+        brk->disabled = false;
         brk->addr = address;
     }
     return brk != NULL;
@@ -135,13 +189,12 @@ bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    breakpoint_t* brk = find_breakpoint(dbg, address);
-    const bool valid = brk != NULL && brk->temporary;
-    if (valid) {
+    breakpoint_t* brk = find_temporary_breakpoint(dbg, address);
+    if (brk != NULL) {
         brk->active = false;
         return true;
     }
-    return valid;
+    return false;
 }
 
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
@@ -149,22 +202,22 @@ bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
+    /* Temporary breakpoints cannot be cleared using this routine */
     breakpoint_t* brk = find_breakpoint(dbg, address);
-    /* It should not be possible clear a breakpoint that is temporary using this routine */
-    const bool valid = brk != NULL && !brk->temporary;
-    if (valid) {
+    if (brk != NULL) {
         brk->active = false;
+        brk->disabled = false;
+        return true;
     }
-    return valid;
+    return false;
 }
 
 bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address) {
     if (dbg == NULL) {
         return false;
     }
-    breakpoint_t* brk = find_breakpoint(dbg, address);
     /* Toggling a temporary breakpoint doesn't make sense */
-    if (brk != NULL && !brk->temporary) {
+    if (find_breakpoint(dbg, address) != NULL) {
         return debugger_clear_breakpoint(dbg, address);
     } else {
         return debugger_set_breakpoint(dbg, address);

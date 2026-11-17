@@ -20,7 +20,13 @@ bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address);
 void debugger_set_breakpoints_str(dbg_t *dbg, const char* list);
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address);
+/* True if execution stops at the address (an enabled or temporary breakpoint) */
 bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address);
+/* True if a user breakpoint exists at the address, enabled or disabled */
+bool debugger_has_breakpoint(dbg_t *dbg, hwaddr address);
+/* Enable or disable an existing user breakpoint, keeping it in the list */
+bool debugger_enable_breakpoint(dbg_t *dbg, hwaddr address, bool enabled);
+bool debugger_is_breakpoint_enabled(dbg_t *dbg, hwaddr address);
 int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size);
 
 /* Watchpoint management */

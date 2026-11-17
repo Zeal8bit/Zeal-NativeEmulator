@@ -63,8 +63,9 @@ typedef struct {
 
 typedef struct {
     hwaddr  addr;
-    bool    active;
+    bool    active;     // Slot in use
     bool    temporary;  // True if it needs to be deleted when reached
+    bool    disabled;   // Kept in the list but never stops execution
 } breakpoint_t;
 
 typedef struct {
