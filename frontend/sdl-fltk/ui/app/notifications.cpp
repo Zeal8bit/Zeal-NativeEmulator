@@ -44,6 +44,7 @@ void notif_cancel()
 
 } // namespace zui::app
 
+using namespace zui::widgets;
 using namespace zui::app;
 
 extern "C" {

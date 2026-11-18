@@ -13,9 +13,11 @@
 #include "common/persist.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_window.h"
+#include "memtools/pattern.h"
 
 namespace zui::tools {
 
+using namespace zui::memtools;
 using namespace zui::common;
 
 static const WindowDef s_defs[] = {

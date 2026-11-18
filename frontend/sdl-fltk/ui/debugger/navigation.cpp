@@ -9,8 +9,12 @@
 #include "debugger/debugger_view.h"
 #include "debugger/disasm_panel.h"
 #include "debugger/memory_panel.h"
+#include "common/machine.h"
 
 namespace zui::debugger {
+
+using namespace zui::app;
+using namespace zui::widgets;
 
 void request_refresh()
 {

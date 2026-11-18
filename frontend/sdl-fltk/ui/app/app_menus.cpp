@@ -19,6 +19,7 @@
 
 namespace zui::app {
 
+using namespace zui::widgets;
 using namespace zui::common;
 
 namespace {
@@ -191,7 +192,6 @@ void cb_snes_mouse_scale(Fl_Widget*, void*)
     fz_snes_mouse_reset_scale();
 }
 
-
 void set_toggle(Fl_Menu_Bar* mb, const char* path, bool on, bool active = true)
 {
     Fl_Menu_Item* item = const_cast<Fl_Menu_Item*>(mb->find_item(path));
@@ -199,7 +199,6 @@ void set_toggle(Fl_Menu_Bar* mb, const char* path, bool on, bool active = true)
     if (on) item->set(); else item->clear();
     if (active) item->activate(); else item->deactivate();
 }
-
 
 void menu_safe_name(char* out, size_t size, const char* name)
 {
@@ -210,7 +209,6 @@ void menu_safe_name(char* out, size_t size, const char* name)
     }
     out[j] = '\0';
 }
-
 
 bool s_snes_dirty;
 

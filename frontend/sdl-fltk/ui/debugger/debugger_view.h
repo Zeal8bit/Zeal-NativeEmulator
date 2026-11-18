@@ -22,6 +22,8 @@
 #pragma once
 
 #include "app/debugger_ui.h"
+#include "app/screen_view.h"
+#include <FL/Fl_Group.H>
 
 namespace zui::widgets {
 class DockLayout;

@@ -49,5 +49,4 @@ void layout_config_load()
     g_layout.video_shown = config_get("FLTK_VIDEO_SHOWN", 0) != 0;
 }
 
-
 } // namespace zui::debugger

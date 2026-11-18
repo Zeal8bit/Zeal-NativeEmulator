@@ -5,6 +5,7 @@
  */
 
 #include "common/cp437.h"
+#include <cstdint>
 
 namespace zui::common {
 

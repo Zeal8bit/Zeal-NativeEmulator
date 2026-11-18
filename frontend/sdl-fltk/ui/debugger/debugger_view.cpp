@@ -22,15 +22,17 @@
 #include "debugger/stack_view.h"
 #include "debugger/toolbar.h"
 #include "debugger/watch_panel.h"
-#include "panel.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_windows.h"
-#include "video.h"
 #include "widgets/dock_layout.h"
 #include "widgets/split_pane.h"
+#include "symbols/map_files.h"
+#include "video/video_windows.h"
 
 namespace zui::debugger {
 
+using namespace zui::symbols;
+using namespace zui::video;
 using namespace zui::app;
 using namespace zui::common;
 using namespace zui::tools;
@@ -47,7 +49,6 @@ constexpr int DEFAULT_BREAKPOINTS_H = 150;
 constexpr int DEFAULT_WATCH_H = 170;
 constexpr int DEFAULT_DISASM_W = 420;
 constexpr int DEFAULT_MEMORY_H = 300;
-
 
 int default_left_w()
 {
@@ -256,7 +257,6 @@ bool DebuggerView::tool_shown(app::ToolId tool) const
     }
     return false;
 }
-
 
 } // namespace zui::debugger
 

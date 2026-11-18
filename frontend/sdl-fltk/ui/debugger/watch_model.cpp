@@ -17,9 +17,11 @@
 #include "common/persist.h"
 #include "debugger/address_lookup.h"
 #include "debugger/machine_state.h"
+#include "memtools/pattern.h"
 
 namespace zui::debugger {
 
+using namespace zui::memtools;
 using namespace zui::common;
 
 namespace {

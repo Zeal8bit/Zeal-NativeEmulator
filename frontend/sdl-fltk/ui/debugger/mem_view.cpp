@@ -23,8 +23,9 @@
 #include "common/machine.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
-#include "memory_tools.h"
 #include "theme/theme.h"
+#include "memtools/memory_actions.h"
+#include "memtools/pattern.h"
 
 namespace zui::debugger {
 

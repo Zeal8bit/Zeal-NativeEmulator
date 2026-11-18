@@ -6,9 +6,11 @@
 
 #include "common/format.h"
 #include <cstdio>
+#include <cstring>
 #include <FL/fl_draw.H>
 #include "common/machine.h"
 #include "theme/theme.h"
+#include <cstdint>
 
 namespace zui::common {
 
@@ -44,6 +46,19 @@ int text_baseline(int line_h)
 {
     fl_font(DATA_FONT, DATA_SIZE);
     return line_h - fl_descent() - (line_h - fl_height()) / 2;
+}
+
+void with_commas(char* out, size_t size, uint64_t v)
+{
+    char raw[32];
+    snprintf(raw, sizeof(raw), "%llu", (unsigned long long) v);
+    const int len = (int) strlen(raw);
+    size_t o = 0;
+    for (int i = 0; i < len && o + 1 < size; i++) {
+        if (i > 0 && (len - i) % 3 == 0 && o + 2 < size) out[o++] = ',';
+        out[o++] = raw[i];
+    }
+    out[o] = '\0';
 }
 
 } // namespace zui::common

@@ -27,10 +27,12 @@
 #include "debugger/mem_find_input.h"
 #include "debugger/mem_view.h"
 #include "debugger/mmu_strip.h"
-#include "memory_tools.h"
 #include "theme/style.h"
 #include "theme/theme.h"
 #include "widgets/panel.h"
+#include "memtools/change_search_window.h"
+#include "memtools/pattern.h"
+#include "memtools/snapshot_source.h"
 
 namespace zui::debugger {
 

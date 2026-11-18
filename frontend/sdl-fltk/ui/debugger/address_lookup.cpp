@@ -18,9 +18,11 @@
 #include "common/format.h"
 #include "common/machine.h"
 #include "theme/theme.h"
+#include "memtools/pattern.h"
 
 namespace zui::debugger {
 
+using namespace zui::memtools;
 using namespace zui::common;
 using namespace zui::theme;
 
@@ -57,7 +59,6 @@ bool parse_address(const char* text, hwaddr* out)
     dbg_t* dbg = fz_debugger();
     return dbg != nullptr && debugger_find_symbol(dbg, text, out);
 }
-
 
 bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer_kind, std::string* picked)
 {

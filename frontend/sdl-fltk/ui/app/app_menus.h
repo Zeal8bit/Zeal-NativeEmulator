@@ -8,6 +8,8 @@
  * SNES (rebuilt when gamepads come and go). */
 #pragma once
 
+#include <FL/Fl_Menu_Bar.H>
+
 class Fl_Menu_Bar;
 
 namespace zui::app {

@@ -22,6 +22,11 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#include "common/machine.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Gl_Window.H>
+#include <FL/Fl_Window.H>
+#include <cstdint>
 #endif
 
 extern "C" {
@@ -41,6 +46,7 @@ extern "C" {
 
 namespace zui::app {
 
+using namespace zui::widgets;
 using namespace zui::theme;
 
 /* ------------------------------------------------------------------ */

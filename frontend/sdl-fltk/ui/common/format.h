@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace zui::common {
 
@@ -20,5 +21,8 @@ void hex8(char* out, size_t size, unsigned value);
 int  char_width();
 /** Baseline offset of data-font text inside a line of `line_h` pixels. */
 int  text_baseline(int line_h);
+
+/** Decimal with thousands separators (1,234,567). */
+void with_commas(char* out, size_t size, uint64_t value);
 
 } // namespace zui::common

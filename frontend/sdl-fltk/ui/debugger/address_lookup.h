@@ -9,6 +9,7 @@
 
 #include <string>
 #include "common/machine.h"
+#include <FL/Fl_Widget.H>
 
 class Fl_Widget;
 

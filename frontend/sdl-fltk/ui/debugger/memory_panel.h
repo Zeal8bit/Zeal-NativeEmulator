@@ -19,6 +19,7 @@
 #include "debugger/mem_view.h"
 #include "debugger/mmu_strip.h"
 #include "widgets/panel.h"
+#include "memtools/pattern.h"
 
 namespace zui::debugger {
 

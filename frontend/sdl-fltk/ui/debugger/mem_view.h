@@ -13,7 +13,7 @@
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Widget.H>
 #include "common/machine.h"
-#include "memory_tools.h"
+#include "memtools/pattern.h"
 
 namespace zui::debugger {
 

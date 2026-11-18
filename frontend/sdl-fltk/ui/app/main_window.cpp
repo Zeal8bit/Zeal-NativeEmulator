@@ -21,6 +21,11 @@
 #include "common/persist.h"
 #include "theme/theme.h"
 #include "widgets/dock_layout.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Box.H>
+#include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Group.H>
+#include <FL/Fl_Widget.H>
 
 namespace zui::app {
 
@@ -35,7 +40,6 @@ bool s_closed;
 
 constexpr int TOOLBAR_H = 34;
 constexpr int STATUS_H = 22;
-
 
 float scale_quantize_tenths(float scale, float step)
 {
@@ -311,7 +315,6 @@ void MainWindow::reset_layout()
     }
     update_menus();
 }
-
 
 void MainWindow::update_menus()
 {
