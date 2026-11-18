@@ -123,6 +123,7 @@ bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why
         }
         *lo = addr;
         *hi = (hwaddr) ((addr + 1) & 0xFFFF);
+        if (*hi < *lo) *hi = 0xFFFF; /* never wrap a range around $FFFF */
         return true;
     }
     if (!eval_expr(e, none, &addr)) {
@@ -168,6 +169,7 @@ void watch_breaks_sync()
      * as disabled core entries so the memory view still shows them). */
     std::vector<uint8_t> on(0x10000, 0), off(0x10000, 0);
     for (const Armed& a : want) {
+        /* watch_break_target never wraps, so lo <= hi */
         std::vector<uint8_t>& mask = a.on ? on : off;
         for (unsigned addr = a.lo; addr <= a.hi; addr++) mask[addr] |= (uint8_t) a.type;
     }
@@ -260,8 +262,10 @@ int watch_hit_index()
     const std::vector<Watch>& list = watches();
     for (size_t i = 0; i < list.size(); i++) {
         hwaddr lo, hi;
-        if (list[i].brk != 0 && list[i].brk_on && watch_break_target(list[i], &lo, &hi) &&
-            hit.addr >= lo && hit.addr <= hi) {
+        /* The row must have asked for this kind of access: an overlapping
+         * read-only row does not own a write hit */
+        if (list[i].brk != 0 && list[i].brk_on && (list[i].brk & hit.type) != 0 &&
+            watch_break_target(list[i], &lo, &hi) && hit.addr >= lo && hit.addr <= hi) {
             return (int) i;
         }
     }

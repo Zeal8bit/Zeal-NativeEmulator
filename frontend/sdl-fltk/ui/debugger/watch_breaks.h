@@ -27,7 +27,8 @@ const char* watch_type_name(watchpoint_type_t type);
 void watch_range_text(char* out, size_t size, hwaddr lo, hwaddr hi);
 
 /** Bytes a break on this watch covers; false (with `why`) when the watch
- *  cannot break because its address follows a register. */
+ *  cannot break because its address follows a register. Ranges never wrap:
+ *  a word at $FFFF covers $FFFF only (lo <= hi always). */
 bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why = nullptr);
 
 /** True when the watch can never break (its address follows a register);
