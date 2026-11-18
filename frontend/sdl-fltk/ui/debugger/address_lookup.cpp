@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
-#include <cstdlib>
+#include <charconv>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -38,26 +38,33 @@ std::string loose_name(const char* s)
 
 } // namespace
 
-bool parse_address(const char* text, hwaddr* out)
+bool parse_address(const char* text, hwaddr* out, std::string* picked)
 {
+    if (picked) picked->clear();
     if (text == nullptr || out == nullptr) return false;
     while (*text == ' ' || *text == '\t') text++;
     if (*text == '\0') return false;
 
+    const char* end = text + strlen(text);
+    while (end > text && isspace((unsigned char) end[-1])) end--;
     const char* digits = text;
     if (*digits == '$') digits++;
     else if (digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X')) digits += 2;
-    char* end = nullptr;
-    const unsigned long value = std::strtoul(digits, &end, 16);
-    if (end != digits) {
-        while (*end == ' ' || *end == 'h' || *end == 'H') end++;
-        if (*end == '\0') {
-            *out = (hwaddr) (value & 0xFFFF);
+    else {
+        hwaddr addr;
+        if (debugger_find_symbol(fz_debugger(), std::string(text, end).c_str(), &addr)) {
+            if (addr > 0xFFFF) return false;
+            if (picked) picked->assign(text, end);
+            *out = addr;
             return true;
         }
     }
-    dbg_t* dbg = fz_debugger();
-    return dbg != nullptr && debugger_find_symbol(dbg, text, out);
+    if (end > digits && (end[-1] == 'h' || end[-1] == 'H')) end--;
+    uint16_t value;
+    const auto result = std::from_chars(digits, end, value, 16);
+    if (result.ec != std::errc() || result.ptr != end) return false;
+    *out = value;
+    return true;
 }
 
 bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer_kind, std::string* picked)
@@ -72,12 +79,7 @@ bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer
     if (query.empty()) return false;
 
     dbg_t* dbg = fz_debugger();
-    /* An exact symbol name wins over hex ("add", "beef" can be labels) */
-    if (dbg && debugger_find_symbol(dbg, query.c_str(), out)) {
-        if (picked) *picked = query;
-        return true;
-    }
-    if (parse_address(query.c_str(), out)) return true;
+    if (parse_address(query.c_str(), out, picked)) return true;
     if (dbg == nullptr) return false;
 
     /* Rank: 0 same name ignoring case, 1 ignoring leading underscores,
@@ -93,7 +95,7 @@ bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer
     for (const symbols_t* b = &dbg->symbols; b; b = b->next) {
         for (unsigned i = 0; i < b->count; i++) {
             const symbol_t& s = b->array[i];
-            if (s.name == nullptr) continue;
+            if (s.name == nullptr || s.addr > 0xFFFF) continue;
             std::string name(s.name);
             for (char& c : name) c = (char) tolower((unsigned char) c);
             const std::string ln = loose_name(s.name);

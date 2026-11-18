@@ -58,6 +58,12 @@ typedef struct {
     bool virtual_controller_enabled;
     snes_port_assignment_t ports[SNES_CONTROLLER_COUNT];
     snes_controller_t controllers[SNES_GAMEPAD_COUNT];
+    /* Device seen in each slot at the last update (snes_controller_id, 0 =
+     * none): a pad is assigned a port automatically only when a device
+     * appears, so an explicit choice (Detached, the mouse on its port) stays
+     * until that device is unplugged. A different device in the same slot,
+     * even replaced between two updates, counts as a new one. */
+    uint32_t seen[SNES_GAMEPAD_COUNT];
     snes_mouse_t mouse;
     /* Last packets sampled at a guest LATCH (debugger) */
     uint32_t last_packets[SNES_CONTROLLER_COUNT];

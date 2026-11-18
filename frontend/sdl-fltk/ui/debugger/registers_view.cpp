@@ -590,7 +590,8 @@ void RegistersView::begin_edit(int id)
     else hex16(text, sizeof(text), reg_get(m_regs, id));
     m_edit_id = id;
     m_edit->resize(vx - 3, ry, char_width() * 4 + 8, data_line_height());
-    m_edit->maximum_size(reg_is_8bit(id) ? 2 : 4);
+    /* Hex digits, plus room for an optional '$' */
+    m_edit->maximum_size(reg_is_8bit(id) ? 3 : 5);
     m_edit->value(text);
     m_edit->show();
     m_edit->take_focus();
@@ -602,14 +603,27 @@ void RegistersView::begin_edit(int id)
     redraw();
 }
 
+bool parse_register_text(const char* text, bool eight_bit, uint16_t* value)
+{
+    /* Only hex digits after an optional '$', at least one, at most the
+     * register's width: an empty or bare "$" input changes nothing */
+    const char* digits = text[0] == '$' ? text + 1 : text;
+    const size_t n = strlen(digits);
+    if (n < 1 || n > (eight_bit ? 2u : 4u)) return false;
+    for (size_t i = 0; i < n; i++) {
+        if (!isxdigit((unsigned char) digits[i])) return false;
+    }
+    *value = (uint16_t) strtoul(digits, nullptr, 16);
+    return true;
+}
+
 void RegistersView::cb_commit(Fl_Widget*, void* data)
 {
     RegistersView* self = static_cast<RegistersView*>(data);
-    const char* text = self->m_edit->value();
-    char* end = nullptr;
-    const unsigned long v = strtoul(text[0] == '$' ? text + 1 : text, &end, 16);
+    uint16_t v = 0;
+    const bool valid = parse_register_text(self->m_edit->value(), reg_is_8bit(self->m_edit_id), &v);
     self->m_edit->hide();
-    if (end == text || (end && *end) || !dbg_ready() || !fz_paused()) {
+    if (!valid || !dbg_ready() || !fz_paused()) {
         fl_beep();
     } else {
         regs_t regs = exact_regs();

@@ -129,7 +129,12 @@ void SymbolsView::update_extra()
     /* Which map files they came from */
     const int maps = fz_map_count();
     char text[64];
-    if (maps == 0) {
+    /* Saved project maps that could not be loaded: Reload retries them */
+    int missing = 0;
+    for (int i = 0; i < maps; i++) missing += !fz_map_loaded(i);
+    if (missing > 0) {
+        snprintf(text, sizeof(text), "%s  %d map%s missing", count, missing, missing == 1 ? "" : "s");
+    } else if (maps == 0) {
         snprintf(text, sizeof(text), "%s", count);
     } else if (maps == 1) {
         snprintf(text, sizeof(text), "%s  %s", count, base_name(fz_map_path(0)));
@@ -143,6 +148,7 @@ void SymbolsView::update_extra()
     for (int i = 0; i < maps; i++) {
         tip += "\n";
         tip += fz_map_path(i);
+        if (!fz_map_loaded(i)) tip += " (not loaded)";
     }
     if (tip != m_reload_tip) {
         m_reload_tip = tip;

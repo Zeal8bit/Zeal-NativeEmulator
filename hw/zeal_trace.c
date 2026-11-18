@@ -14,6 +14,7 @@
 #include <string.h>
 #include "hw/zeal.h"
 #include "debugger/zeal_trace.h"
+#include "debugger/zeal_debugger.h"
 
 #if CONFIG_TRACE_DEPTH > 0
 
@@ -162,8 +163,16 @@ void zeal_trace_before(zeal_t* machine)
     t->pending = (int32_t) t->head;
     zeal_trace_entry_t* e = next_slot(t);
     fill_regs(e, cpu);
-    const uint16_t pc = cpu->pc;
-    e->bytes[0] = peek(&cpu->mmu, pc);
+    uint16_t pc = cpu->pc;
+    uint8_t op = peek(&cpu->mmu, pc);
+    while ((op == 0xDD || op == 0xFD) && e->skipped_prefixes < UINT16_MAX) {
+        const uint8_t next = peek(&cpu->mmu, (uint16_t) (pc + 1));
+        if (zeal_debugger_uses_index(next)) break;
+        e->skipped_prefixes++;
+        pc++;
+        op = next;
+    }
+    e->bytes[0] = op;
     e->bytes[1] = peek(&cpu->mmu, (uint16_t) (pc + 1));
     e->bytes[2] = peek(&cpu->mmu, (uint16_t) (pc + 2));
     e->bytes[3] = peek(&cpu->mmu, (uint16_t) (pc + 3));
@@ -196,10 +205,10 @@ void zeal_trace_after(zeal_t* machine)
         if (op == 0xCD || (op & 0xC7) == 0xC4) {
             /* CALL nn / CALL cc,nn (taken when the return address was pushed) */
             prune(t, sp);
-            if (pushed) push_frame(t, ZEAL_FRAME_CALL, e->pc, (uint16_t) (e->pc + 3), pc, sp);
+            if (pushed) push_frame(t, ZEAL_FRAME_CALL, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 3), pc, sp);
         } else if ((op & 0xC7) == 0xC7) {
             prune(t, sp);
-            if (pushed) push_frame(t, ZEAL_FRAME_RST, e->pc, (uint16_t) (e->pc + 1), pc, sp);
+            if (pushed) push_frame(t, ZEAL_FRAME_RST, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 1), pc, sp);
         } else if (loads_sp(e->bytes)) {
             if (sp != e->sp) switch_stack(t, e->sp, sp);
         } else if (is_return(e->bytes) && sp == (uint16_t) (e->sp + 2)) {
@@ -219,6 +228,7 @@ void zeal_trace_after(zeal_t* machine)
         fill_regs(e, cpu);
         /* Registers as the handler sees them on entry, at the interrupted PC */
         e->pc = pc;
+        e->page = cpu->mmu.pages[pc >> 14];
         e->sp = cpu->sp;
         e->target = cpu->pc;
         memset(e->bytes, 0, sizeof(e->bytes));

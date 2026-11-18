@@ -6,6 +6,7 @@
 
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -66,3 +67,30 @@ const char* get_home_dir();
 const char* get_config_dir();
 const char* get_config_path();
 const char* path_sanitize(const char* path);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/**
+ * @brief Non-zero when both paths name the same existing file: relative and
+ * absolute spellings, symbolic links and hard links. Uses the file identity
+ * (device, inode) when the platform provides one, else (e.g. Windows, where
+ * st_ino is 0) compares canonical paths. Paths that do not exist compare
+ * by their canonical or literal spelling.
+ */
+int path_same_file(const char* a, const char* b);
+
+/**
+ * @brief Safe replacement of a file: create a new, exclusive temporary file
+ * next to `target` (its name goes to `tmp`), write it, path_commit() it,
+ * then path_replace() moves it over `target` in one step. The temporary
+ * file takes `target`'s permissions when it exists (POSIX). Each returns
+ * NULL / non-zero on failure with errno set; `target` is untouched until
+ * path_replace() succeeds.
+ */
+FILE* path_create_temp(const char* target, char* tmp, size_t tmp_size);
+int path_commit(FILE* file);
+int path_replace(const char* tmp, const char* target);
+#ifdef __cplusplus
+}
+#endif

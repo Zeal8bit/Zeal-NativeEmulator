@@ -80,7 +80,10 @@ void fill_dialog(unsigned start, unsigned end, const Writer& write)
     if (!ok) return;
     std::vector<uint8_t> data(e - s + 1);
     for (size_t i = 0; i < data.size(); i++) data[i] = pattern.bytes[i % pattern.bytes.size()];
-    write(s, data);
+    if (!write(s, data)) {
+        notif_show("Memory did not retain all bytes");
+        return;
+    }
     notif_show("Filled %s", range_text(s, e).c_str());
 }
 
@@ -170,7 +173,10 @@ void load_file_dialog(unsigned addr, const Writer& write)
     if (!ok) return;
     const size_t fits = 0x10000 - at;
     if (data.size() > fits) data.resize(fits);
-    write(at, data);
+    if (!write(at, data)) {
+        notif_show("Memory did not retain all bytes");
+        return;
+    }
     notif_show("Loaded %s at %s", base.c_str(), range_text(at, at + (unsigned) data.size() - 1).c_str());
 }
 

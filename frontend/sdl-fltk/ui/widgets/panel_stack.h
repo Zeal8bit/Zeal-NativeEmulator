@@ -33,6 +33,7 @@ public:
     /** Lay the panels out again (after a collapse or a preferred height change). */
     void layout();
     void toggle_collapse(Panel* panel);
+    void clear_maximize();
     void toggle_maximize(Panel* panel);
     /** Collapse state, sizes or maximised panel changed by the user. */
     std::function<void()> on_change;

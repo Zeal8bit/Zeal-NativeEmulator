@@ -98,7 +98,7 @@ void HotCodeView::refresh(bool paused, bool force)
     update_controls();
     const uint64_t total = fz_profile_total();
     /* Called ~4 Hz while visible: re-aggregate only when something changed */
-    if (force || total != m_last_total || symbols_changed()) rebuild();
+    if (force || total != m_last_total || m_index.update()) rebuild();
     update_status();
 }
 
@@ -169,57 +169,10 @@ void HotCodeView::update_status()
     }
 }
 
-bool HotCodeView::symbols_changed()
-{
-    const uintptr_t sig = symbols_signature();
-    if (sig == m_sym_sig) return false;
-    return true;
-}
-
-uintptr_t HotCodeView::symbols_signature()
-{
-    dbg_t* dbg = fz_debugger();
-    if (dbg == nullptr) return 0;
-    uintptr_t sig = 0;
-    for (const symbols_t* s = &dbg->symbols; s != nullptr; s = s->next) {
-        sig = sig * 31 + s->count;
-        if (s->count > 0) sig ^= (uintptr_t) s->array[0].name;
-    }
-    return sig;
-}
-
-void HotCodeView::load_symbols()
-{
-    m_sym_sig = symbols_signature();
-    m_syms.clear();
-    dbg_t* dbg = fz_debugger();
-    if (dbg == nullptr) return;
-    for (const symbols_t* s = &dbg->symbols; s != nullptr; s = s->next) {
-        for (unsigned i = 0; i < s->count && i < DBG_SYM_COUNT; i++) {
-            const symbol_t& sym = s->array[i];
-            if (sym.name == nullptr || sym.addr > 0xFFFF) continue;
-            m_syms.push_back({ sym.addr, sym.name });
-        }
-    }
-    std::stable_sort(m_syms.begin(), m_syms.end(),
-                     [](const Sym& a, const Sym& b) { return a.addr < b.addr; });
-    /* One name per address: keep the first one loaded */
-    m_syms.erase(std::unique(m_syms.begin(), m_syms.end(),
-                             [](const Sym& a, const Sym& b) { return a.addr == b.addr; }),
-                 m_syms.end());
-}
-
-int HotCodeView::symbol_index(hwaddr addr) const
-{
-    auto it = std::upper_bound(m_syms.begin(), m_syms.end(), addr,
-                               [](hwaddr a, const Sym& s) { return a < s.addr; });
-    if (it == m_syms.begin()) return -1;
-    return (int) (it - m_syms.begin()) - 1;
-}
-
 void HotCodeView::rebuild()
 {
-    if (symbols_changed()) load_symbols();
+    m_index.update();
+    const auto& symbols = m_index.symbols();
     const uint32_t* counts = nullptr;
     const uint64_t total = fz_profile_histogram(&counts);
     m_last_total = total;
@@ -240,24 +193,24 @@ void HotCodeView::rebuild()
     if (!m_list->addresses) {
         /* Aggregate by function (or 256-byte bucket before the first symbol
          * and when no symbols are loaded) */
-        std::vector<uint64_t> per(m_syms.size() + 256, 0);
+        std::vector<uint64_t> per(symbols.size() + 256, 0);
         for (unsigned pc = 0; pc < FZ_PROFILE_SLOTS; pc++) {
             if (counts[pc] == 0) continue;
-            const int si = symbol_index(pc);
+            const int si = m_index.preceding(pc);
             if (si >= 0) per[(size_t) si] += counts[pc];
-            else per[m_syms.size() + (pc >> 8)] += counts[pc];
+            else per[symbols.size() + (pc >> 8)] += counts[pc];
         }
         for (size_t i = 0; i < per.size(); i++) {
             if (per[i] == 0) continue;
             HotRow r;
             r.samples = per[i];
-            if (i < m_syms.size()) {
-                r.addr = m_syms[i].addr;
-                r.end = i + 1 < m_syms.size() ? m_syms[i + 1].addr - 1 : 0xFFFF;
-                r.name = m_syms[i].name;
+            if (i < symbols.size()) {
+                r.addr = symbols[i].addr;
+                r.end = i + 1 < symbols.size() ? symbols[i + 1].addr - 1 : 0xFFFF;
+                r.name = symbols[i].name;
                 r.symbol = true;
             } else {
-                r.addr = (hwaddr) ((i - m_syms.size()) << 8);
+                r.addr = (hwaddr) ((i - symbols.size()) << 8);
                 r.end = r.addr + 0xFF;
                 hex16(a, sizeof(a), r.addr);
                 hex16(b, sizeof(b), r.end);
@@ -285,15 +238,15 @@ void HotCodeView::rebuild()
         if (rows.size() > (size_t) TOP_ADDRESSES) rows.resize(TOP_ADDRESSES);
         /* Label only the rows kept: symbol+offset */
         for (HotRow& r : rows) {
-            const int si = symbol_index(r.addr);
+            const int si = m_index.preceding(r.addr);
             if (si < 0) continue;
-            const hwaddr off = r.addr - m_syms[(size_t) si].addr;
+            const hwaddr off = r.addr - symbols[(size_t) si].addr;
             if (off == 0) {
-                snprintf(name, sizeof(name), "%s", m_syms[(size_t) si].name);
+                snprintf(name, sizeof(name), "%s", symbols[(size_t) si].name.c_str());
             } else {
                 if (off < 0x100) hex8(a, sizeof(a), off);
                 else hex16(a, sizeof(a), off);
-                snprintf(name, sizeof(name), "%s+$%s", m_syms[(size_t) si].name, a);
+                snprintf(name, sizeof(name), "%s+$%s", symbols[(size_t) si].name.c_str(), a);
             }
             r.name = name;
             r.symbol = true;

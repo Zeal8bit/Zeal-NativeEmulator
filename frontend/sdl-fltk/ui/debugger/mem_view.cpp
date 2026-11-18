@@ -105,13 +105,14 @@ bool MemView::snapshots(const uint8_t** prev, const uint8_t** cur) const
     return true;
 }
 
-void MemView::write(unsigned addr, const std::vector<uint8_t>& data)
+bool MemView::write(unsigned addr, const std::vector<uint8_t>& data)
 {
-    if (!dbg_ready() || data.empty() || addr + data.size() > 0x10000) return;
+    if (!dbg_ready() || data.empty() || addr >= 0x10000 || data.size() > 0x10000 - addr) return false;
     std::vector<uint8_t> copy(data);
     debugger_write_memory(fz_debugger(), (hwaddr) addr, (int) copy.size(), copy.data());
-    memcpy(&m_snapshot[addr], copy.data(), copy.size());
+    debugger_read_memory(fz_debugger(), addr, (int) copy.size(), &m_snapshot[addr]);
     request_refresh();
+    return std::equal(copy.begin(), copy.end(), m_snapshot.begin() + addr);
 }
 
 void MemView::scroll_to_row(int row)
@@ -436,7 +437,7 @@ void MemView::context_menu()
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
     if (picked == nullptr) return;
     const memtools::Writer writer = [this](unsigned addr, const std::vector<uint8_t>& data) {
-        write(addr, data);
+        return write(addr, data);
     };
     char text[8];
     switch ((int) (picked - items)) {

@@ -55,9 +55,12 @@ typedef enum {
 typedef struct {
     uint64_t cycle;         /* CPU T-state counter (since reset) */
     uint16_t pc;            /* instruction address; events: interrupted PC */
-    uint16_t target;        /* events: handler address; instructions: 0 */
+    union {
+        uint16_t target;            /* events: handler address */
+        uint16_t skipped_prefixes;  /* instructions: ignored DD/FD bytes before bytes[] */
+    };
     uint16_t af, bc, de, hl, ix, iy, sp;
-    uint8_t  bytes[4];      /* opcode bytes at pc (an instruction is <= 4 bytes) */
+    uint8_t  bytes[4];      /* opcode bytes at pc + skipped_prefixes */
     uint8_t  kind;          /* zeal_trace_kind_t */
     uint8_t  page;          /* MMU page register of pc's 16K bank */
 } zeal_trace_entry_t;

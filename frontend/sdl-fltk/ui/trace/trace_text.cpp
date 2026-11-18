@@ -60,7 +60,12 @@ void bytes_text(char* out, size_t size, const zeal_trace_entry_t& e, int length)
     if (length < 1 || length > 4) length = 4;
     size_t used = 0;
     out[0] = 0;
-    for (int i = 0; i < length && used + 4 < size; i++) {
+    if (e.skipped_prefixes && size > 3) {
+        memcpy(out, ".. ", 3);
+        used = 3;
+        out[used] = 0;
+    }
+    for (int i = 0; i < length && used + 3 < size; i++) {
         char b[4];
         hex8(b, sizeof(b), e.bytes[i]);
         used += (size_t) snprintf(out + used, size - used, i ? " %s" : "%s", b);

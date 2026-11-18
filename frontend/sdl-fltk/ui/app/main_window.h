@@ -36,6 +36,8 @@ public:
     void scale_screen(float step);
     void set_screen_scale(float scale);
     void toggle_fullscreen();
+    /** Force 4:3 was turned on: give the picture area that shape now. */
+    void apply_aspect();
     void update_menus();
     /** Rebuild the SNES menu if gamepads or ports changed. */
     void poll_menus();
@@ -47,6 +49,11 @@ public:
     void reset_layout();
     int handle(int event) override;
     void resize(int x, int y, int w, int h) override;
+    /** Normal layout, windowed, with Force 4:3 on. */
+    bool aspect_locked() const;
+    /** Minimum window size for the current layout. */
+    void apply_size_range();
+    void layout_status();
     Fl_Menu_Bar* menubar() const { return m_menubar; }
     bool show_fps = false;
 

@@ -15,7 +15,7 @@
 namespace zui::memtools {
 
 /** Write bytes to memory through the memory view (keeps its snapshot). */
-using Writer = std::function<void(unsigned addr, const std::vector<uint8_t>& data)>;
+using Writer = std::function<bool(unsigned addr, const std::vector<uint8_t>& data)>;
 
 /** Fill dialog: start/end prefilled, value byte or pattern; writes on OK. */
 void fill_dialog(unsigned start, unsigned end, const Writer& write);

@@ -131,6 +131,12 @@ bool snes_controller_available(uint8_t index)
     return index < SNES_GAMEPAD_COUNT && s_slots[index] != NULL && SDL_GamepadConnected(s_slots[index]);
 }
 
+uint32_t snes_controller_id(uint8_t index)
+{
+    if (!snes_controller_available(index)) return 0;
+    return (uint32_t) SDL_GetGamepadID(s_slots[index]);
+}
+
 const char* snes_controller_name(uint8_t index)
 {
     if (index >= SNES_GAMEPAD_COUNT || s_slots[index] == NULL) return NULL;

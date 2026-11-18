@@ -12,6 +12,7 @@
 #include <vector>
 #include <FL/Fl.H>
 #include <FL/filename.H>
+#include <FL/fl_utf8.h>
 #include "common/machine.h"
 #include "common/persist.h"
 #include "debugger/machine_state.h"
@@ -36,7 +37,6 @@ bool s_restored;
  * configuration is saved */
 bool s_captured;
 std::vector<std::string> s_breakpoints, s_maps;
-
 std::string key_of(const char* list, int index)
 {
     char key[40];
@@ -99,6 +99,17 @@ std::vector<std::string> current_maps()
     return out;
 }
 
+/* Older writers padded short paths with leading spaces. Prefer the
+ * literal filename, falling back only if the trimmed file exists. */
+bool load_saved_map(const std::string& saved)
+{
+    const char* path = saved.c_str();
+    const size_t skip = saved.find_first_not_of(' ');
+    if (saved.size() == 6 && skip != std::string::npos && skip > 0 &&
+        fl_access(path, 0) != 0 && fl_access(path + skip, 0) == 0) path += skip;
+    return fz_map_restore(path);
+}
+
 void save(rini_config* ini)
 {
     if (s_captured) {
@@ -121,17 +132,15 @@ void restore()
     dbg_t* dbg = fz_debugger();
     /* Maps first: watch breaks and other saved state may name their
      * symbols. Keep any -m map, add the project's others. */
+    int missing = 0;
+    std::string first_missing;
     for (const std::string& path : saved_list("MAP_FILE")) {
-        char full[FL_PATH_MAX];
-        fl_filename_absolute(full, sizeof(full), path.c_str());
-        bool loaded = false;
-        for (int i = 0; i < fz_map_count(); i++) {
-            char other[FL_PATH_MAX];
-            fl_filename_absolute(other, sizeof(other), fz_map_path(i));
-            loaded = loaded || strcmp(full, other) == 0;
+        if (!load_saved_map(path)) {
+            if (missing++ == 0) first_missing = path;
         }
-        if (!loaded) fz_map_open(full, true);
     }
+    if (missing == 1) notif_show("Map file not loaded: %s (use Reload)", first_missing.c_str());
+    else if (missing) notif_show("%d map files not loaded (use Reload)", missing);
     for (const std::string& item : saved_list("BREAKPOINT")) {
         const hwaddr addr = (hwaddr) strtoul(item.c_str(), nullptr, 16) & 0xFFFF;
         debugger_set_breakpoint(dbg, addr);

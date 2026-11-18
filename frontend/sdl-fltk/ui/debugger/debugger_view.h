@@ -68,6 +68,7 @@ public:
     void open_map(bool append) override;
     void reload_maps() override;
     void machine_bound() override;
+    void min_body_size(int& w, int& h) const override;
 
 private:
     /** Memory panel collapsed to its title: the screen takes the column. */

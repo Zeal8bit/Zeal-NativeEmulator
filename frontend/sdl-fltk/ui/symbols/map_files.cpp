@@ -66,7 +66,7 @@ bool map_open_dialog(bool append)
 void map_reload()
 {
     const int files = fz_map_count();
-    if (files == 0) return;
+    if (!files) return;
     const int ok = fz_map_reload();
     if (ok == files) notif_show("Reloaded %d symbols", fz_symbol_count());
     else notif_show("Reloaded %d of %d map files", ok, files);

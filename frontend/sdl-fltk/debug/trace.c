@@ -50,7 +50,7 @@ int fz_trace_disassemble(const zeal_trace_entry_t* entry, dbg_instr_t* instr)
     if (fltk_machine == NULL || entry == NULL || instr == NULL) return -1;
     memset(instr, 0, sizeof(*instr));
     dbg_t* dbg = &fltk_machine->dbg;
-    const int size = zeal_debugger_disassemble_bytes(dbg, entry->pc, entry->bytes, instr);
+    const int size = zeal_debugger_disassemble_bytes(dbg, (uint16_t) (entry->pc + entry->skipped_prefixes), entry->bytes, instr);
     const char* label = debugger_get_symbol(dbg, entry->pc);
     if (label) {
         strncpy(instr->label, label, sizeof(instr->label) - 1);

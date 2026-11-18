@@ -56,7 +56,10 @@ void snes_mouse_init(snes_mouse_t* mouse)
 void snes_mouse_detach(snes_mouse_t* mouse)
 {
     mouse->attached = false;
+    /* Nothing held or pending carries over to a later reattachment */
     mouse->capture_button_down = false;
+    mouse->button_left = mouse->button_right = false;
+    mouse->delta_x = mouse->delta_y = 0.0f;
     if (mouse->captured) snes_mouse_release(mouse);
 }
 
@@ -151,6 +154,17 @@ void fz_mouse_wheel(float steps)
 void fz_mouse_capture_toggle(void)
 {
     snes_mouse_toggle_capture(&frontend_snes.mouse);
+}
+
+void fz_mouse_release_all(void)
+{
+    snes_mouse_t* mouse = &frontend_snes.mouse;
+    /* Focus left the screen or the application: give the host pointer
+     * back and let go of the guest buttons */
+    mouse->button_left = mouse->button_right = false;
+    mouse->capture_button_down = false;
+    mouse->delta_x = mouse->delta_y = 0.0f;
+    if (mouse->captured) snes_mouse_release(mouse);
 }
 
 bool fz_mouse_captured(void)

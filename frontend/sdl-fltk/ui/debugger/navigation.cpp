@@ -22,6 +22,18 @@ void request_refresh()
     if (app::MainWindow* window = app::main_window()) window->update_status();
 }
 
+void run_to_address(hwaddr addr)
+{
+    dbg_t* dbg = fz_debugger();
+    if (!dbg || !fz_paused()) return;
+    if (!debugger_is_breakpoint_set(dbg, addr) && !debugger_set_temporary_breakpoint(dbg, addr)) {
+        notif_show("Breakpoint table is full");
+        return;
+    }
+    debugger_continue(dbg);
+    request_refresh();
+}
+
 void goto_memory(hwaddr addr)
 {
     if (DebuggerView* debugger = DebuggerView::instance()) debugger->memory()->go(addr);

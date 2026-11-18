@@ -51,7 +51,7 @@ public:
     bool snapshots(const uint8_t** prev, const uint8_t** cur) const;
 
     /** Write through the debugger; edits do not count as "changed". */
-    void write(unsigned addr, const std::vector<uint8_t>& data);
+    bool write(unsigned addr, const std::vector<uint8_t>& data);
     void scroll_to_row(int row);
     int visible_rows() const;
     void sync_bar();

@@ -307,7 +307,10 @@ int ScreenView::handle(int event)
         case FL_FOCUS:
             return 1;
         case FL_UNFOCUS:
+            /* Keyboard focus went to another widget, dialog or application:
+             * nothing stays held, and a captured pointer is given back */
             fz_keys_release_all();
+            fz_mouse_release_all();
             return 1;
         case FL_ENTER:
             m_last_x = Fl::event_x();

@@ -23,6 +23,7 @@ public:
 private:
     static void cb_add(Fl_Widget*, void* data);
 
+    Fl_Scrollbar* m_bar;
     BreakpointList* m_list;
     Fl_Input* m_input;
     Fl_Button* m_add;

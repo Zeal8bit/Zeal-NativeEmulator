@@ -88,7 +88,9 @@ void WatchPanel::resize(int X, int Y, int W, int H)
     Fl_Widget::resize(X, Y, W, H);
     const int iy = Y + H - BAR_H + 4;
     m_list->resize(X, Y + header_h(), W, H - header_h() - BAR_H);
-    m_input->resize(X + 6, iy, W - 6 - 72 - 50 - 4, BAR_H - 8);
+    /* Never negative in a very narrow column: the input shrinks to nothing */
+    const int input_w = W - 6 - 72 - 50 - 4;
+    m_input->resize(X + 6, iy, input_w > 0 ? input_w : 0, BAR_H - 8);
     m_type->resize(X + W - 50 - 72, iy, 68, BAR_H - 8);
     m_add->resize(X + W - 50, iy, 44, BAR_H - 8);
 }

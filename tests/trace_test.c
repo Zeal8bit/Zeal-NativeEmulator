@@ -137,16 +137,16 @@ static int run_checks(void)
     /* Entries in order, newest first: call $0300 at $0200, call $0200, ei, im 1, ld sp, out, ld a, jp */
     {
         static const uint16_t pcs[] = { 0x0200, 0x010A, 0x0109, 0x0107, 0x0104, 0x0102, 0x0100, 0x0000 };
-        for (unsigned i = 0; i < sizeof(pcs) / sizeof(pcs[0]); i++) {
+        for (unsigned i = 0; i < CONFIG_TRACE_DEPTH && i < sizeof(pcs) / sizeof(pcs[0]); i++) {
             const zeal_trace_entry_t e = entry(i);
             CHECK(e.kind == ZEAL_TRACE_INSTR);
             CHECK(e.pc == pcs[i]);
             if (i > 0) CHECK(e.cycle < entry(i - 1).cycle);
         }
-        CHECK(entry(8).kind == ZEAL_TRACE_RESET);
-        const zeal_trace_entry_t call = entry(1);
-        CHECK(call.bytes[0] == 0xCD && call.bytes[1] == 0x00 && call.bytes[2] == 0x02);
-        CHECK(call.sp == 0x0000);           /* registers before execution */
+        if (CONFIG_TRACE_DEPTH > 8) CHECK(entry(8).kind == ZEAL_TRACE_RESET);
+        const zeal_trace_entry_t call = entry(0);
+        CHECK(call.bytes[0] == 0xCD && call.bytes[1] == 0x00 && call.bytes[2] == 0x03);
+        CHECK(call.sp == 0xFFFE);           /* registers before execution */
         CHECK((call.af >> 8) == 0x23);
     }
 
@@ -159,7 +159,7 @@ static int run_checks(void)
     CHECK(entry(0).kind == ZEAL_TRACE_IM1);
     CHECK(entry(0).pc == 0x0301);
     CHECK(entry(0).target == 0x0038);
-    CHECK(entry(1).kind == ZEAL_TRACE_INSTR && entry(1).pc == 0x0300);
+    if (CONFIG_TRACE_DEPTH > 1) CHECK(entry(1).kind == ZEAL_TRACE_INSTR && entry(1).pc == 0x0300);
     step(); /* ei */
     step(); /* reti */
     CHECK(s_machine.cpu.pc == 0x0301);
@@ -229,7 +229,8 @@ static int run_checks(void)
     CHECK(zeal_trace_serial(&s_machine) == serial);
     /* ... and resuming says so */
     step();
-    CHECK(entry(1).kind == ZEAL_TRACE_GAP);
+    CHECK(zeal_trace_serial(&s_machine) == serial + 2);
+    if (CONFIG_TRACE_DEPTH > 1) CHECK(entry(1).kind == ZEAL_TRACE_GAP);
     CHECK(entry(0).kind == ZEAL_TRACE_INSTR);
     CHECK(zeal_callstack_truncated(&s_machine));
 
@@ -247,6 +248,65 @@ static int run_checks(void)
     CHECK(zeal_trace_count(&s_machine) == 1);
     CHECK(entry(0).kind == ZEAL_TRACE_RESET);
     CHECK(stack(f) == 0);
+
+    /* Redundant index prefixes still advance the pushed return PC. */
+    const uint8_t prefixed_call[] = { 0xDD, 0xFD, 0xDD, 0xCD, 0x00, 0x05 };
+    const uint8_t prefixed_ret[] = { 0xFD, 0xC9 };
+    poke(0x400, prefixed_call, sizeof(prefixed_call));
+    poke(0x500, prefixed_ret, sizeof(prefixed_ret));
+    s_machine.cpu.pc = 0x400;
+    step();
+    CHECK(stack(f) == 1);
+    check_frame(&f[0], ZEAL_FRAME_CALL, 0x400, 0x406, 0x500, s_machine.cpu.sp);
+    CHECK(entry(0).skipped_prefixes == 3 && entry(0).bytes[0] == 0xCD);
+    step();
+    CHECK(stack(f) == 0 && s_machine.cpu.pc == 0x406);
+
+    /* The last effective index prefix stays with indexed instructions,
+     * including the CB displacement. A discarded prefix on a conditional
+     * call/return must not create a frame when the condition is false. */
+    const uint8_t indexed[] = {
+        0xDD, 0xFD, 0x21, 0x00, 0xD0,  /* LD IY,$D000 */
+        0xDD, 0xFD, 0xCB, 0x01, 0x46,  /* BIT 0,(IY+1) */
+        0xFD, 0xDD, 0x31, 0x00, 0xEF,  /* LD SP,$EF00 */
+        0xDD, 0xF9,                    /* LD SP,IX */
+        0xFD, 0xC4, 0x00, 0x05,        /* CALL NZ,$0500 */
+    };
+    poke(0x600, indexed, sizeof(indexed));
+    s_machine.cpu.pc = 0x600;
+    step();
+    CHECK(s_machine.cpu.iy == 0xD000 && entry(0).skipped_prefixes == 1 && entry(0).bytes[0] == 0xFD);
+    step();
+    CHECK(entry(0).skipped_prefixes == 1 && entry(0).bytes[1] == 0xCB && entry(0).bytes[3] == 0x46);
+    step();
+    CHECK(s_machine.cpu.sp == 0xEF00 && entry(0).skipped_prefixes == 2);
+    s_machine.cpu.ix = 0xEFFE;
+    step();
+    CHECK(s_machine.cpu.sp == 0xEFFE && entry(0).skipped_prefixes == 0);
+    const uint16_t call_pc = s_machine.cpu.pc;
+    s_machine.cpu.zf = 1;
+    step();
+    CHECK(s_machine.cpu.pc == call_pc + 4 && stack(f) == 0);
+    s_machine.cpu.pc = call_pc;
+    s_machine.cpu.zf = 0;
+    step();
+    CHECK(stack(f) == 1 && f[0].ret == call_pc + 4);
+    const uint8_t ret_z[] = { 0xFD, 0xC8 }; /* RET Z */
+    poke(0x500, ret_z, sizeof(ret_z));
+    step();
+    CHECK(stack(f) == 1 && s_machine.cpu.pc == 0x502);
+    s_machine.cpu.pc = 0x500;
+    s_machine.cpu.zf = 1;
+    step();
+    CHECK(stack(f) == 0 && s_machine.cpu.pc == call_pc + 4);
+
+    mmu_io_write_byte(&s_machine.cpu.mmu, 0xf3, 0x23);
+    s_machine.cpu.pc = 0xC000;
+    mmu_virt_write_byte(&s_machine.cpu.mmu, 0xC000, 0);
+    z80_gen_nmi(&s_machine.cpu);
+    step();
+    CHECK(entry(0).kind == ZEAL_TRACE_NMI && entry(0).pc == 0xC001);
+    CHECK(entry(0).target == 0x0066 && entry(0).page == 0x23);
 
     zeal_deinit(&s_machine);
     if (s_failures == 0) printf("trace: all checks passed (depth %u)\n", zeal_trace_capacity());

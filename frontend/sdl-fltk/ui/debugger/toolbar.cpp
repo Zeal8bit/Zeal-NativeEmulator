@@ -106,9 +106,7 @@ void Toolbar::cb_run_to(Fl_Widget*, void*)
         notif_show("Select a line in the disassembly first");
         return;
     }
-    debugger_set_temporary_breakpoint(fz_debugger(), (hwaddr) addr);
-    debugger_continue(fz_debugger());
-    request_refresh();
+    run_to_address((hwaddr) addr);
 }
 
 } // namespace zui::debugger

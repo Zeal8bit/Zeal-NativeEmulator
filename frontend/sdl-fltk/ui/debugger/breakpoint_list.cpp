@@ -5,6 +5,7 @@
  */
 
 #include "debugger/breakpoint_list.h"
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 #include <FL/Fl.H>
@@ -22,9 +23,47 @@ namespace zui::debugger {
 using namespace zui::common;
 using namespace zui::theme;
 
-BreakpointList::BreakpointList(int X, int Y, int W, int H)
-    : Fl_Widget(X, Y, W, H)
-{}
+BreakpointList::BreakpointList(int X, int Y, int W, int H, Fl_Scrollbar* bar)
+    : Fl_Widget(X, Y, W, H), m_bar(bar)
+{
+    m_bar->callback([](Fl_Widget* w, void* data) {
+        static_cast<BreakpointList*>(data)->scroll_to(((Fl_Scrollbar*) w)->value());
+    }, this);
+}
+
+int BreakpointList::visible_rows() const
+{
+    return std::max(1, (h() - 2) / data_line_height());
+}
+
+void BreakpointList::sync_bar()
+{
+    const int rows = visible_rows();
+    m_top = std::clamp(m_top, 0, std::max(0, (int) addrs.size() - rows));
+    m_selection = std::min(m_selection, (int) addrs.size() - 1);
+    m_bar->value(m_top, rows, 0, std::max(rows, (int) addrs.size()));
+}
+
+void BreakpointList::scroll_to(int top)
+{
+    m_top = top;
+    m_hover = -1;
+    sync_bar();
+    redraw();
+}
+
+void BreakpointList::select_row(int row)
+{
+    if (addrs.empty()) return;
+    m_selection = std::clamp(row, 0, (int) addrs.size() - 1);
+    scroll_to(std::clamp(m_top, m_selection - visible_rows() + 1, m_selection));
+}
+
+void BreakpointList::reveal(hwaddr address)
+{
+    auto it = std::find(addrs.begin(), addrs.end(), address);
+    if (it != addrs.end()) select_row((int) (it - addrs.begin()));
+}
 
 void BreakpointList::draw()
 {
@@ -42,10 +81,10 @@ void BreakpointList::draw()
     }
     fl_font(DATA_FONT, DATA_SIZE);
     char text[8];
-    for (size_t i = 0; i < addrs.size(); i++) {
-        const int ry = y() + 2 + (int) i * lh;
+    for (int i = m_top; i < (int) addrs.size() && i <= m_top + visible_rows(); i++) {
+        const int ry = y() + 2 + (i - m_top) * lh;
         const bool enabled = debugger_is_breakpoint_enabled(fz_debugger(), addrs[i]);
-        if ((int) i == m_hover) {
+        if (i == m_hover || (Fl::focus() == this && i == m_selection)) {
             fl_color(COLOR_HOVER);
             fl_rectf(x(), ry, w(), lh);
             fl_color(COLOR_BREAK);
@@ -88,6 +127,34 @@ int BreakpointList::handle(int event)
             return 1;
         }
         case FL_MOUSEWHEEL:
+            scroll_to(m_top + Fl::event_dy() * 3);
+            return 1;
+        case FL_FOCUS:
+            if (m_selection < 0) select_row(m_top);
+            redraw();
+            return 1;
+        case FL_UNFOCUS:
+            redraw();
+            return 1;
+        case FL_KEYDOWN:
+            switch (Fl::event_key()) {
+                case FL_Up: select_row(m_selection - 1); return 1;
+                case FL_Down: select_row(m_selection + 1); return 1;
+                case FL_Page_Up: select_row(m_selection - visible_rows()); return 1;
+                case FL_Page_Down: select_row(m_selection + visible_rows()); return 1;
+                case FL_Home: select_row(0); return 1;
+                case FL_End: select_row((int) addrs.size() - 1); return 1;
+            }
+            if (m_selection < 0 || m_selection >= (int) addrs.size()) break;
+            if (Fl::event_key() == ' ') {
+                hwaddr addr = addrs[m_selection];
+                debugger_enable_breakpoint(fz_debugger(), addr, !debugger_is_breakpoint_enabled(fz_debugger(), addr));
+            } else if (Fl::event_key() == FL_Delete) {
+                debugger_clear_breakpoint(fz_debugger(), addrs[m_selection]);
+            } else {
+                break;
+            }
+            request_refresh();
             return 1;
         case FL_PUSH: {
             const int r = row_at(Fl::event_y());
@@ -96,6 +163,8 @@ int BreakpointList::handle(int event)
                 return 1;
             }
             if (r < 0) return 1;
+            take_focus();
+            select_row(r);
             dbg_t* dbg = fz_debugger();
             if (Fl::event_x() < x() + 24) {
                 debugger_enable_breakpoint(dbg, addrs[r], !debugger_is_breakpoint_enabled(dbg, addrs[r]));
@@ -116,7 +185,7 @@ int BreakpointList::handle(int event)
 
 int BreakpointList::row_at(int ey) const
 {
-    const int r = (ey - y() - 2) / data_line_height();
+    const int r = m_top + (ey - y() - 2) / data_line_height();
     return ey >= y() + 2 && r < (int) addrs.size() ? r : -1;
 }
 

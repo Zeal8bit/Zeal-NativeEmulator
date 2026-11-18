@@ -42,6 +42,9 @@ void        snes_controller_load_mappings(void);
 void        snes_controller_poll(void);
 void        snes_controller_shutdown(void);
 bool        snes_controller_available(uint8_t index);
+/* Identity of the device in slot `index` (SDL joystick instance id), 0 when
+ * none: a different value means a different device, even in the same slot */
+uint32_t    snes_controller_id(uint8_t index);
 const char* snes_controller_name(uint8_t index);
 uint16_t    snes_controller_latch(snes_controller_t* ctrl);
 /** Live button state (active low, 0xFFFF when unavailable), no side effects. */

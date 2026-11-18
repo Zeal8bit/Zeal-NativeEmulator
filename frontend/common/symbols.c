@@ -68,7 +68,7 @@ static uint8_t section_kind(const char* section)
     return SYM_KIND_UNKNOWN;
 }
 
-bool debugger_load_symbols(dbg_t* dbg, const char* filename)
+bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
 {
     if (!dbg || !filename) {
         log_perror("[MAP] No debugger or filename");
@@ -83,18 +83,10 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename)
 
     unsigned int total = 0;
 
-    /* Append after any symbols already loaded (several map files) */
-    symbols_t* current = &dbg->symbols;
-    while (current->next) current = current->next;
-    if (current->count >= DBG_SYM_COUNT) {
-        current->next = (symbols_t*) calloc(1, sizeof(symbols_t));
-        if (!current->next) {
-            fclose(file);
-            log_perror("[MAP] Memory allocation failed");
-            return false;
-        }
-        current = current->next;
-    }
+    /* Parse in isolation so a failed read or allocation leaves live symbols intact. */
+    symbols_t* first = calloc(1, sizeof(*first));
+    symbols_t* current = first;
+    if (!first) goto failed;
 
     char line[MAX_LINE_LENGTH];
     char name[MAX_LINE_LENGTH];
@@ -151,29 +143,47 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename)
             }
         }
         if (found) {
-            /* Store the symbol */
+            if (current->count == DBG_SYM_COUNT) {
+                current->next = calloc(1, sizeof(*current));
+                if (!current->next) goto failed;
+                current = current->next;
+            }
             symbol_t* sym = &current->array[current->count];
             sym->name = strdup(name);
-            sym->addr = (hwaddr)address;
+            if (!sym->name) goto failed;
+            sym->addr = (hwaddr) address;
             sym->kind = kind;
             sym->local = local;
             current->count++;
             total++;
-
-            /* If the current array is full, allocate a new symbols_t block */
-            if (current->count >= DBG_SYM_COUNT) {
-                current->next = (symbols_t*) calloc(1, sizeof(symbols_t));
-                if (!current->next) {
-                    fclose(file);
-                    log_perror("[MAP] Memory allocation failed");
-                    return false;  // Memory allocation failed
-                }
-                current = current->next;
-            }
         }
     }
-
+    if (ferror(file)) goto failed;
     fclose(file);
+
+    if (!append) debugger_clear_symbols(dbg);
+    if (dbg->symbols.count == 0) {
+        dbg->symbols = *first;
+        free(first);
+    } else if (total) {
+        symbols_t* tail = &dbg->symbols;
+        while (tail->next) tail = tail->next;
+        tail->next = first;
+    } else {
+        free(first);
+    }
+    dbg->symbol_generation++;
     log_printf("[MAP] %s loaded successfully (%u symbols)\n", filename, total);
     return true;
+
+failed:
+    log_perror("[MAP] Could not load symbols");
+    fclose(file);
+    while (first) {
+        symbols_t* next = first->next;
+        for (unsigned i = 0; i < first->count; i++) free((void*) first->array[i].name);
+        free(first);
+        first = next;
+    }
+    return false;
 }

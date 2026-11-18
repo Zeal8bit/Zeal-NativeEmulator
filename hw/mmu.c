@@ -140,9 +140,9 @@ void mmu_virt_read_array(const mmu_t* mmu, uint16_t virt_addr, uint8_t* buf, uin
 }
 
 
-void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint16_t len)
+void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint32_t len)
 {
-    for (uint16_t i = 0; i < len; i++) {
+    for (uint32_t i = 0; i < len; i++) {
         mmu_virt_write_byte(mmu, virt_addr + i, buf[i]);
     }
 }

@@ -72,11 +72,7 @@ void PanelStack::toggle_collapse(Panel* panel)
         if (m_items[i].panel != panel) continue;
         if (m_maximized >= 0) {
             /* Leaving the maximised view: the clicked panel opens */
-            m_maximized = -1;
-            for (const Item& it : m_items) {
-                it.panel->maximized(false);
-                it.panel->set_stack_hidden(false);
-            }
+            clear_maximize();
             panel->set_collapsed(false);
         } else {
             panel->set_collapsed(!panel->collapsed());
@@ -84,6 +80,15 @@ void PanelStack::toggle_collapse(Panel* panel)
     }
     layout();
     if (on_change) on_change();
+}
+
+void PanelStack::clear_maximize()
+{
+    m_maximized = -1;
+    for (const Item& it : m_items) {
+        it.panel->maximized(false);
+        it.panel->set_stack_hidden(false);
+    }
 }
 
 void PanelStack::toggle_maximize(Panel* panel)

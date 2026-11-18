@@ -31,4 +31,5 @@ typedef struct {
  * (relative jumps and labels are resolved from it). Returns its size.
  * Used for instructions recorded by the execution trace.
  */
+bool zeal_debugger_uses_index(uint8_t opcode);
 int zeal_debugger_disassemble_bytes(dbg_t *dbg, hwaddr address, const uint8_t bytes[4], dbg_instr_t* instr);

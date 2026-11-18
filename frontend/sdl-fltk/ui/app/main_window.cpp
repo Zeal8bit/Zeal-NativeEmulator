@@ -8,7 +8,9 @@
  * status bar, window geometry and screen scaling. */
 
 #include "app/main_window.h"
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <initializer_list>
 #include <FL/Fl_Sys_Menu_Bar.H>
@@ -151,7 +153,7 @@ MainWindow::MainWindow(bool debug)
     end();
 
     resizable(m_dock);
-    size_range(320, 240 + chrome_height());
+    apply_size_range();
     m_menus = new AppMenus(m_menubar, this);
 
     m_debug = !debug; /* force the initial layout */
@@ -180,18 +182,76 @@ void MainWindow::layout_chrome()
     }
     m_dock->resize(0, m_menubar_h + tb, w(), h() - m_menubar_h - tb - STATUS_H);
     m_statusbar->resize(0, h() - STATUS_H, w(), STATUS_H);
+    layout_status();
     init_sizes();
     redraw();
 }
 
+void MainWindow::apply_size_range()
+{
+    int min_w = 320;
+    int min_h = 240;
+    if (m_debug && m_debugger) {
+        /* The debugger panels need more room; never more than the screen */
+        m_debugger->min_body_size(min_w, min_h);
+        int sx, sy, sw, sh;
+        Fl::screen_work_area(sx, sy, sw, sh, shown() ? screen_num() : 0);
+        if (min_w > sw) min_w = sw;
+        if (min_h + chrome_height() > sh) min_h = sh - chrome_height();
+    }
+    size_range(min_w, min_h + chrome_height());
+    if (w() < min_w || h() < min_h + chrome_height()) {
+        resize(x(), y(), std::max(w(), min_w), std::max(h(), min_h + chrome_height()));
+    }
+}
+
+bool MainWindow::aspect_locked() const
+{
+    return !m_debug && config.window.aspect_force && !fullscreen_active();
+}
+
 void MainWindow::resize(int nx, int ny, int nw, int nh)
 {
+    /* Force 4:3: the picture area (window minus menu and status bars)
+     * follows the edge that changed most */
+    if (aspect_locked() && shown() && (nw != w() || nh != h())) {
+        const int chrome = chrome_height();
+        if (std::abs(nw - w()) >= std::abs(nh - h())) {
+            nh = nw * 3 / 4 + chrome;
+        } else {
+            nw = (nh - chrome) * 4 / 3;
+        }
+    }
     Fl_Double_Window::resize(nx, ny, nw, nh);
+    if (m_statusbar) layout_status();
+}
+
+void MainWindow::layout_status()
+{
+    /* State | message | info, the sides capped to a third each, so that no
+     * part gets a negative width in a narrow window */
+    const int y0 = m_statusbar->y();
+    const int avail = std::max(0, w() - 12);
+    const int state_w = std::min(200, avail / 3);
+    const int info_w = std::min(214, avail / 3);
+    const int msg_w = std::max(0, avail - state_w - info_w);
+    m_status_state->resize(6, y0, state_w, STATUS_H);
+    m_status_msg->resize(6 + state_w, y0, msg_w, STATUS_H);
+    m_status_info->resize(6 + state_w + msg_w, y0, info_w, STATUS_H);
+}
+
+void MainWindow::apply_aspect()
+{
+    if (!aspect_locked()) return;
+    Fl_Double_Window::resize(x(), y(), w(), w() * 3 / 4 + chrome_height());
 }
 
 int MainWindow::handle(int event)
 {
-    if (event == FL_UNFOCUS || event == FL_HIDE) fz_keys_release_all();
+    if (event == FL_UNFOCUS || event == FL_HIDE) {
+        fz_keys_release_all();
+        fz_mouse_release_all();
+    }
     return Fl_Double_Window::handle(event);
 }
 
@@ -205,6 +265,7 @@ void MainWindow::set_debug_layout(bool debug)
     label(debug ? FZ_WIN_NAME " - Debugger" : FZ_WIN_NAME);
     m_dock->docks_visible(debug);
     layout_chrome();
+    apply_size_range();
     apply_window_config(debug);
     update_menus();
     update_status();

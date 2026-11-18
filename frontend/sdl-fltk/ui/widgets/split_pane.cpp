@@ -78,7 +78,7 @@ void SplitPane::layout()
         m_a->resize(x(), y(), w(), h());
         return;
     }
-    const int total = extent() - GAP;
+    const int total = extent() > GAP ? extent() - GAP : 0;
     if (m_squeeze > 0) {
         const int size_b = m_squeeze < total ? m_squeeze : total;
         if (m_horizontal) {
@@ -93,8 +93,15 @@ void SplitPane::layout()
     int fixed = m_fixed;
     const int min_fixed = m_fixed_second ? m_min_b : m_min_a;
     const int min_other = m_fixed_second ? m_min_a : m_min_b;
-    if (fixed > total - min_other) fixed = total - min_other;
-    if (fixed < min_fixed) fixed = min_fixed;
+    if (min_fixed + min_other > total) {
+        /* Less room than both minimums: share it in their proportion, so
+         * neither side gets a negative size */
+        const int sum = min_fixed + min_other;
+        fixed = sum > 0 ? (int) ((long) total * min_fixed / sum) : total / 2;
+    } else {
+        if (fixed > total - min_other) fixed = total - min_other;
+        if (fixed < min_fixed) fixed = min_fixed;
+    }
     const int size_a = m_fixed_second ? total - fixed : fixed;
     const int size_b = total - size_a;
     if (m_horizontal) {

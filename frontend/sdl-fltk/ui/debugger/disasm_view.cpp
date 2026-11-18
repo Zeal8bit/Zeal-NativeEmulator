@@ -228,9 +228,8 @@ void DisasmView::context_menu(hwaddr addr)
     char text[8];
     switch ((int) (picked - items)) {
         case 0:
-            debugger_set_temporary_breakpoint(dbg, addr);
-            debugger_continue(dbg);
-            break;
+            run_to_address(addr);
+            return;
         case 1: {
             regs_t regs = exact_regs();
             regs.pc = (uint16_t) addr;

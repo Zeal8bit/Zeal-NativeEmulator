@@ -858,6 +858,9 @@ void z80_init(z80* const z)
     mmu_init(&z->mmu);
     vtimer_init(&z->clock);
 
+#if CONFIG_ENABLE_DEBUGGER
+    z->watch_map = NULL;
+#endif
     z80_reset(z);
 }
 
@@ -912,6 +915,13 @@ void z80_reset(z80* const z)
     z->int_pending    = 0;
     z->nmi_pending    = 0;
     z->int_data       = 0;
+    z->int_count      = 0;
+    z->int_kind       = 0;
+#if CONFIG_ENABLE_DEBUGGER
+    z->watch_hit_type = 0;
+    z->watch_hit_addr = 0;
+    z->watch_hit_value = 0;
+#endif
 }
 
 /* Get the size of the next instruction to execute, in bytes */

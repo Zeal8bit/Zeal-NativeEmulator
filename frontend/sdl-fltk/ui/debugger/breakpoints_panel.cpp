@@ -5,6 +5,7 @@
  */
 
 #include "debugger/breakpoints_panel.h"
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <string>
@@ -32,7 +33,8 @@ using namespace zui::widgets;
 BreakpointsPanel::BreakpointsPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "BREAKPOINTS")
 {
-    m_list = new BreakpointList(X, Y, 10, 10);
+    m_bar = new Fl_Scrollbar(X, Y, 14, 10);
+    m_list = new BreakpointList(X, Y, 10, 10, m_bar);
     m_input = new Fl_Input(X, Y, 10, 10);
     style_input(m_input);
     m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
@@ -62,6 +64,7 @@ void BreakpointsPanel::refresh(bool paused, bool force)
     if (off > 0) snprintf(text, sizeof(text), "%d  (%d OFF)", count, off);
     else snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
     extra(text);
+    m_list->sync_bar();
     m_list->redraw();
 }
 
@@ -69,9 +72,16 @@ void BreakpointsPanel::resize(int X, int Y, int W, int H)
 {
     Fl_Widget::resize(X, Y, W, H);
     const int iy = Y + H - BAR_H + 4;
-    m_list->resize(X, Y + header_h(), W, H - header_h() - BAR_H);
-    m_input->resize(X + 6, iy, W - 72, BAR_H - 8);
-    m_add->resize(X + W - 62, iy, 56, BAR_H - 8);
+    const int list_h = std::max(0, H - header_h() - BAR_H);
+    const int list_w = std::max(0, W - 14);
+    m_list->resize(X, Y + header_h(), list_w, list_h);
+    m_bar->resize(X + list_w, Y + header_h(), W - list_w, list_h);
+    m_list->sync_bar();
+    const int margin = std::min(6, W / 8);
+    const int button_w = std::min(56, W / 2);
+    const int button_x = X + W - margin - button_w;
+    m_input->resize(X + margin, iy, std::max(0, button_x - X - 2 * margin), BAR_H - 8);
+    m_add->resize(button_x, iy, button_w, BAR_H - 8);
 }
 
 void BreakpointsPanel::cb_add(Fl_Widget*, void* data)
@@ -80,13 +90,18 @@ void BreakpointsPanel::cb_add(Fl_Widget*, void* data)
     hwaddr addr;
     std::string name;
     if (dbg_ready() && lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_CODE, &name)) {
-        debugger_set_breakpoint(fz_debugger(), addr);
+        if (!debugger_set_breakpoint(fz_debugger(), addr) &&
+            !debugger_is_breakpoint_enabled(fz_debugger(), addr)) {
+            notif_show("Breakpoint table is full");
+            return;
+        }
         self->m_input->value("");
         char text[16];
         hex16(text, sizeof(text), addr);
         if (name.empty()) notif_show("Breakpoint at $%s", text);
         else notif_show("Breakpoint at %s ($%s)", name.c_str(), text);
         request_refresh();
+        self->m_list->reveal(addr);
     } else {
         fl_beep();
     }

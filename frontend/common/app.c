@@ -47,7 +47,7 @@ int frontend_init(zeal_t* machine, bool allow_debugger)
     machine->reset_hook = frontend_reset;
 #if CONFIG_ENABLE_DEBUGGER
     /* Load symbols if provided. */
-    if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file);
+    if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file, true);
     if (config.arguments.breakpoints) debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
 #endif
     frontend_bind_input(machine);

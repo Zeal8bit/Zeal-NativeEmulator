@@ -15,7 +15,7 @@ class Fl_Widget;
 namespace zui::debugger {
 
 /** Parse a hex address ("1234", "$1234", "0x1234") or an exact symbol. */
-bool parse_address(const char* text, hwaddr* out);
+bool parse_address(const char* text, hwaddr* out, std::string* picked = nullptr);
 
 /**
  * Resolve what the user typed in an address field: hex ($C000, 0xC000,

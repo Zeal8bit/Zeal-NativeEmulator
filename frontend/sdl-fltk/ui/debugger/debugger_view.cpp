@@ -19,6 +19,7 @@
 #include "debugger/machine_state.h"
 #include "debugger/memory_panel.h"
 #include "debugger/project_state.h"
+#include "frontend/sdl-fltk/bridge/symbols.h"
 #include "debugger/registers_view.h"
 #include "debugger/stack_view.h"
 #include "debugger/toolbar.h"
@@ -47,6 +48,11 @@ using namespace zui::widgets;
 namespace {
 
 DebuggerView* s_instance;
+
+/* Smallest sizes the split panes keep (see min_body_size) */
+constexpr int MIN_SCREEN_H = 120;
+constexpr int MIN_MEMORY_H = 140;
+constexpr int MIN_REST_W = 520;
 
 constexpr int DEFAULT_LEFT_W = FZ_SCREEN_WIDTH;
 constexpr int DEFAULT_SCREEN_H = FZ_SCREEN_HEIGHT;
@@ -123,9 +129,9 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
     m_memory->collapsible(true);
     m_memory->on_collapse = [this](Panel*) { set_memory_collapsed(!m_memory->collapsed()); };
 
-    m_left->set(screen, m_memory, DEFAULT_SCREEN_H, 120, 140);
+    m_left->set(screen, m_memory, DEFAULT_SCREEN_H, MIN_SCREEN_H, MIN_MEMORY_H);
     m_rest->set(m_disasm, m_side, DEFAULT_RIGHT_W, 260, 240);
-    m_root->set(m_left, m_rest, default_left_w(), MemoryPanel::preferred_width(), 520);
+    m_root->set(m_left, m_rest, default_left_w(), MemoryPanel::preferred_width(), MIN_REST_W);
 
     dock->set_root(m_root, [this](bool expanded) {
         m_root->collapse(!expanded);
@@ -140,6 +146,7 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
 DebuggerView::~DebuggerView()
 {
     project_state_capture();
+    fz_map_forget();
     video_window_destroy();
     tool_windows_destroy();
     s_instance = nullptr;
@@ -232,6 +239,13 @@ void DebuggerView::default_body_size(int& w, int& h) const
     h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H + SplitPane::GAP;
 }
 
+void DebuggerView::min_body_size(int& w, int& h) const
+{
+    /* The minimums given to the split panes in the constructor */
+    w = MemoryPanel::preferred_width() + MIN_REST_W + SplitPane::GAP;
+    h = MIN_SCREEN_H + MIN_MEMORY_H + SplitPane::GAP;
+}
+
 void DebuggerView::apply_layout()
 {
     const LayoutConfig c = g_layout; /* copy: the setters below capture into g_layout */
@@ -289,6 +303,7 @@ void DebuggerView::capture_panels()
 
 void DebuggerView::reset_layout()
 {
+    m_side->clear_maximize();
     g_layout = LayoutConfig();
     video_window_show(false);
     tool_windows_reset();
@@ -297,6 +312,7 @@ void DebuggerView::reset_layout()
 
 void DebuggerView::show_tool(app::ToolId tool, bool show)
 {
+    if (show && !fz_debugger_enabled()) fz_debugger_set_enabled(true);
     switch (tool) {
         case app::ToolId::Video:
             video_window_show(show);

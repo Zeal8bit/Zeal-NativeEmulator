@@ -14,6 +14,9 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "utils/config.h"
 #include "utils/version.h"
@@ -355,18 +358,9 @@ int parse_command_args(int argc, char* argv[])
  * looked up in the project first, so a project can also override a user
  * setting. Both point to the same file when -c and -P name the same path. */
 
-static bool same_file(const char* a, const char* b)
-{
-    char ra[PATH_MAX];
-    char rb[PATH_MAX];
-    if (a == NULL || b == NULL) return false;
-    if (realpath(a, ra) == NULL || realpath(b, rb) == NULL) return strcmp(a, b) == 0;
-    return strcmp(ra, rb) == 0;
-}
-
 static bool project_is_user(void)
 {
-    return same_file(config.arguments.project_path, config.arguments.config_path);
+    return path_same_file(config.arguments.project_path, config.arguments.config_path) != 0;
 }
 
 static const char* lookup_text(const char* key, const char* fallback)
@@ -426,7 +420,7 @@ void config_parse_file(const char* file) {
     }
 
     const char* project = config.arguments.project_path;
-    if (project != NULL && path_exists(project) && !same_file(project, file)) {
+    if (project != NULL && path_exists(project) && !path_same_file(project, file)) {
         log_printf("%s project %s\n", module, path_sanitize(project));
         config.project_ini = rini_load_config(project);
         project_truncated = loads_partially(project);
@@ -527,21 +521,17 @@ static void keep_project_keys(rini_config* ini, rini_config* project)
     }
 }
 
-/* Room in the files being written: everything that could be loaded
- * (RINI_MAX_VALUE_CAPACITY per file, both files when they are one) plus
- * headers and what the frontend adds, so an oversized result is counted
- * exactly and rejected by can_write() instead of being cut. */
-#define OUTPUT_CAPACITY (4 * RINI_MAX_VALUE_CAPACITY)
+/* Room in the files being written: what can be loaded back plus headroom
+ * for comment lines and anything beyond, so a file that would hold more
+ * values than the loader reads is seen (counted, or filling the output)
+ * and rejected by can_write() instead of being cut. */
+#define OUTPUT_CAPACITY (RINI_MAX_VALUE_CAPACITY + 128)
 
 static rini_config new_output(void)
 {
-    rini_config out = rini_load_config(NULL);
-    rini_config_value* values = realloc(out.values, OUTPUT_CAPACITY * sizeof(*values));
-    if (values != NULL) {
-        memset(values + out.capacity, 0, (OUTPUT_CAPACITY - out.capacity) * sizeof(*values));
-        out.values = values;
-        out.capacity = OUTPUT_CAPACITY;
-    }
+    rini_config out = { 0 };
+    out.values = calloc(OUTPUT_CAPACITY, sizeof(*out.values));
+    if (out.values != NULL) out.capacity = OUTPUT_CAPACITY;
     return out;
 }
 
@@ -567,6 +557,110 @@ static bool can_write(const rini_config* out, const char* path, bool truncated)
     return true;
 }
 
+/* A value that is a plain integer is written as is, anything else quoted
+ * without padding (rini's writer pads short strings inside the quotes) */
+static bool is_plain_int(const char* text)
+{
+    const char* p = (*text == '-') ? text + 1 : text;
+    if (*p == '\0') return false;
+    for (; *p; p++) {
+        if (*p < '0' || *p > '9') return false;
+    }
+    return true;
+}
+
+/* rini reads a quoted value up to the first quote followed by spaces and a
+ * description delimiter or the end of the line: a value containing such a
+ * sequence would come back cut, so it is not written. */
+static bool quoted_readable(const char* text)
+{
+    for (const char* q = strchr(text, '"'); q != NULL; q = strchr(q + 1, '"')) {
+        const char* after = q + 1;
+        while (*after == ' ') after++;
+        if (*after == '\0' || *after == '#') return false;
+    }
+    return true;
+}
+
+/**
+ * Write `ini` to `path` in place of rini_save_config (which reports
+ * nothing): the new contents go to a temporary file in the same directory,
+ * which replaces the file only once it was completely written, so a failure
+ * leaves the previous file and its permissions intact. A symbolic link
+ * keeps pointing to the file it named. A file with several names (hard
+ * links) cannot be replaced for all of them at once: it is not written.
+ * Returns false (with a message naming the file) on error.
+ */
+static bool write_ini(const rini_config* ini, const char* path)
+{
+    char target[PATH_MAX];
+    char tmp[PATH_MAX + 32];
+    struct stat st;
+    FILE* f = NULL;
+    bool ok = true;
+
+    if (realpath(path, target) == NULL) {
+        if (errno != ENOENT || strlen(path) >= sizeof(target)) goto fail;
+#ifndef _WIN32
+        /* A symbolic link to a missing file: replacing the link itself
+         * would silently detach it */
+        if (lstat(path, &st) == 0 && S_ISLNK(st.st_mode)) {
+            log_err_printf("%s %s is a link to a missing file: not saved\n", module, path_sanitize(path));
+            return false;
+        }
+#endif
+        strcpy(target, path);   /* new file */
+    }
+    if (stat(target, &st) == 0) {
+        /* Only an ordinary file the user may write is replaced: not a
+         * read-only file, a FIFO or a device, even in a writable folder,
+         * and not a file with several names (hard links), which cannot all
+         * be replaced at once */
+        const char* why = !S_ISREG(st.st_mode) ? "is not a regular file"
+                        : access(target, W_OK) != 0 ? "is not writable"
+                        : st.st_nlink > 1 ? "has several hard links" : NULL;
+        if (why) {
+            log_err_printf("%s %s %s: not saved, the file is unchanged\n", module, path_sanitize(path), why);
+            return false;
+        }
+    }
+    f = path_create_temp(target, tmp, sizeof(tmp));
+    if (f == NULL) goto fail;
+    for (unsigned i = 0; ok && i < ini->count; i++) {
+        const rini_config_value* v = &ini->values[i];
+        int n;
+        if (v->key[0] == '\0') {
+            n = v->desc[0] ? fprintf(f, "# %s\n", v->desc) : fprintf(f, "#\n");
+        } else if (strpbrk(v->text, "\r\n") != NULL || strlen(v->text) > ZEAL_INI_VALUE_MAX ||
+                   (!is_plain_int(v->text) && !quoted_readable(v->text))) {
+            /* Cannot be read back as is (possibly cut when it was set) */
+            log_err_printf("%s %s: %s cannot be saved as is\n", module, path_sanitize(path), v->key);
+            errno = EINVAL;
+            n = -1;
+        } else if (is_plain_int(v->text)) {
+            n = fprintf(f, "%-28s = %6s      # %s\n", v->key, v->text, v->desc);
+        } else {
+            n = fprintf(f, "%-28s = \"%s\"      # %s\n", v->key, v->text, v->desc);
+        }
+        ok = n >= 0;
+    }
+    if (ok) ok = path_commit(f) == 0;
+    {
+        const int err = errno;
+        if (fclose(f) != 0) ok = false;
+        else errno = err;
+    }
+    if (ok && path_replace(tmp, target) == 0) return true;
+    {
+        const int err = errno;
+        remove(tmp);
+        errno = err;
+    }
+fail:
+    log_err_printf("%s Could not save %s: %s\n", module, path_sanitize(path), strerror(errno));
+    return false;
+}
+
 static bool has_values(const rini_config* ini)
 {
     for (unsigned i = 0; i < ini->count; i++) {
@@ -580,6 +674,12 @@ int config_save(void)
     int result = 0;
     rini_config ini = new_output();
     rini_config project = new_output();
+    if (!ini.values || !project.values) {
+        log_err_printf("%s Could not allocate configuration output\n", module);
+        rini_unload_config(&ini);
+        rini_unload_config(&project);
+        return -1;
+    }
     rini_set_config_comment_line(&project, NULL);
     rini_set_config_comment_line(&project, "Zeal Native Emulator: project settings");
     rini_set_config_comment_line(&project, NULL);
@@ -633,14 +733,20 @@ int config_save(void)
 
     if (config_save_hook) config_save_hook(&ini, &project);
 
-    /* Images saved with -s keep coming from the project file even when no
-     * argument changed: carry the loaded ones over */
+    /* Saved image paths are kept, without -s, in the file they were loaded
+     * from: the project file, or the user file (older configurations, and
+     * the one-file setup where -c and -P name the same file). */
     if (!config.arguments.config_save) {
         static const char* const kept[] = { "ROM_FILENAME", "EEPROM_FILENAME", "TF_FILENAME" };
         for (unsigned i = 0; i < sizeof(kept) / sizeof(kept[0]); i++) {
             const char* value = config.project_ini.values ?
                 rini_get_config_value_text_fallback(config.project_ini, kept[i], NULL) : NULL;
-            if (value) rini_set_config_value_text(&project, kept[i], value, "");
+            if (value) {
+                rini_set_config_value_text(&project, kept[i], value, "");
+                continue;
+            }
+            value = config.ini.values ? rini_get_config_value_text_fallback(config.ini, kept[i], NULL) : NULL;
+            if (value) rini_set_config_value_text(&ini, kept[i], value, "");
         }
     }
 
@@ -654,21 +760,19 @@ int config_save(void)
         }
     } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
         /* Never create a project file in a directory with nothing to save */
-        if (can_write(&project, config.arguments.project_path, project_truncated)) {
-            rini_save_config(project, config.arguments.project_path);
-        } else {
+        if (!can_write(&project, config.arguments.project_path, project_truncated) ||
+            !write_ini(&project, config.arguments.project_path)) {
             result = -1;
         }
     }
-    if (can_write(&ini, config.arguments.config_path, user_truncated)) {
-        rini_save_config(ini, config.arguments.config_path);
-    } else {
+    if (!can_write(&ini, config.arguments.config_path, user_truncated) ||
+        !write_ini(&ini, config.arguments.config_path)) {
         result = -1;
     }
     rini_unload_config(&ini);
     rini_unload_config(&project);
 
-    return result; // TODO: report file write errors too (F32)
+    return result;
 }
 
 void config_unload(void)

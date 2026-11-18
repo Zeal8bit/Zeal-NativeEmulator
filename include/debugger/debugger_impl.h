@@ -120,6 +120,7 @@ struct dbg_t {
     const uint8_t*  watch_live;
     watchpoint_hit_t watch_hit;
     bool            watch_stopped; // The machine stopped on watch_hit and did not resume
+    uint64_t        symbol_generation;
     symbols_t       symbols;
 
     debugger_dis_op  disassemble_cb;

@@ -72,7 +72,7 @@ private:
     Fl_Scrollbar* m_bar;
     std::vector<Symbol> m_all;
     std::vector<int> m_rows;   /* indices into m_all, filtered and sorted */
-    uintptr_t m_sig = 0;
+    uint64_t m_generation = UINT64_MAX;
     std::string m_filter;
     int m_kind = KIND_ALL;
     Sort m_sort = Sort::Address;

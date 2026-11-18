@@ -672,11 +672,13 @@ int rini_set_config_value_text(rini_config *config, const char *key, const char 
         {
             if (strcmp(key, config->values[i].key) == 0) // Key found
             {
+                // Zeal: bounded, always terminated (a longer value is cut to
+                // RINI_MAX_TEXT_SIZE - 1 characters, which writers can detect)
                 memset(config->values[i].text, 0, RINI_MAX_TEXT_SIZE);
-                memcpy(config->values[i].text, text, strlen(text));
+                for (int c = 0; (c < RINI_MAX_TEXT_SIZE - 1) && (text[c] != '\0'); c++) config->values[i].text[c] = text[c];
 
                 memset(config->values[i].desc, 0, RINI_MAX_DESC_SIZE);
-                if (desc != NULL) memcpy(config->values[i].desc, desc, strlen(desc));
+                if (desc != NULL) for (int c = 0; (c < RINI_MAX_DESC_SIZE - 1) && (desc[c] != '\0'); c++) config->values[i].desc[c] = desc[c];
                 result = 0;
                 break;
             }
@@ -693,15 +695,18 @@ int rini_set_config_value_text(rini_config *config, const char *key, const char 
             {
                 config->values[config->count].key[0] = '\0';
                 config->values[config->count].text[0] = RINI_LINE_COMMENT_DELIMITER;
-                if (desc != NULL) for (int i = 0; (i < RINI_MAX_DESC_SIZE) && (desc[i] != '\0'); i++) config->values[config->count].desc[i] = desc[i];
+                if (desc != NULL) for (int i = 0; (i < RINI_MAX_DESC_SIZE - 1) && (desc[i] != '\0'); i++) config->values[config->count].desc[i] = desc[i];
                 else config->values[config->count].desc[0] = '\0';
             }
             else
             {
                 // NOTE: We do a manual copy to avoid possible overflows on input data
-                for (int i = 0; (i < RINI_MAX_KEY_SIZE) && (key[i] != '\0'); i++) config->values[config->count].key[i] = key[i];
-                for (int i = 0; (i < RINI_MAX_TEXT_SIZE) && (text[i] != '\0'); i++) config->values[config->count].text[i] = text[i];
-                for (int i = 0; (i < RINI_MAX_DESC_SIZE) && (desc[i] != '\0'); i++) config->values[config->count].desc[i] = desc[i];
+                // Zeal: bounded and terminated (the slot may be reused), NULL desc allowed
+                rini_config_value *v = &config->values[config->count];
+                memset(v, 0, sizeof(*v));
+                for (int i = 0; (i < RINI_MAX_KEY_SIZE - 1) && (key[i] != '\0'); i++) v->key[i] = key[i];
+                for (int i = 0; (i < RINI_MAX_TEXT_SIZE - 1) && (text[i] != '\0'); i++) v->text[i] = text[i];
+                if (desc != NULL) for (int i = 0; (i < RINI_MAX_DESC_SIZE - 1) && (desc[i] != '\0'); i++) v->desc[i] = desc[i];
             }
 
             config->count++;
@@ -780,6 +785,21 @@ static int rini_read_config_value_text(const char *buffer, char *text, char *des
     int value_len = len;
     int desc_pos = 0;
 #if defined(RINI_DESCRIPTION_DELIMITER)
+#if RINI_USE_TEXT_QUOTATION_MARKS
+    // Zeal: a quoted value runs to its closing quote (the first one followed
+    // by spaces and a description delimiter or the end of the line), so a
+    // description delimiter inside the quotes is part of the value
+    if (buffer_ptr[0] == RINI_VALUE_QUOTATION_MARKS)
+    {
+        for (int q = 1; q < len; q++)
+        {
+            if (buffer_ptr[q] != RINI_VALUE_QUOTATION_MARKS) continue;
+            int after = q + 1;
+            while ((after < len) && (buffer_ptr[after] == ' ')) after++;
+            if ((after == len) || (buffer_ptr[after] == RINI_DESCRIPTION_DELIMITER)) { desc_pos = q + 1; break; }
+        }
+    }
+#endif
     // Scan text looking for text-value description (if used)
     for (; desc_pos < len; desc_pos++)
     {
@@ -813,6 +833,9 @@ static int rini_read_config_value_text(const char *buffer, char *text, char *des
     memset(desc, 0, RINI_MAX_DESC_SIZE);
 
     // Copy value-text and description to provided pointers
+    // Zeal: never past the text field (a long hand-edited line)
+    if (value_len > (RINI_MAX_TEXT_SIZE - 1)) value_len = RINI_MAX_TEXT_SIZE - 1;
+    if (value_len < 0) value_len = 0;
     memcpy(text, buffer_ptr, value_len);
     memcpy(desc, buffer_ptr + desc_pos, ((len - desc_pos) > (RINI_MAX_DESC_SIZE - 1))? (RINI_MAX_DESC_SIZE - 1) : (len - desc_pos));
 

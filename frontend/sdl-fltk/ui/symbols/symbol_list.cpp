@@ -84,18 +84,10 @@ SymbolList::SymbolList(int X, int Y, int W, int H, Fl_Scrollbar* bar)
 bool SymbolList::sync()
 {
     dbg_t* dbg = fz_debugger();
-    size_t count = 0;
-    uintptr_t sig = 0;
-    for (const symbols_t* b = dbg ? &dbg->symbols : nullptr; b; b = b->next) {
-        for (unsigned i = 0; i < b->count; i++) {
-            sig = sig * 31 + (uintptr_t) b->array[i].name + b->array[i].addr + b->array[i].kind;
-            count++;
-        }
-    }
-    if (count == m_all.size() && sig == m_sig) return false;
-    m_sig = sig;
+    const uint64_t generation = dbg ? dbg->symbol_generation : 0;
+    if (generation == m_generation) return false;
+    m_generation = generation;
     m_all.clear();
-    m_all.reserve(count);
     for (const symbols_t* b = dbg ? &dbg->symbols : nullptr; b; b = b->next) {
         for (unsigned i = 0; i < b->count; i++) {
             const symbol_t& s = b->array[i];

@@ -658,5 +658,6 @@ void debugger_clear_symbols(dbg_t* dbg)
         if (node != &dbg->symbols) free(node);
         node = next;
     }
+    dbg->symbol_generation++;
     memset(&dbg->symbols, 0, sizeof(dbg->symbols));
 }

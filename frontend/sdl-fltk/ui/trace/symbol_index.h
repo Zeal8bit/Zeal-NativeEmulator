@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include "common/machine.h"
 
@@ -19,20 +20,25 @@ namespace zui::trace {
 
 class SymbolIndex {
 public:
+    explicit SymbolIndex(bool code_only = true) : m_code_only(code_only) {}
+
     /** Reload if the symbol table changed; true when it did. */
     bool update();
     /** "name", "name+$1A" or "" when no code symbol precedes `addr` within 4 KB. */
     void describe(char* out, size_t size, hwaddr addr) const;
 
-private:
     struct Sym {
         hwaddr addr;
-        const char* name;
+        std::string name;
     };
-    static uintptr_t signature();
 
+    const std::vector<Sym>& symbols() const { return m_syms; }
+    int preceding(hwaddr addr) const;
+
+private:
+    bool m_code_only;
     std::vector<Sym> m_syms;
-    uintptr_t m_sig = 1;    /* force the first load */
+    uint64_t m_generation = UINT64_MAX;    /* force the first load */
 };
 
 } // namespace zui::trace

@@ -83,4 +83,8 @@ private:
     bool m_more = false;
 };
 
+/** Register edit text: 1-2 (8-bit) or 1-4 hex digits, optional '$'.
+ *  False for anything else (empty, bare "$", too long, not hex). */
+bool parse_register_text(const char* text, bool eight_bit, uint16_t* value);
+
 } // namespace zui::debugger

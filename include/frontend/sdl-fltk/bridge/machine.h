@@ -78,6 +78,8 @@ void fz_mouse_hover(bool inside);
 void fz_mouse_wheel(float steps);
 void fz_mouse_capture_toggle(void);
 bool fz_mouse_captured(void);
+/** Release a captured pointer and the guest buttons (focus or app lost). */
+void fz_mouse_release_all(void);
 
 /* SNES adapter ports: port is 0/1, or -1 when detached */
 int         fz_snes_gamepad_count(void);

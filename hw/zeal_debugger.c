@@ -101,6 +101,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
     if (addr & 0x80000000) {
         hw_log(dbg->host, false, 0, "TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
+        if (len < 0 || len > 0x10000) return -1;
         mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
     } else {
         // Invalid address
@@ -265,6 +266,12 @@ static const char* processes_ixiy_cb(dbg_t* dbg, uint8_t fourth)
     }
 }
 
+
+bool zeal_debugger_uses_index(uint8_t opcode)
+{
+    return disassembled_ixiy_opcodes[opcode].fmt != NULL || opcode == 0xCB ||
+           ((opcode & 0xF8) == 0x70 && opcode != 0x76);
+}
 
 static int process_ixiy_opcodes(dbg_t* dbg, const uint8_t mem[4], dbg_instr_t* instr)
 {

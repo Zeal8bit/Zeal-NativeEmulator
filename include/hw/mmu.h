@@ -172,7 +172,7 @@ void mmu_virt_read_array(const mmu_t* mmu, uint16_t virt_addr, uint8_t* buf, uin
 /**
  * @brief Write len bytes from buf to consecutive virtual addresses.
  */
-void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint16_t len);
+void mmu_virt_write_array(mmu_t* mmu, uint16_t virt_addr, const uint8_t* buf, uint32_t len);
 
 /**
  * @brief Read len bytes from consecutive physical addresses into buf.

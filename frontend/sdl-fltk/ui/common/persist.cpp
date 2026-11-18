@@ -5,6 +5,7 @@
  */
 
 #include "common/persist.h"
+#include <cstring>
 #include <functional>
 #include <vector>
 #include "common/machine.h"
@@ -27,10 +28,32 @@ std::vector<SaveFn>& project_list()
     return list;
 }
 
+bool has_key(const rini_config* ini, const char* key)
+{
+    for (unsigned i = 0; i < ini->count; i++) {
+        if (strcmp(ini->values[i].key, key) == 0) return true;
+    }
+    return false;
+}
+
 void persist_save_all(rini_config* user, rini_config* project)
 {
     for (auto& save : user_list()) save(user);
     for (auto& save : project_list()) save(project);
+    /* Settings whose owner is created lazily and may not exist this session
+     * (console preferences with Hardware never opened, tool windows in the
+     * normal layout) keep the value they were loaded with. Only these: other
+     * keys (FLTK_WATCH_* lists in a project or one-file setup...) must be
+     * able to disappear. */
+    static const char* const lazy[] = { "FLTK_CONSOLE_", "FLTK_TOOL_" };
+    const rini_config& loaded = config.ini;
+    for (unsigned i = 0; loaded.values && i < loaded.count; i++) {
+        const rini_config_value& v = loaded.values[i];
+        bool owned_lazily = false;
+        for (const char* prefix : lazy) owned_lazily = owned_lazily || strncmp(v.key, prefix, strlen(prefix)) == 0;
+        if (!owned_lazily || has_key(user, v.key)) continue;
+        rini_set_config_value_text(user, v.key, v.text, v.desc);
+    }
 }
 
 /* Values the callbacks produced when the UI closed (persist_finalize) */

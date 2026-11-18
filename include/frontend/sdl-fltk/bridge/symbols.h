@@ -16,10 +16,10 @@ extern "C" {
 
 #define FZ_MAP_MAX 8
 
-/** Number of map files currently loaded. */
+/** Number of requested map files, including unavailable project files. */
 int fz_map_count(void);
 
-/** Path of loaded map file `index` (0 = first loaded). */
+/** Path of requested map file `index` (0 = first loaded). */
 const char* fz_map_path(int index);
 
 /** Load a map file. `append` keeps the symbols already loaded, otherwise they
@@ -29,6 +29,11 @@ bool fz_map_open(const char* path, bool append);
 /** Reload every loaded map file (after rebuilding the program). Returns the
  *  number of files that loaded. */
 int fz_map_reload(void);
+/** Keep this project path in its original position even when loading fails. */
+bool fz_map_restore(const char* path);
+bool fz_map_loaded(int index);
+/** Release path storage after the final UI settings snapshot. */
+void fz_map_forget(void);
 
 /** Remove every symbol and forget the loaded files. */
 void fz_map_clear(void);

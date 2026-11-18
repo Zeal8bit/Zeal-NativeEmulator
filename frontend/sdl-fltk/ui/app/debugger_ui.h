@@ -43,6 +43,8 @@ public:
 
     /** Window body size that fits the default layout. */
     virtual void default_body_size(int& w, int& h) const = 0;
+    /** Smallest body size where every panel keeps its minimum size. */
+    virtual void min_body_size(int& w, int& h) const = 0;
     /** Restore/save the split sizes, or go back to the defaults. */
     virtual void apply_layout() = 0;
     virtual void capture_layout() = 0;

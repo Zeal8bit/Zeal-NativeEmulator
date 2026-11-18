@@ -30,7 +30,9 @@ void cb_save_config(Fl_Widget*, void*)
     if (!window) return;
     window->capture_window_config(window->debug_layout());
     if (window->debugger()) window->debugger()->capture_layout();
+    /* config_save() logs which file failed and leaves it unchanged */
     if (config_save() == 0) notif_show("Configuration saved");
+    else notif_show("Configuration not saved: see the log");
 }
 
 void cb_quit(Fl_Widget*, void*)
@@ -116,6 +118,7 @@ void cb_aspect(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     config.window.aspect_force = item && item->value();
+    if (main_window()) main_window()->apply_aspect();
 }
 
 void cb_fullscreen(Fl_Widget*, void*) { if (main_window()) main_window()->toggle_fullscreen(); }
