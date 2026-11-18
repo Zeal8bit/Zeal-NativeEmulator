@@ -4,63 +4,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Helpers shared by the debugger panels and tool views (see panel.h). */
-
-#include <cstdio>
-#include <cstring>
+#include "debugger/address_lookup.h"
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
+#include <FL/Fl.H>
 #include <FL/Fl_Menu_Item.H>
-#include <FL/fl_draw.H>
-#include "panel.h"
-#include "utils/notif.h"
+#include <FL/Fl_Widget.H>
+#include "common/format.h"
+#include "common/machine.h"
+#include "theme/theme.h"
 
-namespace zui {
+namespace zui::debugger {
 
-bool dbg_ready()
+using namespace zui::common;
+using namespace zui::theme;
+
+namespace {
+
+std::string loose_name(const char* s)
 {
-    return fz_debugger() != nullptr;
+    while (*s == '_') s++;
+    std::string out(s);
+    for (char& c : out) c = (char) tolower((unsigned char) c);
+    return out;
 }
 
-regs_t current_regs()
-{
-    regs_t regs;
-    memset(&regs, 0, sizeof(regs));
-#if CONFIG_ENABLE_DEBUGGER
-    if (!dbg_ready()) return regs;
-    if (!fz_paused() && fz_live_sample(&regs, nullptr, 0, nullptr, 0)) return regs;
-    debugger_get_registers(fz_debugger(), &regs);
-#endif
-    return regs;
-}
-
-regs_t exact_regs()
-{
-    regs_t regs;
-    memset(&regs, 0, sizeof(regs));
-#if CONFIG_ENABLE_DEBUGGER
-    if (dbg_ready()) debugger_get_registers(fz_debugger(), &regs);
-#endif
-    return regs;
-}
-
-void display_memory(hwaddr addr, int len, uint8_t* out, bool stack)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    if (!fz_paused()) {
-        const bool ok = stack ? fz_live_sample(nullptr, out, len, nullptr, 0)
-                              : fz_live_sample(nullptr, nullptr, 0, out, len);
-        if (ok) return;
-    }
-    if (dbg_ready()) debugger_read_memory(fz_debugger(), addr, len, out);
-#else
-    (void) addr;
-    (void) stack;
-    memset(out, 0, (size_t) len);
-#endif
-}
+} // namespace
 
 bool parse_address(const char* text, hwaddr* out)
 {
@@ -80,27 +54,10 @@ bool parse_address(const char* text, hwaddr* out)
             return true;
         }
     }
-#if CONFIG_ENABLE_DEBUGGER
     dbg_t* dbg = fz_debugger();
     return dbg != nullptr && debugger_find_symbol(dbg, text, out);
-#else
-    return false;
-#endif
 }
 
-/* ------------------------------------------------------------------ */
-/*  Address fields: hex or symbol, looked up loosely                   */
-/* ------------------------------------------------------------------ */
-
-#if CONFIG_ENABLE_DEBUGGER
-static std::string loose_name(const char* s)
-{
-    while (*s == '_') s++;
-    std::string out(s);
-    for (char& c : out) c = (char) tolower((unsigned char) c);
-    return out;
-}
-#endif
 
 bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer_kind, std::string* picked)
 {
@@ -113,7 +70,6 @@ bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer
     query.erase(0, lead);
     if (query.empty()) return false;
 
-#if CONFIG_ENABLE_DEBUGGER
     dbg_t* dbg = fz_debugger();
     /* An exact symbol name wins over hex ("add", "beef" can be labels) */
     if (dbg && debugger_find_symbol(dbg, query.c_str(), out)) {
@@ -207,19 +163,6 @@ bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer
     *out = s->addr;
     if (picked) *picked = s->name;
     return true;
-#else
-    (void) anchor;
-    (void) prefer_kind;
-    return parse_address(query.c_str(), out);
-#endif
 }
 
-/* ------------------------------------------------------------------ */
-/*  Persistence                                                        */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/*  Panel                                                              */
-/* ------------------------------------------------------------------ */
-
-} // namespace zui
+} // namespace zui::debugger

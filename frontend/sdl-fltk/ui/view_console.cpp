@@ -16,6 +16,7 @@
 #include <FL/Fl_Menu_Item.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include "tool_window.h"
+#include "common/cp437.h"
 
 extern "C" {
 #include "frontend/sdl-fltk/bridge/console.h"
@@ -26,7 +27,6 @@ namespace zui {
 
 #if CONFIG_ENABLE_DEBUGGER
 
-#include "cp437.inc"
 
 /** Append one console byte as UTF-8 (CP437 for control and high bytes). */
 static void append_char(std::string& out, uint8_t b)
@@ -36,7 +36,7 @@ static void append_char(std::string& out, uint8_t b)
         return;
     }
     char utf8[8];
-    const unsigned cp = s_cp437[b] ? s_cp437[b] : ' ';
+    const unsigned cp = cp437_to_unicode(b) ? cp437_to_unicode(b) : ' ';
     const int n = fl_utf8encode(cp, utf8);
     out.append(utf8, (size_t) n);
 }

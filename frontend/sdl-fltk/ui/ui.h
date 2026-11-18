@@ -48,35 +48,5 @@ using namespace zui::app;
 
 namespace zui {
 
-/** Parse a hex address ("1234", "$1234", "0x1234") or a debugger symbol. */
-bool parse_address(const char* text, hwaddr* out);
-
-/* ------------------------------------------------------------------ */
-/*  Debugger (debugger.cpp); stubs when the debugger is compiled out   */
-/* ------------------------------------------------------------------ */
-
-class Debugger : public app::DebuggerUi {
-public:
-    /** Builds the debugger layout around `screen` inside `dock`. */
-    Debugger(DockLayout* dock, ScreenView* screen);
-    ~Debugger() override;
-
-    Fl_Group* toolbar(int x, int y, int w, int h) override;
-    void refresh(bool force) override;
-    void command(app::DebugCommand command) override;
-    bool paused_at(unsigned* pc) const override;
-    void default_body_size(int& w, int& h) const override;
-    void apply_layout() override;
-    void capture_layout() override;
-    void reset_layout() override;
-    void show_tool(app::ToolId tool, bool show) override;
-    bool tool_shown(app::ToolId tool) const override;
-    void open_map(bool append) override;
-    void reload_maps() override;
-
-    struct Impl;
-private:
-    Impl* m;
-};
 
 } // namespace zui

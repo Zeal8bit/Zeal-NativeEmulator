@@ -1,4 +1,15 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "common/cp437.h"
+
+namespace zui::common {
+
+namespace {
+
 /* CP437 to Unicode code points (from the Nuklear debugger UI). */
 static const uint16_t s_cp437[256] = {
     0x0000, 0x263A, 0x263B, 0x2665, 0x2666, 0x2663, 0x2660, 0x2022,
@@ -34,3 +45,12 @@ static const uint16_t s_cp437[256] = {
     0x2261, 0x00B1, 0x2265, 0x2264, 0x2320, 0x2321, 0x00F7, 0x2248,
     0x00B0, 0x2219, 0x00B7, 0x221A, 0x207F, 0x00B2, 0x25A0, 0x00A0
 };
+
+} // namespace
+
+uint16_t cp437_to_unicode(uint8_t byte)
+{
+    return s_cp437[byte];
+}
+
+} // namespace zui::common
