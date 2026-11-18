@@ -495,6 +495,31 @@ static void keep_project_keys(rini_config* ini, rini_config* project)
     }
 }
 
+/* Room in the files being written: everything that could be loaded
+ * (RINI_MAX_VALUE_CAPACITY per file, both files when they are one) plus
+ * headers and what the frontend adds. rini drops values silently beyond
+ * its capacity, so a full output is reported and not written. */
+#define OUTPUT_CAPACITY (4 * RINI_MAX_VALUE_CAPACITY)
+
+static rini_config new_output(void)
+{
+    rini_config out = rini_load_config(NULL);
+    rini_config_value* values = realloc(out.values, OUTPUT_CAPACITY * sizeof(*values));
+    if (values != NULL) {
+        memset(values + out.capacity, 0, (OUTPUT_CAPACITY - out.capacity) * sizeof(*values));
+        out.values = values;
+        out.capacity = OUTPUT_CAPACITY;
+    }
+    return out;
+}
+
+static bool output_full(const rini_config* out, const char* path)
+{
+    if (out->count < out->capacity) return false;
+    log_err_printf("%s Too many settings for %s: not saved, the file is unchanged\n", module, path_sanitize(path));
+    return true;
+}
+
 static bool has_values(const rini_config* ini)
 {
     for (unsigned i = 0; i < ini->count; i++) {
@@ -505,8 +530,9 @@ static bool has_values(const rini_config* ini)
 
 int config_save(void)
 {
-    rini_config ini = rini_load_config(NULL);
-    rini_config project = rini_load_config(NULL);
+    int result = 0;
+    rini_config ini = new_output();
+    rini_config project = new_output();
     rini_set_config_comment_line(&project, NULL);
     rini_set_config_comment_line(&project, "Zeal Native Emulator: project settings");
     rini_set_config_comment_line(&project, NULL);
@@ -581,13 +607,15 @@ int config_save(void)
         }
     } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
         /* Never create a project file in a directory with nothing to save */
-        rini_save_config(project, config.arguments.project_path);
+        if (output_full(&project, config.arguments.project_path)) result = -1;
+        else rini_save_config(project, config.arguments.project_path);
     }
-    rini_save_config(ini, config.arguments.config_path);
+    if (output_full(&ini, config.arguments.config_path)) result = -1;
+    else rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);
     rini_unload_config(&project);
 
-    return 0; // TODO: error checking to ensure things worked?
+    return result; // TODO: report file write errors too (F32)
 }
 
 void config_unload(void)
