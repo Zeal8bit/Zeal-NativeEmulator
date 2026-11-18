@@ -48,25 +48,9 @@ MainWindow* main_window()
     return s_window;
 }
 
-double now_seconds()
-{
-    static const auto start = std::chrono::steady_clock::now();
-    return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-}
-
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-const char* hex8_fmt()
-{
-    return config.debugger.hex_upper ? "%02X" : "%02x";
-}
-
-const char* hex16_fmt()
-{
-    return config.debugger.hex_upper ? "%04X" : "%04x";
-}
 
 bool parse_address(const char* text, hwaddr* out)
 {
@@ -128,41 +112,6 @@ static void notif_expire(void*)
 const char* notif_current_text()
 {
     return s_notif_active ? s_notif_text : nullptr;
-}
-
-/* ------------------------------------------------------------------ */
-/*  DockLayout                                                         */
-/* ------------------------------------------------------------------ */
-
-DockLayout::DockLayout(int x, int y, int w, int h)
-    : Fl_Group(x, y, w, h)
-{
-    box(FL_FLAT_BOX);
-    color(COLOR_BG);
-    end();
-}
-
-void DockLayout::set_root(Fl_Widget* root, std::function<void(bool)> expand)
-{
-    m_root = root;
-    m_expand = std::move(expand);
-    if (root->parent() != this) add(root);
-    root->resize(x(), y(), w(), h());
-    docks_visible(m_docks);
-}
-
-void DockLayout::docks_visible(bool visible)
-{
-    m_docks = visible && m_expand;
-    if (m_expand) m_expand(m_docks);
-    if (m_root) m_root->resize(x(), y(), w(), h());
-    redraw();
-}
-
-void DockLayout::resize(int nx, int ny, int nw, int nh)
-{
-    Fl_Widget::resize(nx, ny, nw, nh);
-    if (m_root) m_root->resize(nx, ny, nw, nh);
 }
 
 /* ------------------------------------------------------------------ */

@@ -32,14 +32,23 @@ if get_option('profile_render')
 else
     sdlfltk_sources += files('profile/profile_disabled.c')
 endif
+sdlfltk_ui_inc = include_directories('ui')
 sdlfltk_cpp_sources = files(
     'ui/app.cpp',
     'ui/common.cpp',
+    'ui/common/clock.cpp',
+    'ui/common/format.cpp',
+    'ui/common/persist.cpp',
     'ui/debugger.cpp',
     'ui/memory_tools.cpp',
     'ui/screen.cpp',
-    'ui/theme.cpp',
-    'ui/tool_window.cpp',
+    'ui/theme/fonts.cpp',
+    'ui/theme/style.cpp',
+    'ui/theme/theme.cpp',
+    'ui/tools/tool_registry.cpp',
+    'ui/tools/tool_tab.cpp',
+    'ui/tools/tool_window.cpp',
+    'ui/tools/tool_windows.cpp',
     'ui/video.cpp',
     'ui/view_console.cpp',
     'ui/view_hotcode.cpp',
@@ -50,4 +59,8 @@ sdlfltk_cpp_sources = files(
     'ui/view_semihost.cpp',
     'ui/view_symbols.cpp',
     'ui/view_watch.cpp',
+    'ui/widgets/dock_layout.cpp',
+    'ui/widgets/icon_button.cpp',
+    'ui/widgets/panel.cpp',
+    'ui/widgets/split_pane.cpp',
 )
