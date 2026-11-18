@@ -153,8 +153,29 @@ void ScreenView::picture_rect(int& px, int& py, int& pw, int& ph) const
         pw = w();
         ph = (int) (w() / ratio + 0.5f);
     }
+    /* A zoom smaller than the fit shrinks the picture, centred */
+    if (m_zoom > 0.0f) {
+        const int zw = (int) (FZ_SCREEN_WIDTH * m_zoom + 0.5f);
+        if (zw < pw) {
+            pw = zw;
+            ph = (int) (FZ_SCREEN_HEIGHT * m_zoom + 0.5f);
+        }
+    }
     px = (w() - pw) / 2;
     py = (h() - ph) / 2;
+}
+
+void ScreenView::zoom(float scale)
+{
+    m_zoom = scale > 0.0f ? scale : 0.0f;
+    redraw();
+}
+
+float ScreenView::fit_scale() const
+{
+    const float sx = (float) w() / FZ_SCREEN_WIDTH;
+    const float sy = (float) h() / FZ_SCREEN_HEIGHT;
+    return sx < sy ? sx : sy;
 }
 
 void ScreenView::reset_texture()

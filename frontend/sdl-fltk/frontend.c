@@ -33,7 +33,9 @@ static void debug_set_enabled(zeal_t* machine, bool enabled)
     if (machine->dbg_enabled == enabled) return;
     config_window_update(machine->dbg_enabled);
     machine->dbg_enabled = enabled;
-    machine->dbg_state = enabled ? ST_PAUSED : ST_RUNNING;
+    /* Showing or hiding the debugger never stops the machine; pause from
+     * the toolbar (or a breakpoint) when needed */
+    machine->dbg_state = ST_RUNNING;
     log_printf("[DEBUGGER]: %s\n", enabled ? "Enabled" : "Disabled");
     fz_keys_release_all();
     ui_debug_mode(enabled);

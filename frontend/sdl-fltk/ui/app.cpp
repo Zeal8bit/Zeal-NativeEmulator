@@ -368,6 +368,12 @@ MainWindow::MainWindow(bool debug)
 #ifdef CONFIG_SHOW_FPS
     show_fps = CONFIG_SHOW_FPS;
 #endif
+    /* Debugger screen scale, in percent (0 = fit the panel) */
+    m_debug_zoom = config_get("FLTK_DBG_SCREEN_ZOOM", 0) / 100.0f;
+    persist_register([this](rini_config* ini) {
+        rini_set_config_value(ini, "FLTK_DBG_SCREEN_ZOOM", (int) std::lround(m_debug_zoom * 100.0f),
+                              "Debugger screen scale in percent (0 = fit the panel)");
+    });
     s_window = this;
     color(COLOR_BG);
     callback(window_cb);
@@ -466,6 +472,8 @@ void MainWindow::set_debug_layout(bool debug)
     if (debug && m_debugger == nullptr) debug = false;
     if (debug == m_debug) return;
     m_debug = debug;
+    /* The normal window is sized to the picture, so it always fits */
+    m_screen->zoom(debug ? m_debug_zoom : 0.0f);
     label(debug ? FZ_WIN_NAME " - Debugger" : FZ_WIN_NAME);
     m_dock->docks_visible(debug);
     layout_chrome();
@@ -536,6 +544,21 @@ void MainWindow::capture_window_config(bool debug)
 void MainWindow::set_screen_scale(float scale)
 {
     if (fullscreen_active()) return;
+    if (m_debug) {
+        /* Debugger: scale the picture inside its panel, never the window
+         * (that would reshuffle every panel). Capped at what fits. */
+        const float fit = m_screen->fit_scale();
+        if (scale < 0.5f) scale = 0.5f;
+        if (scale >= fit - 0.01f) {
+            m_debug_zoom = 0.0f;
+            notif_show("Scale: x%.2f (fits the panel)", fit);
+        } else {
+            m_debug_zoom = scale;
+            notif_show("Scale: x%.1f", scale);
+        }
+        m_screen->zoom(m_debug_zoom);
+        return;
+    }
     const int target_w = (int) std::lround(FZ_SCREEN_WIDTH * scale);
     const int target_h = (int) std::lround(FZ_SCREEN_HEIGHT * scale);
     resize(x(), y(), w() + target_w - m_screen->w(), h() + target_h - m_screen->h());
