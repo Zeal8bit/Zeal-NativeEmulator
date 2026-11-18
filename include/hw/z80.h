@@ -46,6 +46,11 @@ struct z80 {
     bool halted      : 1;
     bool int_pending : 1, nmi_pending : 1;
 
+    /* Interrupt acceptances so far, and the kind of the last one
+     * (Z80_INT_*), for the debugger's execution trace */
+    uint32_t int_count;
+    uint8_t  int_kind;
+
 #if CONFIG_ENABLE_DEBUGGER
     /* Memory watchpoints: one byte of Z80_WATCH_* bits per logical address,
      * NULL when nothing is watched (the only cost on each access then). Data
@@ -60,6 +65,8 @@ struct z80 {
 
 #define Z80_WATCH_READ  1
 #define Z80_WATCH_WRITE 2
+
+enum { Z80_INT_NMI = 0, Z80_INT_IM0, Z80_INT_IM1, Z80_INT_IM2 };
 
 static inline mmu_t* z80_get_mmu(z80* z)
 {

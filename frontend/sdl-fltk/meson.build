@@ -22,6 +22,7 @@ if get_option('enable_debugger')
         'debug/pcprof.c',
         'debug/sampler.c',
         'debug/symbols.c',
+        'debug/trace.c',
         'debug/vram.c',
     )
 else
@@ -110,6 +111,11 @@ if get_option('enable_debugger')
         'ui/tools/tool_tab.cpp',
         'ui/tools/tool_window.cpp',
         'ui/tools/tool_windows.cpp',
+        'ui/trace/call_stack_view.cpp',
+        'ui/trace/symbol_index.cpp',
+        'ui/trace/trace_list.cpp',
+        'ui/trace/trace_text.cpp',
+        'ui/trace/trace_view.cpp',
         'ui/video/inspector.cpp',
         'ui/video/sprite_data.cpp',
         'ui/video/sprite_inspector.cpp',

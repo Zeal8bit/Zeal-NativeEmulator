@@ -21,6 +21,7 @@ endif
 core_args = []
 if get_option('enable_debugger')
     core_args += '-DCONFIG_ENABLE_DEBUGGER=1'
+    core_args += '-DCONFIG_TRACE_DEPTH=@0@'.format(get_option('trace_depth'))
 endif
 if get_option('scanline_rendering')
     core_args += '-DZVB_SCANLINE_RENDERING=1'
@@ -37,6 +38,12 @@ core = static_library('zeal', sources, include_directories: includes,
     c_args: core_args, dependencies: portable_deps)
 zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
+
+# Core tests (meson test -C <builddir>)
+if get_option('enable_debugger') and get_option('trace_depth') > 0 and not is_web
+    test('trace', executable('trace_test', 'tests/trace_test.c',
+        dependencies: zeal_dep, c_args: ['-D_POSIX_C_SOURCE=200809L'], build_by_default: false))
+endif
 
 if build_nuklear or build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')

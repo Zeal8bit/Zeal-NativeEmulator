@@ -311,7 +311,6 @@ static int process_ixiy_opcodes(dbg_t* dbg, const uint8_t mem[4], dbg_instr_t* i
 
 static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 {
-    const char* label = NULL;
     uint8_t mem[4];
 
     if (instr == NULL) {
@@ -319,11 +318,24 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
     }
 
     /* Instructions are never bigger than 4 bytes on the Z80 */
-    if (zeal_debugger_get_mem(dbg, address, 4, instr->opcodes) != 0) {
+    if (zeal_debugger_get_mem(dbg, address, 4, mem) != 0) {
         hw_log(dbg->host, true, 0, "[DEBUGGER] Error disassembling address: %x\n", address);
         return -1;
     }
-    memcpy(mem, instr->opcodes, 4);
+    return zeal_debugger_disassemble_bytes(dbg, address, mem, instr);
+}
+
+
+int zeal_debugger_disassemble_bytes(dbg_t *dbg, hwaddr address, const uint8_t bytes[4], dbg_instr_t* instr)
+{
+    const char* label = NULL;
+    uint8_t mem[4];
+
+    if (dbg == NULL || instr == NULL) {
+        return -1;
+    }
+    memcpy(mem, bytes, 4);
+    memcpy(instr->opcodes, bytes, 4);
 
     /* By default, clear the returned instruction */
     instr->instruction[0] = 0;

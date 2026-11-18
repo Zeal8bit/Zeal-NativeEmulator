@@ -54,6 +54,10 @@ int zeal_init(zeal_t* machine, const zeal_options_t* options)
     zeal_debugger_init(machine, &machine->dbg);
     machine->dbg.host = options->host;
     machine->dbg_state = ST_RUNNING;
+#if CONFIG_TRACE_DEPTH > 0
+    machine->trace.enabled = true;
+    machine->trace.pending = -1;
+#endif
 #endif
     z80_init(&machine->cpu);
     machine->cpu.mmu.parent.host = options->host;
@@ -147,6 +151,7 @@ int zeal_reset(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
     debugger_clear_watchpoint_hit(&machine->dbg);
     machine->cpu.watch_hit_type = 0;
+    zeal_trace_on_reset(machine);
     if (machine->dbg_enabled) {
         machine->dbg_state = ST_PAUSED;
     }
@@ -179,7 +184,15 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         const uint16_t instr_pc = machine->cpu.pc;
         machine->cpu.watch_map = debug ? machine->dbg.watch_live : NULL;
 #endif
+#if CONFIG_ENABLE_DEBUGGER && CONFIG_TRACE_DEPTH > 0
+        /* Execution trace: only while the debugger is on (see zeal_trace.h) */
+        const bool trace = debug && machine->trace.enabled;
+        if (trace) zeal_trace_before(machine);
         z80_step(&machine->cpu);
+        if (trace) zeal_trace_after(machine);
+#else
+        z80_step(&machine->cpu);
+#endif
         if (machine->compactflash.failed) {
             machine->should_exit = true;
             return ZEAL_STEP_FATAL;

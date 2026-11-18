@@ -17,7 +17,7 @@ sources += files([
 subdir('userport/snes_adapter')
 
 if get_option('enable_debugger')
-    sources += files('zeal_debugger.c')
+    sources += files('zeal_debugger.c', 'zeal_trace.c')
     subdir('debugger')
 endif
 

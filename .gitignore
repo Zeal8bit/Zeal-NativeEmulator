@@ -7,6 +7,7 @@ roms/*
 .vscode
 external/
 tests/*
+!tests/trace_test.c
 raylib/web/*
 !raylib/web/README.md
 !raylib/web/LICENSE.txt

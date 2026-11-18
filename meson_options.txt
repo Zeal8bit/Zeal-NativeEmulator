@@ -6,6 +6,7 @@ option('sdl3_static', type : 'boolean', value : false, description : 'Link SDL3 
 
 ## Debugger
 option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
+option('trace_depth', type: 'integer', value: 4096, min: 0, max: 1048576, description: 'Debugger execution trace: instructions kept (32 bytes each); 0 compiles the trace and call stack out')
 
 ## Rendering
 option('scanline_rendering', type: 'boolean', value: true, description: 'Compile scanline rendering support')

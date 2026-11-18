@@ -16,6 +16,7 @@
 #include "common/machine.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
+#include "frontend/sdl-fltk/bridge/trace.h"
 #include "theme/theme.h"
 #include "widgets/panel.h"
 
@@ -30,7 +31,8 @@ StackView::StackView(int X, int Y, int W, int H)
 {
     resizable(nullptr);
     end();
-    tooltip("Click: show the slot in memory    Right-click: more");
+    tooltip("Green: return address of a call on the Call Stack (Code & Profiler)\n"
+            "Click: show the slot in memory    Right-click: more");
 }
 
 void StackView::refresh(bool paused, bool force)
@@ -79,6 +81,9 @@ void StackView::draw()
         display_memory(m_regs.sp, 64, sample, true);
         memcpy(mem, sample + m_first * 2, (size_t) count * 2);
     }
+    /* Slots holding the return address of a tracked call (exact when paused) */
+    zeal_frame_t frames[ZEAL_CALLSTACK_DEPTH];
+    const int nframes = fz_paused() ? fz_callstack(frames, ZEAL_CALLSTACK_DEPTH) : 0;
     fl_push_clip(x(), top(), w(), h() - HEADER_H);
     fl_font(DATA_FONT, DATA_SIZE);
     char text[16];
@@ -102,8 +107,14 @@ void StackView::draw()
         hex16(text, sizeof(text), addr);
         fl_color(COLOR_CYAN);
         fl_draw(text, x() + 6 + cw * 6, ry + asc);
+        bool ret_slot = false;
+        for (int f = 0; f < nframes && !ret_slot; f++) ret_slot = frames[f].sp == addr && frames[f].ret == word;
+        if (ret_slot) {
+            fl_color(COLOR_GREEN);
+            fl_rectf(x() + 1, ry, 3, lh);
+        }
         hex16(text, sizeof(text), word);
-        fl_color(COLOR_TEXT);
+        fl_color(ret_slot ? COLOR_GREEN : COLOR_TEXT);
         fl_draw(text, x() + 6 + cw * 12, ry + asc);
         const char* sym = debugger_get_symbol(fz_debugger(), word);
         if (sym) {

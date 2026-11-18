@@ -31,6 +31,7 @@
 
 #if CONFIG_ENABLE_DEBUGGER
 #include "debugger/debugger.h"
+#include "debugger/zeal_trace.h"
 #endif
 
 struct zeal_t {
@@ -67,6 +68,10 @@ struct zeal_t {
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);
+#if CONFIG_TRACE_DEPTH > 0
+    /* Execution trace and call stack, recorded while the debugger is on */
+    zeal_trace_t     trace;
+#endif
 #endif
 };
 
