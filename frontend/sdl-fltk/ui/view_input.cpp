@@ -302,9 +302,33 @@ private:
         yy += lh + 10;
 
         /* Scancode log */
-        yy = section(X, yy, W, "SCANCODES SENT", "newest first, emulated seconds");
+        yy = section(X, yy, W, "KEY EVENTS SENT", "newest first");
         fz_scancode_t log[FZ_SCANCODE_LOG];
         const int count = fz_input_scancodes(log, FZ_SCANCODE_LOG);
+        /* Legend: MAKE/BREAK are the PS/2 names for key down/up codes */
+        fl_font(FL_HELVETICA, 10);
+        fl_color(COLOR_GREEN);
+        fl_draw("MAKE", X, yy + asc);
+        fl_color(COLOR_DIM);
+        fl_draw("= key down", X + (int) fl_width("MAKE "), yy + asc);
+        int lx = X + (int) fl_width("MAKE = key down    ");
+        fl_color(COLOR_AMBER);
+        fl_draw("REPEAT", lx, yy + asc);
+        fl_color(COLOR_DIM);
+        fl_draw("= held, auto-repeat", lx + (int) fl_width("REPEAT "), yy + asc);
+        lx += (int) fl_width("REPEAT = held, auto-repeat    ");
+        fl_color(COLOR_TEXT);
+        fl_draw("BREAK", lx, yy + asc);
+        fl_color(COLOR_DIM);
+        fl_draw("= key up (F0 prefix)", lx + (int) fl_width("BREAK "), yy + asc);
+        yy += lh + 4;
+        fl_font(FL_HELVETICA_BOLD, 10);
+        fl_color(COLOR_DIM);
+        fl_draw("GAP (ms)", X, yy + asc);
+        fl_draw("EVENT", X + cw * 12, yy + asc);
+        fl_draw("KEY", X + cw * 21, yy + asc);
+        fl_draw("PS/2 BYTES", X + cw * 30, yy + asc);
+        yy += lh;
         fl_font(DATA_FONT, DATA_SIZE);
         if (count == 0) {
             fl_color(COLOR_DIM);
@@ -312,13 +336,20 @@ private:
         }
         for (int i = 0; i < count && yy + lh <= bottom - 4; i++) {
             const fz_scancode_t& e = log[i];
-            snprintf(text, sizeof(text), "%10.6f", (double) e.time_ns / 1e9);
+            /* Gap to the previous (older) event: hold time, repeat rate */
+            if (i + 1 < count) {
+                const double ms = (double) (e.time_ns - log[i + 1].time_ns) / 1e6;
+                if (ms < 10000.0) snprintf(text, sizeof(text), "%+9.1f", ms);
+                else snprintf(text, sizeof(text), "%9s", "> 10 s");
+            } else {
+                snprintf(text, sizeof(text), "%9s", "-");
+            }
             fl_color(COLOR_DIM);
             fl_draw(text, X, yy + asc);
-            fl_color(e.make ? (e.repeat ? COLOR_AMBER : COLOR_GREEN) : COLOR_DIM);
-            fl_draw(e.make ? (e.repeat ? "RPT" : "MAKE") : "BRK", X + cw * 12, yy + asc);
+            fl_color(e.make ? (e.repeat ? COLOR_AMBER : COLOR_GREEN) : COLOR_TEXT);
+            fl_draw(e.make ? (e.repeat ? "REPEAT" : "MAKE") : "BREAK", X + cw * 12, yy + asc);
             fl_color(COLOR_TEXT);
-            fl_draw(fz_key_name(e.key), X + cw * 18, yy + asc);
+            fl_draw(fz_key_name(e.key), X + cw * 21, yy + asc);
             n = 0;
             text[0] = '\0';
             for (int b = 0; b < e.count; b++) {
@@ -326,7 +357,7 @@ private:
                 n += snprintf(text + n, sizeof(text) - (size_t) n, "%s ", hex);
             }
             fl_color(COLOR_CYAN);
-            fl_draw(text, X + cw * 26, yy + asc);
+            fl_draw(text, X + cw * 30, yy + asc);
             yy += lh;
         }
     }
