@@ -51,6 +51,7 @@ static void sample_cb(void* userdata)
     debugger_get_registers(dbg, &s_sample.regs);
     debugger_read_memory(dbg, s_sample.regs.sp, SAMPLE_STACK_BYTES, s_sample.stack);
     debugger_read_memory(dbg, s_sample.regs.hl, SAMPLE_HL_BYTES, s_sample.hl);
+    fltk_cpu_sample(machine);
     s_sample.valid = true;
 }
 
@@ -68,6 +69,7 @@ void fltk_sampler_unbind(void)
     vtimer_cancel(&s_timer);
     s_bound = false;
     s_sample.valid = false;
+    fltk_cpu_sample_reset();
 }
 
 bool fz_live_sample(regs_t* regs, uint8_t* stack, int stack_len, uint8_t* hl, int hl_len)

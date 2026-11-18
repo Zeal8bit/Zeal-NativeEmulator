@@ -2,6 +2,7 @@
 sdlfltk_sources = files(
     'audio.c',
     'bridge.c',
+    'bridge_cpu.c',
     'bridge_input.c',
     'bridge_profile.c',
     'controller.c',
@@ -24,6 +25,7 @@ sdlfltk_cpp_sources = files(
     'ui/view_hotcode.cpp',
     'ui/view_input.cpp',
     'ui/view_semihost.cpp',
+    'ui/view_symbols.cpp',
     'ui/view_watch.cpp',
 )
 if get_option('enable_debugger')

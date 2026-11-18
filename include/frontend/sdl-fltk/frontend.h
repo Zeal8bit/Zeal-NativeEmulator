@@ -33,6 +33,9 @@ void fltk_console_bind(void);
 /* Live CPU sampling for the debugger (sampler.c) */
 void fltk_sampler_bind(zeal_t* machine);
 void fltk_sampler_unbind(void);
+/* Interrupt/raster state captured with each sample (bridge_cpu.c) */
+void fltk_cpu_sample(zeal_t* machine);
+void fltk_cpu_sample_reset(void);
 
 /* Statistical PC profiler for the Hot Functions view (bridge_profile.c) */
 void fltk_pcprof_bind(zeal_t* machine);
