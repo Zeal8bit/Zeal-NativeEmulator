@@ -29,11 +29,28 @@ bool debugger_enable_breakpoint(dbg_t *dbg, hwaddr address, bool enabled);
 bool debugger_is_breakpoint_enabled(dbg_t *dbg, hwaddr address);
 int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size);
 
-/* Watchpoint management */
+/* Watchpoint management (logical addresses, 0x0000-0xFFFF). A watchpoint is
+ * identified by its start address. Adding one where another starts merges the
+ * types, takes the new end and enables it. */
 bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp);
+/* Remove the watchpoint starting at the address */
 bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address);
+/* Change the type of the watchpoint starting at the address (0 removes it) */
+bool debugger_set_watchpoint_type(dbg_t *dbg, hwaddr address, watchpoint_type_t type);
+bool debugger_enable_watchpoint(dbg_t *dbg, hwaddr address, bool enabled);
+void debugger_clear_watchpoints(dbg_t *dbg);
+/* True if a watchpoint (enabled or not) covers the address */
 bool debugger_is_watchpoint_set(dbg_t *dbg, hwaddr address);
+/* First watchpoint (enabled or not) covering the address */
+bool debugger_find_watchpoint(dbg_t *dbg, hwaddr address, watchpoint_t *wp);
+/* Types of the enabled watchpoints covering the address, 0 if none */
+watchpoint_type_t debugger_watchpoint_type_at(dbg_t *dbg, hwaddr address);
 int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t* wps, unsigned int size);
+/* Report an access that hit a watchpoint; the machine pauses after the instruction */
+void debugger_watchpoint_hit(dbg_t *dbg, hwaddr address, hwaddr pc, uint8_t value, watchpoint_type_t type);
+/* The hit that stopped the machine, false once execution resumed */
+bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit);
+void debugger_clear_watchpoint_hit(dbg_t *dbg);
 
 /* Memory inspection */
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);

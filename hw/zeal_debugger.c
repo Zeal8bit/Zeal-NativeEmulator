@@ -126,6 +126,8 @@ static bool zeal_debugger_is_paused_cb(dbg_t* dbg) {
 
 static void zeal_debugger_continue_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_watchpoint_hit(dbg);
     machine->dbg_state = ST_RUNNING;
 }
 
@@ -138,12 +140,16 @@ static void zeal_debugger_reset_cb(dbg_t* dbg) {
 
 static void zeal_debugger_step_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_watchpoint_hit(dbg);
     machine->dbg_state = ST_REQ_STEP;
 }
 
 
 static void zeal_debugger_step_over_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_watchpoint_hit(dbg);
     machine->dbg_state = ST_REQ_STEP_OVER;
 }
 

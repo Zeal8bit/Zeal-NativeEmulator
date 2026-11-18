@@ -241,21 +241,76 @@ int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
 
 
 /* Watchpoint management */
+#define WATCH_ADDR_MAX  0xffff
+
+static hwaddr watchpoint_end(const watchpoint_t* wp)
+{
+    return wp->end > wp->addr ? wp->end : wp->addr;
+}
+
+static watchpoint_t* find_watchpoint(dbg_t *dbg, hwaddr address)
+{
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        if (dbg->watchpoints[i].type != 0 && dbg->watchpoints[i].addr == address) {
+            return &dbg->watchpoints[i];
+        }
+    }
+    return NULL;
+}
+
+/* Rebuild the per-address map the CPU checks, after any watchpoint change */
+static void update_watch_map(dbg_t *dbg)
+{
+    bool any = false;
+    for (int i = 0; i < DBG_MAX_POINTS && !any; i++) {
+        any = dbg->watchpoints[i].type != 0 && !dbg->watchpoints[i].disabled;
+    }
+    if (!any) {
+        dbg->watch_live = NULL;
+        return;
+    }
+    if (dbg->watch_map == NULL) {
+        dbg->watch_map = malloc(WATCH_ADDR_MAX + 1);
+        if (dbg->watch_map == NULL) {
+            hw_log(dbg->host, true, 0, "[DEBUGGER] Not enough memory for watchpoints\n");
+            dbg->watch_live = NULL;
+            return;
+        }
+    }
+    memset(dbg->watch_map, 0, WATCH_ADDR_MAX + 1);
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        const watchpoint_t* wp = &dbg->watchpoints[i];
+        if (wp->type == 0 || wp->disabled) continue;
+        for (hwaddr a = wp->addr; a <= watchpoint_end(wp); a++) {
+            dbg->watch_map[a] |= (uint8_t) wp->type;
+        }
+    }
+    dbg->watch_live = dbg->watch_map;
+}
+
 bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
-    if (!dbg) {
+    if (dbg == NULL || (wp.type & WATCHPOINT_RW) == 0 || wp.addr > WATCH_ADDR_MAX) {
         return false;
     }
-    /* Check if a watchpoint already exists at the address */
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == wp.addr) {
-            dbg->watchpoints[i].type |= wp.type;
-            return true;
-        }
+    wp.type &= WATCHPOINT_RW;
+    wp.end = watchpoint_end(&wp);
+    if (wp.end > WATCH_ADDR_MAX) wp.end = WATCH_ADDR_MAX;
+    wp.disabled = false;
+
+    /* A watchpoint at the same start address is updated */
+    watchpoint_t* slot = find_watchpoint(dbg, wp.addr);
+    if (slot != NULL) {
+        slot->type |= wp.type;
+        slot->end = wp.end;
+        slot->disabled = false;
+        update_watch_map(dbg);
+        return true;
     }
     /* Find an empty slot and add the new watchpoint */
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == 0) {
+        if (dbg->watchpoints[i].type == 0) {
             dbg->watchpoints[i] = wp;
+            update_watch_map(dbg);
             return true;
         }
     }
@@ -264,13 +319,54 @@ bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
 
 
 bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
+    return debugger_set_watchpoint_type(dbg, address, 0);
+}
+
+bool debugger_set_watchpoint_type(dbg_t *dbg, hwaddr address, watchpoint_type_t type) {
+    if (dbg == NULL) {
+        return false;
+    }
+    watchpoint_t* wp = find_watchpoint(dbg, address);
+    if (wp == NULL) {
+        return false;
+    }
+    wp->type = type & WATCHPOINT_RW;
+    if (wp->type == 0) {
+        memset(wp, 0, sizeof(*wp));
+    }
+    update_watch_map(dbg);
+    return true;
+}
+
+bool debugger_enable_watchpoint(dbg_t *dbg, hwaddr address, bool enabled) {
+    if (dbg == NULL) {
+        return false;
+    }
+    watchpoint_t* wp = find_watchpoint(dbg, address);
+    if (wp == NULL) {
+        return false;
+    }
+    wp->disabled = !enabled;
+    update_watch_map(dbg);
+    return true;
+}
+
+void debugger_clear_watchpoints(dbg_t *dbg) {
+    if (dbg == NULL) {
+        return;
+    }
+    memset(dbg->watchpoints, 0, sizeof(dbg->watchpoints));
+    update_watch_map(dbg);
+}
+
+bool debugger_find_watchpoint(dbg_t *dbg, hwaddr address, watchpoint_t *out) {
     if (dbg == NULL) {
         return false;
     }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
-            dbg->watchpoints[i].addr = 0;
-            dbg->watchpoints[i].type = 0;
+        const watchpoint_t* wp = &dbg->watchpoints[i];
+        if (wp->type != 0 && address >= wp->addr && address <= watchpoint_end(wp)) {
+            if (out) *out = *wp;
             return true;
         }
     }
@@ -278,15 +374,14 @@ bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
 }
 
 bool debugger_is_watchpoint_set(dbg_t *dbg, hwaddr address) {
-    if (dbg == NULL) {
-        return false;
+    return debugger_find_watchpoint(dbg, address, NULL);
+}
+
+watchpoint_type_t debugger_watchpoint_type_at(dbg_t *dbg, hwaddr address) {
+    if (dbg == NULL || dbg->watch_live == NULL || address > WATCH_ADDR_MAX) {
+        return 0;
     }
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
-            return true;
-        }
-    }
-    return false;
+    return (watchpoint_type_t) dbg->watch_live[address];
 }
 
 int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
@@ -296,12 +391,43 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
 
     unsigned int found = 0;
     for (int i = 0; i < DBG_MAX_POINTS && found < size; i++) {
-        if (dbg->watchpoints[i].addr != 0) {
-            wps[found++] = dbg->watchpoints[i];
+        if (dbg->watchpoints[i].type != 0) {
+            wps[found] = dbg->watchpoints[i];
+            wps[found].end = watchpoint_end(&wps[found]);
+            found++;
         }
     }
 
     return found;
+}
+
+void debugger_watchpoint_hit(dbg_t *dbg, hwaddr address, hwaddr pc, uint8_t value, watchpoint_type_t type)
+{
+    if (dbg == NULL) {
+        return;
+    }
+    dbg->watch_hit.addr = address;
+    dbg->watch_hit.pc = pc;
+    dbg->watch_hit.value = value;
+    dbg->watch_hit.type = type;
+    dbg->watch_hit.count++;
+    dbg->watch_stopped = true;
+}
+
+bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit)
+{
+    if (dbg == NULL || !dbg->watch_stopped) {
+        return false;
+    }
+    if (hit) *hit = dbg->watch_hit;
+    return true;
+}
+
+void debugger_clear_watchpoint_hit(dbg_t *dbg)
+{
+    if (dbg != NULL) {
+        dbg->watch_stopped = false;
+    }
 }
 
 
@@ -513,6 +639,11 @@ void debugger_init(dbg_t *dbg)
 void debugger_deinit(dbg_t* dbg)
 {
     debugger_clear_symbols(dbg);
+    if (dbg != NULL) {
+        free(dbg->watch_map);
+        dbg->watch_map = NULL;
+        dbg->watch_live = NULL;
+    }
 }
 
 
