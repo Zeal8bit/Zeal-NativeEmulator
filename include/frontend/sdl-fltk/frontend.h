@@ -24,6 +24,9 @@ void fltk_keyboard_reset(void);
 /* Live CPU sampling for the debugger (sampler.c) */
 void fltk_sampler_bind(zeal_t* machine);
 void fltk_sampler_unbind(void);
+/* Interrupt/raster state captured with each sample (bridge_cpu.c) */
+void fltk_cpu_sample(zeal_t* machine);
+void fltk_cpu_sample_reset(void);
 
 /* Audio (audio.c), SDL3 playback */
 void  fltk_audio_init(zvb_sound_t* sound);

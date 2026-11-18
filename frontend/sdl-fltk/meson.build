@@ -2,6 +2,7 @@
 sdlfltk_sources = files(
     'audio.c',
     'bridge.c',
+    'bridge_cpu.c',
     'controller.c',
     'frontend.c',
     'keyboard.c',

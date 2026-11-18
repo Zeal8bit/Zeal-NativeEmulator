@@ -42,6 +42,7 @@
 extern "C" {
 #include "debugger/zeal_debugger.h"
 }
+#include "frontend/sdl-fltk/bridge_cpu.h"
 #endif
 
 namespace zui {
@@ -256,7 +257,8 @@ public:
     static int preferred_height()
     {
         const int lh = data_line_height();
-        return HEADER_H + 8 + 7 * lh + 22 + lh + 4 + 12 + 2 * lh + 10;
+        /* registers, flag chips, interrupt chips, (HL)/(SP), timing */
+        return HEADER_H + 8 + 7 * lh + 22 + (lh + 4) + 18 + (lh + 4) + 12 + 2 * lh + TIMING_GAP + 2 * lh + 8;
     }
 
     void refresh(bool paused, bool force) override
@@ -276,6 +278,20 @@ public:
         if (dbg_ready()) {
             display_memory(m_regs.hl, 8, m_peek_hl, false);
             display_memory(m_regs.sp, 2, m_peek_sp, true);
+        }
+        /* Interrupt state and raster position belong with the registers (the
+         * sample while running); the counters are read live. */
+        fz_cpu_state_t live;
+        m_have_cpu = fz_cpu_state(&live);
+        if (m_have_cpu) {
+            m_cpu = live;
+            fz_cpu_state_t sample;
+            if (!paused && fz_cpu_state_sampled(&sample)) {
+                sample.tstates = live.tstates;
+                sample.elapsed_us = live.elapsed_us;
+                sample.frame = live.frame;
+                m_cpu = sample;
+            }
         }
         extra(paused ? "PAUSED" : "SAMPLED");
         redraw();
@@ -332,8 +348,48 @@ public:
             fl_draw(names[i], cx + (cwid - (int) fl_width(names[i])) / 2, fy + 2 + asc);
         }
 
+        /* Interrupt state: IM value chip, then lit/unlit state chips */
+        const int iy = int_y();
+        fl_color(COLOR_DIM);
+        fl_font(FL_HELVETICA, 10);
+        fl_draw("INTERRUPTS", x() + 10, iy - 5);
+        fl_font(DATA_FONT, DATA_SIZE);
+        fl_push_clip(x(), iy, w() - 4, lh + 4);
+        for (int i = 0; i < INT_CHIPS; i++) {
+            int cx, cwid;
+            int_chip(i, cx, cwid);
+            char label[8];
+            Fl_Color fill = 0;
+            bool on = false;
+            switch (i) {
+                case 0: snprintf(label, sizeof(label), "IM %u", (unsigned) m_cpu.im); break;
+                case 1: snprintf(label, sizeof(label), "IFF1"); on = m_cpu.iff1; fill = COLOR_GREEN; break;
+                case 2: snprintf(label, sizeof(label), "IFF2"); on = m_cpu.iff2; fill = COLOR_GREEN; break;
+                case 3: snprintf(label, sizeof(label), "HALT"); on = m_cpu.halted; fill = COLOR_AMBER; break;
+                case 4: snprintf(label, sizeof(label), "INT"); on = m_cpu.int_pending; fill = COLOR_AMBER; break;
+                default: snprintf(label, sizeof(label), "NMI"); on = m_cpu.nmi_pending; fill = COLOR_BREAK; break;
+            }
+            if (i == 0) {
+                fl_color(COLOR_RAISED);
+                fl_rectf(cx, iy, cwid, lh + 4);
+                fl_color(COLOR_BORDER);
+                fl_rect(cx, iy, cwid, lh + 4);
+                fl_color(m_have_cpu ? COLOR_AMBER : COLOR_DIM);
+            } else if (on) {
+                fl_color(fill);
+                fl_rectf(cx, iy, cwid, lh + 4);
+                fl_color(COLOR_BG);
+            } else {
+                fl_color(COLOR_BORDER);
+                fl_rect(cx, iy, cwid, lh + 4);
+                fl_color(COLOR_DIM);
+            }
+            fl_draw(label, cx + (cwid - (int) fl_width(label)) / 2, iy + 2 + asc);
+        }
+        fl_pop_clip();
+
         /* What HL and SP point at */
-        int py = fy + lh + 4 + 12;
+        int py = iy + lh + 4 + 12;
         fl_color(COLOR_CYAN);
         fl_draw("(HL)", x() + 10, py + asc);
         int n = 0;
@@ -360,6 +416,8 @@ public:
             fl_draw(sym, x() + 10 + cw * 10, py + asc);
         }
 
+        draw_timing(lh, cw, asc);
+
         if (m_edit->visible()) draw_child(*m_edit);
     }
 
@@ -378,10 +436,16 @@ public:
             case FL_MOVE: {
                 int id = hit_value(Fl::event_x(), Fl::event_y());
                 if (id < 0) id = hit_name(Fl::event_x(), Fl::event_y());
+                if (id < 0) {
+                    const int c = hit_int_chip(Fl::event_x(), Fl::event_y());
+                    if (c >= 0) id = HOVER_INT + c;
+                    else if (hit_timing(Fl::event_y())) id = HOVER_TIMING;
+                }
                 if (id != m_hover) {
                     m_hover = id;
                     redraw();
-                    tooltip_for(id);
+                    if (id >= HOVER_INT) tooltip_extra(id);
+                    else tooltip_for(id);
                 }
                 return 1;
             }
@@ -438,6 +502,142 @@ private:
         if (cw > 30) cw = 30;
         cx = x() + 10 + i * (cw + 4);
     }
+
+    static constexpr int INT_CHIPS = 6;   /* IM n, IFF1, IFF2, HALT, INT, NMI */
+    static constexpr int TIMING_GAP = 9;  /* space holding the divider above the timing lines */
+
+    int int_y() const { return flags_y() + data_line_height() + 4 + 18; }
+    int timing_y() const { return int_y() + 3 * data_line_height() + 4 + 12 + TIMING_GAP; }
+
+    void int_chip(int i, int& cx, int& cw) const
+    {
+        /* Widths fit the labels ("IM 1", four-letter chips, then INT/NMI);
+         * the padding shrinks so all six fit a narrow column. */
+        const int c = char_width();
+        static const int chars[INT_CHIPS] = { 4, 4, 4, 4, 3, 3 };
+        constexpr int gap = 4;
+        int total = 0;
+        for (int k = 0; k < INT_CHIPS; k++) total += chars[k] * c;
+        int pad = (w() - 20 - total - gap * (INT_CHIPS - 1)) / INT_CHIPS;
+        if (pad > 10) pad = 10;
+        if (pad < 2) pad = 2;
+        cx = x() + 10;
+        for (int k = 0; k < i; k++) cx += chars[k] * c + pad + gap;
+        cw = chars[i] * c + pad;
+    }
+
+    int hit_int_chip(int ex, int ey) const
+    {
+        const int iy = int_y();
+        if (ey < iy || ey >= iy + data_line_height() + 4) return -1;
+        for (int i = 0; i < INT_CHIPS; i++) {
+            int cx, cw;
+            int_chip(i, cx, cw);
+            if (ex >= cx && ex < cx + cw) return i;
+        }
+        return -1;
+    }
+
+    bool hit_timing(int ey) const
+    {
+        const int ty = timing_y();
+        return ey >= ty && ey < ty + 2 * data_line_height();
+    }
+
+    static void group_digits(char* out, size_t size, uint64_t value)
+    {
+        char digits[32];
+        snprintf(digits, sizeof(digits), "%llu", (unsigned long long) value);
+        const int len = (int) strlen(digits);
+        size_t n = 0;
+        for (int i = 0; i < len && n + 2 < size; i++) {
+            if (i > 0 && (len - i) % 3 == 0) out[n++] = ',';
+            out[n++] = digits[i];
+        }
+        out[n] = '\0';
+    }
+
+    /* CYCLES / FRAME counters and the ZVB raster position (decimal) */
+    void draw_timing(int lh, int cw, int asc)
+    {
+        const int ty = timing_y();
+        fl_color(COLOR_BORDER);
+        fl_xyline(x() + 10, ty - TIMING_GAP / 2 - 1, x() + w() - 10);
+        if (!m_have_cpu) return;
+        char text[40];
+        const int lx = x() + 10;
+        const int vx = lx + cw * 7;
+        fl_font(DATA_FONT, DATA_SIZE);
+
+        fl_color(COLOR_DIM);
+        fl_draw("CYCLES", lx, ty + asc);
+        group_digits(text, sizeof(text), m_cpu.tstates);
+        fl_color(COLOR_TEXT);
+        fl_draw(text, vx, ty + asc);
+        const int used = vx + (int) fl_width(text);
+        const double secs = (double) m_cpu.elapsed_us / 1e6;
+        snprintf(text, sizeof(text), secs < 1000.0 ? "%.3fs" : "%.0fs", secs);
+        const int tw = (int) fl_width(text);
+        if (used + cw * 2 + tw <= x() + w() - 10) {
+            fl_color(COLOR_DIM);
+            fl_draw(text, x() + w() - 10 - tw, ty + asc);
+        }
+
+        const int y2 = ty + lh;
+        fl_color(COLOR_DIM);
+        fl_draw("FRAME", lx, y2 + asc);
+        group_digits(text, sizeof(text), m_cpu.frame);
+        fl_color(COLOR_TEXT);
+        fl_draw(text, vx, y2 + asc);
+
+        /* Raster in the right column, aligned with the second register column.
+         * Values turn amber inside the blanking interval. */
+        const int rx = x() + 10 + w() / 2;
+        fl_color(COLOR_DIM);
+        fl_draw("Y", rx, y2 + asc);
+        snprintf(text, sizeof(text), "%3d", m_cpu.scanline);
+        fl_color(m_cpu.vblank ? COLOR_AMBER : COLOR_TEXT);
+        fl_draw(text, rx + cw * 2, y2 + asc);
+        fl_color(COLOR_DIM);
+        fl_draw("X", rx + cw * 6, y2 + asc);
+        snprintf(text, sizeof(text), "%3d", m_cpu.hpos);
+        fl_color(m_cpu.hpos >= m_cpu.visible_pixels ? COLOR_AMBER : COLOR_TEXT);
+        fl_draw(text, rx + cw * 8, y2 + asc);
+    }
+
+    void tooltip_extra(int hover)
+    {
+        static char tip[320];
+        const int lh = data_line_height();
+        if (hover >= HOVER_INT && hover < HOVER_INT + INT_CHIPS) {
+            static const char* tips[INT_CHIPS] = {
+                "Interrupt mode (IM 0 / IM 1 / IM 2)",
+                "IFF1: maskable interrupts enabled (EI / DI)",
+                "IFF2: copy of IFF1 saved during NMI, restored by RETN",
+                "HALT: the CPU is halted, waiting for an interrupt",
+                "INT: a maskable interrupt is pending (not yet accepted)",
+                "NMI: a non-maskable interrupt is pending",
+            };
+            int cx, cw;
+            int_chip(hover - HOVER_INT, cx, cw);
+            Fl_Tooltip::enter_area(this, cx - x(), int_y() - y(), cw, lh + 4, tips[hover - HOVER_INT]);
+        } else if (hover == HOVER_TIMING) {
+            snprintf(tip, sizeof(tip),
+                     "CYCLES: CPU T-states since reset (live), with emulated time\n"
+                     "FRAME: video frames since reset (live)\n"
+                     "Y / X: raster scanline and pixel (decimal)%s\n"
+                     "  Y 0-%d visible, %d-%d vertical blank\n"
+                     "  X 0-%d visible, %d-%d horizontal blank\n"
+                     "Amber: inside the blanking interval",
+                     m_paused ? "" : ", at the sample point",
+                     m_cpu.visible_lines - 1, m_cpu.visible_lines, m_cpu.total_lines - 1,
+                     m_cpu.visible_pixels - 1, m_cpu.visible_pixels, m_cpu.line_pixels - 1);
+            Fl_Tooltip::enter_area(this, 0, timing_y() - y(), w(), 2 * lh, tip);
+        }
+    }
+
+    static constexpr int HOVER_INT = 100;
+    static constexpr int HOVER_TIMING = 200;
 
     int hit_value(int ex, int ey) const
     {
@@ -569,6 +769,8 @@ private:
     bool m_have_prev = false;
     uint8_t m_peek_hl[8] = {};
     uint8_t m_peek_sp[2] = {};
+    fz_cpu_state_t m_cpu = {};
+    bool m_have_cpu = false;
     int m_hover = -1;
 };
 
