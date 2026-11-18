@@ -132,7 +132,8 @@ if build_sdlfltk
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
         include_directories: sdlfltk_ui_inc,
-        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep],
+        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep],
+        objcpp_args: ['-std=c++17'],
         cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
     run_target('run-fltk', command: [exec])
 endif

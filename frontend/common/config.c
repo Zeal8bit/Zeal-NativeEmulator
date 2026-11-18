@@ -447,6 +447,11 @@ void config_parse_file(const char* file) {
         config.audio.volume = 100;
     }
 
+    const char* theme = config.ini.values ?
+        rini_get_config_value_text_fallback(config.ini, "FLTK_THEME", "") : "";
+    config.window.theme = strcmp(theme, "light") == 0 ? THEME_LIGHT :
+                          strcmp(theme, "dark") == 0 ? THEME_DARK : THEME_SYSTEM;
+
     config.window.width = lookup_int("WIN_WIDTH", -1);
     config.window.height = lookup_int("WIN_HEIGHT", -1);
     config.window.x = lookup_int("WIN_POS_X", -1);
@@ -669,7 +674,7 @@ static bool has_values(const rini_config* ini)
     return false;
 }
 
-int config_save(void)
+static int save_files(bool save_project)
 {
     int result = 0;
     rini_config ini = new_output();
@@ -752,13 +757,20 @@ int config_save(void)
 
     keep_project_keys(&ini, &project);
 
+    /* The appearance is always a user preference, even if a separate
+     * project file happens to contain the same key. */
+    if (window->theme != THEME_SYSTEM) {
+        rini_set_config_value_text(&ini, "FLTK_THEME", window->theme == THEME_LIGHT ? "light" : "dark",
+                                   "SDL/FLTK appearance override");
+    }
+
     if (project_is_user()) {
         /* One file for both: append the project values */
         for (unsigned i = 0; i < project.count; i++) {
             const rini_config_value* v = &project.values[i];
             if (v->key[0] != '\0') rini_set_config_value_text(&ini, v->key, v->text, v->desc);
         }
-    } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
+    } else if (save_project && (has_values(&project) || path_exists(config.arguments.project_path))) {
         /* Never create a project file in a directory with nothing to save */
         if (!can_write(&project, config.arguments.project_path, project_truncated) ||
             !write_ini(&project, config.arguments.project_path)) {
@@ -773,6 +785,16 @@ int config_save(void)
     rini_unload_config(&project);
 
     return result;
+}
+
+int config_save(void)
+{
+    return save_files(true);
+}
+
+int config_save_user(void)
+{
+    return save_files(false);
 }
 
 void config_unload(void)

@@ -36,7 +36,14 @@ _Static_assert(sizeof(rini_config_value) == RINI_MAX_KEY_SIZE + ZEAL_INI_VALUE_M
 #endif
 
 
+typedef enum {
+    THEME_SYSTEM,
+    THEME_LIGHT,
+    THEME_DARK,
+} config_theme_t;
+
 typedef struct {
+    config_theme_t theme;
     int width;
     int height;
     int x;
@@ -159,6 +166,8 @@ void config_unload(void);
  * @brief Save config file
  */
 int config_save(void);
+/** Save user preferences without writing a separate project file. */
+int config_save_user(void);
 
 /**
  * @brief Get a config int value

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Look and feel: flat dark surfaces with retro phosphor accents, the data
+/* Look and feel: flat surfaces with retro phosphor accents, the data
  * font, panel headers and the small vector icons of the debugger. */
 #pragma once
 
@@ -12,20 +12,22 @@
 
 namespace zui::theme {
 
-constexpr Fl_Color COLOR_BG       = 0x111215'00;  /* window / gaps */
-constexpr Fl_Color COLOR_SURFACE  = 0x181A1F'00;  /* panel body */
-constexpr Fl_Color COLOR_RAISED   = 0x20232A'00;  /* headers, bars */
-constexpr Fl_Color COLOR_BORDER   = 0x2E323B'00;
-constexpr Fl_Color COLOR_HOVER    = 0x262A33'00;
-constexpr Fl_Color COLOR_TEXT     = 0xD7DAE0'00;
-constexpr Fl_Color COLOR_DIM      = 0x5E6575'00;
-constexpr Fl_Color COLOR_AMBER    = 0xFFB454'00;  /* headers, labels, PC */
-constexpr Fl_Color COLOR_CYAN     = 0x5CCFE6'00;  /* addresses, links */
-constexpr Fl_Color COLOR_GREEN    = 0x95E06C'00;  /* running, lit flags */
-constexpr Fl_Color COLOR_PC       = 0x2A3320'00;  /* current instruction row */
-constexpr Fl_Color COLOR_SELECT   = 0x1F3A57'00;
-constexpr Fl_Color COLOR_BREAK    = 0xFF5F57'00;
-constexpr Fl_Color COLOR_CHANGED  = 0xFF8FD0'00;
+constexpr Fl_Color COLOR_BG       = FL_FREE_COLOR + 0;  /* window / gaps */
+constexpr Fl_Color COLOR_SURFACE  = FL_FREE_COLOR + 1;  /* panel body */
+constexpr Fl_Color COLOR_RAISED   = FL_FREE_COLOR + 2;  /* headers, bars */
+constexpr Fl_Color COLOR_BORDER   = FL_FREE_COLOR + 3;
+constexpr Fl_Color COLOR_HOVER    = FL_FREE_COLOR + 4;
+constexpr Fl_Color COLOR_TEXT     = FL_FREE_COLOR + 5;
+constexpr Fl_Color COLOR_DIM      = FL_FREE_COLOR + 6;
+constexpr Fl_Color COLOR_AMBER    = FL_FREE_COLOR + 7;  /* headers, labels, PC */
+constexpr Fl_Color COLOR_CYAN     = FL_FREE_COLOR + 8;  /* addresses, links */
+constexpr Fl_Color COLOR_GREEN    = FL_FREE_COLOR + 9;  /* running, lit flags */
+constexpr Fl_Color COLOR_PC       = FL_FREE_COLOR + 10;  /* current instruction row */
+constexpr Fl_Color COLOR_SELECT   = FL_FREE_COLOR + 11;
+constexpr Fl_Color COLOR_BREAK    = FL_FREE_COLOR + 12;
+constexpr Fl_Color COLOR_CHANGED  = FL_FREE_COLOR + 13;
+constexpr Fl_Color COLOR_MATCH    = FL_FREE_COLOR + 14;  /* memory search hits */
+constexpr Fl_Color COLOR_BREAK_ROW = FL_FREE_COLOR + 15; /* watch that stopped the CPU */
 /* Older names kept for the main window */
 constexpr Fl_Color COLOR_PANEL    = COLOR_RAISED;
 constexpr Fl_Color COLOR_ACCENT   = COLOR_CYAN;
@@ -41,7 +43,9 @@ extern bool g_pixel_font;
 constexpr int BAR_H = 30; /* input/button rows on top of panels */
 
 /** Fl::scheme and base colours of the whole UI. */
-void apply_theme();
+void start_theme();
+void apply_theme_preference();
+void stop_theme();
 int  data_line_height();
 /** Panel header: raised strip, amber accent bar, title and optional right text. */
 void draw_header(int x, int y, int w, const char* title, const char* extra = nullptr);

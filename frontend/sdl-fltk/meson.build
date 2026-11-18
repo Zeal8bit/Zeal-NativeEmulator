@@ -63,6 +63,17 @@ sdlfltk_cpp_sources = files(
     'ui/widgets/split_pane.cpp',
     'ui/widgets/tabbed_panel.cpp',
 )
+if host_machine.system() == 'darwin'
+    add_languages('objcpp', native: false)
+    sdlfltk_cpp_sources += files('ui/theme/appearance_macos.mm')
+    appearance_dep = dependency('appleframeworks', modules: 'AppKit')
+elif host_machine.system() == 'windows'
+    sdlfltk_cpp_sources += files('ui/theme/appearance_windows.cpp')
+    appearance_dep = meson.get_compiler('cpp').find_library('advapi32')
+else
+    sdlfltk_cpp_sources += files('ui/theme/appearance_portal.cpp')
+    appearance_dep = dependency('dbus-1')
+endif
 if get_option('enable_debugger')
     sdlfltk_cpp_sources += files(
         'ui/console/console_format.cpp',

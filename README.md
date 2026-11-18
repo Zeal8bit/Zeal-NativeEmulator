@@ -58,9 +58,14 @@ You will then have graphical `zeal-native` and console/batch `zeal-headless` bin
 provides the windows, native menus, keyboard/mouse input and the docked
 debugger, and SDL3 (initialized without video) provides audio and gamepads.
 It accepts the same command-line options and configuration file as `zeal-native`.
+**View → Theme** defaults to **System** and follows appearance changes while the
+emulator is open. Choosing **Light** or **Dark** saves `FLTK_THEME` in the user
+configuration. Choosing **System** removes that override. On Linux it reads the desktop portal’s color-scheme setting
+over D-Bus and uses the dark theme if the setting is unavailable.
 
 Requirements: **FLTK 1.3.8 or newer** (1.4 recommended, with `fltk-config` on
-`PATH`), **SDL 3**, OpenGL and a C++17 compiler.
+`PATH`), **SDL 3**, OpenGL and a C++17 compiler. Linux and BSD builds also
+require the D-Bus development package (`dbus-1` in pkg-config).
 
 ```sh
 # macOS

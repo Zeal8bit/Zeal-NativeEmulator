@@ -92,7 +92,7 @@ int ui_open(bool debug)
     /* Cocoa (macOS system menubar) must exist before any menu is built */
     fl_open_display();
     apply_ui_font();
-    apply_theme();
+    start_theme();
     load_fonts();
 #if FL_API_VERSION >= 10400
     Fl::use_high_res_GL(1);
@@ -110,6 +110,7 @@ int ui_open(bool debug)
 
 void ui_close(void)
 {
+    stop_theme();
     notif_cancel();
     MainWindow* window = main_window();
     if (window == nullptr) return;

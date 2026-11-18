@@ -92,7 +92,7 @@ void WatchList::draw()
         const int ry = rows_y() + i * lh;
         if (index == hit) {
             /* This row's break stopped the machine */
-            fl_color(fl_color_average(COLOR_BREAK, COLOR_SURFACE, 0.3f));
+            fl_color(COLOR_BREAK_ROW);
             fl_rectf(x(), ry, w(), lh);
         } else if (index == m_hover) {
             fl_color(COLOR_HOVER);

@@ -21,7 +21,6 @@ class MemView : public Fl_Widget {
 public:
     static constexpr int COLS = 16;
     static constexpr int ROWS_TOTAL = 0x10000 / COLS;
-    static constexpr Fl_Color COLOR_MATCH = 0x3D3320'00; /* search hits */
 
     MemView(int X, int Y, int W, int H, Fl_Scrollbar* bar);
 

@@ -16,6 +16,7 @@
 #include "app/main_window.h"
 #include "common/machine.h"
 #include "common/persist.h"
+#include "theme/theme.h"
 
 namespace zui::app {
 
@@ -119,6 +120,13 @@ void cb_aspect(Fl_Widget* w, void*)
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     config.window.aspect_force = item && item->value();
     if (main_window()) main_window()->apply_aspect();
+}
+
+void cb_theme(Fl_Widget*, void* data)
+{
+    config.window.theme = static_cast<config_theme_t>((intptr_t) data);
+    theme::apply_theme_preference();
+    if (config_save_user() != 0) notif_show("Theme preference could not be saved");
 }
 
 void cb_fullscreen(Fl_Widget*, void*) { if (main_window()) main_window()->toggle_fullscreen(); }
@@ -269,6 +277,11 @@ void AppMenus::build()
     mb->add("&View/&Fullscreen", FL_COMMAND + FL_SHIFT + 'f', cb_fullscreen, nullptr, FL_MENU_DIVIDER);
     if (fz_scanline_available()) {
         mb->add("&View/Scanline Rendering", 0, cb_scanline, nullptr, FL_MENU_TOGGLE);
+    }
+    const char* const theme_paths[] = { "&View/Theme/System", "&View/Theme/Light", "&View/Theme/Dark" };
+    for (int i = THEME_SYSTEM; i <= THEME_DARK; i++) {
+        const int checked = config.window.theme == i ? FL_MENU_VALUE : 0;
+        mb->add(theme_paths[i], 0, cb_theme, (void*) (intptr_t) i, FL_MENU_RADIO | checked);
     }
     mb->add("&View/Show FPS", 0, cb_show_fps, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
     if (m_window->debugger()) {
