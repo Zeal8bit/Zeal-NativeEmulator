@@ -137,6 +137,11 @@ bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why
     return true;
 }
 
+bool watch_break_permanent(const Watch& w)
+{
+    return follows_register(w.expr);
+}
+
 void watch_breaks_sync()
 {
     if (!dbg_ready()) return;
@@ -145,22 +150,45 @@ void watch_breaks_sync()
         hwaddr lo, hi;
         if (w.brk == 0) continue;
         if (!watch_break_target(w, &lo, &hi)) {
-            w.brk = 0; /* e.g. retyped or edited into a register expression */
+            /* An address following a register can never break (e.g. the row
+             * was edited into (HL)). An unresolved symbol keeps the request,
+             * unarmed, until a map provides it. */
+            if (watch_break_permanent(w)) w.brk = 0;
             continue;
         }
         want.push_back({ lo, hi, (watchpoint_type_t) w.brk, w.brk_on });
     }
     if (want == s_armed) return;
     s_armed = want;
+
+    /* Core watchpoints are keyed by their start address, so rows sharing
+     * bytes (u8 and u16 views of one variable...) cannot each become one.
+     * Project the rows per byte instead: what enabled rows request, and
+     * where no enabled row covers a byte, what disabled rows request (kept
+     * as disabled core entries so the memory view still shows them). */
+    std::vector<uint8_t> on(0x10000, 0), off(0x10000, 0);
+    for (const Armed& a : want) {
+        std::vector<uint8_t>& mask = a.on ? on : off;
+        for (unsigned addr = a.lo; addr <= a.hi; addr++) mask[addr] |= (uint8_t) a.type;
+    }
+    auto disabled_at = [&](unsigned addr) { return on[addr] ? 0 : off[addr]; };
     dbg_t* dbg = fz_debugger();
     debugger_clear_watchpoints(dbg);
-    for (const Armed& a : want) {
+    for (unsigned addr = 0; addr <= 0xFFFF;) {
+        const uint8_t en = on[addr], dis = disabled_at(addr);
+        if (en == 0 && dis == 0) {
+            addr++;
+            continue;
+        }
+        unsigned end = addr;
+        while (end < 0xFFFF && on[end + 1] == en && disabled_at(end + 1) == dis) end++;
         watchpoint_t wp = {};
-        wp.addr = a.lo;
-        wp.end = a.hi;
-        wp.type = a.type;
+        wp.addr = (hwaddr) addr;
+        wp.end = (hwaddr) end;
+        wp.type = (watchpoint_type_t) (en ? en : dis);
         debugger_add_watchpoint(dbg, wp);
-        if (!a.on) debugger_enable_watchpoint(dbg, a.lo, false);
+        if (en == 0) debugger_enable_watchpoint(dbg, wp.addr, false);
+        addr = end + 1;
     }
 }
 
@@ -211,7 +239,7 @@ bool watch_break_clear_at(hwaddr addr)
     bool any = false;
     for (Watch& w : watches()) {
         hwaddr lo, hi;
-        if (w.brk != 0 && watch_break_target(w, &lo, &hi) && lo == addr) {
+        if (w.brk != 0 && watch_break_target(w, &lo, &hi) && addr >= lo && addr <= hi) {
             w.brk = 0;
             any = true;
         }

@@ -98,12 +98,15 @@ void WatchList::draw()
             fl_color(COLOR_HOVER);
             fl_rectf(x(), ry, w(), lh);
         }
-        /* Break marker: filled = breaks, outline = break disabled */
+        /* Break marker: filled = breaks, outline = break disabled, dim
+         * outline = not armed (the expression does not resolve yet) */
+        hwaddr blo, bhi;
+        const bool armed = wt.brk && watch_break_target(wt, &blo, &bhi);
         if (wt.brk) {
             const int d = 8;
             const int cx = x() + GUTTER / 2, cy = ry + lh / 2;
-            fl_color(COLOR_BREAK);
-            if (wt.brk_on) {
+            fl_color(armed ? COLOR_BREAK : COLOR_DIM);
+            if (wt.brk_on && armed) {
                 fl_polygon(cx, cy - d / 2, cx + d / 2, cy, cx, cy + d / 2, cx - d / 2, cy);
             } else {
                 fl_loop(cx, cy - d / 2, cx + d / 2, cy, cx, cy + d / 2, cx - d / 2, cy);
@@ -120,7 +123,7 @@ void WatchList::draw()
         fl_color(COLOR_DIM);
         fl_draw(tag, name_r - tag_w, ry + asc);
         if (wt.brk) {
-            fl_color(wt.brk_on ? COLOR_BREAK : COLOR_DIM);
+            fl_color(wt.brk_on && armed ? COLOR_BREAK : COLOR_DIM);
             fl_draw(kind, name_r - kind_w + 4, ry + asc);
         }
         /* Expression */
@@ -294,6 +297,7 @@ void WatchList::context_menu(int row)
     };
     char brk_title[96];
     if (!wt) snprintf(brk_title, sizeof(brk_title), "Break");
+    else if (!can_break && wt->brk) snprintf(brk_title, sizeof(brk_title), "Break: not armed, %s", why);
     else if (!can_break) snprintf(brk_title, sizeof(brk_title), "Break: not available, %s", why);
     else {
         char range[24];
@@ -337,7 +341,9 @@ void WatchList::context_menu(int row)
         { "    on Read", 0, nullptr, nullptr, brk_radio(WATCHPOINT_READ), 0, 0, 0, 0 },
         { "    on Write", 0, nullptr, nullptr, brk_radio(WATCHPOINT_WRITE), 0, 0, 0, 0 },
         { "    on Access (read or write)", 0, nullptr, nullptr, brk_radio(WATCHPOINT_RW), 0, 0, 0, 0 },
-        { "    Never", 0, nullptr, nullptr, brk_radio(0), 0, 0, 0, 0 },
+        /* Always available on a row with a break, armed or not */
+        { "    Never", 0, nullptr, nullptr,
+          brk_radio(0) & ~((wt && wt->brk) ? FL_MENU_INACTIVE : 0), 0, 0, 0, 0 },
         { toggle_label, 0, nullptr, nullptr,
           ((wt && wt->brk && can_break) ? 0 : FL_MENU_INACTIVE) | FL_MENU_DIVIDER, 0, 0, 0, 0 },
         { "Show in Memory", 0, nullptr, nullptr, valid, 0, 0, 0, 0 },

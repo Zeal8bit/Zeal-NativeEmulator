@@ -500,7 +500,7 @@ void MemView::context_menu()
             break;
         }
         case 23:
-            watch_break_clear_at(watch.addr);
+            watch_break_clear_at((hwaddr) lo);
             break;
         default:
             break;

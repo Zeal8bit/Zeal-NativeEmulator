@@ -30,13 +30,19 @@ void watch_range_text(char* out, size_t size, hwaddr lo, hwaddr hi);
  *  cannot break because its address follows a register. */
 bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why = nullptr);
 
-/** Make the core watchpoints match the watch rows (cheap when unchanged). */
+/** True when the watch can never break (its address follows a register);
+ *  otherwise a failing watch_break_target() is only unresolved for now. */
+bool watch_break_permanent(const Watch& w);
+
+/** Make the core watchpoints match the watch rows (cheap when unchanged).
+ *  Rows are projected per byte, so overlapping rows never alter each other;
+ *  a row whose expression does not resolve yet keeps its break, unarmed. */
 void watch_breaks_sync();
 
 /** Break on [lo, hi] for `type` (memory view): sets the break of the watch
  *  covering exactly that range, or adds one. With a notification. */
 bool watch_break_range(hwaddr lo, hwaddr hi, watchpoint_type_t type);
-/** Clear the break of the watches starting at `addr` (the rows stay). */
+/** Clear the break of the watches covering `addr` (the rows stay). */
 bool watch_break_clear_at(hwaddr addr);
 
 /** Watch row whose break stopped the machine, -1 if none. */
