@@ -229,21 +229,29 @@ int MemView::handle(int event)
                 m_hover = a;
                 redraw();
                 if (a >= 0 && dbg_ready()) {
-                    static char tip[96];
+                    /* Fl_Tooltip keeps the pointer: the text must outlive this call */
+                    static std::string tip;
                     uint8_t b = 0;
                     debugger_read_memory(fz_debugger(), (hwaddr) a, 1, &b);
+                    char head[24];
                     char ad[8];
                     hex16(ad, sizeof(ad), (unsigned) a);
-                    const char* sym = debugger_get_symbol(fz_debugger(), (hwaddr) a);
-                    const int n = snprintf(tip, sizeof(tip), "$%s = %u%s%s", ad, b, sym ? "   " : "", sym ? sym : "");
+                    snprintf(head, sizeof(head), "$%s = %u", ad, b);
+                    tip = head;
+                    if (const char* sym = debugger_get_symbol(fz_debugger(), (hwaddr) a)) {
+                        tip += "   ";
+                        tip += sym;
+                    }
                     watchpoint_t wp;
                     if (debugger_find_watchpoint(fz_debugger(), (hwaddr) a, &wp)) {
                         char watch[24];
+                        char line[64];
                         watch_range_text(watch, sizeof(watch), wp.addr, wp.end);
-                        snprintf(tip + n, sizeof(tip) - (size_t) n, "\nBreak on %s: %s%s", watch_type_name(wp.type),
-                                 watch, wp.disabled ? " (off)" : "");
+                        snprintf(line, sizeof(line), "\nBreak on %s: %s%s", watch_type_name(wp.type), watch,
+                                 wp.disabled ? " (off)" : "");
+                        tip += line;
                     }
-                    Fl_Tooltip::enter_area(this, Fl::event_x() - x() - 4, Fl::event_y() - y() - 4, 8, 8, tip);
+                    Fl_Tooltip::enter_area(this, Fl::event_x() - x() - 4, Fl::event_y() - y() - 4, 8, 8, tip.c_str());
                 }
             }
             return 1;
