@@ -5,6 +5,9 @@
  */
 
 #define RINI_VALUE_DELIMITER '='
+/* Room for frontend-specific keys (e.g. SDL/FLTK layout, watches); rini
+ * silently drops values beyond its capacity (default 128). */
+#define RINI_MAX_VALUE_CAPACITY 512
 #define RINI_IMPLEMENTATION
 
 #include <stdint.h>
