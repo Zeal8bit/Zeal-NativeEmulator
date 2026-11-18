@@ -23,7 +23,7 @@
 #include "common/machine.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
-#include "debugger/watchpoint_actions.h"
+#include "debugger/watch_breaks.h"
 #include "theme/theme.h"
 #include "memtools/memory_actions.h"
 #include "memtools/pattern.h"
@@ -406,7 +406,7 @@ void MemView::context_menu()
         { "Break on Read", 0, nullptr, nullptr, radio(WATCHPOINT_READ), 0, 0, 0, 0 },
         { "Break on Write", 0, nullptr, nullptr, radio(WATCHPOINT_WRITE), 0, 0, 0, 0 },
         { "Break on Access", 0, nullptr, nullptr, radio(WATCHPOINT_RW), 0, 0, 0, 0 },
-        { "Remove Watchpoint", 0, nullptr, nullptr, watch_here ? 0 : FL_MENU_INACTIVE, 0, 0, 0, 0 },
+        { "Remove Break", 0, nullptr, nullptr, watch_here ? 0 : FL_MENU_INACTIVE, 0, 0, 0, 0 },
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
@@ -460,12 +460,12 @@ void MemView::context_menu()
         case 11:
         case 12: {
             const int pick = (int) (picked - items);
-            watch_add((hwaddr) lo, (hwaddr) hi,
-                      pick == 10 ? WATCHPOINT_READ : pick == 11 ? WATCHPOINT_WRITE : WATCHPOINT_RW);
+            watch_break_range((hwaddr) lo, (hwaddr) hi,
+                              pick == 10 ? WATCHPOINT_READ : pick == 11 ? WATCHPOINT_WRITE : WATCHPOINT_RW);
             break;
         }
         case 13:
-            watch_remove(watch.addr);
+            watch_break_clear_at(watch.addr);
             break;
         default:
             break;

@@ -5,8 +5,8 @@
  */
 
 /* Debugger state that belongs to the program being developed, saved in the
- * project settings (./zeal.ini, see common/persist.h): breakpoints,
- * watchpoints and the loaded map files. Watches save themselves
+ * project settings (./zeal.ini, see common/persist.h): breakpoints and the
+ * loaded map files. Watches, with their memory breaks, save themselves
  * (watch_model). */
 #pragma once
 

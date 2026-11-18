@@ -19,6 +19,7 @@
 #include <FL/fl_ask.H>
 #include "common/machine.h"
 #include "debugger/machine_state.h"
+#include "debugger/watch_breaks.h"
 #include "debugger/watch_list.h"
 #include "debugger/watch_model.h"
 #include "theme/style.h"
@@ -35,7 +36,8 @@ WatchPanel::WatchPanel(int X, int Y, int W, int H)
 {
     watches_load();
     m_list = new WatchList(X, Y, 10, 10);
-    m_list->tooltip("Click: show in memory    Right-click: change type, move, remove...");
+    m_list->tooltip("Click: show in memory    Left edge: break on write / enable / disable\n"
+                    "Right-click: break on read/write, change type, move, remove...");
     m_list->changed = [this] { update(); };
     m_input = new Fl_Input(X, Y, 10, 10);
     style_input(m_input);
@@ -62,6 +64,8 @@ WatchPanel::WatchPanel(int X, int Y, int W, int H)
 void WatchPanel::refresh(bool paused, bool force)
 {
     if (!dbg_ready()) return;
+    /* Breaks follow the rows (and symbols reloaded from a map) */
+    watch_breaks_sync();
     const regs_t regs = current_regs();
     for (Watch& w : watches()) {
         evaluate(w, regs);
@@ -145,6 +149,7 @@ void WatchPanel::cb_add(Fl_Widget*, void* data)
         return;
     }
     list.push_back(w);
+    watch_breaks_sync();
     self->m_input->value("");
     self->m_list->show_last();
     self->update();

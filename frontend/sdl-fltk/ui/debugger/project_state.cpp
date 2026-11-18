@@ -16,6 +16,8 @@
 #include "common/persist.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
+#include "debugger/watch_breaks.h"
+#include "debugger/watch_model.h"
 #include "frontend/sdl-fltk/bridge/symbols.h"
 
 namespace zui::debugger {
@@ -24,16 +26,16 @@ using namespace zui::common;
 
 namespace {
 
-/* Saved as BREAKPOINT_<n> = "C000" or "C000 off", WATCHPOINT_<n> =
- * "rw C000-C0FF" (+ " off"), MAP_FILE_<n> = path (relative to the project
- * directory when inside it). */
+/* Saved as BREAKPOINT_<n> = "C000" or "C000 off" and MAP_FILE_<n> = path
+ * (relative to the project directory when inside it). Memory breaks are
+ * part of the watches (FLTK_WATCH_<n>, watch_model). */
 constexpr int MAX_ITEMS = 128;
 
 bool s_restored;
 /* Taken when the debugger UI closes: the machine is unbound before the
  * configuration is saved */
 bool s_captured;
-std::vector<std::string> s_breakpoints, s_watchpoints, s_maps;
+std::vector<std::string> s_breakpoints, s_maps;
 
 std::string key_of(const char* list, int index)
 {
@@ -90,26 +92,6 @@ std::vector<std::string> current_breakpoints()
     return out;
 }
 
-std::vector<std::string> current_watchpoints()
-{
-    std::vector<std::string> out;
-    watchpoint_t wps[DBG_MAX_POINTS];
-    const int count = debugger_get_watchpoints(fz_debugger(), wps, DBG_MAX_POINTS);
-    for (int i = 0; i < count; i++) {
-        const watchpoint_t& wp = wps[i];
-        const char* type = (wp.type & WATCHPOINT_READ) && (wp.type & WATCHPOINT_WRITE) ? "rw"
-                         : (wp.type & WATCHPOINT_WRITE) ? "w" : "r";
-        char text[40];
-        if (wp.end > wp.addr) {
-            snprintf(text, sizeof(text), "%s %04X-%04X%s", type, (unsigned) wp.addr, (unsigned) wp.end, wp.disabled ? " off" : "");
-        } else {
-            snprintf(text, sizeof(text), "%s %04X%s", type, (unsigned) wp.addr, wp.disabled ? " off" : "");
-        }
-        out.push_back(text);
-    }
-    return out;
-}
-
 std::vector<std::string> current_maps()
 {
     std::vector<std::string> out;
@@ -121,19 +103,16 @@ void save(rini_config* ini)
 {
     if (s_captured) {
         write_list(ini, "BREAKPOINT", s_breakpoints, "Breakpoints (hex address, \"off\" = disabled)");
-        write_list(ini, "WATCHPOINT", s_watchpoints, "Watchpoints (r/w/rw, hex address or range)");
         write_list(ini, "MAP_FILE", s_maps, "Map files");
         return;
     }
     if (!s_restored || !dbg_ready()) {
         /* The machine never came up: keep what was loaded */
         write_list(ini, "BREAKPOINT", saved_list("BREAKPOINT"), "Breakpoints");
-        write_list(ini, "WATCHPOINT", saved_list("WATCHPOINT"), "Watchpoints");
         write_list(ini, "MAP_FILE", saved_list("MAP_FILE"), "Map files");
         return;
     }
     write_list(ini, "BREAKPOINT", current_breakpoints(), "Breakpoints (hex address, \"off\" = disabled)");
-    write_list(ini, "WATCHPOINT", current_watchpoints(), "Watchpoints (r/w/rw, hex address or range)");
     write_list(ini, "MAP_FILE", current_maps(), "Map files");
 }
 
@@ -145,20 +124,26 @@ void restore()
         debugger_set_breakpoint(dbg, addr);
         if (item.find(" off") != std::string::npos) debugger_enable_breakpoint(dbg, addr, false);
     }
+    /* Older builds saved watchpoints separately: they become watch rows
+     * with a break (watch_breaks.h) */
     for (const std::string& item : saved_list("WATCHPOINT")) {
         char type[4] = "";
         unsigned start = 0, end = 0;
         const int n = sscanf(item.c_str(), "%3s %x-%x", type, &start, &end);
-        if (n < 2) continue;
-        watchpoint_t wp = {};
-        wp.addr = (hwaddr) (start & 0xFFFF);
-        wp.end = n == 3 ? (hwaddr) (end & 0xFFFF) : wp.addr;
-        if (strchr(type, 'r')) wp.type = (watchpoint_type_t) (wp.type | WATCHPOINT_READ);
-        if (strchr(type, 'w')) wp.type = (watchpoint_type_t) (wp.type | WATCHPOINT_WRITE);
-        if (wp.type == 0) continue;
-        debugger_add_watchpoint(dbg, wp);
-        if (item.find(" off") != std::string::npos) debugger_enable_watchpoint(dbg, wp.addr, false);
+        if (n < 2 || (int) watches().size() >= MAX_WATCHES) continue;
+        Watch w;
+        char expr[8];
+        snprintf(expr, sizeof(expr), "$%04X", start & 0xFFFF);
+        w.expr = expr;
+        const int bytes = n == 3 && end > start ? (int) (end - start) + 1 : 1;
+        w.type = bytes == 1 ? W_U8 : bytes == 2 ? W_U16 : W_STR;
+        if (w.type == W_STR) w.len = bytes > MAX_STR ? MAX_STR : bytes;
+        if (strchr(type, 'r')) w.brk |= WATCHPOINT_READ;
+        if (strchr(type, 'w')) w.brk |= WATCHPOINT_WRITE;
+        w.brk_on = item.find(" off") == std::string::npos;
+        if (w.brk) watches().push_back(w);
     }
+    watch_breaks_sync();
     /* Maps: keep any -m map, add the project's others */
     for (const std::string& path : saved_list("MAP_FILE")) {
         char full[FL_PATH_MAX];
@@ -192,7 +177,6 @@ void project_state_capture()
 {
     if (!s_restored || !dbg_ready()) return;
     s_breakpoints = current_breakpoints();
-    s_watchpoints = current_watchpoints();
     s_maps = current_maps();
     s_captured = true;
 }

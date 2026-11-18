@@ -81,12 +81,20 @@ void watches_save(rini_config* ini)
 {
     const std::vector<Watch>& list = watches();
     if (list.empty()) return; /* no project file just for an empty list */
-    rini_set_config_comment_line(ini, "SDL/FLTK debugger watches (expr|type|length)");
+    rini_set_config_comment_line(ini, "SDL/FLTK debugger watches (expr|type|length|break: r, w, rw, + off)");
     rini_set_config_value(ini, "FLTK_WATCH_COUNT", (int) list.size(), "Watch entries");
     char key[32], text[MAX_EXPR + 32];
     for (size_t i = 0; i < list.size(); i++) {
         snprintf(key, sizeof(key), "FLTK_WATCH_%d", (int) i);
-        snprintf(text, sizeof(text), "%s|%s|%d", list[i].expr.c_str(), WATCH_TYPES[list[i].type].key, list[i].len);
+        const Watch& w = list[i];
+        const char* brk = (w.brk & WATCHPOINT_READ) && (w.brk & WATCHPOINT_WRITE) ? "rw"
+                        : (w.brk & WATCHPOINT_WRITE) ? "w" : (w.brk & WATCHPOINT_READ) ? "r" : "";
+        if (*brk) {
+            snprintf(text, sizeof(text), "%s|%s|%d|%s%s", w.expr.c_str(), WATCH_TYPES[w.type].key, w.len, brk,
+                     w.brk_on ? "" : " off");
+        } else {
+            snprintf(text, sizeof(text), "%s|%s|%d", w.expr.c_str(), WATCH_TYPES[w.type].key, w.len);
+        }
         rini_set_config_value_text(ini, key, text, "Watch");
     }
 }
@@ -304,6 +312,14 @@ void watches_load()
             if (p2 != std::string::npos) {
                 const int len = atoi(s.c_str() + p2 + 1);
                 if (len >= 1 && len <= MAX_STR) w.len = len;
+                const size_t p3 = s.find('|', p2 + 1);
+                if (p3 != std::string::npos) {
+                    const std::string brk = trim(s.substr(p3 + 1));
+                    const std::string kind = brk.substr(0, brk.find(' '));
+                    if (kind.find('r') != std::string::npos) w.brk |= WATCHPOINT_READ;
+                    if (kind.find('w') != std::string::npos) w.brk |= WATCHPOINT_WRITE;
+                    w.brk_on = brk.find("off") == std::string::npos;
+                }
             }
         }
         list.push_back(w);

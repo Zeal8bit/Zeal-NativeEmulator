@@ -17,8 +17,10 @@
 #include <FL/fl_ask.H>
 #include <FL/fl_draw.H>
 #include "common/format.h"
+#include "common/machine.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
+#include "debugger/watch_breaks.h"
 #include "debugger/watch_model.h"
 #include "theme/theme.h"
 
@@ -66,7 +68,7 @@ void WatchList::draw()
     const int dec_x = right - dec_w;
     const int hex_x = dec_x - cw - hex_chars * cw;
     const int addr_x = hex_x - cw - 4 * cw;
-    const int name_x = x() + 6;
+    const int name_x = x() + GUTTER;
     const int name_r = addr_x - cw;
 
     /* Column titles */
@@ -82,23 +84,45 @@ void WatchList::draw()
 
     clamp_first();
     const int rows = visible_rows();
+    const int hit = watch_hit_index();
     char text[16];
     for (int i = 0; i < rows && m_first + i < (int) list.size(); i++) {
         const int index = m_first + i;
         const Watch& wt = list[(size_t) index];
         const int ry = rows_y() + i * lh;
-        if (index == m_hover) {
+        if (index == hit) {
+            /* This row's break stopped the machine */
+            fl_color(fl_color_average(COLOR_BREAK, COLOR_SURFACE, 0.3f));
+            fl_rectf(x(), ry, w(), lh);
+        } else if (index == m_hover) {
             fl_color(COLOR_HOVER);
             fl_rectf(x(), ry, w(), lh);
         }
-        /* Type tag, right-aligned in the name column */
+        /* Break marker: filled = breaks, outline = break disabled */
+        if (wt.brk) {
+            const int d = 8;
+            const int cx = x() + GUTTER / 2, cy = ry + lh / 2;
+            fl_color(COLOR_BREAK);
+            if (wt.brk_on) {
+                fl_polygon(cx, cy - d / 2, cx + d / 2, cy, cx, cy + d / 2, cx - d / 2, cy);
+            } else {
+                fl_loop(cx, cy - d / 2, cx + d / 2, cy, cx, cy + d / 2, cx - d / 2, cy);
+            }
+        }
+        /* Type tag (and break kind), right-aligned in the name column */
         fl_font(FL_HELVETICA, 10);
         char tag[16];
         if (wt.type == W_STR) snprintf(tag, sizeof(tag), "str%d", wt.len);
         else snprintf(tag, sizeof(tag), "%s", WATCH_TYPES[wt.type].tag);
-        const int tag_w = (int) fl_width(tag);
+        const char* kind = wt.brk ? watch_type_short((watchpoint_type_t) wt.brk) : "";
+        const int kind_w = wt.brk ? (int) fl_width(kind) + 4 : 0;
+        const int tag_w = (int) fl_width(tag) + kind_w;
         fl_color(COLOR_DIM);
         fl_draw(tag, name_r - tag_w, ry + asc);
+        if (wt.brk) {
+            fl_color(wt.brk_on ? COLOR_BREAK : COLOR_DIM);
+            fl_draw(kind, name_r - kind_w + 4, ry + asc);
+        }
         /* Expression */
         fl_font(DATA_FONT, DATA_SIZE);
         fl_push_clip(name_x, ry, name_r - tag_w - 4 - name_x, lh);
@@ -155,6 +179,8 @@ int WatchList::handle(int event)
             const int r = row_at(Fl::event_y());
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 context_menu(r);
+            } else if (r >= 0 && Fl::event_x() < x() + GUTTER) {
+                toggle_break(r);
             } else if (r >= 0 && watches()[(size_t) r].valid) {
                 goto_memory(shown_addr(watches()[(size_t) r]));
             }
@@ -227,11 +253,30 @@ void WatchList::set_hover(int r)
     redraw();
 }
 
+void WatchList::toggle_break(int row)
+{
+    Watch& w = watches()[(size_t) row];
+    hwaddr lo, hi;
+    const char* why = "";
+    if (!watch_break_target(w, &lo, &hi, &why)) {
+        notif_show("No break on %s: %s", w.expr.c_str(), why);
+        return;
+    }
+    if (w.brk == 0) {
+        w.brk = WATCHPOINT_WRITE;
+        w.brk_on = true;
+    } else {
+        w.brk_on = !w.brk_on;
+    }
+    watch_breaks_sync();
+    if (changed) changed();
+}
+
 void WatchList::context_menu(int row)
 {
     std::vector<Watch>& list = watches();
     const bool has_row = row >= 0;
-    const Watch* wt = has_row ? &list[(size_t) row] : nullptr;
+    Watch* wt = has_row ? &list[(size_t) row] : nullptr;
     const int row_only = has_row ? 0 : FL_MENU_INACTIVE;
     const int valid = (wt && wt->valid) ? 0 : FL_MENU_INACTIVE;
     const bool ptr = wt && is_pointer(*wt);
@@ -239,11 +284,34 @@ void WatchList::context_menu(int row)
     auto radio = [&](int t) {
         return FL_MENU_RADIO | ((wt && wt->type == t) ? FL_MENU_VALUE : 0);
     };
+    /* Break choices: only for watches whose address cannot move */
+    hwaddr lo = 0, hi = 0;
+    const char* why = "";
+    const bool can_break = wt && watch_break_target(*wt, &lo, &hi, &why);
+    const int brk_ok = can_break ? 0 : FL_MENU_INACTIVE;
+    auto brk_radio = [&](int type) {
+        return FL_MENU_RADIO | brk_ok | ((wt && wt->brk == type) ? FL_MENU_VALUE : 0);
+    };
+    char brk_title[96];
+    if (!wt) snprintf(brk_title, sizeof(brk_title), "Break");
+    else if (!can_break) snprintf(brk_title, sizeof(brk_title), "Break: not available, %s", why);
+    else {
+        char range[24];
+        watch_range_text(range, sizeof(range), lo, hi);
+        snprintf(brk_title, sizeof(brk_title), "Break on %s%s", range, ptr ? " (the pointer)" : "");
+    }
+    const char* toggle_label = (wt && wt->brk && !wt->brk_on) ? "Enable Break" : "Disable Break";
     enum {
         M_TYPE = 0,
         M_TYPE_FIRST = 1,
         M_TYPE_END = M_TYPE_FIRST + W_COUNT,
         M_LEN = M_TYPE_END + 1,
+        M_BRK_TITLE,
+        M_BRK_READ,
+        M_BRK_WRITE,
+        M_BRK_ACCESS,
+        M_BRK_NEVER,
+        M_BRK_TOGGLE,
         M_MEM,
         M_DIS,
         M_TARGET,
@@ -265,6 +333,13 @@ void WatchList::context_menu(int row)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { "String Length...", 0, nullptr, nullptr,
           (wt && wt->type == W_STR) ? FL_MENU_DIVIDER : (FL_MENU_INACTIVE | FL_MENU_DIVIDER), 0, 0, 0, 0 },
+        { brk_title, 0, nullptr, nullptr, FL_MENU_INACTIVE, 0, 0, 0, 0 },
+        { "    on Read", 0, nullptr, nullptr, brk_radio(WATCHPOINT_READ), 0, 0, 0, 0 },
+        { "    on Write", 0, nullptr, nullptr, brk_radio(WATCHPOINT_WRITE), 0, 0, 0, 0 },
+        { "    on Access (read or write)", 0, nullptr, nullptr, brk_radio(WATCHPOINT_RW), 0, 0, 0, 0 },
+        { "    Never", 0, nullptr, nullptr, brk_radio(0), 0, 0, 0, 0 },
+        { toggle_label, 0, nullptr, nullptr,
+          ((wt && wt->brk && can_break) ? 0 : FL_MENU_INACTIVE) | FL_MENU_DIVIDER, 0, 0, 0, 0 },
         { "Show in Memory", 0, nullptr, nullptr, valid, 0, 0, 0, 0 },
         { "Show in Disassembly", 0, nullptr, nullptr, valid, 0, 0, 0, 0 },
         { "Show Pointer in Memory", 0, nullptr, nullptr,
@@ -299,6 +374,11 @@ void WatchList::context_menu(int row)
                 list[(size_t) row].has_prev = false;
                 break;
             }
+            case M_BRK_READ: wt->brk = WATCHPOINT_READ; wt->brk_on = true; break;
+            case M_BRK_WRITE: wt->brk = WATCHPOINT_WRITE; wt->brk_on = true; break;
+            case M_BRK_ACCESS: wt->brk = WATCHPOINT_RW; wt->brk_on = true; break;
+            case M_BRK_NEVER: wt->brk = 0; break;
+            case M_BRK_TOGGLE: wt->brk_on = !wt->brk_on; break;
             case M_MEM: goto_memory(shown_addr(list[(size_t) row])); return;
             case M_DIS: goto_disassembly(shown_addr(list[(size_t) row])); return;
             case M_TARGET: goto_memory(list[(size_t) row].addr); return;
@@ -309,6 +389,8 @@ void WatchList::context_menu(int row)
             default: return;
         }
     }
+    /* Type, length and removal all change what the breaks cover */
+    watch_breaks_sync();
     m_hover = -1;
     clamp_first();
     if (changed) changed();

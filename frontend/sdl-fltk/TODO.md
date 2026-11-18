@@ -12,8 +12,13 @@ reference.
   instruction, and the address, value and PC are shown (notification, toolbar
   pill, status bar). Single bytes or ranges, $0000 included, 16-bit accesses
   caught per byte, debugger reads and opcode fetches ignored. UI: memory view
-  context menu (Break on Read / Write / Access), a Watchpoints list under the
-  breakpoints, `r`/`w`/`rw ADDR` in the breakpoint field, underlined bytes.
+  context menu (Break on Read / Write / Access), underlined bytes. Memory
+  breaks are part of the Watch panel:
+  a watch with a fixed address (address, symbol, symbol+offset) can break
+  on read/write/access (left-edge marker or right-click), `(ptr)` and
+  pointer types break on the pointer itself, and register expressions such
+  as `(HL)` cannot break. The memory view's Break on... adds or updates a
+  watch row; the row that stopped the machine is highlighted.
   Left to do:
   - DMA and HostFS transfers bypass the CPU and are not watched; physical
     (22-bit) addresses are not supported.

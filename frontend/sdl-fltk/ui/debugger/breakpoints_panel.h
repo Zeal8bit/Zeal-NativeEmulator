@@ -10,7 +10,6 @@
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Widget.H>
 #include "debugger/breakpoint_list.h"
-#include "debugger/watchpoint_list.h"
 #include "widgets/panel.h"
 
 namespace zui::debugger {
@@ -23,13 +22,8 @@ public:
 
 private:
     static void cb_add(Fl_Widget*, void* data);
-    /** "r ADDR", "w ADDR", "rw ADDR" (or "LO-HI"): add a watchpoint.
-     *  False when `text` is not a watchpoint (then it is a breakpoint). */
-    bool add_watch(const char* text);
-    int watch_height() const;
 
     BreakpointList* m_list;
-    WatchpointList* m_watch;
     Fl_Input* m_input;
     Fl_Button* m_add;
 };

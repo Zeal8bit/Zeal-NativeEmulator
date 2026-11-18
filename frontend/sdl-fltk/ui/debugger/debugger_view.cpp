@@ -23,7 +23,7 @@
 #include "debugger/stack_view.h"
 #include "debugger/toolbar.h"
 #include "debugger/watch_panel.h"
-#include "debugger/watchpoint_actions.h"
+#include "debugger/watch_breaks.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_windows.h"
 #include "widgets/dock_layout.h"
@@ -47,8 +47,8 @@ DebuggerView* s_instance;
 constexpr int DEFAULT_LEFT_W = FZ_SCREEN_WIDTH;
 constexpr int DEFAULT_SCREEN_H = FZ_SCREEN_HEIGHT;
 constexpr int DEFAULT_RIGHT_W = 300;
-constexpr int DEFAULT_BREAKPOINTS_H = 230;
-constexpr int DEFAULT_WATCH_H = 140;
+constexpr int DEFAULT_BREAKPOINTS_H = 150;
+constexpr int DEFAULT_WATCH_H = 170;
 constexpr int DEFAULT_DISASM_W = 420;
 constexpr int DEFAULT_MEMORY_H = 300;
 

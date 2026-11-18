@@ -29,6 +29,10 @@ public:
 
 private:
     static constexpr int BITS_FONT = 11;
+    static constexpr int GUTTER = 18; /* break marker column */
+
+    /** Gutter click: no break -> break on write, else enable/disable. */
+    void toggle_break(int row);
 
     /** Bitfield digits use the small UI font to fit the DEC column. */
     static int bits_width();

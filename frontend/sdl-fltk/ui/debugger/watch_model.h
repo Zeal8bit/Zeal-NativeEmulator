@@ -38,6 +38,9 @@ struct Watch {
     std::string expr;
     int type = W_U8;
     int len = DEFAULT_STR;
+    /* Break on access (watch_breaks.h): WATCHPOINT_* bits, 0 = never */
+    uint8_t brk = 0;
+    bool brk_on = true;
     /* Evaluated at each refresh */
     bool valid = false;
     hwaddr addr = 0;
