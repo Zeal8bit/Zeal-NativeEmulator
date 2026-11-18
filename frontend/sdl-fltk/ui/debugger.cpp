@@ -41,16 +41,12 @@
 #include "video.h"
 #include "memory_tools.h"
 
-#if CONFIG_ENABLE_DEBUGGER
 extern "C" {
 #include "debugger/zeal_debugger.h"
 }
 #include "frontend/sdl-fltk/bridge/cpu.h"
-#endif
 
 namespace zui {
-
-#if CONFIG_ENABLE_DEBUGGER
 
 static Debugger::Impl* s_impl;
 
@@ -2618,8 +2614,42 @@ Fl_Group* Debugger::toolbar(int x, int y, int w, int h)
 }
 
 void Debugger::refresh(bool force) { m->refresh(force); }
-void Debugger::goto_memory(hwaddr addr) { zui::goto_memory(addr); }
-void Debugger::goto_disassembly(hwaddr addr) { zui::goto_disassembly(addr); }
+
+void Debugger::command(app::DebugCommand command)
+{
+    dbg_t* dbg = fz_debugger();
+    if (dbg == nullptr) return;
+    switch (command) {
+        case app::DebugCommand::Continue: debugger_continue(dbg); break;
+        case app::DebugCommand::Pause: debugger_pause(dbg); break;
+        case app::DebugCommand::Step: debugger_step(dbg); break;
+        case app::DebugCommand::StepOver: debugger_step_over(dbg); break;
+        case app::DebugCommand::ToggleBreakpointAtPc:
+            debugger_breakpoint(dbg);
+            m->refresh(true);
+            break;
+    }
+}
+
+bool Debugger::paused_at(unsigned* pc) const
+{
+    dbg_t* dbg = fz_debugger();
+    if (!fz_paused() || dbg == nullptr) return false;
+    regs_t regs;
+    debugger_get_registers(dbg, &regs);
+    if (pc) *pc = regs.pc;
+    return true;
+}
+
+void Debugger::open_map(bool append)
+{
+    map_open_dialog(append);
+}
+
+void Debugger::reload_maps()
+{
+    map_reload();
+}
 
 static int default_left_w()
 {
@@ -2684,33 +2714,45 @@ void Debugger::reset_layout()
     apply_layout();
 }
 
-void Debugger::show_video_window(bool show)
+void Debugger::show_tool(app::ToolId tool, bool show)
 {
-    video_window_show(show);
-    if (show) m->refresh(true);
+    switch (tool) {
+        case app::ToolId::Video:
+            video_window_show(show);
+            if (show) m->refresh(true);
+            break;
+        case app::ToolId::Code: tool_window_show(TOOL_CODE, show); break;
+        case app::ToolId::Hardware: tool_window_show(TOOL_HARDWARE, show); break;
+    }
 }
 
-bool Debugger::video_window_shown() const
+bool Debugger::tool_shown(app::ToolId tool) const
 {
-    return zui::video_window_shown();
+    switch (tool) {
+        case app::ToolId::Video: return video_window_shown();
+        case app::ToolId::Code: return tool_window_shown(TOOL_CODE);
+        case app::ToolId::Hardware: return tool_window_shown(TOOL_HARDWARE);
+    }
+    return false;
 }
 
-#else /* !CONFIG_ENABLE_DEBUGGER */
+} // namespace zui
 
-struct Debugger::Impl {};
-Debugger::Debugger(DockLayout* dock, ScreenView* screen) : m(nullptr) { dock->set_root(screen, nullptr); }
-Debugger::~Debugger() { delete m; }
-Fl_Group* Debugger::toolbar(int x, int y, int w, int h) { return new Fl_Group(x, y, w, h); }
-void Debugger::refresh(bool) {}
-void Debugger::goto_memory(hwaddr) {}
-void Debugger::goto_disassembly(hwaddr) {}
-void Debugger::default_body_size(int& w, int& h) const { w = FZ_SCREEN_WIDTH; h = FZ_SCREEN_HEIGHT; }
-void Debugger::apply_layout() {}
-void Debugger::capture_layout() {}
-void Debugger::reset_layout() {}
-void Debugger::show_video_window(bool) {}
-bool Debugger::video_window_shown() const { return false; }
+namespace zui::app {
 
-#endif
+DebuggerUi* create_debugger_ui(widgets::DockLayout* dock, ScreenView* screen)
+{
+    /* Keep Nuklear's panel settings in the saved configuration */
+    for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
+        config_panel_load(&config_panels[i]);
+    }
+    return new Debugger(dock, screen);
+}
+
+} // namespace zui::app
+
+namespace zui {
+
+
 
 } // namespace zui

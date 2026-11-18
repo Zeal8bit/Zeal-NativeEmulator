@@ -34,14 +34,17 @@ else
 endif
 sdlfltk_ui_inc = include_directories('ui')
 sdlfltk_cpp_sources = files(
-    'ui/app.cpp',
+    'ui/app/app_menus.cpp',
+    'ui/app/keymap.cpp',
+    'ui/app/main_window.cpp',
+    'ui/app/notifications.cpp',
+    'ui/app/screen_view.cpp',
+    'ui/app/ui_entry.cpp',
     'ui/common.cpp',
     'ui/common/clock.cpp',
     'ui/common/format.cpp',
     'ui/common/persist.cpp',
-    'ui/debugger.cpp',
     'ui/memory_tools.cpp',
-    'ui/screen.cpp',
     'ui/theme/fonts.cpp',
     'ui/theme/style.cpp',
     'ui/theme/theme.cpp',
@@ -64,3 +67,8 @@ sdlfltk_cpp_sources = files(
     'ui/widgets/panel.cpp',
     'ui/widgets/split_pane.cpp',
 )
+if get_option('enable_debugger')
+    sdlfltk_cpp_sources += files('ui/debugger.cpp')
+else
+    sdlfltk_cpp_sources += files('ui/app/debugger_ui_disabled.cpp')
+endif

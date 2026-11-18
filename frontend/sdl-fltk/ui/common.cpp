@@ -62,6 +62,32 @@ void display_memory(hwaddr addr, int len, uint8_t* out, bool stack)
 #endif
 }
 
+bool parse_address(const char* text, hwaddr* out)
+{
+    if (text == nullptr || out == nullptr) return false;
+    while (*text == ' ' || *text == '\t') text++;
+    if (*text == '\0') return false;
+
+    const char* digits = text;
+    if (*digits == '$') digits++;
+    else if (digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X')) digits += 2;
+    char* end = nullptr;
+    const unsigned long value = std::strtoul(digits, &end, 16);
+    if (end != digits) {
+        while (*end == ' ' || *end == 'h' || *end == 'H') end++;
+        if (*end == '\0') {
+            *out = (hwaddr) (value & 0xFFFF);
+            return true;
+        }
+    }
+#if CONFIG_ENABLE_DEBUGGER
+    dbg_t* dbg = fz_debugger();
+    return dbg != nullptr && debugger_find_symbol(dbg, text, out);
+#else
+    return false;
+#endif
+}
+
 /* ------------------------------------------------------------------ */
 /*  Address fields: hex or symbol, looked up loosely                   */
 /* ------------------------------------------------------------------ */
