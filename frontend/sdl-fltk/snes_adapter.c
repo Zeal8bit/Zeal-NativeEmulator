@@ -86,6 +86,12 @@ static void fltk_snes_sample(void* userdata, uint32_t* bits, bool* attached)
         attached[port] = snes_adapter_port_attached(snes_adapter, port);
     }
 
+    for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
+        snes_adapter->last_packets[port] = attached[port] ? bits[port] : 0xFFFFFFFF;
+    }
+    snes_adapter->latch_count++;
+    if (fltk_machine) snes_adapter->last_latch_ns = vtimer_now_ns(&fltk_machine->cpu.clock);
+
 }
 
 static void snes_adapter_detach_port(fltk_snes_t* snes_adapter, uint8_t port)
@@ -122,7 +128,10 @@ int fltk_snes_init(fltk_snes_t* snes_adapter, snes_adapter_t* core)
         snes_adapter->core->port_bits[i] = 0xFFFF;
         snes_adapter->ports[i].device = SNES_PORT_DEVICE_DETACHED;
         snes_adapter->ports[i].controller_index = SNES_PORT_DETACHED;
+        snes_adapter->last_packets[i] = 0xFFFFFFFF;
     }
+    snes_adapter->latch_count = 0;
+    snes_adapter->last_latch_ns = 0;
 
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         snes_controller_init(&snes_adapter->controllers[i], i);

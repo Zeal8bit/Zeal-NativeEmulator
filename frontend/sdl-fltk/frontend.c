@@ -73,6 +73,7 @@ void frontend_bind_input(zeal_t* machine)
     fltk_keyboard_bind(machine);
     fltk_sampler_bind(machine);
     fltk_snes_init(&frontend_snes, &machine->snes_adapter);
+    fltk_console_bind();
 }
 
 int frontend_bind_output(zeal_t* machine)

@@ -42,6 +42,53 @@ static int s_press_count;
 /* Emulated side */
 static kb_key_t s_keys[HOST_KEY_COUNT];
 
+/* Scancodes sent to the emulated keyboard, for the debugger (newest last) */
+static fz_scancode_t s_log[FZ_SCANCODE_LOG];
+static uint32_t s_log_total;
+
+static void send_key(zeal_t* machine, int code, bool make, bool repeat)
+{
+    fifo_t* queue = &machine->keyboard.queue;
+    const int wr = queue->wr;
+    if (make) key_pressed(&machine->keyboard, (zeal_key_t) code);
+    else key_released(&machine->keyboard, (zeal_key_t) code);
+
+    fz_scancode_t* entry = &s_log[s_log_total % FZ_SCANCODE_LOG];
+    entry->time_ns = vtimer_now_ns(&machine->cpu.clock);
+    entry->key = (uint16_t) code;
+    entry->make = make;
+    entry->repeat = repeat;
+    entry->count = 0;
+    /* The bytes just pushed (popping never touches the array) */
+    for (int i = wr; i != queue->wr && entry->count < FZ_SCANCODE_BYTES; i = (i + 1) % (int) queue->size) {
+        entry->bytes[entry->count++] = queue->array[i];
+    }
+    s_log_total++;
+}
+
+int fltk_keyboard_held(uint16_t* out, int max)
+{
+    int n = 0;
+    for (int code = 0; code < HOST_KEY_COUNT && n < max; code++) {
+        if (s_keys[code].state != KEY_NOT_PRESSED) out[n++] = (uint16_t) code;
+    }
+    return n;
+}
+
+int fltk_keyboard_log(fz_scancode_t* out, int max)
+{
+    int n = 0;
+    for (uint32_t i = s_log_total; i > 0 && n < max && s_log_total - i < FZ_SCANCODE_LOG; i--) {
+        out[n++] = s_log[(i - 1) % FZ_SCANCODE_LOG];
+    }
+    return n;
+}
+
+uint32_t fltk_keyboard_log_total(void)
+{
+    return s_log_total;
+}
+
 static bool key_can_repeat(int code)
 {
     switch (code) {
@@ -100,7 +147,7 @@ static void keyboard_read(zeal_t* machine, int delta)
         const int code = s_press_queue[i];
         s_keys[code].state = KEY_PRESSED;
         s_keys[code].duration = 0;
-        key_pressed(&machine->keyboard, (zeal_key_t) code);
+        send_key(machine, code, true, false);
     }
     s_press_count = 0;
 
@@ -110,18 +157,18 @@ static void keyboard_read(zeal_t* machine, int delta)
 
         if (!s_host_down[code]) {
             key->state = KEY_NOT_PRESSED;
-            key_released(&machine->keyboard, (zeal_key_t) code);
+            send_key(machine, code, false, false);
             continue;
         }
 
         key->duration += delta;
         if (key->state == KEY_PRESSED && key_can_repeat(code) && key->duration >= start_delay) {
-            key_pressed(&machine->keyboard, (zeal_key_t) code);
+            send_key(machine, code, true, true);
             key->state = KEY_REPEATED;
             key->duration = 0;
         } else if (key->state == KEY_REPEATED && key->duration >= repeat_delay) {
             key->duration = 0;
-            key_pressed(&machine->keyboard, (zeal_key_t) code);
+            send_key(machine, code, true, true);
         }
     }
 }
