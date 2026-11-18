@@ -73,7 +73,10 @@ void PanelStack::toggle_collapse(Panel* panel)
         if (m_maximized >= 0) {
             /* Leaving the maximised view: the clicked panel opens */
             m_maximized = -1;
-            for (const Item& it : m_items) it.panel->maximized(false);
+            for (const Item& it : m_items) {
+                it.panel->maximized(false);
+                it.panel->set_stack_hidden(false);
+            }
             panel->set_collapsed(false);
         } else {
             panel->set_collapsed(!panel->collapsed());
@@ -93,12 +96,9 @@ void PanelStack::toggle_maximize(Panel* panel)
     for (size_t i = 0; i < m_items.size(); i++) {
         Panel* p = m_items[i].panel;
         p->maximized((int) i == m_maximized);
-        /* Children follow what is shown, the saved collapse state stays */
-        const bool hide = m_maximized >= 0 ? (int) i != m_maximized : p->collapsed();
-        for (int c = 0; c < p->children(); c++) {
-            if (hide) p->child(c)->hide(); else p->child(c)->show();
-        }
-        if (!hide) p->set_collapsed(false);
+        /* Others show their title only; their collapse state is kept */
+        p->set_stack_hidden(m_maximized >= 0 && (int) i != m_maximized);
+        if ((int) i == m_maximized) p->set_collapsed(false);
     }
     layout();
     if (on_change) on_change();

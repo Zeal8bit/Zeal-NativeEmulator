@@ -38,6 +38,7 @@ public:
     int handle(int event) override;
 
 private:
+    void draw_contents();
     void cell(int id, int& name_x, int& value_x, int& row_y) const;
     int flags_y() const;
     void chip(int i, int& cx, int& cw) const;

@@ -143,10 +143,18 @@ void RegistersView::refresh(bool paused, bool force)
 
 void RegistersView::draw()
 {
-    if (collapsed()) {
+    if (content_hidden()) {
         Panel::draw();
         return;
     }
+    /* The stack may give this panel less than its preferred height */
+    fl_push_clip(x(), y(), w(), h());
+    draw_contents();
+    fl_pop_clip();
+}
+
+void RegistersView::draw_contents()
+{
     fl_color(COLOR_SURFACE);
     fl_rectf(x(), y(), w(), h());
     draw_panel_header();
@@ -276,7 +284,7 @@ void RegistersView::draw()
 
 int RegistersView::handle(int event)
 {
-    if (collapsed() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
+    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
     if (m_edit->visible() && (event == FL_KEYBOARD || event == FL_KEYUP || event == FL_SHORTCUT)) {
         return Fl_Group::handle(event);
     }

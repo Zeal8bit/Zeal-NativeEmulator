@@ -51,10 +51,33 @@ void Panel::collapsible(bool on)
 void Panel::set_collapsed(bool collapsed)
 {
     m_collapsed = collapsed;
-    /* Only the header remains: children neither draw nor take events */
-    for (int i = 0; i < children(); i++) {
-        if (collapsed) child(i)->hide(); else child(i)->show();
+    sync_content();
+}
+
+void Panel::set_stack_hidden(bool hidden)
+{
+    m_stack_hidden = hidden;
+    sync_content();
+}
+
+void Panel::sync_content()
+{
+    /* Only the header remains: children neither draw nor take events. Keep
+     * hidden children (an inline editor, other tabs) hidden afterwards. */
+    const bool hide = m_collapsed || m_stack_hidden;
+    if (hide && !m_content_hidden) {
+        m_was_visible.clear();
+        for (int i = 0; i < children(); i++) {
+            if (child(i)->visible()) {
+                m_was_visible.push_back(child(i));
+                child(i)->hide();
+            }
+        }
+    } else if (!hide && m_content_hidden) {
+        for (Fl_Widget* w : m_was_visible) w->show();
+        m_was_visible.clear();
     }
+    m_content_hidden = hide;
     redraw();
 }
 
@@ -114,7 +137,7 @@ void Panel::draw_panel_header()
     if (m_collapsible) {
         const int cx = x() + 9, cy = y() + HEADER_H / 2;
         fl_color(COLOR_DIM);
-        if (m_collapsed) fl_polygon(cx - 2, cy - 4, cx + 3, cy, cx - 2, cy + 4);
+        if (m_content_hidden) fl_polygon(cx - 2, cy - 4, cx + 3, cy, cx - 2, cy + 4);
         else fl_polygon(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3);
     }
     fl_font(DATA_FONT, DATA_SIZE);
@@ -153,7 +176,7 @@ void Panel::draw_panel_header()
 
 void Panel::draw()
 {
-    if (m_collapsed) {
+    if (m_content_hidden) {
         fl_color(COLOR_SURFACE);
         fl_rectf(x(), y(), w(), h());
     } else {
@@ -179,10 +202,13 @@ int Panel::handle(int event)
             on_maximize(this);
             return 1;
         }
-        if (m_collapsible && on_collapse) {
+        /* Only the chevron collapses; the rest of the title is inert so
+         * that a click near a divider or a chip never folds the panel */
+        if (m_collapsible && on_collapse && ex < x() + CHEVRON_W + 4) {
             on_collapse(this);
             return 1;
         }
+        return 1;
     }
     return Fl_Group::handle(event);
 }

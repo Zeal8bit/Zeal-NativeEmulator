@@ -37,7 +37,7 @@ void TabbedPanel::select(int index)
     if (index < 0 || index >= (int) m_tabs.size()) index = 0;
     m_current = index;
     for (size_t i = 0; i < m_tabs.size(); i++) {
-        if ((int) i == index && !collapsed()) m_tabs[i]->show(); else m_tabs[i]->hide();
+        if ((int) i == index && !content_hidden()) m_tabs[i]->show(); else m_tabs[i]->hide();
     }
     resize(x(), y(), w(), h());
     redraw();

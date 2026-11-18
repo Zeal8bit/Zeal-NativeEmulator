@@ -52,7 +52,7 @@ void StackView::refresh(bool paused, bool force)
 void StackView::draw()
 {
     Panel::draw();
-    if (!dbg_ready() || collapsed()) return;
+    if (!dbg_ready() || content_hidden()) return;
     const int lh = data_line_height();
     const int cw = char_width();
     const int asc = text_baseline(lh);
@@ -127,7 +127,7 @@ void StackView::draw()
 
 int StackView::handle(int event)
 {
-    if (collapsed() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
+    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
     switch (event) {
         case FL_ENTER:
             return 1;

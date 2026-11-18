@@ -12,6 +12,7 @@
 #pragma once
 
 #include <functional>
+#include <vector>
 #include <FL/Fl_Group.H>
 
 namespace zui::widgets {
@@ -46,6 +47,11 @@ public:
     void collapsible(bool on);
     bool collapsed() const { return m_collapsed; }
     virtual void set_collapsed(bool collapsed);
+    /** Shown as a title only by its PanelStack (another panel is maximised);
+     *  the collapsed state is kept. */
+    void set_stack_hidden(bool hidden);
+    /** Only the title is shown (collapsed or hidden by the stack). */
+    bool content_hidden() const { return m_content_hidden; }
     /** The user clicked the title (collapse) or the maximise button. */
     std::function<void(Panel*)> on_collapse;
     std::function<void(Panel*)> on_maximize;
@@ -65,6 +71,8 @@ private:
     int title_x() const;
     void chip_rect(int& cx, int& cw) const;
     int maximize_x() const;
+    /** Hide the children (remembering which were visible) or show them again. */
+    void sync_content();
 
     const char* m_title;
     char m_extra[64] = "";
@@ -72,6 +80,9 @@ private:
     bool m_collapsible = false;
     bool m_collapsed = false;
     bool m_maximized = false;
+    bool m_stack_hidden = false;
+    bool m_content_hidden = false;
+    std::vector<Fl_Widget*> m_was_visible; /* children to show again */
     const char* m_chip = nullptr;
     bool m_chip_on = false;
     std::function<void(bool)> m_chip_changed;
