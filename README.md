@@ -134,6 +134,24 @@ For example, if Raylib is not installed in the system's default path, you can pa
 meson setup build -Draylib_path=/path/to/your/raylib
 ```
 
+#### Execution trace depth
+
+While the debugger is enabled, the core records the last executed
+instructions (PC, opcode bytes, AF/BC/DE/HL/IX/IY/SP before execution and the
+T-state count, plus interrupts and resets) in a fixed ring buffer, and derives
+a heuristic call stack from CALL/RST/interrupts and returns. `zeal-fltk` shows
+them in Code & Profiler > Trace and Call Stack. The ring depth is a
+compile-time value, 32 bytes per entry:
+
+```sh
+meson setup build -Dtrace_depth=16384   # default 4096 (128 KB)
+meson setup build -Dtrace_depth=0       # compile the trace and call stack out
+```
+
+Recording never runs while the debugger is disabled. With it enabled it costs
+roughly 10% of emulation speed and can be switched off at run time (Trace >
+Stop). `meson test -C build trace` checks the recorder.
+
 ### Renderer options
 
 The software renderer draws pixels on the CPU and uses Raylib to display them.

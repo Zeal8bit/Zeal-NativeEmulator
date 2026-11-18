@@ -782,6 +782,8 @@ static inline void process_interrupts(z80* const z)
         inc_r(z);
 
         z->cyc += 11;
+        z->int_count++;
+        z->int_kind = Z80_INT_NMI;
         call(z, 0x66);
         return;
     }
@@ -792,6 +794,8 @@ static inline void process_interrupts(z80* const z)
         z->iff1        = 0;
         z->iff2        = 0;
         inc_r(z);
+        z->int_count++;
+        z->int_kind = Z80_INT_IM0 + (z->interrupt_mode <= 2 ? z->interrupt_mode : 0);
 
         switch (z->interrupt_mode) {
             case 0:
