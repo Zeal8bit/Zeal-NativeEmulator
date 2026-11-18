@@ -41,35 +41,56 @@ def default_prefix():
 MANIFEST = ".zeal-sdl3-manifest"
 
 
-def read_install_manifest(build):
-    """Files written by `cmake --install`, as absolute paths."""
+def entry(prefix, path):
+    """Path of an installed entry relative to the prefix, without following
+    symbolic links (lexical only), or None when it is not inside the prefix."""
+    absolute = Path(os.path.normpath(prefix / path))
+    try:
+        relative = absolute.relative_to(prefix)
+    except ValueError:
+        return None
+    if not relative.parts or relative.parts[0] == "..":
+        return None
+    return relative
+
+
+def read_install_manifest(build, prefix):
+    """Entries written by `cmake --install`, relative to the prefix."""
     manifest = build / "install_manifest.txt"
     if not manifest.exists():
         return set()
-    return {Path(line).resolve() for line in manifest.read_text().splitlines() if line.strip()}
+    entries = (entry(prefix, Path(line)) for line in manifest.read_text().splitlines() if line.strip())
+    return {e for e in entries if e is not None}
 
 
 def read_manifest(prefix):
-    """Files a previous run of this script installed in the prefix."""
+    """Entries a previous run of this script installed in the prefix."""
     manifest = prefix / MANIFEST
-    if not manifest.is_file():
+    if manifest.is_symlink() or not manifest.is_file():
         return set()
-    return {(prefix / line).resolve() for line in manifest.read_text().splitlines() if line.strip()}
+    entries = (entry(prefix, Path(line)) for line in manifest.read_text().splitlines() if line.strip())
+    return {e for e in entries if e is not None}
 
 
-def write_manifest(prefix, files):
-    lines = sorted(str(f.relative_to(prefix)) for f in files if f.is_relative_to(prefix))
-    (prefix / MANIFEST).write_text("".join(f"{line}\n" for line in lines))
+def write_manifest(prefix, entries):
+    manifest = prefix / MANIFEST
+    if manifest.is_symlink():
+        manifest.unlink()
+    manifest.write_text("".join(f"{e.as_posix()}\n" for e in sorted(entries)))
 
 
-def remove_owned_file(prefix, path):
-    """Remove one file listed in our manifest, never anything outside the prefix."""
-    if not path.is_relative_to(prefix) or path.is_dir():
-        return
-    try:
-        path.unlink()
-    except FileNotFoundError:
-        pass
+def remove_owned_entry(prefix, relative):
+    """Remove one directory entry we installed: the entry itself, never what
+    a symbolic link points to, and never through a linked parent directory
+    (which could lead outside the prefix or to an unrelated file)."""
+    parent = prefix
+    for part in relative.parts[:-1]:
+        parent = parent / part
+        if parent.is_symlink() or not parent.is_dir():
+            return
+    path = parent / relative.parts[-1]
+    if path.is_symlink() or path.is_file():
+        path.unlink()  # a link is removed itself, its target is untouched
 
 
 def main():
@@ -120,15 +141,13 @@ def main():
         # Install over the prefix: it may hold unrelated files (/usr/local,
         # a shared dependency prefix...), so nothing is deleted beforehand.
         previous = read_manifest(prefix)
+        # SDL installs its license itself (share/licenses/SDL3/LICENSE.txt)
         subprocess.run(["cmake", "--install", str(build)], check=True)
-        license_file = source / "LICENSE.txt"
-        if license_file.exists():
-            shutil.copy(license_file, prefix / "LICENSE.txt")
-        installed = read_install_manifest(build)
-        # Only once the new SDL is in place: drop files an older install of
+        installed = read_install_manifest(build, prefix)
+        # Only once the new SDL is in place: drop entries an older install of
         # ours left that this one no longer provides.
         for stale in sorted(previous - installed):
-            remove_owned_file(prefix, stale)
+            remove_owned_entry(prefix, stale)
         write_manifest(prefix, installed)
     print(f"SDL3 {VERSION} installed in {prefix}")
     print(f"Configure with: -Dpkg_config_path={prefix / 'lib' / 'pkgconfig'} -Dsdl3_static=true")
