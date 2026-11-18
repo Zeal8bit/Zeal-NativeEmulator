@@ -236,6 +236,12 @@ static void cb_map_reload(Fl_Widget*, void*)
 #endif
 }
 
+static void cb_pause_on_reset(Fl_Widget* w, void*)
+{
+    const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
+    fz_pause_on_reset_set(item && item->value());
+}
+
 static void cb_passthru(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
@@ -578,6 +584,12 @@ void MainWindow::build_menus()
         mb->add("&Debug/&Open Map File...", FL_COMMAND + 'o', cb_map_open);
         mb->add("&Debug/&Add Map File...", 0, cb_map_add);
         mb->add("&Debug/&Reload Map Files", 0, cb_map_reload, nullptr, FL_MENU_DIVIDER);
+        mb->add("&Debug/Pause After Rese&t", 0, cb_pause_on_reset, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
+        fz_pause_on_reset_set(config_get("FLTK_DBG_PAUSE_ON_RESET", 0) != 0);
+        persist_register([](rini_config* ini) {
+            rini_set_config_value(ini, "FLTK_DBG_PAUSE_ON_RESET", fz_pause_on_reset() ? 1 : 0,
+                                  "Debugger: halt after a machine reset");
+        });
         mb->add("&Debug/&Keyboard Passthrough", 0, cb_passthru, nullptr, FL_MENU_TOGGLE);
         mb->add("&Debug/&Uppercase Hex", 0, cb_hex_upper, nullptr, FL_MENU_TOGGLE);
     }
@@ -625,6 +637,7 @@ void MainWindow::update_menus()
     set_toggle(mb, "&Machine/&Debugger", dbg);
     set_toggle(mb, "&Debug/&Keyboard Passthrough", config.debugger.keyboard_passthru);
     set_toggle(mb, "&Debug/&Uppercase Hex", config.debugger.hex_upper);
+    set_toggle(mb, "&Debug/Pause After Rese&t", fz_pause_on_reset());
     set_toggle(mb, "&View/Force 4:3 Window", config.window.aspect_force);
     set_toggle(mb, "&View/Scanline Rendering", fz_scanline());
     set_toggle(mb, "&View/Show FPS", show_fps);

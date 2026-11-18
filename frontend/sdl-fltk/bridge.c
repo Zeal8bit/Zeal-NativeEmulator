@@ -19,13 +19,28 @@ static bool s_muted;
 /*  Machine control                                                    */
 /* ------------------------------------------------------------------ */
 
+static bool s_pause_on_reset;
+
+bool fz_pause_on_reset(void)
+{
+    return s_pause_on_reset;
+}
+
+void fz_pause_on_reset_set(bool pause)
+{
+    s_pause_on_reset = pause;
+}
+
 void fz_reset(void)
 {
     if (fltk_machine == NULL) return;
 #if CONFIG_ENABLE_DEBUGGER
     dbg_t* dbg = &fltk_machine->dbg;
     if (dbg->reset_cb) {
+        /* The core always halts after a reset with the debugger on */
+        const bool was_running = fltk_machine->dbg_enabled && !fz_paused();
         dbg->reset_cb(dbg);
+        if (was_running && !s_pause_on_reset) debugger_continue(dbg);
         return;
     }
 #endif

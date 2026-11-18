@@ -27,7 +27,11 @@ extern "C" {
 /* ------------------------------------------------------------------ */
 
 /* Machine control */
+/** Reset the machine. With the debugger on, the run state is kept (running
+ *  stays running) unless "pause after reset" is set. */
 void fz_reset(void);
+bool fz_pause_on_reset(void);
+void fz_pause_on_reset_set(bool pause);
 void fz_quit(void);
 
 /* Debugger: fz_debugger() is NULL when the debugger is compiled out. */
