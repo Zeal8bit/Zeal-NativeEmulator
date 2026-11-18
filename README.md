@@ -161,7 +161,21 @@ Or simply delete the build directory.
 
 ### Running
 
-You can add `zeal-native` to your `$PATH` and run it from anywhere.  It will create a zeal.ini in the directory you run it from.
+You can add `zeal-native` to your `$PATH` and run it from anywhere.
+
+Settings live in two files, read together at startup (project values win):
+
+- **User settings**, `~/.zeal8bit/zeal.ini` (or `-c FILE`): what every program
+  shares, such as window size and position, debugger layout, tool windows,
+  audio volume and display preferences.
+- **Project settings**, `zeal.ini` in the directory the emulator is launched
+  from (or `-P FILE`): what belongs to the program being developed, such as
+  image paths saved with `--save`, and in the SDL/FLTK debugger the
+  breakpoints, watchpoints, watches and loaded map files.
+
+Both are written on exit. A project file is only created when there is
+something project-specific to save. Pointing `-c` and `-P` at the same file
+keeps everything in one file.
 
 ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
@@ -172,7 +186,7 @@ download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Z
 ROM, EEPROM, and TF/SD card images use the following priority, independently:
 
 1. Command-line flag: `-r`/`--rom`, `-e`/`--eeprom`, or `-t`/`--tf`.
-2. `zeal.ini` value: `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME`.
+2. `zeal.ini` value: `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME` (project file first, then user file).
 3. Existing file named by `ZEAL_NATIVE_ROM`, `ZEAL_NATIVE_EEPROM`, or `ZEAL_NATIVE_TF`.
 4. Existing `roms/default.img`, `roms/eeprom.img`, or `roms/tf.img` relative to the current working directory.
 5. Existing `~/.zeal8bit/roms/default.img`, `~/.zeal8bit/roms/eeprom.img`, or `~/.zeal8bit/roms/tf.img`.
@@ -188,8 +202,9 @@ Zeal Native Emulator 1.0.1
 Usage: build/zeal-native [OPTIONS]
 
 Options:
-  -c, --config <file>                Zeal Config
-  -s, --save <file>                  Save * arguments to Zeal Config
+  -c, --config <file>                User settings (default ~/.zeal8bit/zeal.ini)
+  -P, --project <file>               Project settings (default ./zeal.ini)
+  -s, --save                         Save * arguments to the project settings
   -r, --rom <file>                   * Load ROM file
   -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address
   -e, --eeprom <file>                Load EEPROM file

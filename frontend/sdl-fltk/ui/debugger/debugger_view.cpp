@@ -18,6 +18,7 @@
 #include "debugger/layout_config.h"
 #include "debugger/machine_state.h"
 #include "debugger/memory_panel.h"
+#include "debugger/project_state.h"
 #include "debugger/registers_view.h"
 #include "debugger/stack_view.h"
 #include "debugger/toolbar.h"
@@ -77,6 +78,7 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
 {
     s_instance = this;
     layout_config_load();
+    project_state_init();
 
     dock->begin();
     m_root = new SplitPane(0, 0, 1400, 800, true, false);
@@ -124,6 +126,7 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
 
 DebuggerView::~DebuggerView()
 {
+    project_state_capture();
     video_window_destroy();
     tool_windows_destroy();
     s_instance = nullptr;

@@ -11,7 +11,9 @@
 #define RINI_IMPLEMENTATION
 
 #include <stdint.h>
+#include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "utils/config.h"
 #include "utils/version.h"
@@ -29,6 +31,7 @@ config_t config ={
 
     .arguments = {
         .config_path = "zeal.ini",
+        .project_path = "zeal.ini",
         .rom_filename = NULL,
         .hostfs_path = ".",
         .config_save = false,
@@ -70,6 +73,7 @@ void config_debug(void)
     log_printf("%s \n", module);
     log_printf("%s === command line ===\n", module);
     log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
+    log_printf("%s  project_path: %s\n", module, config.arguments.project_path);
     log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
     log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
     log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
@@ -122,8 +126,9 @@ int usage(const char* progname)
     log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
-    log_printf("  -c, --config <file>                Zeal Config\n");
-    log_printf("  -s, --save <file>                  Save * arguments to Zeal Config\n");
+    log_printf("  -c, --config <file>                User settings (default ~/.zeal8bit/zeal.ini)\n");
+    log_printf("  -P, --project <file>               Project settings (default ./zeal.ini)\n");
+    log_printf("  -s, --save                         Save * arguments to the project settings\n");
     log_printf("  -r, --rom <file>                   * Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
     log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
@@ -212,6 +217,7 @@ int parse_command_args(int argc, char* argv[])
 
     struct option long_options[] = {
         {   "config", required_argument, 0, 'c'},
+        {  "project", required_argument, 0, 'P'},
         {      "rom", required_argument, 0, 'r'},
         {   "eeprom", required_argument, 0, 'e'},
         {       "tf", required_argument, 0, 't'},
@@ -241,10 +247,13 @@ int parse_command_args(int argc, char* argv[])
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
 
-    while ((opt = getopt_long(argc, argv, "c:r:e:u:t:C:H:m:b:n::oqsgvhV", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:P:r:e:u:t:C:H:m:b:n::oqsgvhV", long_options, NULL)) != -1) {
         switch (opt) {
             case 'c':
                 config.arguments.config_path = optarg;
+                break;
+            case 'P':
+                config.arguments.project_path = optarg;
                 break;
             case 's':
                 config.arguments.config_save = true;
@@ -339,51 +348,109 @@ int parse_command_args(int argc, char* argv[])
     return 0;
 }
 
+/* The user settings (config_path) hold what is shared by every program:
+ * windows, layout, audio, preferences. The project settings (project_path,
+ * ./zeal.ini by default) hold what belongs to the program being developed:
+ * image paths saved with -s, breakpoints, watches, map files... Values are
+ * looked up in the project first, so a project can also override a user
+ * setting. Both point to the same file when -c and -P name the same path. */
+
+static bool same_file(const char* a, const char* b)
+{
+    char ra[PATH_MAX];
+    char rb[PATH_MAX];
+    if (a == NULL || b == NULL) return false;
+    if (realpath(a, ra) == NULL || realpath(b, rb) == NULL) return strcmp(a, b) == 0;
+    return strcmp(ra, rb) == 0;
+}
+
+static bool project_is_user(void)
+{
+    return same_file(config.arguments.project_path, config.arguments.config_path);
+}
+
+static const char* lookup_text(const char* key, const char* fallback)
+{
+    const char* value = NULL;
+    if (config.project_ini.values != NULL) {
+        value = rini_get_config_value_text_fallback(config.project_ini, key, NULL);
+    }
+    if (value == NULL && config.ini.values != NULL) {
+        value = rini_get_config_value_text_fallback(config.ini, key, NULL);
+    }
+    return value ? value : fallback;
+}
+
+static int lookup_int(const char* key, int fallback)
+{
+    if (config.project_ini.values != NULL && rini_get_config_value_text_fallback(config.project_ini, key, NULL)) {
+        return rini_get_config_value_fallback(config.project_ini, key, fallback);
+    }
+    if (config.ini.values != NULL) return rini_get_config_value_fallback(config.ini, key, fallback);
+    return fallback;
+}
+
 void config_parse_file(const char* file) {
     log_printf("%s %s\n", module, path_sanitize(file));
-    if(!path_exists(file)) return;
+    if(path_exists(file)) config.ini = rini_load_config(file);
 
-    config.ini = rini_load_config(file);
+    const char* project = config.arguments.project_path;
+    if (project != NULL && path_exists(project) && !same_file(project, file)) {
+        log_printf("%s project %s\n", module, path_sanitize(project));
+        config.project_ini = rini_load_config(project);
+    }
 
     if(config.arguments.rom_filename == NULL) {
-        config.arguments.rom_filename = rini_get_config_value_text_fallback(config.ini, "ROM_FILENAME", NULL);
+        config.arguments.rom_filename = lookup_text("ROM_FILENAME", NULL);
     }
     if(config.arguments.eeprom_filename == NULL) {
-        config.arguments.eeprom_filename = rini_get_config_value_text_fallback(config.ini, "EEPROM_FILENAME", NULL);
+        config.arguments.eeprom_filename = lookup_text("EEPROM_FILENAME", NULL);
     }
     if(config.arguments.tf_filename == NULL) {
-        config.arguments.tf_filename = rini_get_config_value_text_fallback(config.ini, "TF_FILENAME", NULL);
+        config.arguments.tf_filename = lookup_text("TF_FILENAME", NULL);
     }
 
-    config.debugger.config_enabled = rini_get_config_value_fallback(config.ini, "DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
+    config.debugger.config_enabled = lookup_int("DEBUG_ENABLED", DEBUGGER_STATE_DISABLED);
     if(config.debugger.enabled != DEBUGGER_STATE_ARG && config.debugger.enabled != DEBUGGER_STATE_ARG_DISABLE)
         config.debugger.enabled = config.debugger.config_enabled;
 
-    config.audio.volume = rini_get_config_value_fallback(config.ini, "AUDIO_VOLUME", 100);
+    config.audio.volume = lookup_int("AUDIO_VOLUME", 100);
     if (config.audio.volume < 0) {
         config.audio.volume = 0;
     } else if (config.audio.volume > 100) {
         config.audio.volume = 100;
     }
 
-    config.window.width = rini_get_config_value_fallback(config.ini, "WIN_WIDTH", -1);
-    config.window.height = rini_get_config_value_fallback(config.ini, "WIN_HEIGHT", -1);
-    config.window.x = rini_get_config_value_fallback(config.ini, "WIN_POS_X", -1);
-    config.window.y = rini_get_config_value_fallback(config.ini, "WIN_POS_Y", -1);
-    config.window.display = rini_get_config_value_fallback(config.ini, "WIN_DISPLAY", -1);
+    config.window.width = lookup_int("WIN_WIDTH", -1);
+    config.window.height = lookup_int("WIN_HEIGHT", -1);
+    config.window.x = lookup_int("WIN_POS_X", -1);
+    config.window.y = lookup_int("WIN_POS_Y", -1);
+    config.window.display = lookup_int("WIN_DISPLAY", -1);
 
-    config.debugger.width = rini_get_config_value_fallback(config.ini, "DEBUG_WIDTH", -1);
-    config.debugger.height = rini_get_config_value_fallback(config.ini, "DEBUG_HEIGHT", -1);
-    config.debugger.x = rini_get_config_value_fallback(config.ini, "DEBUG_POS_X", -1);
-    config.debugger.y = rini_get_config_value_fallback(config.ini, "DEBUG_POS_Y", -1);
-    config.debugger.hex_upper = rini_get_config_value_fallback(config.ini, "DEBUG_HEX_UPPER", 1);
+    config.debugger.width = lookup_int("DEBUG_WIDTH", -1);
+    config.debugger.height = lookup_int("DEBUG_HEIGHT", -1);
+    config.debugger.x = lookup_int("DEBUG_POS_X", -1);
+    config.debugger.y = lookup_int("DEBUG_POS_Y", -1);
+    config.debugger.hex_upper = lookup_int("DEBUG_HEX_UPPER", 1);
 }
 
 config_save_hook_t config_save_hook = NULL;
 
+static bool has_values(const rini_config* ini)
+{
+    for (unsigned i = 0; i < ini->count; i++) {
+        if (ini->values[i].key[0] != '\0') return true;
+    }
+    return false;
+}
+
 int config_save(void)
 {
     rini_config ini = rini_load_config(NULL);
+    rini_config project = rini_load_config(NULL);
+    rini_set_config_comment_line(&project, NULL);
+    rini_set_config_comment_line(&project, "Zeal Native Emulator: project settings");
+    rini_set_config_comment_line(&project, NULL);
 
     // main header
     rini_set_config_comment_line(&ini, NULL);
@@ -393,13 +460,13 @@ int config_save(void)
     if(config.arguments.config_save) {
         // config.arguments header
         config_arguments_t *args = &config.arguments;
-        rini_set_config_comment_line(&ini, "Arguments");
+        rini_set_config_comment_line(&project, "Arguments");
         if(args->rom_filename != NULL)
-            rini_set_config_value_text(&ini, "ROM_FILENAME", args->rom_filename, "ROM Filename");
+            rini_set_config_value_text(&project, "ROM_FILENAME", args->rom_filename, "ROM Filename");
         if(args->eeprom_filename != NULL)
-            rini_set_config_value_text(&ini, "EEPROM_FILENAME", args->eeprom_filename, "EEPROM Filename");
+            rini_set_config_value_text(&project, "EEPROM_FILENAME", args->eeprom_filename, "EEPROM Filename");
         if(args->tf_filename != NULL)
-            rini_set_config_value_text(&ini, "TF_FILENAME", args->tf_filename, "TF/SD Card Filename");
+            rini_set_config_value_text(&project, "TF_FILENAME", args->tf_filename, "TF/SD Card Filename");
 
         if(config.debugger.enabled == DEBUGGER_STATE_ARG) {
             config.debugger.config_enabled = true;
@@ -432,10 +499,32 @@ int config_save(void)
     config_panels_save(&ini);
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    if (config_save_hook) config_save_hook(&ini);
+    if (config_save_hook) config_save_hook(&ini, &project);
 
+    /* Images saved with -s keep coming from the project file even when no
+     * argument changed: carry the loaded ones over */
+    if (!config.arguments.config_save) {
+        static const char* const kept[] = { "ROM_FILENAME", "EEPROM_FILENAME", "TF_FILENAME" };
+        for (unsigned i = 0; i < sizeof(kept) / sizeof(kept[0]); i++) {
+            const char* value = config.project_ini.values ?
+                rini_get_config_value_text_fallback(config.project_ini, kept[i], NULL) : NULL;
+            if (value) rini_set_config_value_text(&project, kept[i], value, "");
+        }
+    }
+
+    if (project_is_user()) {
+        /* One file for both: append the project values */
+        for (unsigned i = 0; i < project.count; i++) {
+            const rini_config_value* v = &project.values[i];
+            if (v->key[0] != '\0') rini_set_config_value_text(&ini, v->key, v->text, v->desc);
+        }
+    } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
+        /* Never create a project file in a directory with nothing to save */
+        rini_save_config(project, config.arguments.project_path);
+    }
     rini_save_config(ini, config.arguments.config_path);
     rini_unload_config(&ini);
+    rini_unload_config(&project);
 
     return 0; // TODO: error checking to ensure things worked?
 }
@@ -445,13 +534,16 @@ void config_unload(void)
     if(config.ini.values != NULL) {
         rini_unload_config(&config.ini);
     }
+    if(config.project_ini.values != NULL) {
+        rini_unload_config(&config.project_ini);
+    }
 }
 
 int config_get(const char *key, int defaultValue) {
-    return rini_get_config_value_fallback(config.ini, key, defaultValue);
+    return lookup_int(key, defaultValue);
 }
 const char* config_get_text(const char *key, const char *defaultValue) {
-    return rini_get_config_value_text_fallback(config.ini, key, defaultValue);
+    return lookup_text(key, defaultValue);
 }
 
 void config_set(const char *key, int value, const char *desc) {

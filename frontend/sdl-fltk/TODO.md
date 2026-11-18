@@ -19,7 +19,8 @@ reference.
     (22-bit) addresses are not supported.
   - Only the first hit of an instruction is kept; a hit from an interrupt's
     stack push taken in the same step is attributed to the previous PC.
-  - Watchpoints (and breakpoints) are not saved in the configuration.
+  - **Done:** watchpoints and breakpoints are saved in the project settings
+    (see "Settings" below).
 - **Trace log / execution history.** Ring buffer of the last N executed
   instructions with registers ("how did I get here"). Enables a heuristic
   call stack by tracking CALL/RET/RST and interrupts.
@@ -60,6 +61,21 @@ reference.
 - **Not exercised by hand yet:** right-click menus, file dialogs (memory
   save/load, console save), clipboard and drag-selection were implemented by
   following existing patterns but could not be clicked during development.
+
+## Settings
+
+- **Done: user vs project settings.** `~/.zeal8bit/zeal.ini` (or `-c`) holds
+  what every program shares (windows, layout, tool windows, audio, display
+  preferences); `./zeal.ini` where the emulator is launched (or `-P`) holds
+  the program's own: images saved with `-s`, breakpoints, watchpoints,
+  watches, map files (paths relative to the project when inside it). Values
+  are looked up in the project first. A project file is only created when
+  there is something to save.
+  Left to do:
+  - Nuklear does not save breakpoints yet (its breakpoint UI could use the
+    same BREAKPOINT_<n> keys).
+  - Watches saved in the user file by older builds move to the first project
+    the emulator is run from.
 
 ## UI polish
 

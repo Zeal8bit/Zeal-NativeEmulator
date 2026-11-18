@@ -79,6 +79,7 @@ if get_option('enable_debugger')
         'ui/debugger/memory_panel.cpp',
         'ui/debugger/mmu_strip.cpp',
         'ui/debugger/navigation.cpp',
+        'ui/debugger/project_state.cpp',
         'ui/debugger/registers_view.cpp',
         'ui/debugger/stack_view.cpp',
         'ui/debugger/state_pill.cpp',

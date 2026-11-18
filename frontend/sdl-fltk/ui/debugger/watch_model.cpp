@@ -80,6 +80,7 @@ int type_from_key(const char* key)
 void watches_save(rini_config* ini)
 {
     const std::vector<Watch>& list = watches();
+    if (list.empty()) return; /* no project file just for an empty list */
     rini_set_config_comment_line(ini, "SDL/FLTK debugger watches (expr|type|length)");
     rini_set_config_value(ini, "FLTK_WATCH_COUNT", (int) list.size(), "Watch entries");
     char key[32], text[MAX_EXPR + 32];
@@ -307,7 +308,7 @@ void watches_load()
         }
         list.push_back(w);
     }
-    persist_register(watches_save);
+    persist_register_project(watches_save);
 }
 
 } // namespace zui::debugger

@@ -49,7 +49,8 @@ typedef struct {
 } config_audio_t;
 
 typedef struct {
-    const char* config_path;
+    const char* config_path;   /* user settings (default ~/.zeal8bit/zeal.ini) */
+    const char* project_path;  /* project settings (default ./zeal.ini) */
     const char* rom_filename;
     const char* eeprom_filename;
     const char* tf_filename;
@@ -84,16 +85,19 @@ typedef struct {
         const char* eeprom;
         const char* tf;
     } images;
-    rini_config ini;
+    rini_config ini;          /* user settings */
+    rini_config project_ini;  /* project settings, empty when there is no file */
 } config_t;
 
 extern config_t config;
 
 /**
  * @brief Optional frontend hook, called by config_save() to append
- * frontend-specific keys before the file is written.
+ * frontend-specific keys before the files are written: `user` holds the
+ * emulator-wide settings (layout, windows, preferences), `project` what
+ * belongs to the program being developed (breakpoints, watches...).
  */
-typedef void (*config_save_hook_t)(rini_config* ini);
+typedef void (*config_save_hook_t)(rini_config* user, rini_config* project);
 extern config_save_hook_t config_save_hook;
 
 /**
