@@ -5,6 +5,7 @@
  */
 
 #include "symbols/map_files.h"
+#include <cstddef>
 #include <string>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/filename.H>

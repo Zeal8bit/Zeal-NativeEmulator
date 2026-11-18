@@ -5,6 +5,7 @@
  */
 
 #include "memtools/change_search.h"
+#include <cstddef>
 #include <cstdint>
 
 namespace zui::memtools {

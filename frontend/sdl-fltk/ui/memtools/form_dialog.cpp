@@ -5,6 +5,7 @@
  */
 
 #include "memtools/form_dialog.h"
+#include <cstddef>
 #include <functional>
 #include <vector>
 #include <FL/Fl.H>

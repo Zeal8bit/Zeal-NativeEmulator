@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <FL/Fl_Widget.H>
 #include "common/machine.h"

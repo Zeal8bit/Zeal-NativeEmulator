@@ -5,6 +5,7 @@
  */
 
 #include "video/vram_image.h"
+#include <cstddef>
 #include <cstdint>
 #include <FL/Fl.H>
 #include <FL/Fl_Group.H>

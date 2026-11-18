@@ -5,6 +5,7 @@
  */
 
 #include "debugger/breakpoint_list.h"
+#include <cstddef>
 #include <vector>
 #include <FL/Fl.H>
 #include <FL/Fl_Menu_Item.H>

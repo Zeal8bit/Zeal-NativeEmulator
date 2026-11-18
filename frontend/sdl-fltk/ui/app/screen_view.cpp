@@ -8,13 +8,18 @@
  * with nearest filtering into a letterboxed 4:3 rectangle, and that turns
  * host keyboard/pointer events into emulated keyboard and SNES mouse input. */
 
+#include "app/screen_view.h"
+#include <cstdint>
 #include <cstring>
+#include <FL/Fl.H>
+#include <FL/Fl_Gl_Window.H>
+#include <FL/Fl_Window.H>
 #include <FL/gl.h>
 #include <FL/platform.H>
-#include "app/screen_view.h"
 #include "app/keymap.h"
 #include "app/main_window.h"
 #include "app/notifications.h"
+#include "common/machine.h"
 #include "theme/theme.h"
 
 #ifdef __APPLE__
@@ -22,11 +27,6 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
-#include "common/machine.h"
-#include <FL/Fl.H>
-#include <FL/Fl_Gl_Window.H>
-#include <FL/Fl_Window.H>
-#include <cstdint>
 #endif
 
 extern "C" {

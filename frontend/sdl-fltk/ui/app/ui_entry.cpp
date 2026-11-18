@@ -7,6 +7,7 @@
 /* The C side's view of the UI: ui_* (bridge/machine.h) and the
  * config_window_* hooks of utils/config.h. */
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <FL/Fl.H>
