@@ -23,9 +23,6 @@ Roughly ordered by value within each section.
 - **PS/2 scancode table (`hw/keyboard.c`).** No scancodes for keypad Enter
   (`E0 5A`), Right Ctrl, Menu and keypad `=`; Left Ctrl is mapped to `E0 14`
   (Right Ctrl's code, Left Ctrl is `14`). Affects zeal-native too.
-- **Map files: only the z88dk format is read** (`name = $addr ; addr, ...`).
-  SDCC/ASxxxx `.map` files (e.g. zeal-ed, zeal-cc) load zero symbols;
-  `frontend/common/symbols.c` could also parse their `Value  Global` tables.
 - **CLI breakpoints parse a leading `0` as octal** (`-b 0236` stops at `$009E`).
   `debugger_set_breakpoints_str` uses `strtoul(..., 0)`; addresses are
   conventionally hex.

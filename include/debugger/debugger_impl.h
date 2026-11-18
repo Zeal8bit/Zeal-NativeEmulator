@@ -68,9 +68,19 @@ typedef struct {
     bool    disabled;   // Kept in the list but never stops execution
 } breakpoint_t;
 
+/* What a symbol refers to, from the map file section it lives in */
+typedef enum {
+    SYM_KIND_UNKNOWN = 0,   /* no section (equates, absolute values) */
+    SYM_KIND_CODE,          /* code: functions and labels */
+    SYM_KIND_DATA,          /* variables (data, bss) */
+    SYM_KIND_CONST,         /* read-only data */
+} symbol_kind_t;
+
 typedef struct {
     const char* name;
     hwaddr      addr;
+    uint8_t     kind;       /* symbol_kind_t */
+    bool        local;      /* file-local label (z88dk maps only) */
 } symbol_t;
 
 /* List of array for the symbols */

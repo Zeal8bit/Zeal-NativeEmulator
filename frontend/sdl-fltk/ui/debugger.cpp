@@ -2699,15 +2699,6 @@ Fl_Group* Debugger::toolbar(int x, int y, int w, int h) { return new Fl_Group(x,
 void Debugger::refresh(bool) {}
 void Debugger::goto_memory(hwaddr) {}
 void Debugger::goto_disassembly(hwaddr) {}
-/* The screen fills the column width at 4:3; memory gets the rest */
-static int default_screen_h(int left_w)
-{
-    const int body_h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H;
-    const int fill = left_w * FZ_SCREEN_HEIGHT / FZ_SCREEN_WIDTH;
-    const int min_memory = 160;
-    return std::max(DEFAULT_SCREEN_H, std::min(fill, body_h - min_memory));
-}
-
 void Debugger::default_body_size(int& w, int& h) const { w = FZ_SCREEN_WIDTH; h = FZ_SCREEN_HEIGHT; }
 void Debugger::apply_layout() {}
 void Debugger::capture_layout() {}

@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <FL/Fl_Button.H>
+#include <FL/Fl_Choice.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/filename.H>
@@ -39,7 +40,38 @@ struct Symbol {
     std::string name;
     std::string lower;  /* for case-insensitive filtering */
     hwaddr addr;
+    uint8_t kind;       /* symbol_kind_t */
+    bool local;
 };
+
+/* Kind filter choices, in menu order: All, then each symbol_kind_t */
+constexpr int KIND_ALL = -1;
+
+const char* kind_label(uint8_t kind)
+{
+    switch (kind) {
+        case SYM_KIND_CODE: return "CODE";
+        case SYM_KIND_DATA: return "DATA";
+        case SYM_KIND_CONST: return "CONST";
+        default: return "OTHER";
+    }
+}
+
+Fl_Color kind_color(uint8_t kind)
+{
+    switch (kind) {
+        case SYM_KIND_CODE: return COLOR_GREEN;
+        case SYM_KIND_DATA: return COLOR_CYAN;
+        case SYM_KIND_CONST: return COLOR_TEXT;
+        default: return COLOR_DIM;
+    }
+}
+
+/** Code opens in the disassembly, data in the memory editor. */
+bool is_data(uint8_t kind)
+{
+    return kind == SYM_KIND_DATA || kind == SYM_KIND_CONST;
+}
 
 std::string to_lower(const char* s)
 {
@@ -72,7 +104,7 @@ public:
 
 class SymbolList : public Fl_Widget {
 public:
-    enum class Sort { Name, Address };
+    enum class Sort { Name, Kind, Address };
 
     SymbolList(int X, int Y, int W, int H, Fl_Scrollbar* bar) : Fl_Widget(X, Y, W, H), m_bar(bar) {}
 
@@ -84,7 +116,7 @@ public:
         uintptr_t sig = 0;
         for (const symbols_t* b = dbg ? &dbg->symbols : nullptr; b; b = b->next) {
             for (unsigned i = 0; i < b->count; i++) {
-                sig = sig * 31 + (uintptr_t) b->array[i].name + b->array[i].addr;
+                sig = sig * 31 + (uintptr_t) b->array[i].name + b->array[i].addr + b->array[i].kind;
                 count++;
             }
         }
@@ -96,7 +128,7 @@ public:
             for (unsigned i = 0; i < b->count; i++) {
                 const symbol_t& s = b->array[i];
                 if (s.name == nullptr) continue;
-                m_all.push_back({ s.name, to_lower(s.name), s.addr });
+                m_all.push_back({ s.name, to_lower(s.name), s.addr, s.kind, s.local });
             }
         }
         apply();
@@ -106,6 +138,14 @@ public:
     void filter(const char* text)
     {
         m_filter = to_lower(text);
+        m_top = 0;
+        apply();
+    }
+
+    /** Show only one symbol_kind_t, or KIND_ALL. */
+    void filter_kind(int kind)
+    {
+        m_kind = kind;
         m_top = 0;
         apply();
     }
@@ -123,7 +163,7 @@ public:
 
     size_t total() const { return m_all.size(); }
     size_t shown() const { return m_rows.size(); }
-    bool filtered() const { return !m_filter.empty(); }
+    bool filtered() const { return !m_filter.empty() || m_kind != KIND_ALL; }
 
     void scroll_to(int row)
     {
@@ -159,14 +199,15 @@ public:
             fl_font(FL_HELVETICA, 12);
             fl_color(COLOR_DIM);
             const char* msg = m_all.empty()
-                ? "No symbols loaded.\nClick Open Map... to load your program's map file\n(or start with -m program.map)."
-                : "No symbol matches the filter.\nPress Escape in the filter field to clear it.";
+                ? "No symbols loaded.\nClick Open Map... to load your program's map file\n(z88dk or SDCC; or start with -m program.map)."
+                : "No symbol matches the filter.\nPress Escape in the filter field to clear it, or show all kinds.";
             fl_draw(msg, x() + 12, ry0 + 10, w() - 24, 60, FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_WRAP);
             fl_pop_clip();
             return;
         }
 
         dbg_t* dbg = fz_debugger();
+        const int kx = kind_x();
         const int ax = addr_x();
         char text[16];
         fl_font(DATA_FONT, DATA_SIZE);
@@ -190,10 +231,14 @@ public:
                 }
             }
             fl_font(DATA_FONT, DATA_SIZE);
-            fl_color(COLOR_AMBER);
-            fl_push_clip(x() + GUTTER, ry, ax - x() - GUTTER - 8, lh);
+            /* File-local labels (name@label) are less prominent */
+            fl_color(s.local ? COLOR_DIM : COLOR_AMBER);
+            fl_push_clip(x() + GUTTER, ry, kx - x() - GUTTER - 8, lh);
             fl_draw(s.name.c_str(), x() + GUTTER, ry + asc);
             fl_pop_clip();
+            fl_color(kind_color(s.kind));
+            fl_draw(kind_label(s.kind), kx, ry + asc);
+            fl_font(DATA_FONT, DATA_SIZE);
             format_addr(text, sizeof(text), s.addr);
             fl_color(COLOR_CYAN);
             fl_draw(text, ax, ry + asc);
@@ -220,7 +265,8 @@ public:
                 const int ey = Fl::event_y();
                 if (ey < y() + COLS_H) {
                     if (Fl::event_button() == FL_LEFT_MOUSE) {
-                        sort_by(Fl::event_x() >= addr_x() - 8 ? Sort::Address : Sort::Name);
+                        const int ex = Fl::event_x();
+                        sort_by(ex >= addr_x() - 8 ? Sort::Address : ex >= kind_x() - 8 ? Sort::Kind : Sort::Name);
                         if (m_changed) m_changed();
                     }
                     return 1;
@@ -229,7 +275,10 @@ public:
                 if (r < 0) return 1;
                 const Symbol& s = m_all[(size_t) m_rows[(size_t) r]];
                 if (Fl::event_button() == FL_RIGHT_MOUSE) context_menu(s);
-                else if (Fl::event_button() == FL_LEFT_MOUSE) goto_disassembly(s.addr);
+                else if (Fl::event_button() == FL_LEFT_MOUSE) {
+                    if (is_data(s.kind)) goto_memory(s.addr);
+                    else goto_disassembly(s.addr);
+                }
                 return 1;
             }
             default:
@@ -258,15 +307,19 @@ private:
         redraw();
     }
 
-    /** Address column follows the longest shown name, within the widget. */
-    int addr_x() const
+    /** Kind column follows the longest shown name, within the widget. */
+    int kind_x() const
     {
         const int cw = char_width();
-        const int addr_w = cw * 6;
-        int ax = x() + GUTTER + cw * (int) std::max<size_t>(m_name_chars, 8) + cw * 3;
-        const int max_x = x() + w() - addr_w - 12;
-        return std::max(x() + GUTTER + cw * 8, std::min(ax, max_x));
+        const int tail_w = cw * (KIND_CHARS + 6);
+        int kx = x() + GUTTER + cw * (int) std::max<size_t>(m_name_chars, 8) + cw * 3;
+        const int max_x = x() + w() - tail_w - 12;
+        return std::max(x() + GUTTER + cw * 8, std::min(kx, max_x));
     }
+
+    int addr_x() const { return kind_x() + char_width() * KIND_CHARS; }
+
+    static constexpr int KIND_CHARS = 8; /* "CONST" plus a gap */
 
     void draw_columns()
     {
@@ -274,9 +327,11 @@ private:
         fl_rectf(x(), y(), w(), COLS_H);
         fl_color(COLOR_BORDER);
         fl_xyline(x(), y() + COLS_H - 1, x() + w());
+        /* Column positions measure the data font: get them first */
+        const int kx = kind_x(), ax = addr_x();
         fl_font(FL_HELVETICA, 11);
-        const int ax = addr_x();
         draw_column("NAME", x() + GUTTER, m_sort == Sort::Name);
+        draw_column("KIND", kx, m_sort == Sort::Kind);
         draw_column("ADDRESS (HEX)", ax, m_sort == Sort::Address);
     }
 
@@ -300,12 +355,19 @@ private:
         m_name_chars = 0;
         for (size_t i = 0; i < m_all.size(); i++) {
             if (!m_filter.empty() && m_all[i].lower.find(m_filter) == std::string::npos) continue;
+            if (m_kind != KIND_ALL && m_all[i].kind != m_kind) continue;
             m_rows.push_back((int) i);
             m_name_chars = std::max(m_name_chars, m_all[i].name.size());
         }
         const std::vector<Symbol>& all = m_all;
         const bool asc = m_ascending;
-        if (m_sort == Sort::Name) {
+        if (m_sort == Sort::Kind) {
+            std::stable_sort(m_rows.begin(), m_rows.end(), [&](int a, int b) {
+                const int k1 = all[(size_t) a].kind, k2 = all[(size_t) b].kind;
+                if (k1 != k2) return asc ? k1 < k2 : k1 > k2;
+                return all[(size_t) a].addr < all[(size_t) b].addr;
+            });
+        } else if (m_sort == Sort::Name) {
             std::stable_sort(m_rows.begin(), m_rows.end(), [&](int a, int b) {
                 const int c = all[(size_t) a].lower.compare(all[(size_t) b].lower);
                 if (c != 0) return asc ? c < 0 : c > 0;
@@ -357,6 +419,7 @@ private:
     std::vector<int> m_rows;   /* indices into m_all, filtered and sorted */
     uintptr_t m_sig = 0;
     std::string m_filter;
+    int m_kind = KIND_ALL;
     Sort m_sort = Sort::Address;
     bool m_ascending = true;
     size_t m_name_chars = 0;
@@ -374,6 +437,16 @@ public:
         m_filter->when(FL_WHEN_CHANGED);
         m_filter->callback(cb_filter, this);
         m_filter->tooltip("Case-insensitive substring of the symbol name\nEscape: clear");
+        m_kind = new Fl_Choice(X, Y, 10, 10);
+        m_kind->add("All kinds|Code|Data|Const|Other");
+        m_kind->value(0);
+        m_kind->textsize(12);
+        m_kind->clear_visible_focus();
+        m_kind->tooltip("Code: functions and labels (from code sections)\n"
+                        "Data: variables (data, bss)\n"
+                        "Const: read-only data\n"
+                        "Other: no section (equates, absolute values)");
+        m_kind->callback(cb_kind, this);
         m_open = add_button("Open Map...", "Load a map file, replacing the current symbols", cb_open);
         m_add = add_button("Add...", "Load another map file next to the current symbols\n(e.g. the OS map plus your program's)", cb_add);
         m_reload = add_button("Reload", "Reload the map files (after rebuilding the program)", cb_reload);
@@ -384,7 +457,8 @@ public:
         m_bar->color(COLOR_SURFACE);
         m_bar->callback(cb_bar, this);
         m_list = new SymbolList(X, Y, 10, 10, m_bar);
-        m_list->tooltip("Click: show in disassembly    Right-click: more\nClick a column title to sort");
+        m_list->tooltip("Click: code opens in the disassembly, data in memory\n"
+                        "Right-click: more    Click a column title to sort");
         m_list->on_change([this] { update_extra(); });
         resizable(m_list);
         end();
@@ -404,6 +478,9 @@ public:
             b->resize(bx, by, bw, BAR_H - 8);
             bx -= 4;
         }
+        const int kind_w = 100;
+        bx -= 8 + kind_w;
+        m_kind->resize(bx, by, kind_w, BAR_H - 8);
         m_filter->resize(X + 62, by, std::max(60, std::min(320, bx - 12 - (X + 62))), BAR_H - 8);
         const int ly = Y + HEADER_H + BAR_H;
         m_list->resize(X, ly, W - SCROLL_W, H - (ly - Y));
@@ -512,6 +589,16 @@ private:
         self->update_extra();
     }
 
+    static void cb_kind(Fl_Widget*, void* data)
+    {
+        SymbolsView* self = static_cast<SymbolsView*>(data);
+        /* Menu order: All, Code, Data, Const, Other */
+        static const int kinds[] = { KIND_ALL, SYM_KIND_CODE, SYM_KIND_DATA, SYM_KIND_CONST, SYM_KIND_UNKNOWN };
+        const int v = self->m_kind->value();
+        self->m_list->filter_kind(v >= 0 && v < 5 ? kinds[v] : KIND_ALL);
+        self->update_extra();
+    }
+
     static void cb_bar(Fl_Widget*, void* data)
     {
         SymbolsView* self = static_cast<SymbolsView*>(data);
@@ -519,6 +606,7 @@ private:
     }
 
     FilterInput* m_filter;
+    Fl_Choice* m_kind;
     Fl_Button* m_open;
     Fl_Button* m_add;
     Fl_Button* m_reload;
