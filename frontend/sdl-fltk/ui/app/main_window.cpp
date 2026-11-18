@@ -346,7 +346,7 @@ void MainWindow::frame_presented()
 
 void MainWindow::update_status()
 {
-    char state[64];
+    char state[96];
     snprintf(state, sizeof(state), fz_debugger_enabled() ? "Running (debugger)" : "Running");
     unsigned pc_value;
     if (m_debugger && m_debugger->paused_at(&pc_value)) {

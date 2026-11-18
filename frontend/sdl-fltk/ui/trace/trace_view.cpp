@@ -158,7 +158,7 @@ void TraceView::update_status()
     char cap[32];
     with_commas(count, sizeof(count), m_list->entries().size());
     with_commas(cap, sizeof(cap), fz_trace_capacity());
-    char text[sizeof(m_status)];
+    char text[sizeof(count) + sizeof(cap) + 16];
     snprintf(text, sizeof(text), "%s / %s instructions", count, cap);
     if (strcmp(text, m_status) != 0) {
         snprintf(m_status, sizeof(m_status), "%s", text);

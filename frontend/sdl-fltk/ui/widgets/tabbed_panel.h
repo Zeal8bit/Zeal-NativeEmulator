@@ -9,6 +9,7 @@
  * header; its title and extra text make the tab label. */
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <vector>
 #include "widgets/panel.h"

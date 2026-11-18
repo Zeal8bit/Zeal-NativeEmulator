@@ -43,7 +43,7 @@ private:
     TraceList* m_list;
     uint64_t m_serial = UINT64_MAX;
     int m_shown_enabled = -1;   /* force the first update */
-    char m_status[64] = "";
+    char m_status[96] = "";
 };
 
 } // namespace zui::trace

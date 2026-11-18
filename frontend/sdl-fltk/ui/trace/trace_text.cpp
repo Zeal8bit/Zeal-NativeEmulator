@@ -75,7 +75,7 @@ std::string trace_header()
 
 std::string trace_line(const zeal_trace_entry_t& e, const SymbolIndex& syms)
 {
-    char line[256];
+    char line[384];
     char pc[8];
     char sym[96];
     hex16(pc, sizeof(pc), e.pc);
