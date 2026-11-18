@@ -101,6 +101,15 @@ typedef void (*config_save_hook_t)(rini_config* user, rini_config* project);
 extern config_save_hook_t config_save_hook;
 
 /**
+ * @brief Declare that this frontend manages the project keys starting with
+ * `prefix` (e.g. "BREAKPOINT_"): config_save() writes what the frontend
+ * provides for them and drops the others. Every other key loaded from the
+ * project file is kept as is, so a frontend never erases what another one
+ * (or another build) saved there. `prefix` must stay valid.
+ */
+void config_own_project_keys(const char* prefix);
+
+/**
  * @brief Usage message for CLI
  */
 int usage(const char *progname);

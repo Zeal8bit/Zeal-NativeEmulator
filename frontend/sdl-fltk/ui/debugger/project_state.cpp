@@ -192,6 +192,11 @@ void project_state_capture()
 
 void project_state_init()
 {
+    /* Written in full by save(): stale entries must go */
+    config_own_project_keys("BREAKPOINT_");
+    config_own_project_keys("MAP_FILE_");
+    /* Migrated into watches by restore() */
+    config_own_project_keys("WATCHPOINT_");
     persist_register_project(save);
     Fl::add_timeout(0.0, try_restore);
 }

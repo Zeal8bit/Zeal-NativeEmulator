@@ -345,6 +345,7 @@ void watches_load()
         }
         list.push_back(w);
     }
+    config_own_project_keys("FLTK_WATCH_");
     persist_register_project(watches_save);
 }
 

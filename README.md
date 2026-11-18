@@ -192,8 +192,12 @@ Settings live in two files, read together at startup (project values win):
   breakpoints, watchpoints, watches and loaded map files.
 
 Both are written on exit. A project file is only created when there is
-something project-specific to save. Pointing `-c` and `-P` at the same file
-keeps everything in one file.
+something project-specific to save. Keys a frontend does not manage are kept,
+so running another frontend or a build without the debugger in the same
+directory does not erase the debugger's breakpoints, watches or maps. A user
+setting placed in the project file (e.g. `AUDIO_VOLUME`) overrides it for
+that project only and is kept there; the user file keeps its own value.
+Pointing `-c` and `-P` at the same file keeps everything in one file.
 
 ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.

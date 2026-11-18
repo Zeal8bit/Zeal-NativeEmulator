@@ -436,6 +436,65 @@ void config_parse_file(const char* file) {
 
 config_save_hook_t config_save_hook = NULL;
 
+#define MAX_OWNED_PREFIXES 16
+static const char* owned_prefixes[MAX_OWNED_PREFIXES];
+static int owned_count;
+
+void config_own_project_keys(const char* prefix)
+{
+    for (int i = 0; i < owned_count; i++) {
+        if (strcmp(owned_prefixes[i], prefix) == 0) return;
+    }
+    if (owned_count < MAX_OWNED_PREFIXES) owned_prefixes[owned_count++] = prefix;
+}
+
+static bool owned_key(const char* key)
+{
+    for (int i = 0; i < owned_count; i++) {
+        if (strncmp(key, owned_prefixes[i], strlen(owned_prefixes[i])) == 0) return true;
+    }
+    return false;
+}
+
+static bool has_key(const rini_config* ini, const char* key)
+{
+    for (unsigned i = 0; i < ini->count; i++) {
+        if (strcmp(ini->values[i].key, key) == 0) return true;
+    }
+    return false;
+}
+
+static void remove_key(rini_config* ini, const char* key)
+{
+    for (unsigned i = 0; i < ini->count; i++) {
+        if (strcmp(ini->values[i].key, key) == 0) {
+            memmove(&ini->values[i], &ini->values[i + 1], (ini->count - i - 1) * sizeof(ini->values[0]));
+            ini->count--;
+            return;
+        }
+    }
+}
+
+/* Keys loaded from the project file that nothing wrote this time: keep
+ * them unless the frontend manages them (config_own_project_keys). A kept
+ * key that is also a user setting is a project override: its value was
+ * only read for this project, so the user file keeps its own value. */
+static void keep_project_keys(rini_config* ini, rini_config* project)
+{
+    if (config.project_ini.values == NULL) return;
+    for (unsigned i = 0; i < config.project_ini.count; i++) {
+        const rini_config_value* v = &config.project_ini.values[i];
+        if (v->key[0] == '\0' || has_key(project, v->key) || owned_key(v->key)) continue;
+        rini_set_config_value_text(project, v->key, v->text, v->desc);
+        if (has_key(ini, v->key)) {
+            const char* user = config.ini.values ?
+                rini_get_config_value_text_fallback(config.ini, v->key, NULL) : NULL;
+            if (user) rini_set_config_value_text(ini, v->key, user, "");
+            else remove_key(ini, v->key);
+        }
+    }
+}
+
 static bool has_values(const rini_config* ini)
 {
     for (unsigned i = 0; i < ini->count; i++) {
@@ -511,6 +570,8 @@ int config_save(void)
             if (value) rini_set_config_value_text(&project, kept[i], value, "");
         }
     }
+
+    keep_project_keys(&ini, &project);
 
     if (project_is_user()) {
         /* One file for both: append the project values */
