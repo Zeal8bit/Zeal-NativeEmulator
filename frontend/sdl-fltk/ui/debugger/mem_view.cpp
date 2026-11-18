@@ -5,6 +5,7 @@
  */
 
 #include "debugger/mem_view.h"
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -24,6 +25,7 @@
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
 #include "debugger/watch_breaks.h"
+#include "debugger/watch_model.h"
 #include "theme/theme.h"
 #include "memtools/memory_actions.h"
 #include "memtools/pattern.h"
@@ -392,6 +394,10 @@ void MemView::context_menu()
     /* Radio marks when the selection is exactly a watched range */
     const bool exact = watch_here && watch.addr == (hwaddr) lo && watch.end == (hwaddr) hi;
     auto radio = [&](int type) { return FL_MENU_RADIO | (exact && watch.type == type ? FL_MENU_VALUE : 0); };
+    /* String watches take the selection length (16 for a single byte) */
+    const int str_len = range ? std::min(hi - lo + 1, MAX_STR) : DEFAULT_STR;
+    char str_label[48];
+    snprintf(str_label, sizeof(str_label), "str  ASCII string (%d)", str_len);
     Fl_Menu_Item items[] = {
         { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { range ? "Copy Bytes as Hex" : "Copy Byte as Hex", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
@@ -403,6 +409,16 @@ void MemView::context_menu()
         { "Load File into Memory...", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
         { "Go to Address...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { "Show in Disassembly", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+        { "Add to Watch", 0, nullptr, nullptr, FL_SUBMENU, 0, 0, 0, 0 },
+        { WATCH_TYPES[0].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[1].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[2].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[3].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { str_label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[5].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[6].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { WATCH_TYPES[7].label, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { "Break on Read", 0, nullptr, nullptr, radio(WATCHPOINT_READ), 0, 0, 0, 0 },
         { "Break on Write", 0, nullptr, nullptr, radio(WATCHPOINT_WRITE), 0, 0, 0, 0 },
         { "Break on Access", 0, nullptr, nullptr, radio(WATCHPOINT_RW), 0, 0, 0, 0 },
@@ -456,15 +472,26 @@ void MemView::context_menu()
         case 9:
             goto_disassembly((hwaddr) lo);
             break;
-        case 10:
         case 11:
-        case 12: {
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 18:
+            /* Add to Watch: one item per WatchType, in order */
+            watch_add_at((hwaddr) lo, (int) (picked - items) - 11, str_len);
+            break;
+        case 20:
+        case 21:
+        case 22: {
             const int pick = (int) (picked - items);
             watch_break_range((hwaddr) lo, (hwaddr) hi,
-                              pick == 10 ? WATCHPOINT_READ : pick == 11 ? WATCHPOINT_WRITE : WATCHPOINT_RW);
+                              pick == 20 ? WATCHPOINT_READ : pick == 21 ? WATCHPOINT_WRITE : WATCHPOINT_RW);
             break;
         }
-        case 13:
+        case 23:
             watch_break_clear_at(watch.addr);
             break;
         default:

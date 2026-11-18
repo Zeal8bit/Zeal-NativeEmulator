@@ -17,6 +17,7 @@
 #include "common/persist.h"
 #include "debugger/address_lookup.h"
 #include "debugger/machine_state.h"
+#include "debugger/navigation.h"
 #include "memtools/pattern.h"
 
 namespace zui::debugger {
@@ -286,6 +287,26 @@ void format(const Watch& w, char* hex, size_t hs, char* dec, size_t ds)
         default:
             break;
     }
+}
+
+bool watch_add_at(hwaddr addr, int type, int len)
+{
+    std::vector<Watch>& list = watches();
+    if ((int) list.size() >= MAX_WATCHES) {
+        notif_show("The watch list is full (%d entries)", MAX_WATCHES);
+        return false;
+    }
+    Watch w;
+    const char* sym = dbg_ready() ? debugger_get_symbol(fz_debugger(), addr) : nullptr;
+    char hex[8];
+    hex16(hex, sizeof(hex), addr);
+    w.expr = sym && strlen(sym) <= (size_t) MAX_EXPR && !strchr(sym, '|') ? sym : std::string("$") + hex;
+    w.type = type >= 0 && type < W_COUNT ? type : W_U8;
+    if (len >= 1 && len <= MAX_STR) w.len = len;
+    list.push_back(w);
+    notif_show("Watching %s as %s", w.expr.c_str(), WATCH_TYPES[w.type].tag);
+    request_refresh();
+    return true;
 }
 
 void watches_load()

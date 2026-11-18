@@ -83,4 +83,8 @@ void format(const Watch& w, char* hex, size_t hs, char* dec, size_t ds);
 
 void watches_load();
 
+/** Add a watch of `type` at `addr` (memory view), named after the symbol at
+ *  that address when there is one. `len` is the string length. */
+bool watch_add_at(hwaddr addr, int type, int len);
+
 } // namespace zui::debugger
