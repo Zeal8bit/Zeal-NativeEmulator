@@ -17,6 +17,7 @@
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Native_File_Chooser.H>
+#include <FL/filename.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Menu_Item.H>
 #include <FL/fl_draw.H>
@@ -550,13 +551,15 @@ bool map_open_dialog(bool append)
     chooser.title(append ? "Add Map File" : "Open Map File");
     chooser.type(Fl_Native_File_Chooser::BROWSE_FILE);
     chooser.filter("Map files\t*.map\nAll files\t*");
-    /* Start where the last map came from */
-    if (s_dir.empty() && fz_map_count() > 0) {
-        s_dir = fz_map_path(fz_map_count() - 1);
-        const size_t slash = s_dir.find_last_of("/\\");
-        s_dir = slash == std::string::npos ? std::string() : s_dir.substr(0, slash);
+    /* Start in the folder picked last time, else the HostFS folder, where
+     * the programs being tested (and their maps) usually live */
+    std::string start = s_dir;
+    if (start.empty() && config.arguments.hostfs_path) {
+        char abs[FL_PATH_MAX];
+        fl_filename_absolute(abs, sizeof(abs), config.arguments.hostfs_path);
+        start = abs;
     }
-    if (!s_dir.empty()) chooser.directory(s_dir.c_str());
+    if (!start.empty()) chooser.directory(start.c_str());
     if (chooser.show() != 0 || chooser.filename() == nullptr) return false;
     const std::string path = chooser.filename();
     const size_t slash = path.find_last_of("/\\");
