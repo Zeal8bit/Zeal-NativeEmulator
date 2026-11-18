@@ -43,7 +43,7 @@ Roughly ordered by value within each section.
   scanline and hpos registers are only updated by the core when the guest
   touches them, so they read stale values while running.
 - **CPU timing:** the frame number is derived from the cycle count and raster
-  (the core has no frame counter) and `bridge_cpu.c` copies the raster timing
+  (the core has no frame counter) and `bridge/cpu.c` copies the raster timing
   constants from `hw/zvb/zvb.c`; a core frame counter would remove both.
 - **Not exercised by hand yet:** right-click menus, file dialogs (memory
   save/load, console save), clipboard and drag-selection were implemented by

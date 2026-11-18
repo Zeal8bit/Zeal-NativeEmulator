@@ -18,7 +18,8 @@
 #include "tool_window.h"
 
 extern "C" {
-#include "frontend/sdl-fltk/bridge_input.h"
+#include "frontend/sdl-fltk/bridge/console.h"
+#include "frontend/sdl-fltk/bridge/input.h"
 }
 
 namespace zui {

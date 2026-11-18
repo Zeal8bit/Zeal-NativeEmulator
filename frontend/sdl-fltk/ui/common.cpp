@@ -100,15 +100,16 @@ regs_t exact_regs()
 
 void display_memory(hwaddr addr, int len, uint8_t* out, bool stack)
 {
+#if CONFIG_ENABLE_DEBUGGER
     if (!fz_paused()) {
         const bool ok = stack ? fz_live_sample(nullptr, out, len, nullptr, 0)
                               : fz_live_sample(nullptr, nullptr, 0, out, len);
         if (ok) return;
     }
-#if CONFIG_ENABLE_DEBUGGER
     if (dbg_ready()) debugger_read_memory(fz_debugger(), addr, len, out);
 #else
     (void) addr;
+    (void) stack;
     memset(out, 0, (size_t) len);
 #endif
 }

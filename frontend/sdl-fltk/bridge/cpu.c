@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Machine-side implementation of bridge_cpu.h: interrupt state, cycle
+/* Machine-side implementation of bridge/cpu.h: interrupt state, cycle
  * counter and ZVB raster position for the debugger's CPU panel. */
 
 #include <string.h>
 #include "frontend/sdl-fltk/frontend.h"
-#include "frontend/sdl-fltk/bridge_cpu.h"
+#include "frontend/sdl-fltk/bridge/cpu.h"
 #include "utils/helpers.h"
 
 /* ZVB raster timing (mirrors the private constants of hw/zvb/zvb.c) */

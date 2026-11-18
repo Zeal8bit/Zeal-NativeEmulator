@@ -45,7 +45,7 @@
 extern "C" {
 #include "debugger/zeal_debugger.h"
 }
-#include "frontend/sdl-fltk/bridge_cpu.h"
+#include "frontend/sdl-fltk/bridge/cpu.h"
 #endif
 
 namespace zui {

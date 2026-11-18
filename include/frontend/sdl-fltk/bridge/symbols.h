@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Map files loaded into the debugger's symbol table (bridge_symbols.c).
+/* Map files loaded into the debugger's symbol table (debug/symbols.c).
  * The map given with -m counts as the first loaded file. */
 #pragma once
 

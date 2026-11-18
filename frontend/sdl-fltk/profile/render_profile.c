@@ -12,7 +12,6 @@
 #include "utils/config.h"
 #include "utils/log.h"
 
-#if CONFIG_PROFILE_RENDER
 typedef struct {
     double window_start;
     double frame_total;
@@ -26,7 +25,9 @@ typedef struct {
 static render_profile_t s_render_profile;
 static double last_core_seconds;
 
-double fltk_seconds(void)
+static void fltk_profile_frame(double elapsed_seconds);
+
+static double fltk_seconds(void)
 {
     return SDL_GetTicksNS() / 1e9;
 }
@@ -53,7 +54,23 @@ void fltk_profile_bind(zvb_t* zvb)
     zvb->profile_render = profile_render;
 }
 
-void fltk_profile_frame(double elapsed_seconds)
+void fltk_profile_unbind(zvb_t* zvb)
+{
+    zvb->profile_time = NULL;
+    zvb->profile_render = NULL;
+}
+
+double fltk_profile_frame_begin(void)
+{
+    return fltk_seconds();
+}
+
+void fltk_profile_frame_end(double start)
+{
+    fltk_profile_frame(fltk_seconds() - start);
+}
+
+static void fltk_profile_frame(double elapsed_seconds)
 {
     if (!config.arguments.profile) {
         return;
@@ -89,4 +106,3 @@ void fltk_profile_frame(double elapsed_seconds)
     memset(&s_render_profile, 0, sizeof(s_render_profile));
     s_render_profile.window_start = now;
 }
-#endif

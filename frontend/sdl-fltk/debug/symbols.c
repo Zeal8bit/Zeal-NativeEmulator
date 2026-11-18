@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "frontend/sdl-fltk/frontend.h"
-#include "frontend/sdl-fltk/bridge_symbols.h"
+#include "frontend/sdl-fltk/bridge/symbols.h"
 #include "frontend/common/symbols.h"
 #include "debugger/debugger_impl.h"
 #include "utils/config.h"

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Machine-side implementation of bridge_hw.h: read-only register snapshots. */
+/* Machine-side implementation of bridge/hw.h: read-only register snapshots. */
 
 #include <string.h>
 #include <time.h>
 #include "frontend/sdl-fltk/frontend.h"
-#include "frontend/sdl-fltk/bridge_hw.h"
+#include "frontend/sdl-fltk/bridge/hw.h"
 
 #define PIN(port, n)    ((((port).state) >> (n)) & 1)
 

@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Machine-side implementation of bridge.h for the C++ FLTK user interface. */
+/* Machine-side implementation of bridge/machine.h for the C++ FLTK user
+ * interface (the debugger parts live in debug/debug.c). */
 
 #include <string.h>
 #include "frontend/sdl-fltk/frontend.h"
+#include "frontend/sdl-fltk/debug.h"
 #include "utils/config.h"
 #include "utils/helpers.h"
 #include "utils/log.h"
@@ -34,16 +36,7 @@ void fz_pause_on_reset_set(bool pause)
 void fz_reset(void)
 {
     if (fltk_machine == NULL) return;
-#if CONFIG_ENABLE_DEBUGGER
-    dbg_t* dbg = &fltk_machine->dbg;
-    if (dbg->reset_cb) {
-        /* The core always halts after a reset with the debugger on */
-        const bool was_running = fltk_machine->dbg_enabled && !fz_paused();
-        dbg->reset_cb(dbg);
-        if (was_running && !s_pause_on_reset) debugger_continue(dbg);
-        return;
-    }
-#endif
+    if (fltk_debug_reset(fltk_machine, s_pause_on_reset)) return;
     zeal_reset(fltk_machine);
 }
 
@@ -51,33 +44,6 @@ void fz_quit(void)
 {
     if (fltk_machine == NULL) return;
     fltk_machine->should_exit = true;
-}
-
-dbg_t* fz_debugger(void)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    return fltk_machine ? &fltk_machine->dbg : NULL;
-#else
-    return NULL;
-#endif
-}
-
-bool fz_debugger_enabled(void)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    return fltk_machine && fltk_machine->dbg_enabled;
-#else
-    return false;
-#endif
-}
-
-bool fz_paused(void)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    return fltk_machine && fltk_machine->dbg_enabled && fltk_machine->dbg_state == ST_PAUSED;
-#else
-    return false;
-#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,18 +119,6 @@ fz_video_mode_t fz_video_mode(void)
     return FZ_VIDEO_TEXT;
 }
 
-bool fz_vram_render(dbg_vram_t view, fz_image_t* out)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    if (fltk_machine == NULL) return false;
-    return fltk_debug_video_render(&fltk_machine->zvb, view, out);
-#else
-    (void) view;
-    (void) out;
-    return false;
-#endif
-}
-
 bool fz_gfx_screen(int* width, int* height)
 {
     if (fltk_machine == NULL || !zvb_is_gfx_mode(&fltk_machine->zvb)) return false;
@@ -173,20 +127,6 @@ bool fz_gfx_screen(int* width, int* height)
     if (width) *width = mode_320 ? 320 : 640;
     if (height) *height = mode_320 ? 240 : 480;
     return true;
-}
-
-bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    if (fltk_machine == NULL) return false;
-    return fltk_debug_sprite(&fltk_machine->zvb, index, info, rgb, mask);
-#else
-    (void) index;
-    (void) info;
-    (void) rgb;
-    (void) mask;
-    return false;
-#endif
 }
 
 /* ------------------------------------------------------------------ */

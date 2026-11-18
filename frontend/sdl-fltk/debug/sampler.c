@@ -18,8 +18,6 @@
 #include "utils/helpers.h"
 #include "utils/vtimer.h"
 
-#if CONFIG_ENABLE_DEBUGGER
-
 /* Mean interval between samples, matching the UI refresh rate (10 Hz) */
 #define SAMPLE_PERIOD_US    100000
 #define SAMPLE_STACK_BYTES  64
@@ -87,26 +85,3 @@ bool fz_live_sample(regs_t* regs, uint8_t* stack, int stack_len, uint8_t* hl, in
     }
     return true;
 }
-
-#else
-
-void fltk_sampler_bind(zeal_t* machine)
-{
-    (void) machine;
-}
-
-void fltk_sampler_unbind(void)
-{
-}
-
-bool fz_live_sample(regs_t* regs, uint8_t* stack, int stack_len, uint8_t* hl, int hl_len)
-{
-    (void) regs;
-    (void) stack;
-    (void) stack_len;
-    (void) hl;
-    (void) hl_len;
-    return false;
-}
-
-#endif

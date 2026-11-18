@@ -25,7 +25,7 @@
 #include "tool_window.h"
 
 extern "C" {
-#include "frontend/sdl-fltk/bridge_hw.h"
+#include "frontend/sdl-fltk/bridge/hw.h"
 }
 
 namespace zui {

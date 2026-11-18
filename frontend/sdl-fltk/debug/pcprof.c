@@ -6,7 +6,7 @@
 
 /* Statistical PC profiler for the Hot Functions view.
  *
- * Same technique as sampler.c: a virtual timer on the CPU clock fires at a
+ * Same technique as debug/sampler.c: a virtual timer on the CPU clock fires at a
  * random point of each sampling window (uniform in [0.5, 1.5) intervals), so
  * samples never phase-lock to the 16.7 ms frame or to periodic interrupts.
  * The timer is only armed while profiling is on: the profiler costs nothing
@@ -18,11 +18,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "frontend/sdl-fltk/frontend.h"
-#include "frontend/sdl-fltk/bridge_profile.h"
+#include "frontend/sdl-fltk/bridge/profile.h"
 #include "utils/helpers.h"
 #include "utils/vtimer.h"
-
-#if CONFIG_ENABLE_DEBUGGER
 
 #define MIN_INTERVAL_US     20
 #define MAX_INTERVAL_US     100000
@@ -156,59 +154,3 @@ void fz_profile_set_interval_us(unsigned us)
     if (us > MAX_INTERVAL_US) us = MAX_INTERVAL_US;
     s_interval_us = us;
 }
-
-#else
-
-void fltk_pcprof_bind(zeal_t* machine)
-{
-    (void) machine;
-}
-
-void fltk_pcprof_unbind(void)
-{
-}
-
-void fz_profile_start(void)
-{
-}
-
-void fz_profile_stop(void)
-{
-}
-
-void fz_profile_reset(void)
-{
-}
-
-bool fz_profile_running(void)
-{
-    return false;
-}
-
-uint64_t fz_profile_total(void)
-{
-    return 0;
-}
-
-uint64_t fz_profile_elapsed_us(void)
-{
-    return 0;
-}
-
-uint64_t fz_profile_histogram(const uint32_t** counts)
-{
-    if (counts) *counts = NULL;
-    return 0;
-}
-
-unsigned fz_profile_interval_us(void)
-{
-    return FZ_PROFILE_DEFAULT_INTERVAL_US;
-}
-
-void fz_profile_set_interval_us(unsigned us)
-{
-    (void) us;
-}
-
-#endif

@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include "frontend/sdl-fltk/frontend.h"
 
-#if CONFIG_ENABLE_DEBUGGER
-
 #define CHAR_W 8
 #define CHAR_H 12
 #define TILE_W 16
@@ -462,5 +460,3 @@ void fltk_debug_video_free(void)
         s_images[i].data = NULL;
     }
 }
-
-#endif

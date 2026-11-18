@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* CPU and raster state for the debugger's CPU panel (bridge_cpu.c).
+/* CPU and raster state for the debugger's CPU panel (bridge/cpu.c).
  * Plain C data only, so the C++ UI never needs hw/zeal.h. */
 #pragma once
 

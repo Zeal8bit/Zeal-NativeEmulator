@@ -23,7 +23,7 @@
 #include <FL/Fl_Menu_Item.H>
 #include <FL/fl_draw.H>
 #include "tool_window.h"
-#include "frontend/sdl-fltk/bridge_symbols.h"
+#include "frontend/sdl-fltk/bridge/symbols.h"
 #include "utils/notif.h"
 
 namespace zui {

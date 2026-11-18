@@ -10,6 +10,7 @@
 
 #include <string.h>
 #include "frontend/sdl-fltk/frontend.h"
+#include "frontend/sdl-fltk/debug.h"
 #include "hw/keys.h"
 #include "utils/helpers.h"
 #include "utils/vtimer.h"
@@ -177,9 +178,7 @@ static void keyboard_check_cb(void* userdata)
 {
     zeal_t* machine = (zeal_t*) userdata;
     vtimer_schedule_tstates(&s_timer, HOST_KEYB_CHECK_PERIOD);
-#if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled && machine->dbg_state != ST_RUNNING) return;
-#endif
+    if (fltk_debug_keyboard_blocked(machine)) return;
     if (!ui_screen_focused()) {
         /* Keys typed into debugger widgets never reach the machine. */
         s_press_count = 0;

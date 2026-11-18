@@ -13,6 +13,7 @@
 #include <SDL3/SDL.h>
 
 #include "frontend/sdl-fltk/frontend.h"
+#include "frontend/sdl-fltk/debug.h"
 #include "frontend/common/app.h"
 #include "utils/config.h"
 #include "utils/log.h"
@@ -26,32 +27,6 @@
 
 zeal_t* fltk_machine;
 static bool s_sdl_ready;
-
-#if CONFIG_ENABLE_DEBUGGER
-static void debug_set_enabled(zeal_t* machine, bool enabled)
-{
-    if (machine->dbg_enabled == enabled) return;
-    config_window_update(machine->dbg_enabled);
-    machine->dbg_enabled = enabled;
-    /* Showing or hiding the debugger never stops the machine; pause from
-     * the toolbar (or a breakpoint) when needed */
-    machine->dbg_state = ST_RUNNING;
-    log_printf("[DEBUGGER]: %s\n", enabled ? "Enabled" : "Disabled");
-    fz_keys_release_all();
-    ui_debug_mode(enabled);
-    ui_debug_refresh(true);
-}
-
-void fz_debugger_set_enabled(bool enabled)
-{
-    if (fltk_machine) debug_set_enabled(fltk_machine, enabled);
-}
-#else
-void fz_debugger_set_enabled(bool enabled)
-{
-    (void) enabled;
-}
-#endif
 
 void frontend_open(bool debug)
 {
@@ -73,10 +48,8 @@ void frontend_bind_input(zeal_t* machine)
 {
     fltk_machine = machine;
     fltk_keyboard_bind(machine);
-    fltk_sampler_bind(machine);
-    fltk_pcprof_bind(machine);
+    fltk_debug_bind(machine);
     fltk_snes_init(&frontend_snes, &machine->snes_adapter);
-    fltk_console_bind();
 }
 
 int frontend_bind_output(zeal_t* machine)
@@ -84,16 +57,8 @@ int frontend_bind_output(zeal_t* machine)
     fltk_audio_init(&machine->zvb.sound);
     fz_volume_set(config.audio.volume);
     if (config.audio.volume != 100) notif_show("Volume: %d%%", config.audio.volume);
-#if CONFIG_PROFILE_RENDER
     fltk_profile_bind(&machine->zvb);
-#endif
-#if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled) {
-        ui_debug_mode(true);
-        /* Start running; the user pauses explicitly or with breakpoints. */
-        machine->dbg_state = ST_RUNNING;
-    }
-#endif
+    fltk_debug_start(machine);
     return 0;
 }
 
@@ -103,26 +68,6 @@ void frontend_reset_input(zeal_t* machine)
     fltk_keyboard_reset();
 }
 
-static bool machine_paused(const zeal_t* machine)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    return machine->dbg_enabled && machine->dbg_state == ST_PAUSED;
-#else
-    (void) machine;
-    return false;
-#endif
-}
-
-static bool machine_debugging(const zeal_t* machine)
-{
-#if CONFIG_ENABLE_DEBUGGER
-    return machine->dbg_enabled;
-#else
-    (void) machine;
-    return false;
-#endif
-}
-
 /**
  * @brief Run the machine until it produces a frame, then present it.
  * Returns false once the machine requested to stop.
@@ -130,29 +75,25 @@ static bool machine_debugging(const zeal_t* machine)
 static bool run_frame(zeal_t* machine)
 {
     for (;;) {
-        const bool debugging = machine_debugging(machine);
+        const bool debugging = fltk_debug_active(machine);
         zeal_step_result_t result = zeal_step(machine, debugging);
         if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) return false;
         if (!(result & ZEAL_STEP_FRAME)) continue;
 
-#if CONFIG_PROFILE_RENDER
-        const double profile_start = fltk_seconds();
-#endif
+        const double profile_start = fltk_profile_frame_begin();
         const zvb_frame_t frame = zvb_frame(&machine->zvb);
         ui_present(frame.pixels, frame.width, frame.height);
         if (debugging) {
             /* Breakpoints and single steps must show their final state;
              * otherwise the UI throttles refreshes of a running machine. */
             static bool s_last_paused;
-            const bool paused = machine_paused(machine);
+            const bool paused = fltk_debug_paused(machine);
             ui_debug_refresh((result & ZEAL_STEP_DEBUG_STOP) || (paused && !s_last_paused));
             s_last_paused = paused;
         }
         snes_controller_poll();
         snes_adapter_update(&frontend_snes);
-#if CONFIG_PROFILE_RENDER
-        fltk_profile_frame(fltk_seconds() - profile_start);
-#endif
+        fltk_profile_frame_end(profile_start);
         return true;
     }
 }
@@ -165,14 +106,12 @@ int frontend_run(zeal_t* machine)
     uint64_t emulated_epoch = vtimer_now_ns(&machine->cpu.clock);
 
     while (!machine->should_exit && !ui_closed()) {
-#if CONFIG_ENABLE_DEBUGGER
-        if (!machine->dbg.running) break;
-#endif
-        const bool was_paused = machine_paused(machine);
+        if (!fltk_debug_keep_running(machine)) break;
+        const bool was_paused = fltk_debug_paused(machine);
         if (!run_frame(machine)) break;
 
         const uint64_t emulated_now = vtimer_now_ns(&machine->cpu.clock);
-        if (was_paused || machine_paused(machine) || emulated_now < emulated_epoch) {
+        if (was_paused || fltk_debug_paused(machine) || emulated_now < emulated_epoch) {
             /* A paused debugger only redraws the UI at a steady rate. */
             ui_wait(PAUSED_FRAME_SECONDS);
             host_epoch = SDL_GetTicksNS();
@@ -196,7 +135,7 @@ int frontend_run(zeal_t* machine)
         } while (now < deadline && !ui_closed() && !machine->should_exit);
     }
 
-    config_window_update(machine_debugging(machine));
+    config_window_update(fltk_debug_active(machine));
     frontend_close(machine);
     return machine->compactflash.failed ? 1 : 0;
 }
@@ -204,20 +143,13 @@ int frontend_run(zeal_t* machine)
 void frontend_close(zeal_t* machine)
 {
     fltk_keyboard_unbind();
-    fltk_sampler_unbind();
-    fltk_pcprof_unbind();
+    fltk_debug_unbind(machine);
     if (frontend_snes.core) {
         snes_adapter_detach(&frontend_snes);
         frontend_snes.core = NULL;
     }
     fltk_audio_deinit(&machine->zvb.sound);
-#if CONFIG_PROFILE_RENDER
-    machine->zvb.profile_time = NULL;
-    machine->zvb.profile_render = NULL;
-#endif
-#if CONFIG_ENABLE_DEBUGGER
-    fltk_debug_video_free();
-#endif
+    fltk_profile_unbind(&machine->zvb);
     ui_close();
     snes_controller_shutdown();
     if (s_sdl_ready) {

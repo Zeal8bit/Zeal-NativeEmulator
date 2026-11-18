@@ -18,7 +18,7 @@
 #include <functional>
 
 extern "C" {
-#include "frontend/sdl-fltk/bridge.h"
+#include "frontend/sdl-fltk/bridge/machine.h"
 #include "debugger/debugger.h"
 #include "utils/config.h"
 #include "frontend/common/panels.h"

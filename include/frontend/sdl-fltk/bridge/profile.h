@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Statistical PC profiler (bridge_profile.c), used by the Hot Functions view.
+/* Statistical PC profiler (debug/pcprof.c), used by the Hot Functions view.
  *
  * While profiling is on, a virtual timer on the CPU clock records the program
  * counter at random points of emulated time (mean interval configurable) into

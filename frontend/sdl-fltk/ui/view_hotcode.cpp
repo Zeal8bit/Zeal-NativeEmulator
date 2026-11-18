@@ -22,7 +22,7 @@
 #include "tool_window.h"
 
 extern "C" {
-#include "frontend/sdl-fltk/bridge_profile.h"
+#include "frontend/sdl-fltk/bridge/profile.h"
 }
 
 namespace zui {
