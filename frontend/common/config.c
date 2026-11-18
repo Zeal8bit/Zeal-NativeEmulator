@@ -390,14 +390,46 @@ static int lookup_int(const char* key, int fallback)
     return fallback;
 }
 
+/* rini loads at most RINI_MAX_VALUE_CAPACITY values per file and drops the
+ * rest silently. Remember when a file was cut, so that saving does not
+ * replace it with the truncated copy. Same line rule as rini_load_config. */
+static bool user_truncated, project_truncated;
+
+static unsigned count_value_lines(const char* path)
+{
+    unsigned count = 0;
+    FILE* f = fopen(path, "rt");
+    if (f == NULL) return 0;
+    char line[RINI_MAX_LINE_SIZE];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] != RINI_LINE_COMMENT_DELIMITER && line[0] != RINI_LINE_SECTION_DELIMITER &&
+            line[0] != '\n' && line[0] != '\0') count++;
+    }
+    fclose(f);
+    return count;
+}
+
+static bool loads_partially(const char* path)
+{
+    const unsigned count = count_value_lines(path);
+    if (count <= RINI_MAX_VALUE_CAPACITY) return false;
+    log_err_printf("%s %s has %u settings, only %d were loaded: it will not be saved over\n",
+                   module, path_sanitize(path), count, RINI_MAX_VALUE_CAPACITY);
+    return true;
+}
+
 void config_parse_file(const char* file) {
     log_printf("%s %s\n", module, path_sanitize(file));
-    if(path_exists(file)) config.ini = rini_load_config(file);
+    if(path_exists(file)) {
+        config.ini = rini_load_config(file);
+        user_truncated = loads_partially(file);
+    }
 
     const char* project = config.arguments.project_path;
     if (project != NULL && path_exists(project) && !same_file(project, file)) {
         log_printf("%s project %s\n", module, path_sanitize(project));
         config.project_ini = rini_load_config(project);
+        project_truncated = loads_partially(project);
     }
 
     if(config.arguments.rom_filename == NULL) {
@@ -497,8 +529,8 @@ static void keep_project_keys(rini_config* ini, rini_config* project)
 
 /* Room in the files being written: everything that could be loaded
  * (RINI_MAX_VALUE_CAPACITY per file, both files when they are one) plus
- * headers and what the frontend adds. rini drops values silently beyond
- * its capacity, so a full output is reported and not written. */
+ * headers and what the frontend adds, so an oversized result is counted
+ * exactly and rejected by can_write() instead of being cut. */
 #define OUTPUT_CAPACITY (4 * RINI_MAX_VALUE_CAPACITY)
 
 static rini_config new_output(void)
@@ -513,10 +545,25 @@ static rini_config new_output(void)
     return out;
 }
 
-static bool output_full(const rini_config* out, const char* path)
+/* A file is only replaced when the loader will read all of it back and
+ * the file being replaced was itself read in full; otherwise it is kept
+ * unchanged and the save fails. */
+static bool can_write(const rini_config* out, const char* path, bool truncated)
 {
-    if (out->count < out->capacity) return false;
-    log_err_printf("%s Too many settings for %s: not saved, the file is unchanged\n", module, path_sanitize(path));
+    unsigned values = 0;
+    for (unsigned i = 0; i < out->count; i++) {
+        if (out->values[i].key[0] != '\0') values++;
+    }
+    if (truncated) {
+        log_err_printf("%s %s was only partly loaded: not saved, the file is unchanged\n",
+                       module, path_sanitize(path));
+        return false;
+    }
+    if (out->count >= out->capacity || values > RINI_MAX_VALUE_CAPACITY) {
+        log_err_printf("%s %s would hold %u settings, more than the %d that can be loaded: not saved, the file is unchanged\n",
+                       module, path_sanitize(path), values, RINI_MAX_VALUE_CAPACITY);
+        return false;
+    }
     return true;
 }
 
@@ -607,11 +654,17 @@ int config_save(void)
         }
     } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
         /* Never create a project file in a directory with nothing to save */
-        if (output_full(&project, config.arguments.project_path)) result = -1;
-        else rini_save_config(project, config.arguments.project_path);
+        if (can_write(&project, config.arguments.project_path, project_truncated)) {
+            rini_save_config(project, config.arguments.project_path);
+        } else {
+            result = -1;
+        }
     }
-    if (output_full(&ini, config.arguments.config_path)) result = -1;
-    else rini_save_config(ini, config.arguments.config_path);
+    if (can_write(&ini, config.arguments.config_path, user_truncated)) {
+        rini_save_config(ini, config.arguments.config_path);
+    } else {
+        result = -1;
+    }
     rini_unload_config(&ini);
     rini_unload_config(&project);
 
