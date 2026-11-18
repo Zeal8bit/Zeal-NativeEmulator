@@ -27,6 +27,28 @@ Roughly ordered by value within each section.
   `debugger_set_breakpoints_str` uses `strtoul(..., 0)`; addresses are
   conventionally hex.
 
+## Follow-ups from the debugger panels
+
+- **UART input in the Console.** Typing into the emulated UART needs core
+  support: `read_rx` in `hw/uart.c` is a stub and input only comes from stdin
+  (`host_read_byte`).
+- **Watch:** the list is capped at 16 entries from when rini held only 128
+  values (now 512) and could be raised; write values from the panel; long
+  expressions are clipped in the narrow column.
+- **Hot Functions:** expose the sampling interval in the UI; optionally cap the
+  "nearest preceding symbol" distance so sparse maps don't blame far-away code;
+  samples are per 16-bit logical address (MMU-swapped code at the same address
+  is merged).
+- **Hardware views:** only the first 16 palette entries are shown; timer,
+  scanline and hpos registers are only updated by the core when the guest
+  touches them, so they read stale values while running.
+- **CPU timing:** the frame number is derived from the cycle count and raster
+  (the core has no frame counter) and `bridge_cpu.c` copies the raster timing
+  constants from `hw/zvb/zvb.c`; a core frame counter would remove both.
+- **Not exercised by hand yet:** right-click menus, file dialogs (memory
+  save/load, console save), clipboard and drag-selection were implemented by
+  following existing patterns but could not be clicked during development.
+
 ## UI polish
 
 - Disassembly: a click selects a line and a double-click toggles a breakpoint;
