@@ -233,6 +233,23 @@ uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr)
 }
 
 
+uint8_t zvb_spi_peek(const zvb_spi_t* spi, uint32_t addr)
+{
+    switch(addr) {
+        case SPI_REG_RAM_FIFO:
+            return spi->ram_rd.data[spi->ram_rd.idx % SPI_RAM_LEN];
+        case SPI_REG_RAM_FROM ... SPI_REG_RAM_TO:
+            return spi->ram_rd.data[(addr - SPI_REG_RAM_FROM) % SPI_RAM_LEN];
+        case SPI_REG_VERSION:   return SPI_VERSION;
+        case SPI_REG_CTRL:      return spi->busy;
+        case SPI_REG_CLK_DIV:   return spi->clk_div;
+        case SPI_REG_RAM_LEN:   return spi->ram_len;
+        case SPI_REG_OPERAND:   return spi->operand;
+    }
+    return 0;
+}
+
+
 /**
  * TF Emulation Related
  */

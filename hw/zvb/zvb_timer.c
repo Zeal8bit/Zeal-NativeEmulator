@@ -159,6 +159,24 @@ uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address)
     }
 }
 
+uint8_t zvb_timer_peek(const zvb_timer_t* timer, uint32_t address)
+{
+    switch (address & TIMER_REGISTER_MASK) {
+        case TIMER_REG_CTRL:
+            return (timer->enabled << TIMER_ENABLE_SHIFT) | (timer->auto_reload << TIMER_AUTO_RELOAD_SHIFT) |
+                   (timer->decrement << TIMER_DECREMENT_SHIFT) | (timer->int_enabled << TIMER_INT_ENABLE_SHIFT);
+        case TIMER_REG_DIV_LOW:     return timer->divider;
+        case TIMER_REG_RELOAD_LOW:  return timer->reload;
+        case TIMER_REG_COUNTER_LOW: return timer->counter;
+        case TIMER_REG_DIV_HIGH:
+        case TIMER_REG_RELOAD_HIGH:
+        case TIMER_REG_COUNTER_HIGH:
+            return timer->read_latch;
+        case TIMER_REG_INT_STATUS:  return timer->int_pending;
+        default:                    return 0;
+    }
+}
+
 void zvb_timer_write(zvb_timer_t* timer, uint32_t address, uint8_t data)
 {
     timer_sync(timer, vtimer_now_ns(timer->event.clock));

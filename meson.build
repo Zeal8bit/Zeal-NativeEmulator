@@ -44,6 +44,10 @@ if get_option('enable_debugger') and get_option('trace_depth') > 0 and not is_we
     test('trace', executable('trace_test', 'tests/trace_test.c',
         dependencies: zeal_dep, c_args: ['-D_POSIX_C_SOURCE=200809L'], build_by_default: false))
 endif
+if get_option('enable_debugger') and not is_web
+    test('debug_inspect', executable('debug_inspect_test', 'tests/debug_inspect_test.c',
+        dependencies: zeal_dep, build_by_default: false))
+endif
 
 if build_nuklear or build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')
