@@ -6,10 +6,20 @@ reference.
 
 ## Debugger: needs new core hooks
 
-- **Memory watchpoints (break on read/write).** The core stores watchpoints
-  (`debugger_add_watchpoint`) but never checks them; add the check in the MMU
-  access path, then a UI (memory context menu "Break on write", list next to
-  breakpoints). Classic "who is overwriting my variable" tool.
+- **Done: Memory watchpoints (break on read/write).** The CPU's data reads
+  and writes are checked against a 64 KB map built from the watchpoints (one
+  pointer test per access when none is set); the machine pauses after the
+  instruction, and the address, value and PC are shown (notification, toolbar
+  pill, status bar). Single bytes or ranges, $0000 included, 16-bit accesses
+  caught per byte, debugger reads and opcode fetches ignored. UI: memory view
+  context menu (Break on Read / Write / Access), a Watchpoints list under the
+  breakpoints, `r`/`w`/`rw ADDR` in the breakpoint field, underlined bytes.
+  Left to do:
+  - DMA and HostFS transfers bypass the CPU and are not watched; physical
+    (22-bit) addresses are not supported.
+  - Only the first hit of an instruction is kept; a hit from an interrupt's
+    stack push taken in the same step is attributed to the previous PC.
+  - Watchpoints (and breakpoints) are not saved in the configuration.
 - **Trace log / execution history.** Ring buffer of the last N executed
   instructions with registers ("how did I get here"). Enables a heuristic
   call stack by tracking CALL/RET/RST and interrupts.
