@@ -10,8 +10,6 @@
  * nullptr, so app/ never depends on debugger code. */
 #pragma once
 
-#include <FL/Fl_Group.H>
-
 class Fl_Group;
 
 namespace zui::widgets {

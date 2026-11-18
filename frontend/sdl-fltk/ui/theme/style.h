@@ -7,10 +7,6 @@
 /* Theme styling of stock FLTK widgets. */
 #pragma once
 
-#include <FL/Fl_Button.H>
-#include <FL/Fl_Check_Button.H>
-#include <FL/Fl_Input.H>
-
 class Fl_Button;
 class Fl_Check_Button;
 class Fl_Input;

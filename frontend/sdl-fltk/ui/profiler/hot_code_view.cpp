@@ -38,7 +38,6 @@ namespace {
 
 constexpr int TOP_ADDRESSES = 512;  /* rows in Addresses mode */
 
-
 widgets::Panel* make_hotcode(int x, int y, int w, int h)
 {
     return new HotCodeView(x, y, w, h);

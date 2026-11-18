@@ -385,10 +385,16 @@ input and audio, the browser loop, Emscripten exports, OPFS startup, and the
 browser HostFS bridge. It always shows the normal emulator view and never
 builds or links Nuklear, including when the core debugger API is enabled.
 `frontend/headless/` owns the batch and console application.
-`frontend/sdl-fltk/` owns the optional SDL3 + FLTK desktop application: its C
-files drive the machine, audio and gamepads, and its C++ `ui/` files hold the
-FLTK windows and debugger. The two halves only meet through
-`include/frontend/sdl-fltk/bridge.h`, so the C++ code never includes `hw/zeal.h`.
+`frontend/sdl-fltk/` owns the optional SDL3 + FLTK desktop application. Its C
+side drives the machine (`machine/`: run loop, audio, gamepads, keyboard),
+exposes state to the UI (`bridge/`) and holds the debugger-only helpers
+(`debug/`). Its C++ `ui/` holds the FLTK windows, one class per file, with each
+directory a namespace (`ui/app/` is `zui::app`, `ui/debugger/` is
+`zui::debugger`, and so on). The two halves only meet through the headers in
+`include/frontend/sdl-fltk/bridge/`, so the C++ code never includes `hw/zeal.h`.
+Optional parts are whole files chosen by Meson rather than `#if` blocks: without
+the debugger, `debug_disabled.c` and `ui/app/debugger_ui_disabled.cpp` replace
+`debug/` and the debugger UI directories.
 
 `frontend/common/` contains shared command-line/INI handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
