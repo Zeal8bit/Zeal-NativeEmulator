@@ -59,6 +59,10 @@ typedef struct {
     snes_port_assignment_t ports[SNES_CONTROLLER_COUNT];
     snes_controller_t controllers[SNES_GAMEPAD_COUNT];
     snes_mouse_t mouse;
+    /* Last packets sampled at a guest LATCH (debugger) */
+    uint32_t last_packets[SNES_CONTROLLER_COUNT];
+    uint32_t latch_count;
+    uint64_t last_latch_ns;
 } fltk_snes_t;
 
 int fltk_snes_init(fltk_snes_t* snes_adapter, snes_adapter_t* core);

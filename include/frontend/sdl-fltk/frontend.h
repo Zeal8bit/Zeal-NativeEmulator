@@ -12,6 +12,7 @@
 #include "hw/zeal.h"
 #include "frontend/sdl-fltk/bridge.h"
 #include "frontend/sdl-fltk/snes_adapter.h"
+#include "frontend/sdl-fltk/bridge_input.h"
 
 /* The machine driven by this frontend, set by frontend_init. */
 extern zeal_t* fltk_machine;
@@ -20,6 +21,14 @@ extern zeal_t* fltk_machine;
 void fltk_keyboard_bind(zeal_t* machine);
 void fltk_keyboard_unbind(void);
 void fltk_keyboard_reset(void);
+/** Keys held as the machine sees them (logical zeal_key_t codes). */
+int  fltk_keyboard_held(uint16_t* out, int max);
+/** Scancodes sent to the machine, newest first. */
+int  fltk_keyboard_log(fz_scancode_t* out, int max);
+uint32_t fltk_keyboard_log_total(void);
+
+/* Debugger input/console views (bridge_input.c) */
+void fltk_console_bind(void);
 
 /* Live CPU sampling for the debugger (sampler.c) */
 void fltk_sampler_bind(zeal_t* machine);
@@ -38,6 +47,8 @@ void        snes_controller_shutdown(void);
 bool        snes_controller_available(uint8_t index);
 const char* snes_controller_name(uint8_t index);
 uint16_t    snes_controller_latch(snes_controller_t* ctrl);
+/** Live button state (active low, 0xFFFF when unavailable), no side effects. */
+uint16_t    snes_controller_bits(uint8_t index);
 
 /* SNES mouse (mouse.c) */
 void     snes_mouse_init(snes_mouse_t* mouse);

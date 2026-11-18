@@ -151,19 +151,25 @@ static float axis(SDL_Gamepad* pad, SDL_GamepadAxis a)
 uint16_t snes_controller_latch(snes_controller_t* ctrl)
 {
     const int index = ctrl->index;
-    uint16_t bits = 0xFFFF;  /* no buttons pressed (active low) */
 
     if (!snes_controller_available(index)) {
         if (ctrl->attached) {
             printf("[SNES] Controller on port %d no longer available\n", ctrl->port + 1);
             ctrl->attached = false;
         }
-        return bits;
+        return 0xFFFF;
     }
     if (!ctrl->attached) {
         printf("[SNES] \"%s\" is now available\n", snes_controller_name(index));
         ctrl->attached = true;
     }
+    return snes_controller_bits((uint8_t) index);
+}
+
+uint16_t snes_controller_bits(uint8_t index)
+{
+    uint16_t bits = 0xFFFF;  /* no buttons pressed (active low) */
+    if (!snes_controller_available(index)) return bits;
 
     SDL_Gamepad* pad = s_slots[index];
 
