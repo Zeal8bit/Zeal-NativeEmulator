@@ -24,6 +24,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <string>
 #include <vector>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Check_Button.H>
@@ -37,6 +39,7 @@
 #include "panel.h"
 #include "tool_window.h"
 #include "video.h"
+#include "memory_tools.h"
 
 #if CONFIG_ENABLE_DEBUGGER
 extern "C" {
@@ -1581,6 +1584,7 @@ class MemView : public Fl_Widget {
 public:
     static constexpr int COLS = 16;
     static constexpr int ROWS_TOTAL = 0x10000 / COLS;
+    static constexpr Fl_Color COLOR_MATCH = 0x3D3320'00; /* search hits */
 
     MemView(int X, int Y, int W, int H, Fl_Scrollbar* bar)
         : Fl_Widget(X, Y, W, H), m_bar(bar)
@@ -1591,19 +1595,54 @@ public:
 
     bool cp437 = false;
     int follow_addr = -1;
+    /* Hooks set by the panel */
+    std::function<void()> on_selection;
+    std::function<void()> on_find;
+    std::function<void()> on_changes;
+    std::function<void(hwaddr)> on_goto;
 
-    void go(hwaddr addr, bool select = true)
+    /** Selection: from the anchor to the cursor byte, inclusive. */
+    int sel_lo() const { return m_anchor < m_sel ? m_anchor : m_sel; }
+    int sel_hi() const { return m_anchor > m_sel ? m_anchor : m_sel; }
+    int sel_len() const { return m_sel < 0 ? 0 : sel_hi() - sel_lo() + 1; }
+    int top_addr() const { return m_top * COLS; }
+
+    /** Show `addr`; `select` moves the cursor there, `extend` keeps the anchor. */
+    void go(hwaddr addr, bool select = true, bool extend = false)
     {
         addr &= 0xFFFF;
         if (select) {
             m_sel = (int) addr;
+            if (!extend || m_anchor < 0) m_anchor = m_sel;
             m_nibble = -1;
+            selection_changed();
         }
         const int row = (int) addr / COLS;
         const int rows = visible_rows();
         if (row < m_top || row >= m_top + rows - 1) m_top = row - (select ? 0 : rows / 3);
         clamp_top();
         sync_bar();
+        redraw();
+    }
+
+    /** Select [lo, hi] and bring it into view (a third down when scrolling). */
+    void select_range(int lo, int hi)
+    {
+        m_anchor = lo & 0xFFFF;
+        m_sel = hi & 0xFFFF;
+        m_nibble = -1;
+        const int rows = visible_rows();
+        if (lo / COLS < m_top || hi / COLS >= m_top + rows - 1) m_top = lo / COLS - rows / 3;
+        clamp_top();
+        sync_bar();
+        selection_changed();
+        redraw();
+    }
+
+    /** Tint every visible occurrence of `p` (empty pattern: none). */
+    void highlight(const memtools::Pattern& p)
+    {
+        m_find = p;
         redraw();
     }
 
@@ -1614,6 +1653,24 @@ public:
         debugger_read_memory(fz_debugger(), 0, 0x10000, m_snapshot.data());
         m_have_prev = m_have_snapshot;
         m_have_snapshot = true;
+    }
+
+    bool snapshots(const uint8_t** prev, const uint8_t** cur) const
+    {
+        if (!m_have_snapshot) return false;
+        *prev = m_have_prev ? m_prev.data() : nullptr;
+        *cur = m_snapshot.data();
+        return true;
+    }
+
+    /** Write through the debugger; edits do not count as "changed". */
+    void write(unsigned addr, const std::vector<uint8_t>& data)
+    {
+        if (!dbg_ready() || data.empty() || addr + data.size() > 0x10000) return;
+        std::vector<uint8_t> copy(data);
+        debugger_write_memory(fz_debugger(), (hwaddr) addr, (int) copy.size(), copy.data());
+        memcpy(&m_snapshot[addr], copy.data(), copy.size());
+        request_refresh();
     }
 
     void scroll_to_row(int row)
@@ -1647,6 +1704,8 @@ public:
         int len = count_rows * COLS;
         if (start + len > 0x10000) len = 0x10000 - start;
         if (len > 0) debugger_read_memory(fz_debugger(), (hwaddr) start, len, mem);
+        bool match[COLS * 128] = {};
+        if (len > 0) mark_matches(start, len, match);
 
         /* Faint guides every 4 bytes */
         fl_color(COLOR_BG);
@@ -1655,6 +1714,9 @@ public:
         fl_font(DATA_FONT, DATA_SIZE);
         char buf[16];
         const bool paused = fz_paused();
+        const int lo = sel_lo();
+        const int hi = sel_hi();
+        const bool range = m_sel >= 0 && hi > lo;
         for (int r = 0; r < count_rows; r++) {
             const int row_addr = start + r * COLS;
             if (row_addr >= 0x10000) break;
@@ -1665,34 +1727,37 @@ public:
             for (int c = 0; c < COLS; c++) {
                 const int addr = row_addr + c;
                 const uint8_t b = mem[r * COLS + c];
-                const bool sel = addr == m_sel;
+                const bool sel = m_sel >= 0 && addr >= lo && addr <= hi;
+                const bool cursor = addr == m_sel;
                 const bool hover = addr == m_hover;
+                const bool hit = match[r * COLS + c];
                 const bool followed = follow_addr >= 0 && (addr == follow_addr || addr == follow_addr + 1);
                 const bool changed = m_have_prev && paused && b != m_prev[addr];
-                if (sel || hover || followed) {
-                    fl_color(sel ? COLOR_SELECT : followed ? COLOR_PC : COLOR_HOVER);
-                    fl_rectf(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + 4, lh);
+                if (sel || hover || followed || hit) {
+                    fl_color(sel ? COLOR_SELECT : followed ? COLOR_PC : hit ? COLOR_MATCH : COLOR_HOVER);
+                    /* Contiguous selection/match bands: also fill the gap to the next byte */
+                    const bool band = (sel && addr < hi && c < COLS - 1) || (!sel && hit && c < COLS - 1 &&
+                                                                              match[r * COLS + c + 1]);
+                    const int gap = band ? hex_offset(c + 1) - hex_offset(c) - m_cw * 2 : 4;
+                    fl_rectf(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + (band ? gap : 4), lh);
                     fl_rectf(m_ascii_x + c * m_cw, yy, m_cw, lh);
                 }
-                if (sel && m_nibble >= 0) {
+                if (cursor && range) {
+                    fl_color(COLOR_CYAN);
+                    fl_rect(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + 4, lh);
+                }
+                if (cursor && m_nibble >= 0) {
                     snprintf(buf, sizeof(buf), config.debugger.hex_upper ? "%X_" : "%x_", m_nibble);
                     fl_color(COLOR_AMBER);
                 } else {
                     hex8(buf, sizeof(buf), b);
-                    fl_color(changed ? COLOR_CHANGED : b == 0 ? COLOR_DIM : COLOR_TEXT);
+                    fl_color(changed ? COLOR_CHANGED : hit ? COLOR_AMBER : b == 0 ? COLOR_DIM : COLOR_TEXT);
                 }
                 fl_draw(buf, m_hex_x + hex_offset(c), yy + asc);
 
                 char ch[8];
-                if (cp437) {
-                    const unsigned cp = s_cp437[b] ? s_cp437[b] : ' ';
-                    const int n = fl_utf8encode(cp, ch);
-                    ch[n] = '\0';
-                } else {
-                    ch[0] = isprint(b) ? (char) b : '.';
-                    ch[1] = '\0';
-                }
-                fl_color(changed ? COLOR_CHANGED : (isprint(b) || cp437) ? COLOR_TEXT : COLOR_DIM);
+                glyph(b, ch);
+                fl_color(changed ? COLOR_CHANGED : hit ? COLOR_AMBER : (isprint(b) || cp437) ? COLOR_TEXT : COLOR_DIM);
                 fl_draw(ch, m_ascii_x + c * m_cw, yy + asc);
             }
         }
@@ -1727,15 +1792,49 @@ public:
                 return 1;
             }
             case FL_PUSH: {
-                const int a = addr_at(Fl::event_x(), Fl::event_y());
-                if (a >= 0) {
-                    m_sel = a;
-                    m_nibble = -1;
-                    redraw();
-                }
                 take_focus();
+                const int a = addr_at(Fl::event_x(), Fl::event_y());
+                m_dragging = false;
+                if (a < 0) return 1;
+                if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                    if (m_sel < 0 || a < sel_lo() || a > sel_hi()) {
+                        m_sel = m_anchor = a;
+                        m_nibble = -1;
+                        selection_changed();
+                    }
+                    redraw();
+                    context_menu();
+                    return 1;
+                }
+                m_sel = a;
+                if (!(Fl::event_state() & FL_SHIFT) || m_anchor < 0) m_anchor = a;
+                m_nibble = -1;
+                m_dragging = Fl::event_button() == FL_LEFT_MOUSE;
+                selection_changed();
+                redraw();
                 return 1;
             }
+            case FL_DRAG: {
+                if (!m_dragging) return 1;
+                /* Past the top/bottom edge: scroll one row and extend */
+                if (Fl::event_y() < y() || Fl::event_y() >= y() + h()) {
+                    scroll_to_row(m_top + (Fl::event_y() < y() ? -1 : 1));
+                    sync_bar();
+                }
+                const int ey = Fl::event_y() < y() + 2 ? y() + 2
+                             : Fl::event_y() >= y() + h() - 4 ? y() + 2 + (visible_rows() - 1) * data_line_height()
+                             : Fl::event_y();
+                const int a = addr_at(Fl::event_x(), ey);
+                if (a >= 0 && a != m_sel) {
+                    m_sel = a;
+                    selection_changed();
+                    redraw();
+                }
+                return 1;
+            }
+            case FL_RELEASE:
+                m_dragging = false;
+                return 1;
             case FL_FOCUS:
             case FL_UNFOCUS:
                 m_nibble = -1;
@@ -1772,6 +1871,138 @@ private:
         m_ascii_x = m_hex_x + hex_offset(COLS) + cw;
     }
 
+    void selection_changed()
+    {
+        if (on_selection) on_selection();
+    }
+
+    /** Text-column glyph of a byte (UTF-8). */
+    void glyph(uint8_t b, char* ch) const
+    {
+        if (cp437) {
+            const unsigned cp = s_cp437[b] ? s_cp437[b] : ' ';
+            const int n = fl_utf8encode(cp, ch);
+            ch[n] = '\0';
+        } else {
+            ch[0] = isprint(b) ? (char) b : '.';
+            ch[1] = '\0';
+        }
+    }
+
+    /** Flag bytes of [start, start+len) covered by a search-pattern match. */
+    void mark_matches(int start, int len, bool* out)
+    {
+        const int n = m_find.size();
+        bool any = false;
+        for (uint8_t m : m_find.mask) any = any || m;
+        if (n == 0 || !any) return;
+        const int lo = start - (n - 1) < 0 ? 0 : start - (n - 1);
+        const int hi = start + len + (n - 1) > 0x10000 ? 0x10000 : start + len + (n - 1);
+        std::vector<uint8_t> buf((size_t) (hi - lo));
+        debugger_read_memory(fz_debugger(), (hwaddr) lo, hi - lo, buf.data());
+        for (int a = lo; a + n <= hi; a++) {
+            if (!m_find.matches(&buf[(size_t) (a - lo)])) continue;
+            for (int i = a; i < a + n; i++) {
+                if (i >= start && i < start + len) out[i - start] = true;
+            }
+        }
+    }
+
+    std::vector<uint8_t> selected_bytes() const
+    {
+        std::vector<uint8_t> data((size_t) sel_len());
+        if (!data.empty()) debugger_read_memory(fz_debugger(), (hwaddr) sel_lo(), (int) data.size(), data.data());
+        return data;
+    }
+
+    static void copy_text(const std::string& text)
+    {
+        Fl::copy(text.c_str(), (int) text.size(), 1);
+    }
+
+    void copy_hex() const
+    {
+        std::string text;
+        char b[8];
+        for (uint8_t v : selected_bytes()) {
+            hex8(b, sizeof(b), v);
+            if (!text.empty()) text += ' ';
+            text += b;
+        }
+        copy_text(text);
+    }
+
+    void context_menu()
+    {
+        const int lo = sel_lo();
+        const int hi = sel_hi();
+        const bool range = hi > lo;
+        Fl_Menu_Item items[] = {
+            { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { range ? "Copy Bytes as Hex" : "Copy Byte as Hex", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Copy as Text", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Find...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Find Changed Bytes...", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Fill Selection...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Save Range to File...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Load File into Memory...", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+            { "Go to Address...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { "Show in Disassembly", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+            { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        };
+        const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
+        if (picked == nullptr) return;
+        const memtools::Writer writer = [this](unsigned addr, const std::vector<uint8_t>& data) {
+            write(addr, data);
+        };
+        char text[8];
+        switch ((int) (picked - items)) {
+            case 0:
+                hex16(text, sizeof(text), (unsigned) lo);
+                copy_text(text);
+                break;
+            case 1:
+                copy_hex();
+                break;
+            case 2: {
+                std::string out;
+                char ch[8];
+                for (uint8_t v : selected_bytes()) {
+                    glyph(v, ch);
+                    out += ch;
+                }
+                copy_text(out);
+                break;
+            }
+            case 3:
+                if (on_find) on_find();
+                break;
+            case 4:
+                if (on_changes) on_changes();
+                break;
+            case 5:
+                memtools::fill_dialog((unsigned) lo, (unsigned) hi, writer);
+                break;
+            case 6:
+                memtools::save_range_dialog((unsigned) lo, (unsigned) hi);
+                break;
+            case 7:
+                memtools::load_file_dialog((unsigned) lo, writer);
+                break;
+            case 8: {
+                unsigned addr;
+                if (memtools::address_dialog("GO TO ADDRESS", (unsigned) lo, &addr) && on_goto) on_goto((hwaddr) addr);
+                break;
+            }
+            case 9:
+                goto_disassembly((hwaddr) lo);
+                break;
+            default:
+                break;
+        }
+        redraw();
+    }
+
     int addr_at(int ex, int ey)
     {
         const int lh = data_line_height();
@@ -1791,6 +2022,18 @@ private:
 
     int key(int k, const char* text)
     {
+        const int state = Fl::event_state();
+        if (state & FL_COMMAND) {
+            if (k == 'f') {
+                if (on_find) on_find();
+                return 1;
+            }
+            if (k == 'c' && m_sel >= 0) {
+                copy_hex();
+                return 1;
+            }
+            return 0;
+        }
         if (m_sel < 0) return 0;
         int move = 0;
         switch (k) {
@@ -1800,16 +2043,24 @@ private:
             case FL_Down:  move = COLS; break;
             case FL_Page_Up:   move = -COLS * (visible_rows() - 1); break;
             case FL_Page_Down: move = COLS * (visible_rows() - 1); break;
-            case FL_Escape: m_nibble = -1; redraw(); return 1;
+            case FL_Escape:
+                m_nibble = -1;
+                if (m_anchor != m_sel) {
+                    m_anchor = m_sel;
+                    selection_changed();
+                }
+                redraw();
+                return 1;
             default: break;
         }
         if (move) {
             int a = m_sel + move;
             if (a < 0) a = 0;
             if (a > 0xFFFF) a = 0xFFFF;
-            go((hwaddr) a);
+            go((hwaddr) a, true, (state & FL_SHIFT) != 0);
             return 1;
         }
+        if (state & (FL_CTRL | FL_ALT | FL_META)) return 0;
         if (text && isxdigit((unsigned char) text[0]) && text[1] == '\0') {
             const int d = isdigit((unsigned char) text[0]) ? text[0] - '0' : (tolower(text[0]) - 'a' + 10);
             if (m_nibble < 0) {
@@ -1837,16 +2088,45 @@ private:
 
     Fl_Scrollbar* m_bar;
     int m_top = 0;
-    int m_sel = -1;
+    int m_sel = -1;    /* cursor byte */
+    int m_anchor = -1; /* other end of the selection */
     int m_hover = -1;
     int m_nibble = -1;
     int m_cw = 8;
     int m_hex_x = 0;
     int m_ascii_x = 0;
+    bool m_dragging = false;
+    memtools::Pattern m_find;
     std::vector<uint8_t> m_prev;
     std::vector<uint8_t> m_snapshot;
     bool m_have_prev = false;
     bool m_have_snapshot = false;
+};
+
+/** Search field of the memory panel: Enter = next, Shift+Enter = previous,
+ *  Escape closes the search row. */
+class MemFindInput : public Fl_Input {
+public:
+    MemFindInput(int X, int Y, int W, int H) : Fl_Input(X, Y, W, H) {}
+
+    std::function<void(bool forward)> on_enter;
+    std::function<void()> on_escape;
+
+    int handle(int event) override
+    {
+        if (event == FL_KEYBOARD) {
+            const int k = Fl::event_key();
+            if ((k == FL_Enter || k == FL_KP_Enter) && on_enter) {
+                on_enter((Fl::event_state() & FL_SHIFT) == 0);
+                return 1;
+            }
+            if (k == FL_Escape && on_escape) {
+                on_escape();
+                return 1;
+            }
+        }
+        return Fl_Input::handle(event);
+    }
 };
 
 class MemoryPanel : public Panel {
@@ -1875,6 +2155,40 @@ public:
         m_cp437 = new Fl_Check_Button(X, Y, 10, 10, "CP437");
         style_check(m_cp437);
         m_cp437->callback(cb_cp437, this);
+        m_find_btn = new Fl_Button(X, Y, 10, 10, "Find");
+        style_button(m_find_btn);
+        m_find_btn->tooltip("Search hex bytes (3E 22 ?\?) or a \"string\" (Cmd/Ctrl+F in the view)");
+        m_find_btn->callback(cb_find_toggle, this);
+        m_changes_btn = new Fl_Button(X, Y, 10, 10, "Changes");
+        style_button(m_changes_btn);
+        m_changes_btn->tooltip("Find bytes that changed between pauses (cheat-finder style)");
+        m_changes_btn->callback(cb_changes, this);
+
+        m_find = new MemFindInput(X, Y, 10, 10);
+        style_input(m_find);
+        m_find->when(FL_WHEN_CHANGED);
+        m_find->callback(cb_find_changed, this);
+        m_find->tooltip("Hex bytes with ?? wildcards (3E 22 ?\?) or a quoted string (\"HELLO\").\n"
+                        "Enter: next, Shift+Enter: previous, Escape: close");
+        m_find->on_enter = [this](bool forward) { find(forward); };
+        m_find->on_escape = [this]() { show_find(false); };
+        m_prev_btn = new Fl_Button(X, Y, 10, 10, "@-2<");
+        style_button(m_prev_btn);
+        m_prev_btn->tooltip("Previous match (Shift+Enter)");
+        m_prev_btn->callback(cb_find_prev, this);
+        m_next_btn = new Fl_Button(X, Y, 10, 10, "@-2>");
+        style_button(m_next_btn);
+        m_next_btn->tooltip("Next match (Enter)");
+        m_next_btn->callback(cb_find_next, this);
+        m_close_btn = new Fl_Button(X, Y, 10, 10, "x");
+        style_button(m_close_btn);
+        m_close_btn->tooltip("Close search (Escape)");
+        m_close_btn->callback(cb_find_toggle, this);
+        m_find_status = new Fl_Box(X, Y, 10, 10);
+        m_find_status->labelsize(12);
+        m_find_status->labelcolor(COLOR_DIM);
+        m_find_status->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_CLIP);
+
         m_mmu = new MmuStrip(X, Y, 10, 10);
         m_bar = new Fl_Scrollbar(X, Y, 10, 10);
         m_bar->type(FL_VERTICAL);
@@ -1882,10 +2196,17 @@ public:
         m_bar->color(COLOR_SURFACE);
         m_bar->callback(cb_bar, this);
         m_view = new MemView(X, Y, 10, 10, m_bar);
+        m_view->on_selection = [this]() { update_extra(); };
+        m_view->on_find = [this]() { show_find(true); };
+        m_view->on_changes = [this]() { show_changes(); };
+        m_view->on_goto = [this](hwaddr addr) { go(addr); };
         resizable(m_view);
         end();
+        show_find(false);
         resize(X, Y, W, H);
     }
+
+    ~MemoryPanel() override { memtools::change_search_destroy(); }
 
     void resize(int X, int Y, int W, int H) override
     {
@@ -1894,7 +2215,17 @@ public:
         m_input->resize(X + 6, by, 130, BAR_H - 8);
         m_follow->resize(X + 142, by, 74, BAR_H - 8);
         m_cp437->resize(X + 224, by, 74, BAR_H - 8);
-        const int my = Y + HEADER_H + BAR_H;
+        m_find_btn->resize(X + 300, by, 52, BAR_H - 8);
+        m_changes_btn->resize(X + 356, by, 74, BAR_H - 8);
+        int my = Y + HEADER_H + BAR_H;
+        if (m_find_shown) {
+            m_find->resize(X + 6, my, 210, BAR_H - 8);
+            m_prev_btn->resize(X + 220, my, 26, BAR_H - 8);
+            m_next_btn->resize(X + 248, my, 26, BAR_H - 8);
+            m_close_btn->resize(X + 276, my, 22, BAR_H - 8);
+            m_find_status->resize(X + 306, my, W - 312, BAR_H - 8);
+            my += BAR_H - 4;
+        }
         const int mh = 26;
         m_mmu->resize(X, my, W, mh);
         m_bar->resize(X + W - 14, my + mh, 14, H - (my + mh - Y));
@@ -1903,7 +2234,17 @@ public:
 
     void refresh(bool paused, bool force) override
     {
-        if (paused && force) m_view->snapshot();
+        if (paused && force) {
+            /* Snapshot only on a real pause (registers moved; R changes with
+             * every instruction), not on refreshes after user actions. */
+            const regs_t r = exact_regs();
+            if (!m_was_paused || memcmp(&r, &m_pause_regs, sizeof(r)) != 0) {
+                m_view->snapshot();
+                m_pause_regs = r;
+                memtools::change_search_paused();
+            }
+        }
+        m_was_paused = paused;
         m_mmu->refresh();
         const int follow = m_follow->value();
         if (follow > 0) {
@@ -1911,28 +2252,123 @@ public:
             const uint16_t values[] = { 0, r.pc, r.sp, r.hl, r.de, r.bc, r.ix, r.iy };
             m_view->follow_addr = values[follow];
             m_view->go(values[follow], false);
-            char text[32];
-            snprintf(text, sizeof(text), "FOLLOW %s", m_follow->text());
-            extra(text);
         } else {
             m_view->follow_addr = -1;
-            extra("");
         }
+        update_extra();
         m_view->redraw();
     }
 
+
     void go(hwaddr addr)
     {
-        char text[8];
-        hex16(text, sizeof(text), addr);
-        m_input->value(text);
-        m_follow->value(0);
-        m_view->follow_addr = -1;
-        extra("");
+        set_input(addr);
+        unfollow();
         m_view->go(addr);
     }
 
 private:
+    void set_input(hwaddr addr)
+    {
+        char text[8];
+        hex16(text, sizeof(text), addr);
+        m_input->value(text);
+    }
+
+    void unfollow()
+    {
+        m_follow->value(0);
+        m_view->follow_addr = -1;
+        update_extra();
+    }
+
+    /** Header: the selection range, else the followed register. */
+    void update_extra()
+    {
+        char text[48] = "";
+        if (m_view->sel_len() > 1) {
+            char lo[8], hi[8];
+            hex16(lo, sizeof(lo), (unsigned) m_view->sel_lo());
+            hex16(hi, sizeof(hi), (unsigned) m_view->sel_hi());
+            snprintf(text, sizeof(text), "SEL $%s-$%s (%d)", lo, hi, m_view->sel_len());
+        } else if (m_follow->value() > 0) {
+            snprintf(text, sizeof(text), "FOLLOW %s", m_follow->text());
+        }
+        extra(text);
+    }
+
+    void show_find(bool show)
+    {
+        m_find_shown = show;
+        Fl_Widget* row[] = { m_find, m_prev_btn, m_next_btn, m_close_btn, m_find_status };
+        for (Fl_Widget* wd : row) {
+            if (show) wd->show();
+            else wd->hide();
+        }
+        resize(x(), y(), w(), h());
+        if (show) {
+            m_find->take_focus();
+#if FL_API_VERSION >= 10400
+            m_find->insert_position(m_find->size(), 0);
+#else
+            m_find->position(m_find->size(), 0);
+#endif
+            cb_find_changed(nullptr, this);
+        } else {
+            m_view->highlight(memtools::Pattern());
+            if (Fl::focus() == m_find) m_view->take_focus();
+        }
+        redraw();
+    }
+
+    void find_status(const char* text, Fl_Color c)
+    {
+        m_find_status->copy_label(text);
+        m_find_status->labelcolor(c);
+        m_find_status->redraw();
+    }
+
+    /** Search from the selection: Enter on a new query starts at the cursor. */
+    void find(bool forward)
+    {
+        if (!dbg_ready()) return;
+        memtools::Pattern p;
+        std::string err;
+        if (!memtools::parse_pattern(m_find->value(), p, &err)) {
+            find_status(err.c_str(), COLOR_BREAK);
+            return;
+        }
+        std::vector<uint8_t> mem(0x10000);
+        debugger_read_memory(fz_debugger(), 0, 0x10000, mem.data());
+        const bool fresh = m_last_query != m_find->value();
+        m_last_query = m_find->value();
+        const int lo = m_view->sel_len() > 0 ? m_view->sel_lo() : m_view->top_addr();
+        const int from = forward ? (fresh ? lo : lo + 1) : lo - 1;
+        bool wrapped = false;
+        const int a = memtools::find(mem.data(), 0x10000, p, from, forward, &wrapped);
+        m_view->highlight(p);
+        if (a < 0) {
+            find_status("No match", COLOR_BREAK);
+            return;
+        }
+        unfollow();
+        m_view->select_range(a, a + p.size() - 1);
+        set_input((hwaddr) a);
+        char ad[8], text[48];
+        hex16(ad, sizeof(ad), (unsigned) a);
+        snprintf(text, sizeof(text), "Found at $%s%s", ad, wrapped ? "  (wrapped)" : "");
+        find_status(text, wrapped ? COLOR_AMBER : COLOR_GREEN);
+    }
+
+    void show_changes()
+    {
+        memtools::SnapshotSource src;
+        MemView* view = m_view;
+        src.get = [view](const uint8_t** prev, const uint8_t** cur) { return view->snapshots(prev, cur); };
+        src.go = [this](unsigned addr) { go((hwaddr) addr); };
+        memtools::change_search_show(src);
+    }
+
     static void cb_go(Fl_Widget*, void* data)
     {
         MemoryPanel* self = static_cast<MemoryPanel*>(data);
@@ -1959,12 +2395,43 @@ private:
         self->m_view->scroll_to_row(self->m_bar->value());
     }
 
+    static void cb_find_toggle(Fl_Widget*, void* data)
+    {
+        MemoryPanel* self = static_cast<MemoryPanel*>(data);
+        self->show_find(!self->m_find_shown);
+    }
+
+    /** Live: highlight matches of the query as it is typed. */
+    static void cb_find_changed(Fl_Widget*, void* data)
+    {
+        MemoryPanel* self = static_cast<MemoryPanel*>(data);
+        memtools::Pattern p;
+        if (!memtools::parse_pattern(self->m_find->value(), p, nullptr)) p = memtools::Pattern();
+        self->m_view->highlight(p);
+        self->find_status(self->m_find->size() ? "Enter: next  Shift+Enter: previous" : "", COLOR_DIM);
+    }
+
+    static void cb_find_next(Fl_Widget*, void* data) { static_cast<MemoryPanel*>(data)->find(true); }
+    static void cb_find_prev(Fl_Widget*, void* data) { static_cast<MemoryPanel*>(data)->find(false); }
+    static void cb_changes(Fl_Widget*, void* data) { static_cast<MemoryPanel*>(data)->show_changes(); }
+
     Fl_Input* m_input;
     Fl_Choice* m_follow;
     Fl_Check_Button* m_cp437;
+    Fl_Button* m_find_btn;
+    Fl_Button* m_changes_btn;
+    MemFindInput* m_find;
+    Fl_Button* m_prev_btn;
+    Fl_Button* m_next_btn;
+    Fl_Button* m_close_btn;
+    Fl_Box* m_find_status;
     MmuStrip* m_mmu;
     Fl_Scrollbar* m_bar;
     MemView* m_view;
+    bool m_find_shown = false;
+    std::string m_last_query;
+    bool m_was_paused = false;
+    regs_t m_pause_regs = {};
 };
 
 /* ------------------------------------------------------------------ */
