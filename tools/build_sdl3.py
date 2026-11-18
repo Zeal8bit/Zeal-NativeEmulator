@@ -38,6 +38,40 @@ def default_prefix():
     return Path(__file__).resolve().parent.parent / "sdl3" / f"{system}{arch}"
 
 
+MANIFEST = ".zeal-sdl3-manifest"
+
+
+def read_install_manifest(build):
+    """Files written by `cmake --install`, as absolute paths."""
+    manifest = build / "install_manifest.txt"
+    if not manifest.exists():
+        return set()
+    return {Path(line).resolve() for line in manifest.read_text().splitlines() if line.strip()}
+
+
+def read_manifest(prefix):
+    """Files a previous run of this script installed in the prefix."""
+    manifest = prefix / MANIFEST
+    if not manifest.is_file():
+        return set()
+    return {(prefix / line).resolve() for line in manifest.read_text().splitlines() if line.strip()}
+
+
+def write_manifest(prefix, files):
+    lines = sorted(str(f.relative_to(prefix)) for f in files if f.is_relative_to(prefix))
+    (prefix / MANIFEST).write_text("".join(f"{line}\n" for line in lines))
+
+
+def remove_owned_file(prefix, path):
+    """Remove one file listed in our manifest, never anything outside the prefix."""
+    if not path.is_relative_to(prefix) or path.is_dir():
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--archive", type=Path, help="Use a previously downloaded source archive")
@@ -83,12 +117,19 @@ def main():
             check=True,
         )
         subprocess.run(["cmake", "--build", str(build), "--parallel", str(arguments.jobs)], check=True)
-        if prefix.exists():
-            shutil.rmtree(prefix)
+        # Install over the prefix: it may hold unrelated files (/usr/local,
+        # a shared dependency prefix...), so nothing is deleted beforehand.
+        previous = read_manifest(prefix)
         subprocess.run(["cmake", "--install", str(build)], check=True)
         license_file = source / "LICENSE.txt"
         if license_file.exists():
             shutil.copy(license_file, prefix / "LICENSE.txt")
+        installed = read_install_manifest(build)
+        # Only once the new SDL is in place: drop files an older install of
+        # ours left that this one no longer provides.
+        for stale in sorted(previous - installed):
+            remove_owned_file(prefix, stale)
+        write_manifest(prefix, installed)
     print(f"SDL3 {VERSION} installed in {prefix}")
     print(f"Configure with: -Dpkg_config_path={prefix / 'lib' / 'pkgconfig'} -Dsdl3_static=true")
 
