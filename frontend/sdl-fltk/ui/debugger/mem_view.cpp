@@ -23,6 +23,7 @@
 #include "common/machine.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
+#include "debugger/watchpoint_actions.h"
 #include "theme/theme.h"
 #include "memtools/memory_actions.h"
 #include "memtools/pattern.h"
@@ -182,6 +183,13 @@ void MemView::draw()
                 fl_rectf(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + (band ? gap : 4), lh);
                 fl_rectf(m_ascii_x + c * m_cw, yy, m_cw, lh);
             }
+            const int watched = debugger_watchpoint_type_at(fz_debugger(), (hwaddr) addr);
+            if (watched) {
+                /* Underline watched bytes: red when writes stop, amber for reads only */
+                fl_color((watched & WATCHPOINT_WRITE) ? COLOR_BREAK : COLOR_AMBER);
+                fl_rectf(m_hex_x + hex_offset(c) - 1, yy + lh - 2, m_cw * 2 + 2, 2);
+                fl_rectf(m_ascii_x + c * m_cw, yy + lh - 2, m_cw, 2);
+            }
             if (cursor && range) {
                 fl_color(COLOR_CYAN);
                 fl_rect(m_hex_x + hex_offset(c) - 2, yy, m_cw * 2 + 4, lh);
@@ -219,13 +227,20 @@ int MemView::handle(int event)
                 m_hover = a;
                 redraw();
                 if (a >= 0 && dbg_ready()) {
-                    static char tip[64];
+                    static char tip[96];
                     uint8_t b = 0;
                     debugger_read_memory(fz_debugger(), (hwaddr) a, 1, &b);
                     char ad[8];
                     hex16(ad, sizeof(ad), (unsigned) a);
                     const char* sym = debugger_get_symbol(fz_debugger(), (hwaddr) a);
-                    snprintf(tip, sizeof(tip), "$%s = %u%s%s", ad, b, sym ? "   " : "", sym ? sym : "");
+                    const int n = snprintf(tip, sizeof(tip), "$%s = %u%s%s", ad, b, sym ? "   " : "", sym ? sym : "");
+                    watchpoint_t wp;
+                    if (debugger_find_watchpoint(fz_debugger(), (hwaddr) a, &wp)) {
+                        char watch[24];
+                        watch_range_text(watch, sizeof(watch), wp.addr, wp.end);
+                        snprintf(tip + n, sizeof(tip) - (size_t) n, "\nBreak on %s: %s%s", watch_type_name(wp.type),
+                                 watch, wp.disabled ? " (off)" : "");
+                    }
                     Fl_Tooltip::enter_area(this, Fl::event_x() - x() - 4, Fl::event_y() - y() - 4, 8, 8, tip);
                 }
             }
@@ -372,6 +387,11 @@ void MemView::context_menu()
     const int lo = sel_lo();
     const int hi = sel_hi();
     const bool range = hi > lo;
+    watchpoint_t watch = {};
+    const bool watch_here = dbg_ready() && debugger_find_watchpoint(fz_debugger(), (hwaddr) lo, &watch);
+    /* Radio marks when the selection is exactly a watched range */
+    const bool exact = watch_here && watch.addr == (hwaddr) lo && watch.end == (hwaddr) hi;
+    auto radio = [&](int type) { return FL_MENU_RADIO | (exact && watch.type == type ? FL_MENU_VALUE : 0); };
     Fl_Menu_Item items[] = {
         { "Copy Address", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { range ? "Copy Bytes as Hex" : "Copy Byte as Hex", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
@@ -382,7 +402,11 @@ void MemView::context_menu()
         { "Save Range to File...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
         { "Load File into Memory...", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
         { "Go to Address...", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
-        { "Show in Disassembly", 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
+        { "Show in Disassembly", 0, nullptr, nullptr, FL_MENU_DIVIDER, 0, 0, 0, 0 },
+        { "Break on Read", 0, nullptr, nullptr, radio(WATCHPOINT_READ), 0, 0, 0, 0 },
+        { "Break on Write", 0, nullptr, nullptr, radio(WATCHPOINT_WRITE), 0, 0, 0, 0 },
+        { "Break on Access", 0, nullptr, nullptr, radio(WATCHPOINT_RW), 0, 0, 0, 0 },
+        { "Remove Watchpoint", 0, nullptr, nullptr, watch_here ? 0 : FL_MENU_INACTIVE, 0, 0, 0, 0 },
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
@@ -431,6 +455,17 @@ void MemView::context_menu()
         }
         case 9:
             goto_disassembly((hwaddr) lo);
+            break;
+        case 10:
+        case 11:
+        case 12: {
+            const int pick = (int) (picked - items);
+            watch_add((hwaddr) lo, (hwaddr) hi,
+                      pick == 10 ? WATCHPOINT_READ : pick == 11 ? WATCHPOINT_WRITE : WATCHPOINT_RW);
+            break;
+        }
+        case 13:
+            watch_remove(watch.addr);
             break;
         default:
             break;

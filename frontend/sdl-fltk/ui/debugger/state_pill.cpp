@@ -5,8 +5,10 @@
  */
 
 #include "debugger/state_pill.h"
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <FL/Fl_Widget.H>
 #include <FL/fl_draw.H>
 #include "common/format.h"
@@ -21,9 +23,17 @@ StatePill::StatePill(int X, int Y, int W, int H)
     : Fl_Widget(X, Y, W, H)
 {}
 
-void StatePill::set(bool paused, uint16_t pc)
+void StatePill::set(bool paused, uint16_t pc, const char* reason)
 {
-    if (paused) {
+    m_tip[0] = '\0';
+    if (paused && reason != nullptr) {
+        /* "Write $C000 = $3E at PC $1234": the pill keeps "WRITE $C000 = $3E" */
+        snprintf(m_tip, sizeof(m_tip), "Paused by a watchpoint: %s", reason);
+        const char* at = strstr(reason, " at ");
+        const int len = at ? (int) (at - reason) : (int) strlen(reason);
+        snprintf(m_text, sizeof(m_text), "%.*s", len, reason);
+        for (char* t = m_text; *t && *t != ' '; t++) *t = (char) toupper((unsigned char) *t);
+    } else if (paused) {
         char addr[8];
         hex16(addr, sizeof(addr), pc);
         snprintf(m_text, sizeof(m_text), "PAUSED $%s", addr);
@@ -31,6 +41,7 @@ void StatePill::set(bool paused, uint16_t pc)
         snprintf(m_text, sizeof(m_text), "RUNNING");
     }
     m_paused = paused;
+    tooltip(m_tip[0] ? m_tip : nullptr);
     redraw();
 }
 

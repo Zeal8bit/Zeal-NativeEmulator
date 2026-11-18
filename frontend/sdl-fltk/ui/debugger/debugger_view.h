@@ -21,6 +21,7 @@
  * (video/). Split sizes are saved under FLTK_* config keys. */
 #pragma once
 
+#include <cstdint>
 #include "app/debugger_ui.h"
 #include "app/screen_view.h"
 #include <FL/Fl_Group.H>
@@ -55,6 +56,7 @@ public:
     void refresh(bool force) override;
     void command(app::DebugCommand command) override;
     bool paused_at(unsigned* pc) const override;
+    bool pause_reason(char* text, int size) const override;
     void default_body_size(int& w, int& h) const override;
     void apply_layout() override;
     void capture_layout() override;
@@ -80,6 +82,7 @@ private:
     DisasmPanel* m_disasm = nullptr;
     MemoryPanel* m_memory = nullptr;
     double m_last_refresh = 0;
+    uint32_t m_watch_hits = 0; /* watchpoint hits already reported */
 };
 
 } // namespace zui::debugger

@@ -18,7 +18,8 @@ class Toolbar : public Fl_Group {
 public:
     Toolbar(int X, int Y, int W, int H);
     void resize(int X, int Y, int W, int H) override;
-    void update(bool paused, uint16_t pc);
+    /** `reason`: why the machine stopped (watchpoint hit), or nullptr. */
+    void update(bool paused, uint16_t pc, const char* reason = nullptr);
     void draw() override;
     static void cb_run_to(Fl_Widget*, void*);
 

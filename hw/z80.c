@@ -93,26 +93,55 @@ static const uint8_t cyc_ddfd[256] = {
 // get bit "n" of number "val"
 #define GET_BIT(n, val) (((val) >> (n)) & 1)
 
-static inline uint8_t rb(z80* const z, uint16_t addr)
+#if CONFIG_ENABLE_DEBUGGER
+static void watch_record(z80* const z, uint16_t addr, uint8_t val, uint8_t type)
+{
+    if (z->watch_hit_type == 0) {
+        z->watch_hit_type  = type;
+        z->watch_hit_addr  = addr;
+        z->watch_hit_value = val;
+    }
+}
+#endif
+
+/* Instruction and operand fetches, never checked against watchpoints */
+static inline uint8_t fetchb(z80* const z, uint16_t addr)
 {
     return mmu_virt_read_byte(&z->mmu, addr);
+}
+
+/* Data accesses */
+static inline uint8_t rb(z80* const z, uint16_t addr)
+{
+    const uint8_t val = mmu_virt_read_byte(&z->mmu, addr);
+#if CONFIG_ENABLE_DEBUGGER
+    if (z->watch_map != NULL && (z->watch_map[addr] & Z80_WATCH_READ)) {
+        watch_record(z, addr, val, Z80_WATCH_READ);
+    }
+#endif
+    return val;
 }
 
 static inline void wb(z80* const z, uint16_t addr, uint8_t val)
 {
     mmu_virt_write_byte(&z->mmu, addr, val);
+#if CONFIG_ENABLE_DEBUGGER
+    if (z->watch_map != NULL && (z->watch_map[addr] & Z80_WATCH_WRITE)) {
+        watch_record(z, addr, val, Z80_WATCH_WRITE);
+    }
+#endif
 }
 
 static inline uint16_t rw(z80* const z, uint16_t addr)
 {
-    uint8_t data = mmu_virt_read_byte(&z->mmu, addr);
-    return (mmu_virt_read_byte(&z->mmu, addr + 1) << 8) | data;
+    uint8_t data = rb(z, addr);
+    return (rb(z, addr + 1) << 8) | data;
 }
 
 static inline void ww(z80* const z, uint16_t addr, uint16_t val)
 {
-    mmu_virt_write_byte(&z->mmu, addr, val & 0xFF);
-    mmu_virt_write_byte(&z->mmu, addr + 1, val >> 8);
+    wb(z, addr, val & 0xFF);
+    wb(z, addr + 1, val >> 8);
 }
 
 static inline void pushw(z80* const z, uint16_t val)
@@ -129,13 +158,14 @@ static inline uint16_t popw(z80* const z)
 
 static inline uint8_t nextb(z80* const z)
 {
-    return rb(z, z->pc++);
+    return fetchb(z, z->pc++);
 }
 
 static inline uint16_t nextw(z80* const z)
 {
     z->pc += 2;
-    return rw(z, z->pc - 2);
+    const uint8_t lo = fetchb(z, z->pc - 2);
+    return (fetchb(z, z->pc - 1) << 8) | lo;
 }
 
 static inline uint16_t get_bc(z80* const z)
@@ -883,14 +913,14 @@ void z80_reset(z80* const z)
 /* Get the size of the next instruction to execute, in bytes */
 int z80_instruction_size(z80* const z)
 {
-    uint8_t opcode = rb(z, z->pc);
+    uint8_t opcode = fetchb(z, z->pc);
     int size = op_size[opcode];
 
     if (size != 0) {
         return size;
     }
     /* Opcode is a prefix, we need to read the next byte */
-    uint8_t opcode2 = rb(z, z->pc + 1);
+    uint8_t opcode2 = fetchb(z, z->pc + 1);
     if (opcode == 0xFD || opcode == 0xDD) {
         size = op_fddd_size[opcode2];
         /* If the size is 0, the instruction is invalid */
@@ -955,7 +985,7 @@ void z80_debug_output(z80* const z)
            "IX: %04X, IY: %04X, I: %02X, R: %02X",
            z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r);
 
-    hw_log(z->mmu.parent.host, false, 0, "\t(%02X %02X %02X %02X), cyc: %lu\n", rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
+    hw_log(z->mmu.parent.host, false, 0, "\t(%02X %02X %02X %02X), cyc: %lu\n", fetchb(z, z->pc), fetchb(z, z->pc + 1), fetchb(z, z->pc + 2), fetchb(z, z->pc + 3),
            z->cyc);
 }
 
@@ -970,7 +1000,7 @@ void z80_get_debug_output(z80* const z, char *s)
         "(%02X %02X %02X %02X)\n"
         "cyc: %lu",
         z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r,
-        rb(z, z->pc), rb(z, z->pc + 1), rb(z, z->pc + 2), rb(z, z->pc + 3),
+        fetchb(z, z->pc), fetchb(z, z->pc + 1), fetchb(z, z->pc + 2), fetchb(z, z->pc + 3),
         z->cyc);
 }
 

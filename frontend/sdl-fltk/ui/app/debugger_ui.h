@@ -37,6 +37,9 @@ public:
     virtual void command(DebugCommand command) = 0;
     /** True when paused; `pc` receives the program counter. */
     virtual bool paused_at(unsigned* pc) const = 0;
+    /** Why the machine paused, when not a plain pause/step/breakpoint
+     *  (e.g. "Write $C000"); false otherwise. */
+    virtual bool pause_reason(char* text, int size) const = 0;
 
     /** Window body size that fits the default layout. */
     virtual void default_body_size(int& w, int& h) const = 0;

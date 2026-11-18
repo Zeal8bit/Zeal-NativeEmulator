@@ -56,10 +56,23 @@ struct regs_t {
 };
 
 
+/* Memory watchpoint on logical (16-bit) addresses [addr, end]. The start
+ * address identifies it: adding another one at the same start updates it. */
 typedef struct {
-    hwaddr            addr;
-    watchpoint_type_t type;
+    hwaddr            addr;     // First watched address
+    hwaddr            end;      // Last watched address (inclusive); <= addr: a single byte
+    watchpoint_type_t type;     // WATCHPOINT_READ and/or WATCHPOINT_WRITE; 0: free slot
+    bool              disabled; // Kept in the list but never stops execution
 } watchpoint_t;
+
+/* Last watchpoint that stopped the machine */
+typedef struct {
+    hwaddr            addr;     // Logical address accessed
+    hwaddr            pc;       // Address of the instruction that made the access
+    uint8_t           value;    // Byte read or written
+    watchpoint_type_t type;     // WATCHPOINT_READ or WATCHPOINT_WRITE
+    uint32_t          count;    // Incremented on every hit
+} watchpoint_hit_t;
 
 typedef struct {
     hwaddr  addr;
@@ -99,6 +112,14 @@ struct dbg_t {
     bool            running; // should the emulator continue running?
     breakpoint_t    breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];
+    /* One byte per logical address with the watchpoint_type_t bits of the
+     * enabled watchpoints covering it (allocated on the first watchpoint).
+     * watch_live is the map when at least one watchpoint is enabled, NULL
+     * otherwise: the CPU only checks accesses when it is set. */
+    uint8_t*        watch_map;
+    const uint8_t*  watch_live;
+    watchpoint_hit_t watch_hit;
+    bool            watch_stopped; // The machine stopped on watch_hit and did not resume
     symbols_t       symbols;
 
     debugger_dis_op  disassemble_cb;

@@ -145,6 +145,8 @@ int zeal_reset(zeal_t* machine)
     if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, true);
 
 #if CONFIG_ENABLE_DEBUGGER
+    debugger_clear_watchpoint_hit(&machine->dbg);
+    machine->cpu.watch_hit_type = 0;
     if (machine->dbg_enabled) {
         machine->dbg_state = ST_PAUSED;
     }
@@ -171,6 +173,12 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
 #endif
     zeal_step_result_t result = ZEAL_STEP_NONE;
     if (execute) {
+#if CONFIG_ENABLE_DEBUGGER
+        /* Memory watchpoints are only checked with the debugger on and at
+         * least one enabled (watch_live is NULL otherwise) */
+        const uint16_t instr_pc = machine->cpu.pc;
+        machine->cpu.watch_map = debug ? machine->dbg.watch_live : NULL;
+#endif
         z80_step(&machine->cpu);
         if (machine->compactflash.failed) {
             machine->should_exit = true;
@@ -178,6 +186,14 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         }
 #if CONFIG_ENABLE_DEBUGGER
         if (debug) {
+            /* Stop after an instruction that accessed a watched address */
+            if (machine->cpu.watch_hit_type != 0) {
+                debugger_watchpoint_hit(&machine->dbg, machine->cpu.watch_hit_addr, instr_pc,
+                                        machine->cpu.watch_hit_value,
+                                        (watchpoint_type_t) machine->cpu.watch_hit_type);
+                machine->cpu.watch_hit_type = 0;
+                machine->dbg_state = ST_PAUSED;
+            }
             /* Stop on a single step or a breakpoint. */
             if (machine->dbg_state == ST_REQ_STEP || debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
                 machine->dbg_state = ST_PAUSED;
@@ -229,6 +245,7 @@ static zeal_run_result_t zeal_run_budget(zeal_t* machine, unsigned long max_tsta
 bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
 {
     if (machine->dbg_state == ST_PAUSED) machine->dbg_state = ST_RUNNING;
+    debugger_clear_watchpoint_hit(&machine->dbg);
     return (zeal_run_budget(machine, max_tstates, true).reason & ZEAL_STEP_DEBUG_STOP) != 0;
 }
 #endif
