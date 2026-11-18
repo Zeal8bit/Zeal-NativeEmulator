@@ -221,6 +221,11 @@ void DebuggerView::reload_maps()
     map_reload();
 }
 
+void DebuggerView::machine_bound()
+{
+    project_state_restore();
+}
+
 void DebuggerView::default_body_size(int& w, int& h) const
 {
     w = default_left_w() + DEFAULT_DISASM_W + DEFAULT_RIGHT_W + 2 * SplitPane::GAP;

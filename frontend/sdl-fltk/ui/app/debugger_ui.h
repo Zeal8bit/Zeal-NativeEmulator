@@ -54,6 +54,10 @@ public:
     /** Ask for a map file (replace, or add to the loaded symbols). */
     virtual void open_map(bool append) = 0;
     virtual void reload_maps() = 0;
+
+    /** The machine is bound and has not run yet: restore what must be in
+     *  place before the first instruction (saved breakpoints, watches). */
+    virtual void machine_bound() = 0;
 };
 
 /** Builds the debugger layout around `screen` inside `dock`; nullptr when

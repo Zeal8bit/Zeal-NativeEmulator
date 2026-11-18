@@ -12,9 +12,13 @@
 
 namespace zui::debugger {
 
-/** Register the save hook and restore the saved state once the machine is
- *  bound (call once, when the debugger UI is created). */
+/** Register the save hook (call once, when the debugger UI is created).
+ *  The saved state is restored by project_state_restore(). */
 void project_state_init();
+/** Restore the saved maps, breakpoints and watch breaks now, once: called
+ *  when the machine is bound, before it executes anything, so saved stops
+ *  are in place for the first instruction. No-op without a machine. */
+void project_state_restore();
 /** Remember the current state for the next save (the debugger UI is
  *  closing; the machine is unbound before the configuration is saved). */
 void project_state_capture();

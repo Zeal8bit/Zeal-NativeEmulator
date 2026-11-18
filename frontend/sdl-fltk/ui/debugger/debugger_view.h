@@ -67,6 +67,7 @@ public:
     bool tool_shown(app::ToolId tool) const override;
     void open_map(bool append) override;
     void reload_maps() override;
+    void machine_bound() override;
 
 private:
     /** Memory panel collapsed to its title: the screen takes the column. */

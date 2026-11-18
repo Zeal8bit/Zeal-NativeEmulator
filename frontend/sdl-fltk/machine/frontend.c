@@ -58,6 +58,8 @@ int frontend_bind_output(zeal_t* machine)
     fz_volume_set(config.audio.volume);
     if (config.audio.volume != 100) notif_show("Volume: %d%%", config.audio.volume);
     fltk_profile_bind(&machine->zvb);
+    /* Saved project stops must exist before the first guest instruction */
+    ui_machine_bound();
     fltk_debug_start(machine);
     return 0;
 }

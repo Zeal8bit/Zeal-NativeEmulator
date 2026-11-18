@@ -119,6 +119,19 @@ void save(rini_config* ini)
 void restore()
 {
     dbg_t* dbg = fz_debugger();
+    /* Maps first: watch breaks and other saved state may name their
+     * symbols. Keep any -m map, add the project's others. */
+    for (const std::string& path : saved_list("MAP_FILE")) {
+        char full[FL_PATH_MAX];
+        fl_filename_absolute(full, sizeof(full), path.c_str());
+        bool loaded = false;
+        for (int i = 0; i < fz_map_count(); i++) {
+            char other[FL_PATH_MAX];
+            fl_filename_absolute(other, sizeof(other), fz_map_path(i));
+            loaded = loaded || strcmp(full, other) == 0;
+        }
+        if (!loaded) fz_map_open(full, true);
+    }
     for (const std::string& item : saved_list("BREAKPOINT")) {
         const hwaddr addr = (hwaddr) strtoul(item.c_str(), nullptr, 16) & 0xFFFF;
         debugger_set_breakpoint(dbg, addr);
@@ -144,23 +157,12 @@ void restore()
         if (w.brk) watches().push_back(w);
     }
     watch_breaks_sync();
-    /* Maps: keep any -m map, add the project's others */
-    for (const std::string& path : saved_list("MAP_FILE")) {
-        char full[FL_PATH_MAX];
-        fl_filename_absolute(full, sizeof(full), path.c_str());
-        bool loaded = false;
-        for (int i = 0; i < fz_map_count(); i++) {
-            char other[FL_PATH_MAX];
-            fl_filename_absolute(other, sizeof(other), fz_map_path(i));
-            loaded = loaded || strcmp(full, other) == 0;
-        }
-        if (!loaded) fz_map_open(full, true);
-    }
     s_restored = true;
     request_refresh();
 }
 
-/* The UI exists before the machine is bound: retry until it is */
+/* Fallback for a debugger UI created after the machine started: restore as
+ * soon as a machine is bound */
 void try_restore(void*)
 {
     if (s_restored) return;
@@ -172,6 +174,13 @@ void try_restore(void*)
 }
 
 } // namespace
+
+void project_state_restore()
+{
+    if (s_restored || !dbg_ready()) return;
+    Fl::remove_timeout(try_restore);
+    restore();
+}
 
 void project_state_capture()
 {

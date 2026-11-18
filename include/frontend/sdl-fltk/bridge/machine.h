@@ -154,6 +154,9 @@ void ui_wait(double seconds);
 void ui_present(const uint16_t* pixels, int width, int height);
 /** Switch between the plain and the debugger layout. */
 void ui_debug_mode(bool enabled);
+/** The machine is bound and has not executed yet: restore saved debugger
+ *  state (project breakpoints and watches) before the first instruction. */
+void ui_machine_bound(void);
 /** Refresh the debugger panels (throttled internally while running). */
 void ui_debug_refresh(bool force);
 /** True when keyboard input should reach the emulated machine. */

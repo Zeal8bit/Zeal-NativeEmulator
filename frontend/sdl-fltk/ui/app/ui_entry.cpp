@@ -144,6 +144,11 @@ void ui_debug_mode(bool enabled)
     if (main_window()) main_window()->set_debug_layout(enabled);
 }
 
+void ui_machine_bound(void)
+{
+    if (main_window() && main_window()->debugger()) main_window()->debugger()->machine_bound();
+}
+
 void ui_debug_refresh(bool force)
 {
     if (main_window() && main_window()->debugger() && main_window()->debug_layout()) {
