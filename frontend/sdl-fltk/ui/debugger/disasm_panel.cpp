@@ -39,7 +39,7 @@ DisasmPanel::DisasmPanel(int X, int Y, int W, int H)
     style_check(m_follow);
     m_follow->value(1);
     m_view = new DisasmView(X, Y, 10, 10);
-    m_view->tooltip("Gutter click / double-click: breakpoint    Right-click: more");
+    m_view->tooltip("Click: select the line    Left edge: toggle a breakpoint    Right-click: more");
     resizable(m_view);
     end();
     resize(X, Y, W, H);

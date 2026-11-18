@@ -12,14 +12,6 @@
 #include "frontend/sdl-fltk/bridge/cpu.h"
 #include "utils/helpers.h"
 
-/* ZVB raster timing (mirrors the private constants of hw/zvb/zvb.c) */
-#define RASTER_PIXEL_NS        40ULL
-#define RASTER_LINE_PIXELS     800
-#define RASTER_TOTAL_LINES     524
-#define RASTER_LINE_NS         (RASTER_LINE_PIXELS * RASTER_PIXEL_NS)
-#define RASTER_FRAME_NS        (RASTER_TOTAL_LINES * RASTER_LINE_NS)
-#define TSTATE_NS              (1000000000ULL / CPUFREQ)
-
 static bool s_sample_valid;
 static fz_cpu_state_t s_sample;
 
@@ -40,9 +32,9 @@ static void capture(zeal_t* machine, fz_cpu_state_t* out)
     out->elapsed_us = TSTATES_TO_US((uint64_t) cpu->cyc);
 
     out->visible_lines = ZVB_MAX_RES_HEIGHT;
-    out->total_lines = RASTER_TOTAL_LINES;
+    out->total_lines = ZVB_TOTAL_SCANLINES;
     out->visible_pixels = ZVB_MAX_RES_WIDTH;
-    out->line_pixels = RASTER_LINE_PIXELS;
+    out->line_pixels = ZVB_TOTAL_PIXELS_PER_LINE;
     out->scanline = zvb->current_scanline;
     out->hblank = zvb->status.h_blank;
     out->vblank = zvb->status.v_blank;
@@ -50,16 +42,11 @@ static void capture(zeal_t* machine, fz_cpu_state_t* out)
     /* The raster only stores the start of the current line; derive the exact
      * pixel position from the virtual clock. */
     const uint64_t now = vtimer_now_ns(&cpu->clock);
-    uint64_t hpos = now > zvb->line_start_ns ? (now - zvb->line_start_ns) / RASTER_PIXEL_NS : 0;
-    if (hpos >= RASTER_LINE_PIXELS) hpos = RASTER_LINE_PIXELS - 1;
+    uint64_t hpos = now > zvb->line_start_ns ? (now - zvb->line_start_ns) / ZVB_PIXEL_NS : 0;
+    if (hpos >= ZVB_TOTAL_PIXELS_PER_LINE) hpos = ZVB_TOTAL_PIXELS_PER_LINE - 1;
     out->hpos = (int) hpos;
 
-    /* Frames since reset: CPU cycles and the raster both restart at reset,
-     * so the reset instant is `now - cyc`. Round to absorb sub-line skew. */
-    const uint64_t since_reset = (uint64_t) cpu->cyc * TSTATE_NS;
-    const uint64_t reset_ns = now > since_reset ? now - since_reset : 0;
-    const uint64_t frame_start = zvb->line_start_ns - (uint64_t) zvb->current_scanline * RASTER_LINE_NS;
-    out->frame = frame_start > reset_ns ? (frame_start - reset_ns + RASTER_FRAME_NS / 2) / RASTER_FRAME_NS : 0;
+    out->frame = zvb->frame_count;
 }
 
 bool fz_cpu_state(fz_cpu_state_t* out)

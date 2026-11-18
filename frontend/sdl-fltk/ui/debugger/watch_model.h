@@ -24,13 +24,12 @@ struct TypeInfo {
     const char* label; /* context menu */
 };
 
-constexpr int MAX_WATCHES = 16;
-
- /* persisted entries share rini's 128-value capacity */
+/* Each watch is saved as one FLTK_WATCH_<n> config value; rini holds
+ * RINI_MAX_VALUE_CAPACITY (512, frontend/common/config.c) values in all and
+ * the rest of the configuration uses about 100. */
+constexpr int MAX_WATCHES = 64;
 constexpr int MAX_EXPR = 48;
-
 constexpr int MAX_STR = 64;
-
 constexpr int DEFAULT_STR = 16;
 
 constexpr int MAX_BYTES = MAX_STR + 2;

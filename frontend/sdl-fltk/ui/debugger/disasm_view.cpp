@@ -160,9 +160,10 @@ int DisasmView::handle(int event)
                 context_menu((hwaddr) addr);
                 return 1;
             }
-            if (Fl::event_x() < x() + GUTTER || Fl::event_clicks() > 0) {
+            /* Click = primary action: the gutter toggles a breakpoint, the
+             * rest of the line selects it (for Run to). Right-click: menu. */
+            if (Fl::event_x() < x() + GUTTER) {
                 debugger_toggle_breakpoint(fz_debugger(), (hwaddr) addr);
-                Fl::event_clicks(0);
                 request_refresh();
             } else {
                 selected = addr;

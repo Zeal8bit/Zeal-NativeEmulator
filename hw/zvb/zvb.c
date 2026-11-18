@@ -35,9 +35,6 @@
 #define ZVB_MASTER_CLOCK_NS             (20)
 #define ZVB_VISIBLE_LINE_NS             (ZVB_MAX_RES_WIDTH * ZVB_PIXEL_NS)
 #define ZVB_HBLANK_NS                   ((ZVB_TOTAL_PIXELS_PER_LINE - ZVB_MAX_RES_WIDTH) * ZVB_PIXEL_NS)
-#define ZVB_PIXEL_NS                     (40)
-#define ZVB_TOTAL_PIXELS_PER_LINE        (800)
-#define ZVB_TOTAL_SCANLINES              (524)
 #define ZVB_SCANLINE_NS                  (ZVB_VISIBLE_LINE_NS + ZVB_HBLANK_NS)
 #define ZVB_HPOS_HIGH_MASK               (7)
 #define ZVB_HPOS_LOW_MASK                (255)
@@ -480,6 +477,7 @@ static void zvb_reset(device_t* dev)
     vtimer_cancel(&zvb->timer);
     zvb->current_hpos = 0;
     zvb->current_scanline = 0;
+    zvb->frame_count = 0;
     zvb->state = STATE_RENDERING;
     zvb->need_render = false;
 #if ZVB_SCANLINE_RENDERING
@@ -700,6 +698,7 @@ static void zvb_fsm_next(void* userdata)
             zvb_text_update(&zvb->text, &info);
         } else if (zvb->current_scanline >= ZVB_TOTAL_SCANLINES) {
             zvb->current_scanline = 0;
+            zvb->frame_count++;
             zvb->status.v_blank = 0;
 #if ZVB_SCANLINE_RENDERING
             if (zvb->scanline_rendering != zvb->scanline_requested) {
