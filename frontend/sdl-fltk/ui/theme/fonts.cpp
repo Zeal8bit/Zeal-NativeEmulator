@@ -33,7 +33,12 @@ int DATA_SIZE = 13;
 bool g_pixel_font = false;
 
 static const char* FONT_FILE = "BigBlue_Terminal_437TT.TTF";
+#if defined(__APPLE__)
 static const char* FONT_FAMILY = "BigBlue Terminal 437TT";
+#else
+/* FLTK uses a leading space for regular faces. A leading 'B' means bold. */
+static const char* FONT_FAMILY = " BigBlue Terminal 437TT";
+#endif
 
 static bool register_font_file(const char* path)
 {
