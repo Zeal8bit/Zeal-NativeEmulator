@@ -2,6 +2,7 @@
 sdlfltk_sources = files(
     'audio.c',
     'bridge.c',
+    'bridge_hw.c',
     'controller.c',
     'frontend.c',
     'keyboard.c',
@@ -18,6 +19,9 @@ sdlfltk_cpp_sources = files(
     'ui/theme.cpp',
     'ui/tool_window.cpp',
     'ui/video.cpp',
+    'ui/view_hw_io.cpp',
+    'ui/view_hw_sound.cpp',
+    'ui/view_hw_video.cpp',
     'ui/view_semihost.cpp',
     'ui/view_watch.cpp',
 )

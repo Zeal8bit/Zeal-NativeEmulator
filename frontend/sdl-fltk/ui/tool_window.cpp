@@ -93,6 +93,8 @@ public:
                          [](const ViewInfo& a, const ViewInfo& b) { return a.order < b.order; });
         fl_font(FL_HELVETICA, 12);
         int tx = 8;
+        /* Tabs keep pointers to these labels: never reallocate */
+        m_names.reserve(infos.size());
         for (size_t i = 0; i < infos.size(); i++) {
             const int tw = (int) fl_width(infos[i].name.c_str()) + 28;
             m_names.push_back(infos[i].name);
