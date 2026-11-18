@@ -92,6 +92,7 @@ public:
         std::stable_sort(infos.begin(), infos.end(),
                          [](const ViewInfo& a, const ViewInfo& b) { return a.order < b.order; });
         fl_font(FL_HELVETICA, 12);
+        m_names.reserve(infos.size()); /* tab labels point into m_names */
         int tx = 8;
         for (size_t i = 0; i < infos.size(); i++) {
             const int tw = (int) fl_width(infos[i].name.c_str()) + 28;

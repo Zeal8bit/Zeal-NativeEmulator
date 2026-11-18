@@ -20,6 +20,7 @@ sdlfltk_cpp_sources = files(
     'ui/tool_window.cpp',
     'ui/video.cpp',
     'ui/view_semihost.cpp',
+    'ui/view_symbols.cpp',
     'ui/view_watch.cpp',
 )
 if get_option('enable_debugger')
