@@ -98,6 +98,19 @@ reference.
 
 ## UI polish
 
+- **Done: Manage what the debugger shows.** The right column is a panel
+  stack (`widgets::PanelStack`): click a title to collapse or expand a panel,
+  the square button maximises one (click again to restore); CPU keeps its
+  own height, Stack and Watch/Breakpoints share the rest with a draggable
+  divider. Watch and Breakpoints are tabs of one panel
+  (`widgets::TabbedPanel`); a break hit opens the Watch tab. The CPU panel is
+  compact (registers, flags) and its MORE chip adds interrupts, (HL)/(SP)
+  and timing. Memory collapses to its title too, giving the screen the
+  column. All of it is saved (FLTK_DBG_* user settings) and View > Reset
+  Debugger Layout restores the defaults.
+  Left to do: collapsing the disassembly or the screen; per-panel show/hide
+  from the View menu.
+
 - **Done: Disassembly clicks.** A click selects the line, a click on the left
   edge (gutter) toggles a breakpoint, right-click opens the menu; no
   double-click.

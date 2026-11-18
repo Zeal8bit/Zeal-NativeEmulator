@@ -58,8 +58,10 @@ sdlfltk_cpp_sources = files(
     'ui/widgets/inline_edit.cpp',
     'ui/widgets/mode_button.cpp',
     'ui/widgets/panel.cpp',
+    'ui/widgets/panel_stack.cpp',
     'ui/widgets/segment.cpp',
     'ui/widgets/split_pane.cpp',
+    'ui/widgets/tabbed_panel.cpp',
 )
 if get_option('enable_debugger')
     sdlfltk_cpp_sources += files(

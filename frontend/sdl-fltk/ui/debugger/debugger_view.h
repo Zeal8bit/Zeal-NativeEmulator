@@ -29,7 +29,9 @@
 namespace zui::widgets {
 class DockLayout;
 class Panel;
+class PanelStack;
 class SplitPane;
+class TabbedPanel;
 }
 
 namespace zui::debugger {
@@ -67,14 +69,18 @@ public:
     void reload_maps() override;
 
 private:
+    /** Memory panel collapsed to its title: the screen takes the column. */
+    void set_memory_collapsed(bool collapsed);
+    /** Collapse states, tab and sizes into g_layout. */
+    void capture_panels();
+
     widgets::DockLayout* m_dock;
     Toolbar* m_toolbar = nullptr;
     widgets::SplitPane* m_root = nullptr;   /* left | rest */
     widgets::SplitPane* m_left = nullptr;   /* screen / memory */
     widgets::SplitPane* m_rest = nullptr;   /* disassembly | right */
-    widgets::SplitPane* m_right = nullptr;  /* registers / lower */
-    widgets::SplitPane* m_lower = nullptr;  /* stack / tail */
-    widgets::SplitPane* m_tail = nullptr;   /* watch / breakpoints */
+    widgets::PanelStack* m_side = nullptr;  /* CPU, stack, watch/breakpoints */
+    widgets::TabbedPanel* m_lists = nullptr;
     widgets::Panel* m_watch = nullptr;
     RegistersView* m_regs = nullptr;
     StackView* m_stack = nullptr;

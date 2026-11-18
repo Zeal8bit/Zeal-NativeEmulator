@@ -16,8 +16,13 @@ struct LayoutConfig {
     int left_w = 0;
     int screen_h = 0;
     int right_w = 0;
-    int breakpoints_h = 0;
-    int watch_h = 0;
+    int stack_h = 0;          /* Stack height in the right column */
+    bool cpu_more = false;    /* CPU panel shows interrupts, (HL)/(SP), timing */
+    bool cpu_collapsed = false;
+    bool stack_collapsed = false;
+    bool lists_collapsed = false; /* Watch / Breakpoints */
+    int lists_tab = 0;            /* 0 Watch, 1 Breakpoints */
+    bool memory_collapsed = false;
     int video_x = -1;
     int video_y = -1;
     int video_w = 0;

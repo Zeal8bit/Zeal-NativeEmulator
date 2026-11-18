@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <FL/Fl_Widget.H>
 #include "common/machine.h"
 #include "frontend/sdl-fltk/bridge/cpu.h"
@@ -26,7 +27,12 @@ enum {
 class RegistersView : public widgets::Panel {
 public:
     RegistersView(int X, int Y, int W, int H);
-    static int preferred_height();
+    /** Registers and flags; with "more", also interrupts, (HL)/(SP) and timing. */
+    int preferred_height() const override;
+    bool more() const { return m_more; }
+    void set_more(bool more);
+    /** The height changed (MORE toggled): lay the column out again. */
+    std::function<void()> on_layout;
     void refresh(bool paused, bool force) override;
     void draw() override;
     int handle(int event) override;
@@ -73,6 +79,7 @@ private:
     fz_cpu_state_t m_cpu = {};
     bool m_have_cpu = false;
     int m_hover = -1;
+    bool m_more = false;
 };
 
 } // namespace zui::debugger

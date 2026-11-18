@@ -24,6 +24,9 @@ public:
     /** Collapsed: only the first child is shown, filling the pane. */
     void collapse(bool collapsed);
     bool collapsed() const { return m_collapsed; }
+    /** The second child keeps only `size` pixels (e.g. a collapsed panel's
+     *  header) and the first takes the rest; 0 = normal split. No dragging. */
+    void squeeze_second(int size);
     void fixed_size(int size);
     int fixed_size() const { return m_fixed; }
     void on_change(std::function<void()> cb) { m_changed = std::move(cb); }
@@ -41,6 +44,7 @@ private:
     bool m_horizontal;
     bool m_fixed_second;
     bool m_collapsed = false;
+    int m_squeeze = 0;
     bool m_dragging = false;
     bool m_cursor_set = false;
     int m_fixed = 200;

@@ -69,7 +69,7 @@ void BreakpointsPanel::resize(int X, int Y, int W, int H)
 {
     Fl_Widget::resize(X, Y, W, H);
     const int iy = Y + H - BAR_H + 4;
-    m_list->resize(X, Y + HEADER_H, W, H - HEADER_H - BAR_H);
+    m_list->resize(X, Y + header_h(), W, H - header_h() - BAR_H);
     m_input->resize(X + 6, iy, W - 72, BAR_H - 8);
     m_add->resize(X + W - 62, iy, 56, BAR_H - 8);
 }

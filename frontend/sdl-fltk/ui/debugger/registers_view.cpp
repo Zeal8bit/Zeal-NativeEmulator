@@ -85,13 +85,24 @@ RegistersView::RegistersView(int X, int Y, int W, int H)
     m_edit->hide();
     resizable(nullptr);
     end();
+    header_toggle("MORE", m_more, [this](bool on) { set_more(on); });
 }
 
-int RegistersView::preferred_height()
+void RegistersView::set_more(bool more)
+{
+    m_more = more;
+    header_toggle("MORE", m_more, [this](bool on) { set_more(on); });
+    if (on_layout) on_layout();
+    redraw();
+}
+
+int RegistersView::preferred_height() const
 {
     const int lh = data_line_height();
-    /* registers, flag chips, interrupt chips, (HL)/(SP), timing */
-    return HEADER_H + 8 + 7 * lh + 22 + (lh + 4) + 18 + (lh + 4) + 12 + 2 * lh + TIMING_GAP + 2 * lh + 8;
+    /* registers, flag chips; then interrupt chips, (HL)/(SP), timing */
+    const int basic = HEADER_H + 8 + 7 * lh + 22 + (lh + 4) + 10;
+    if (!m_more) return basic;
+    return basic - 10 + 18 + (lh + 4) + 12 + 2 * lh + TIMING_GAP + 2 * lh + 8;
 }
 
 void RegistersView::refresh(bool paused, bool force)
@@ -132,9 +143,13 @@ void RegistersView::refresh(bool paused, bool force)
 
 void RegistersView::draw()
 {
+    if (collapsed()) {
+        Panel::draw();
+        return;
+    }
     fl_color(COLOR_SURFACE);
     fl_rectf(x(), y(), w(), h());
-    draw_header(x(), y(), w(), "CPU", extra_text());
+    draw_panel_header();
     const int lh = data_line_height();
     const int cw = char_width();
     const int asc = text_baseline(lh);
@@ -179,6 +194,11 @@ void RegistersView::draw()
             fl_color(undocumented ? COLOR_BORDER : COLOR_DIM);
         }
         fl_draw(names[i], cx + (cwid - (int) fl_width(names[i])) / 2, fy + 2 + asc);
+    }
+
+    if (!m_more) {
+        if (m_edit->visible()) draw_child(*m_edit);
+        return;
     }
 
     /* Interrupt state: IM value chip, then lit/unlit state chips */
@@ -256,6 +276,7 @@ void RegistersView::draw()
 
 int RegistersView::handle(int event)
 {
+    if (collapsed() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
     if (m_edit->visible() && (event == FL_KEYBOARD || event == FL_KEYUP || event == FL_SHORTCUT)) {
         return Fl_Group::handle(event);
     }
@@ -360,6 +381,7 @@ void RegistersView::int_chip(int i, int& cx, int& cw) const
 
 int RegistersView::hit_int_chip(int ex, int ey) const
 {
+    if (!m_more) return -1;
     const int iy = int_y();
     if (ey < iy || ey >= iy + data_line_height() + 4) return -1;
     for (int i = 0; i < INT_CHIPS; i++) {
@@ -372,6 +394,7 @@ int RegistersView::hit_int_chip(int ex, int ey) const
 
 bool RegistersView::hit_timing(int ey) const
 {
+    if (!m_more) return false;
     const int ty = timing_y();
     return ey >= ty && ey < ty + 2 * data_line_height();
 }

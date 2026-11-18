@@ -26,8 +26,11 @@
 #include "debugger/watch_breaks.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_windows.h"
+#include "theme/theme.h"
 #include "widgets/dock_layout.h"
 #include "widgets/split_pane.h"
+#include "widgets/tabbed_panel.h"
+#include "widgets/panel_stack.h"
 #include "symbols/map_files.h"
 #include "video/video_windows.h"
 
@@ -37,6 +40,7 @@ using namespace zui::symbols;
 using namespace zui::video;
 using namespace zui::app;
 using namespace zui::common;
+using namespace zui::theme;
 using namespace zui::tools;
 using namespace zui::widgets;
 
@@ -47,8 +51,7 @@ DebuggerView* s_instance;
 constexpr int DEFAULT_LEFT_W = FZ_SCREEN_WIDTH;
 constexpr int DEFAULT_SCREEN_H = FZ_SCREEN_HEIGHT;
 constexpr int DEFAULT_RIGHT_W = 300;
-constexpr int DEFAULT_BREAKPOINTS_H = 150;
-constexpr int DEFAULT_WATCH_H = 170;
+constexpr int DEFAULT_STACK_H = 120;
 constexpr int DEFAULT_DISASM_W = 420;
 constexpr int DEFAULT_MEMORY_H = 300;
 
@@ -91,27 +94,37 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
     m_rest->end();
     m_disasm = new DisasmPanel(0, 0, DEFAULT_DISASM_W, 800);
     m_disasm->end();
-    m_right = new SplitPane(0, 0, DEFAULT_RIGHT_W, 800, false, false);
-    m_right->end();
-    m_regs = new RegistersView(0, 0, DEFAULT_RIGHT_W, RegistersView::preferred_height());
+    /* Right column: CPU (its own height), Stack, Watch/Breakpoints tabs */
+    m_side = new PanelStack(0, 0, DEFAULT_RIGHT_W, 800);
+    m_regs = new RegistersView(0, 0, DEFAULT_RIGHT_W, 300);
     m_regs->end();
-    m_lower = new SplitPane(0, 0, DEFAULT_RIGHT_W, 400, false, true);
-    m_lower->end();
-    m_stack = new StackView(0, 0, DEFAULT_RIGHT_W, 200);
+    m_stack = new StackView(0, 0, DEFAULT_RIGHT_W, DEFAULT_STACK_H);
     m_stack->end();
-    m_tail = new SplitPane(0, 0, DEFAULT_RIGHT_W, 300, false, true);
-    m_tail->end();
-    m_watch = new WatchPanel(0, 0, DEFAULT_RIGHT_W, DEFAULT_WATCH_H);
+    m_lists = new TabbedPanel(0, 0, DEFAULT_RIGHT_W, 300);
+    m_watch = new WatchPanel(0, 0, DEFAULT_RIGHT_W, 300);
     m_watch->end();
-    m_breakpoints = new BreakpointsPanel(0, 0, DEFAULT_RIGHT_W, DEFAULT_BREAKPOINTS_H);
+    m_breakpoints = new BreakpointsPanel(0, 0, DEFAULT_RIGHT_W, 300);
     m_breakpoints->end();
+    m_lists->end();
+    m_side->end();
     dock->end();
 
+    m_lists->add_tab(m_watch);
+    m_lists->add_tab(m_breakpoints);
+    m_lists->on_select = [this](int) { capture_panels(); };
+    m_side->add_panel(m_regs, 0);
+    m_side->add_panel(m_stack, DEFAULT_STACK_H);
+    m_side->add_panel(m_lists, 300, true);
+    m_side->on_change = [this] { capture_panels(); };
+    m_regs->on_layout = [this] {
+        m_side->layout();
+        capture_panels();
+    };
+    m_memory->collapsible(true);
+    m_memory->on_collapse = [this](Panel*) { set_memory_collapsed(!m_memory->collapsed()); };
+
     m_left->set(screen, m_memory, DEFAULT_SCREEN_H, 120, 140);
-    m_tail->set(m_watch, m_breakpoints, DEFAULT_BREAKPOINTS_H, 60, 90);
-    m_lower->set(m_stack, m_tail, DEFAULT_WATCH_H + DEFAULT_BREAKPOINTS_H + SplitPane::GAP, 60, 160);
-    m_right->set(m_regs, m_lower, RegistersView::preferred_height(), 120, 150);
-    m_rest->set(m_disasm, m_right, DEFAULT_RIGHT_W, 260, 240);
+    m_rest->set(m_disasm, m_side, DEFAULT_RIGHT_W, 260, 240);
     m_root->set(m_left, m_rest, default_left_w(), MemoryPanel::preferred_width(), 520);
 
     dock->set_root(m_root, [this](bool expanded) {
@@ -150,8 +163,7 @@ void DebuggerView::refresh(bool force)
     m_toolbar->update(paused, current_regs().pc, watch_stop ? reason : nullptr);
     m_regs->refresh(paused, force);
     m_stack->refresh(paused, force);
-    m_watch->refresh(paused, force);
-    m_breakpoints->refresh(paused, force);
+    m_lists->refresh(paused, force);
     m_disasm->refresh(paused, force);
     m_memory->refresh(paused, force);
     watchpoint_hit_t hit;
@@ -160,6 +172,9 @@ void DebuggerView::refresh(bool force)
         m_watch_hits = hit.count;
         notif_show("%s", reason);
         m_memory->go(hit.addr);
+        /* Show the watch whose break fired */
+        if (m_lists->collapsed()) m_side->toggle_collapse(m_lists);
+        m_lists->select(0);
     }
     video_window_refresh(paused, force);
     tool_windows_refresh(paused, force);
@@ -214,15 +229,19 @@ void DebuggerView::default_body_size(int& w, int& h) const
 
 void DebuggerView::apply_layout()
 {
-    const LayoutConfig& c = g_layout;
-    const int bps_h = c.breakpoints_h > 0 ? c.breakpoints_h : DEFAULT_BREAKPOINTS_H;
-    const int watch_h = c.watch_h > 0 ? c.watch_h : DEFAULT_WATCH_H;
+    const LayoutConfig c = g_layout; /* copy: the setters below capture into g_layout */
     const int left_w = c.left_w > 0 ? c.left_w : default_left_w();
     m_root->fixed_size(left_w);
     m_left->fixed_size(c.screen_h > 0 ? c.screen_h : default_screen_h(left_w));
     m_rest->fixed_size(c.right_w > 0 ? c.right_w : DEFAULT_RIGHT_W);
-    m_lower->fixed_size(watch_h + bps_h + SplitPane::GAP);
-    m_tail->fixed_size(bps_h);
+    m_regs->set_more(c.cpu_more);
+    m_regs->set_collapsed(c.cpu_collapsed);
+    m_stack->set_collapsed(c.stack_collapsed);
+    m_lists->set_collapsed(c.lists_collapsed);
+    m_lists->select(c.lists_tab);
+    m_side->set_size(1, c.stack_h > 0 ? c.stack_h : DEFAULT_STACK_H);
+    set_memory_collapsed(c.memory_collapsed);
+    g_layout = c;
     if (m_dock->docks_visible()) {
         /* Open tool windows once the main window is on screen, so they float above it */
         Fl::add_timeout(0.3, [](void*) {
@@ -241,9 +260,26 @@ void DebuggerView::capture_layout()
     g_layout.left_w = m_root->fixed_size();
     g_layout.screen_h = m_left->fixed_size();
     g_layout.right_w = m_rest->fixed_size();
-    g_layout.breakpoints_h = m_tail->fixed_size();
-    g_layout.watch_h = m_lower->fixed_size() - m_tail->fixed_size() - SplitPane::GAP;
+    capture_panels();
     video_window_capture_config();
+}
+
+void DebuggerView::set_memory_collapsed(bool collapsed)
+{
+    m_memory->set_collapsed(collapsed);
+    m_left->squeeze_second(collapsed ? HEADER_H : 0);
+    g_layout.memory_collapsed = collapsed;
+}
+
+void DebuggerView::capture_panels()
+{
+    g_layout.stack_h = m_side->size_of(1);
+    g_layout.cpu_more = m_regs->more();
+    g_layout.cpu_collapsed = m_regs->collapsed();
+    g_layout.stack_collapsed = m_stack->collapsed();
+    g_layout.lists_collapsed = m_lists->collapsed();
+    g_layout.lists_tab = m_lists->current();
+    g_layout.memory_collapsed = m_memory->collapsed();
 }
 
 void DebuggerView::reset_layout()

@@ -46,6 +46,13 @@ void SplitPane::collapse(bool collapsed)
     redraw();
 }
 
+void SplitPane::squeeze_second(int size)
+{
+    m_squeeze = size > 0 ? size : 0;
+    layout();
+    redraw();
+}
+
 void SplitPane::fixed_size(int size)
 {
     if (size > 0) m_fixed = size;
@@ -72,6 +79,17 @@ void SplitPane::layout()
         return;
     }
     const int total = extent() - GAP;
+    if (m_squeeze > 0) {
+        const int size_b = m_squeeze < total ? m_squeeze : total;
+        if (m_horizontal) {
+            m_a->resize(x(), y(), total - size_b, h());
+            m_b->resize(x() + total - size_b + GAP, y(), size_b, h());
+        } else {
+            m_a->resize(x(), y(), w(), total - size_b);
+            m_b->resize(x(), y() + total - size_b + GAP, w(), size_b);
+        }
+        return;
+    }
     int fixed = m_fixed;
     const int min_fixed = m_fixed_second ? m_min_b : m_min_a;
     const int min_other = m_fixed_second ? m_min_a : m_min_b;
@@ -90,7 +108,7 @@ void SplitPane::layout()
 
 bool SplitPane::over_divider(int ex, int ey) const
 {
-    if (m_collapsed || !m_a) return false;
+    if (m_collapsed || m_squeeze > 0 || !m_a) return false;
     if (m_horizontal) {
         const int d = m_a->x() + m_a->w();
         return ex >= d && ex < d + GAP && ey >= y() && ey < y() + h();
