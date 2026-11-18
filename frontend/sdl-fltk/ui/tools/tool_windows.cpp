@@ -114,11 +114,14 @@ void tool_windows_resume()
 
 void tool_windows_destroy()
 {
+    /* Final teardown (the debugger UI is deleted): their settings were
+     * already taken by persist_finalize(), so the windows go too */
     for (auto& entry : windows()) {
-        entry.second->capture();
         entry.second->hide();
+        delete entry.second;
     }
-    /* Keep the objects alive until exit so their state can still be saved */
+    windows().clear();
+    s_persist_registered = false;
 }
 
 void tool_windows_reset()

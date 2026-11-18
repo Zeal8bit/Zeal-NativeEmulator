@@ -26,4 +26,11 @@ void persist_register(std::function<void(rini_config*)> save);
 /** Same for project settings. */
 void persist_register_project(std::function<void(rini_config*)> save);
 
+/** The UI is closing: run every callback once into a snapshot, drop the
+ *  callbacks (their owners, often widgets, are about to be destroyed) and
+ *  make later saves write that snapshot. config_save() runs after the UI
+ *  is gone, so this is what keeps the last values without dangling
+ *  captures. Registering again (a new UI) discards the snapshot. */
+void persist_finalize();
+
 } // namespace zui::common

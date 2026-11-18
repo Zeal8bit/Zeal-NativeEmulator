@@ -20,6 +20,7 @@
 #include "app/screen_view.h"
 #include "common/clock.h"
 #include "common/machine.h"
+#include "common/persist.h"
 #include "theme/fonts.h"
 #include "theme/theme.h"
 
@@ -112,6 +113,9 @@ void ui_close(void)
     notif_cancel();
     MainWindow* window = main_window();
     if (window == nullptr) return;
+    /* Settings owned by the widgets are taken now: the configuration is
+     * saved after they are deleted */
+    persist_finalize();
     window->screen()->lock_pointer(false);
     window->hide();
     delete window;
