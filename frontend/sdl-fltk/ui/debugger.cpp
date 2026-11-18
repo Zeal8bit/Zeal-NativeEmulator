@@ -1138,7 +1138,7 @@ public:
         style_input(m_input);
         m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
         m_input->callback(cb_add, this);
-        m_input->tooltip("Address (hex) or symbol, then Enter");
+        m_input->tooltip("Address (hex) or symbol name, then Enter\nPart of a name lists the matching symbols");
         m_add = new Fl_Button(X, Y, 10, 10, "Add");
         style_button(m_add);
         m_add->callback(cb_add, this);
@@ -1179,9 +1179,14 @@ private:
     {
         BreakpointsPanel* self = static_cast<BreakpointsPanel*>(data);
         hwaddr addr;
-        if (dbg_ready() && parse_address(self->m_input->value(), &addr)) {
+        std::string name;
+        if (dbg_ready() && lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_CODE, &name)) {
             debugger_set_breakpoint(fz_debugger(), addr);
             self->m_input->value("");
+            char text[16];
+            hex16(text, sizeof(text), addr);
+            if (name.empty()) notif_show("Breakpoint at $%s", text);
+            else notif_show("Breakpoint at %s ($%s)", name.c_str(), text);
             request_refresh();
         } else {
             fl_beep();
@@ -1449,7 +1454,7 @@ public:
         style_input(m_input);
         m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
         m_input->callback(cb_go, this);
-        m_input->tooltip("Address (hex) or symbol, then Enter");
+        m_input->tooltip("Address (hex) or symbol name, then Enter\nPart of a name lists the matching symbols");
         m_pc = new Fl_Button(X, Y, 10, 10, "PC");
         style_button(m_pc);
         m_pc->callback(cb_pc, this);
@@ -1494,7 +1499,7 @@ private:
     {
         DisasmPanel* self = static_cast<DisasmPanel*>(data);
         hwaddr addr;
-        if (parse_address(self->m_input->value(), &addr)) self->go(addr);
+        if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_CODE)) self->go(addr);
         else fl_beep();
     }
 
@@ -2144,7 +2149,7 @@ public:
         style_input(m_input);
         m_input->when(FL_WHEN_ENTER_KEY_ALWAYS);
         m_input->callback(cb_go, this);
-        m_input->tooltip("Address (hex) or symbol, then Enter");
+        m_input->tooltip("Address (hex) or symbol name, then Enter\nPart of a name lists the matching symbols");
         m_follow = new Fl_Choice(X, Y, 10, 10);
         m_follow->add("Free|PC|SP|HL|DE|BC|IX|IY");
         m_follow->value(0);
@@ -2373,7 +2378,7 @@ private:
     {
         MemoryPanel* self = static_cast<MemoryPanel*>(data);
         hwaddr addr;
-        if (parse_address(self->m_input->value(), &addr)) self->go(addr);
+        if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_DATA)) self->go(addr);
         else fl_beep();
     }
 

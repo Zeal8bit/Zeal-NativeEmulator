@@ -10,6 +10,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Check_Button.H>
 #include "ui.h"
@@ -52,6 +53,17 @@ void   display_memory(hwaddr addr, int len, uint8_t* out, bool stack);
 
 /** Refresh every debugger panel and tool view now (after a user action). */
 void request_refresh();
+/**
+ * Resolve what the user typed in an address field: hex ($C000, 0xC000,
+ * C000) or a symbol. Symbols are looked up loosely (case, leading
+ * underscores, prefix, substring); several matches pop up a menu below
+ * `anchor` to pick from, listing `prefer_kind` (symbol_kind_t, or -1)
+ * first. `picked`, if given, receives the chosen symbol's name (empty for
+ * hex). Returns false if nothing matched or the menu was dismissed.
+ */
+bool lookup_address(Fl_Widget* anchor, const char* text, hwaddr* out, int prefer_kind = -1,
+                    std::string* picked = nullptr);
+
 /** Show an address in the main window's memory editor / disassembly. */
 void goto_memory(hwaddr addr);
 void goto_disassembly(hwaddr addr);
