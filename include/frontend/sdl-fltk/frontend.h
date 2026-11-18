@@ -34,6 +34,10 @@ void fltk_console_bind(void);
 void fltk_sampler_bind(zeal_t* machine);
 void fltk_sampler_unbind(void);
 
+/* Statistical PC profiler for the Hot Functions view (bridge_profile.c) */
+void fltk_pcprof_bind(zeal_t* machine);
+void fltk_pcprof_unbind(void);
+
 /* Audio (audio.c), SDL3 playback */
 void  fltk_audio_init(zvb_sound_t* sound);
 void  fltk_audio_deinit(zvb_sound_t* sound);

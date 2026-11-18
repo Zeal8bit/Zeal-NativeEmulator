@@ -72,6 +72,7 @@ void frontend_bind_input(zeal_t* machine)
     fltk_machine = machine;
     fltk_keyboard_bind(machine);
     fltk_sampler_bind(machine);
+    fltk_pcprof_bind(machine);
     fltk_snes_init(&frontend_snes, &machine->snes_adapter);
     fltk_console_bind();
 }
@@ -202,6 +203,7 @@ void frontend_close(zeal_t* machine)
 {
     fltk_keyboard_unbind();
     fltk_sampler_unbind();
+    fltk_pcprof_unbind();
     if (frontend_snes.core) {
         snes_adapter_detach(&frontend_snes);
         frontend_snes.core = NULL;
