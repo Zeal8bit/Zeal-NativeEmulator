@@ -104,4 +104,16 @@ private:
 /** Watch panel (view_watch.cpp), right column between Stack and Breakpoints. */
 Panel* create_watch_panel(int x, int y, int w, int h);
 
+/* ------------------------------------------------------------------ */
+/*  Map files (view_symbols.cpp)                                       */
+/* ------------------------------------------------------------------ */
+
+/** Ask for a map file and load it: replaces the symbols, or adds to them
+ *  when `append`. Returns true if a file was loaded. */
+bool map_open_dialog(bool append);
+/** Reload the loaded map files (after rebuilding the program). */
+void map_reload();
+/** Remove every symbol. */
+void map_clear();
+
 } // namespace zui

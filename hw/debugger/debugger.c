@@ -512,6 +512,12 @@ void debugger_init(dbg_t *dbg)
 
 void debugger_deinit(dbg_t* dbg)
 {
+    debugger_clear_symbols(dbg);
+}
+
+
+void debugger_clear_symbols(dbg_t* dbg)
+{
     if (!dbg) return;
     symbols_t* node = &dbg->symbols;
     while (node) {

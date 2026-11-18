@@ -214,6 +214,28 @@ static void cb_breakpoint(Fl_Widget*, void*)
     if (s_window && s_window->debugger()) s_window->debugger()->refresh(true);
 }
 
+/* Map files: only reachable from the Debug menu, which needs the debugger */
+static void cb_map_open(Fl_Widget*, void*)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    map_open_dialog(false);
+#endif
+}
+
+static void cb_map_add(Fl_Widget*, void*)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    map_open_dialog(true);
+#endif
+}
+
+static void cb_map_reload(Fl_Widget*, void*)
+{
+#if CONFIG_ENABLE_DEBUGGER
+    map_reload();
+#endif
+}
+
 static void cb_passthru(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
@@ -553,6 +575,9 @@ void MainWindow::build_menus()
         mb->add("&Debug/Step &Over", FL_COMMAND + (FL_F + 10), cb_step_over);
         mb->add("&Debug/Step &Into", FL_COMMAND + (FL_F + 11), cb_step);
         mb->add("&Debug/Toggle &Breakpoint at PC", FL_COMMAND + (FL_F + 9), cb_breakpoint, nullptr, FL_MENU_DIVIDER);
+        mb->add("&Debug/&Open Map File...", FL_COMMAND + 'o', cb_map_open);
+        mb->add("&Debug/&Add Map File...", 0, cb_map_add);
+        mb->add("&Debug/&Reload Map Files", 0, cb_map_reload, nullptr, FL_MENU_DIVIDER);
         mb->add("&Debug/&Keyboard Passthrough", 0, cb_passthru, nullptr, FL_MENU_TOGGLE);
         mb->add("&Debug/&Uppercase Hex", 0, cb_hex_upper, nullptr, FL_MENU_TOGGLE);
     }

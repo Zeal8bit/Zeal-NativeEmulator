@@ -63,6 +63,8 @@ void debugger_handle_event(dbg_t *dbg, debug_event_t event);
 /* Symbol management */
 const char* debugger_get_symbol(dbg_t *dbg, hwaddr address);
 bool debugger_find_symbol(dbg_t *dbg, const char *symbol_name, hwaddr *address);
+/* Remove every loaded symbol (e.g. before loading another map file) */
+void debugger_clear_symbols(dbg_t *dbg);
 
 /* Disassembly */
 // int debugger_disassemble(dbg_t *dbg, hwaddr address, char *buffer, int size);

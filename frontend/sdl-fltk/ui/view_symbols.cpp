@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Symbols browser (Code & Profiler window): every symbol loaded from the
- * map file (-m), filterable and sortable by name or address. */
+/* Symbols browser (Code & Profiler window): every symbol loaded from map
+ * files (-m on the command line, or opened here), filterable and sortable by
+ * name or address. */
 
 #include <algorithm>
 #include <cctype>
@@ -13,11 +14,15 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <FL/Fl_Button.H>
 #include <FL/Fl_Input.H>
+#include <FL/Fl_Native_File_Chooser.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Menu_Item.H>
 #include <FL/fl_draw.H>
 #include "tool_window.h"
+#include "frontend/sdl-fltk/bridge_symbols.h"
+#include "utils/notif.h"
 
 namespace zui {
 
@@ -153,7 +158,7 @@ public:
             fl_font(FL_HELVETICA, 12);
             fl_color(COLOR_DIM);
             const char* msg = m_all.empty()
-                ? "No symbols loaded.\nLoad a map file with -m to see symbols\n(e.g. zeal-fltk -m program.map)."
+                ? "No symbols loaded.\nClick Open Map... to load your program's map file\n(or start with -m program.map)."
                 : "No symbol matches the filter.\nPress Escape in the filter field to clear it.";
             fl_draw(msg, x() + 12, ry0 + 10, w() - 24, 60, FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_WRAP);
             fl_pop_clip();
@@ -368,6 +373,10 @@ public:
         m_filter->when(FL_WHEN_CHANGED);
         m_filter->callback(cb_filter, this);
         m_filter->tooltip("Case-insensitive substring of the symbol name\nEscape: clear");
+        m_open = add_button("Open Map...", "Load a map file, replacing the current symbols", cb_open);
+        m_add = add_button("Add...", "Load another map file next to the current symbols\n(e.g. the OS map plus your program's)", cb_add);
+        m_reload = add_button("Reload", "Reload the map files (after rebuilding the program)", cb_reload);
+        m_clear = add_button("Clear", "Remove every symbol", cb_clear);
         m_bar = new Fl_Scrollbar(X, Y, 10, 10);
         m_bar->type(FL_VERTICAL);
         m_bar->linesize(1);
@@ -385,7 +394,16 @@ public:
     {
         Fl_Widget::resize(X, Y, W, H);
         const int by = Y + HEADER_H + 4;
-        m_filter->resize(X + 62, by, std::min(320, W - 70), BAR_H - 8);
+        /* Buttons on the right, filter takes what is left */
+        int bx = X + W - 8;
+        for (Fl_Button* b : { m_clear, m_reload, m_add, m_open }) {
+            fl_font(b->labelfont(), b->labelsize());
+            const int bw = (int) fl_width(b->label()) + 20;
+            bx -= bw;
+            b->resize(bx, by, bw, BAR_H - 8);
+            bx -= 4;
+        }
+        m_filter->resize(X + 62, by, std::max(60, std::min(320, bx - 12 - (X + 62))), BAR_H - 8);
         const int ly = Y + HEADER_H + BAR_H;
         m_list->resize(X, ly, W - SCROLL_W, H - (ly - Y));
         m_bar->resize(X + W - SCROLL_W, ly, SCROLL_W, H - (ly - Y));
@@ -412,10 +430,78 @@ public:
 private:
     void update_extra()
     {
-        char text[48];
-        if (m_list->filtered()) snprintf(text, sizeof(text), "%zu of %zu", m_list->shown(), m_list->total());
-        else snprintf(text, sizeof(text), "%zu symbol%s", m_list->total(), m_list->total() == 1 ? "" : "s");
+        char count[32];
+        if (m_list->filtered()) snprintf(count, sizeof(count), "%zu of %zu", m_list->shown(), m_list->total());
+        else snprintf(count, sizeof(count), "%zu symbol%s", m_list->total(), m_list->total() == 1 ? "" : "s");
+        /* Which map files they came from */
+        const int maps = fz_map_count();
+        char text[64];
+        if (maps == 0) {
+            snprintf(text, sizeof(text), "%s", count);
+        } else if (maps == 1) {
+            snprintf(text, sizeof(text), "%s  %s", count, base_name(fz_map_path(0)));
+        } else {
+            snprintf(text, sizeof(text), "%s  %d maps", count, maps);
+        }
         extra(text);
+
+        /* Full paths in the Reload tooltip */
+        std::string tip = "Reload the map files (after rebuilding the program)";
+        for (int i = 0; i < maps; i++) {
+            tip += "\n";
+            tip += fz_map_path(i);
+        }
+        if (tip != m_reload_tip) {
+            m_reload_tip = tip;
+            m_reload->tooltip(m_reload_tip.c_str());
+        }
+        if (maps > 0) m_reload->activate(); else m_reload->deactivate();
+        if (m_list->total() > 0 || maps > 0) m_clear->activate(); else m_clear->deactivate();
+    }
+
+    static const char* base_name(const char* path)
+    {
+        const char* name = path;
+        for (const char* p = path; *p; p++) {
+            if (*p == '/' || *p == '\\') name = p + 1;
+        }
+        return name;
+    }
+
+    Fl_Button* add_button(const char* label, const char* tip, Fl_Callback* cb)
+    {
+        Fl_Button* b = new Fl_Button(x(), y(), 10, 10, label);
+        style_button(b);
+        b->tooltip(tip);
+        b->callback(cb, this);
+        return b;
+    }
+
+    void after_change()
+    {
+        refresh(fz_paused(), true);
+    }
+
+    static void cb_open(Fl_Widget*, void* data)
+    {
+        if (map_open_dialog(false)) static_cast<SymbolsView*>(data)->after_change();
+    }
+
+    static void cb_add(Fl_Widget*, void* data)
+    {
+        if (map_open_dialog(true)) static_cast<SymbolsView*>(data)->after_change();
+    }
+
+    static void cb_reload(Fl_Widget*, void* data)
+    {
+        map_reload();
+        static_cast<SymbolsView*>(data)->after_change();
+    }
+
+    static void cb_clear(Fl_Widget*, void* data)
+    {
+        map_clear();
+        static_cast<SymbolsView*>(data)->after_change();
     }
 
     static void cb_filter(Fl_Widget*, void* data)
@@ -432,6 +518,11 @@ private:
     }
 
     FilterInput* m_filter;
+    Fl_Button* m_open;
+    Fl_Button* m_add;
+    Fl_Button* m_reload;
+    Fl_Button* m_clear;
+    std::string m_reload_tip;
     Fl_Scrollbar* m_bar;
     SymbolList* m_list;
 };
@@ -444,6 +535,61 @@ Panel* make_symbols(int x, int y, int w, int h)
 ToolViewRegistrar s_reg(TOOL_CODE, 10, "Symbols", make_symbols);
 
 } // namespace
+
+/* Every view reads the symbol table live; just redraw everything */
+static void symbols_changed()
+{
+    request_refresh();
+    tool_windows_refresh(fz_paused(), true);
+}
+
+bool map_open_dialog(bool append)
+{
+    static std::string s_dir;
+    Fl_Native_File_Chooser chooser;
+    chooser.title(append ? "Add Map File" : "Open Map File");
+    chooser.type(Fl_Native_File_Chooser::BROWSE_FILE);
+    chooser.filter("Map files\t*.map\nAll files\t*");
+    /* Start where the last map came from */
+    if (s_dir.empty() && fz_map_count() > 0) {
+        s_dir = fz_map_path(fz_map_count() - 1);
+        const size_t slash = s_dir.find_last_of("/\\");
+        s_dir = slash == std::string::npos ? std::string() : s_dir.substr(0, slash);
+    }
+    if (!s_dir.empty()) chooser.directory(s_dir.c_str());
+    if (chooser.show() != 0 || chooser.filename() == nullptr) return false;
+    const std::string path = chooser.filename();
+    const size_t slash = path.find_last_of("/\\");
+    if (slash != std::string::npos) s_dir = path.substr(0, slash);
+
+    const int before = fz_symbol_count();
+    if (!fz_map_open(path.c_str(), append)) {
+        notif_show("Could not load %s", path.c_str());
+        return false;
+    }
+    const int loaded = append ? fz_symbol_count() - before : fz_symbol_count();
+    const char* name = path.c_str() + (slash == std::string::npos ? 0 : slash + 1);
+    notif_show("%d symbols loaded from %s", loaded, name);
+    symbols_changed();
+    return true;
+}
+
+void map_reload()
+{
+    const int files = fz_map_count();
+    if (files == 0) return;
+    const int ok = fz_map_reload();
+    if (ok == files) notif_show("Reloaded %d symbols", fz_symbol_count());
+    else notif_show("Reloaded %d of %d map files", ok, files);
+    symbols_changed();
+}
+
+void map_clear()
+{
+    fz_map_clear();
+    notif_show("Symbols cleared");
+    symbols_changed();
+}
 
 #endif
 

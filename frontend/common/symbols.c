@@ -24,7 +24,18 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename)
         return false;
     }
 
+    /* Append after any symbols already loaded (several map files) */
     symbols_t* current = &dbg->symbols;
+    while (current->next) current = current->next;
+    if (current->count >= DBG_SYM_COUNT) {
+        current->next = (symbols_t*) calloc(1, sizeof(symbols_t));
+        if (!current->next) {
+            fclose(file);
+            log_perror("[MAP] Memory allocation failed");
+            return false;
+        }
+        current = current->next;
+    }
 
     char line[MAX_LINE_LENGTH];
     char name[MAX_LINE_LENGTH];

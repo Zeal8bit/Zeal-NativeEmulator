@@ -34,5 +34,5 @@ sdlfltk_cpp_sources = files(
     'ui/view_watch.cpp',
 )
 if get_option('enable_debugger')
-    sdlfltk_sources += files('debug_video.c')
+    sdlfltk_sources += files('bridge_symbols.c', 'debug_video.c')
 endif
