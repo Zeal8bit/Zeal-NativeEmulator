@@ -21,9 +21,23 @@ reference.
     stack push taken in the same step is attributed to the previous PC.
   - **Done:** watchpoints and breakpoints are saved in the project settings
     (see "Settings" below).
-- **Trace log / execution history.** Ring buffer of the last N executed
-  instructions with registers ("how did I get here"). Enables a heuristic
-  call stack by tracking CALL/RET/RST and interrupts.
+- **Done: Trace log / execution history and call stack.** A ring of the last
+  `trace_depth` instructions (Meson option, default 4096 entries of 32 bytes;
+  `-Dtrace_depth=0` compiles it out) records PC, opcode bytes, registers,
+  T-states, interrupts and resets while the debugger is on. A heuristic call
+  stack follows CALL/RST/interrupts and RET/RETI/RETN, including stack
+  switches. UI: Trace and Call Stack views in Code & Profiler (click = show
+  in disassembly, right-click menu, save to a text file); the Stack panel
+  marks return-address slots. Cost: about 11% on top of the debugger.
+  Left to do:
+  - The call stack only exists while the trace records, and code that
+    rewrites return addresses can confuse it.
+  - The MMU page of each entry is recorded but not shown.
+  - Nuklear and headless record too (no UI there).
+- **Debugger step cost.** With the debugger on, emulation runs about 4.6x
+  slower than without (59 vs 274 MT/s); most of it is likely the scan of all
+  128 breakpoint slots on every step. A bitmap like the watchpoints' would
+  make it nearly free.
 - **Code/data coverage and PC heatmap.** Shade executed and read/written bytes
   in the disassembly and memory views (like Mesen's CDL); spot dead code and
   hot loops.
