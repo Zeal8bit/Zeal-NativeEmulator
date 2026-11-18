@@ -63,12 +63,12 @@ void Toolbar::resize(int X, int Y, int W, int H)
     m_pill->resize(X + W - 230, Y + 4, 222, H - 8);
 }
 
-void Toolbar::update(bool paused, uint16_t pc)
+void Toolbar::update(bool paused, uint16_t pc, const char* reason)
 {
     m_run->icon(paused ? Icon::Play : Icon::Pause);
     m_run->text(paused ? "Continue" : "Pause");
     if (paused) m_run_to->activate(); else m_run_to->deactivate();
-    m_pill->set(paused, pc);
+    m_pill->set(paused, pc, reason);
 }
 
 void Toolbar::draw()

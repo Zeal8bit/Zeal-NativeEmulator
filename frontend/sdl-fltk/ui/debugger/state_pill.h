@@ -14,11 +14,13 @@ namespace zui::debugger {
 class StatePill : public Fl_Widget {
 public:
     StatePill(int X, int Y, int W, int H);
-    void set(bool paused, uint16_t pc);
+    /** `reason` (a watchpoint hit) replaces "PAUSED $pc", in full as the tooltip. */
+    void set(bool paused, uint16_t pc, const char* reason = nullptr);
     void draw() override;
 
 private:
     char m_text[32] = "RUNNING";
+    char m_tip[96] = "";
     bool m_paused = false;
 };
 

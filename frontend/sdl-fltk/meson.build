@@ -86,6 +86,8 @@ if get_option('enable_debugger')
         'ui/debugger/watch_list.cpp',
         'ui/debugger/watch_model.cpp',
         'ui/debugger/watch_panel.cpp',
+        'ui/debugger/watchpoint_actions.cpp',
+        'ui/debugger/watchpoint_list.cpp',
         'ui/hardware/hw_register_view.cpp',
         'ui/hardware/input_view.cpp',
         'ui/hardware/io_registers_view.cpp',

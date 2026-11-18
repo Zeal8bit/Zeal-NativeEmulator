@@ -22,6 +22,7 @@
 #include "debugger/stack_view.h"
 #include "debugger/toolbar.h"
 #include "debugger/watch_panel.h"
+#include "debugger/watchpoint_actions.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_windows.h"
 #include "widgets/dock_layout.h"
@@ -141,13 +142,22 @@ void DebuggerView::refresh(bool force)
     const double now = now_seconds();
     if (!force && (paused || now - m_last_refresh < 0.1)) return;
     m_last_refresh = now;
-    m_toolbar->update(paused, current_regs().pc);
+    char reason[64];
+    const bool watch_stop = paused && watch_hit_text(reason, sizeof(reason), false);
+    m_toolbar->update(paused, current_regs().pc, watch_stop ? reason : nullptr);
     m_regs->refresh(paused, force);
     m_stack->refresh(paused, force);
     m_watch->refresh(paused, force);
     m_breakpoints->refresh(paused, force);
     m_disasm->refresh(paused, force);
     m_memory->refresh(paused, force);
+    watchpoint_hit_t hit;
+    if (watch_stop && debugger_get_watchpoint_hit(fz_debugger(), &hit) && hit.count != m_watch_hits) {
+        /* A watchpoint stopped the machine: say why and show the byte */
+        m_watch_hits = hit.count;
+        notif_show("%s", reason);
+        m_memory->go(hit.addr);
+    }
     video_window_refresh(paused, force);
     tool_windows_refresh(paused, force);
 }
@@ -176,6 +186,11 @@ bool DebuggerView::paused_at(unsigned* pc) const
     debugger_get_registers(dbg, &regs);
     if (pc) *pc = regs.pc;
     return true;
+}
+
+bool DebuggerView::pause_reason(char* text, int size) const
+{
+    return fz_paused() && watch_hit_text(text, (size_t) size, true);
 }
 
 void DebuggerView::open_map(bool append)

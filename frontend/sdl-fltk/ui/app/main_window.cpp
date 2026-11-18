@@ -352,7 +352,12 @@ void MainWindow::update_status()
     if (m_debugger && m_debugger->paused_at(&pc_value)) {
         char pc[8];
         snprintf(pc, sizeof(pc), hex16_fmt(), pc_value);
-        snprintf(state, sizeof(state), "Paused at $%s", pc);
+        char reason[48];
+        if (m_debugger->pause_reason(reason, sizeof(reason))) {
+            snprintf(state, sizeof(state), "Paused at $%s: %s", pc, reason);
+        } else {
+            snprintf(state, sizeof(state), "Paused at $%s", pc);
+        }
     }
     m_status_state->copy_label(state);
 
