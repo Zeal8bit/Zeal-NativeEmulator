@@ -2622,6 +2622,15 @@ static int default_left_w()
     return pref > DEFAULT_LEFT_W ? pref : DEFAULT_LEFT_W;
 }
 
+/* The screen fills the column width at 4:3; memory gets the rest */
+static int default_screen_h(int left_w)
+{
+    const int body_h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H;
+    const int fill = left_w * FZ_SCREEN_HEIGHT / FZ_SCREEN_WIDTH;
+    const int min_memory = 160;
+    return std::max(DEFAULT_SCREEN_H, std::min(fill, body_h - min_memory));
+}
+
 void Debugger::default_body_size(int& w, int& h) const
 {
     w = default_left_w() + DEFAULT_DISASM_W + DEFAULT_RIGHT_W + 2 * SplitPane::GAP;
@@ -2633,8 +2642,9 @@ void Debugger::apply_layout()
     const LayoutConfig& c = g_layout;
     const int bps_h = c.breakpoints_h > 0 ? c.breakpoints_h : DEFAULT_BREAKPOINTS_H;
     const int watch_h = c.watch_h > 0 ? c.watch_h : DEFAULT_WATCH_H;
-    m->root->fixed_size(c.left_w > 0 ? c.left_w : default_left_w());
-    m->left->fixed_size(c.screen_h > 0 ? c.screen_h : DEFAULT_SCREEN_H);
+    const int left_w = c.left_w > 0 ? c.left_w : default_left_w();
+    m->root->fixed_size(left_w);
+    m->left->fixed_size(c.screen_h > 0 ? c.screen_h : default_screen_h(left_w));
     m->rest->fixed_size(c.right_w > 0 ? c.right_w : DEFAULT_RIGHT_W);
     m->lower->fixed_size(watch_h + bps_h + SplitPane::GAP);
     m->tail->fixed_size(bps_h);
@@ -2689,6 +2699,15 @@ Fl_Group* Debugger::toolbar(int x, int y, int w, int h) { return new Fl_Group(x,
 void Debugger::refresh(bool) {}
 void Debugger::goto_memory(hwaddr) {}
 void Debugger::goto_disassembly(hwaddr) {}
+/* The screen fills the column width at 4:3; memory gets the rest */
+static int default_screen_h(int left_w)
+{
+    const int body_h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H;
+    const int fill = left_w * FZ_SCREEN_HEIGHT / FZ_SCREEN_WIDTH;
+    const int min_memory = 160;
+    return std::max(DEFAULT_SCREEN_H, std::min(fill, body_h - min_memory));
+}
+
 void Debugger::default_body_size(int& w, int& h) const { w = FZ_SCREEN_WIDTH; h = FZ_SCREEN_HEIGHT; }
 void Debugger::apply_layout() {}
 void Debugger::capture_layout() {}
