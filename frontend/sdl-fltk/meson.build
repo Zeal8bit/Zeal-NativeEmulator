@@ -14,6 +14,7 @@ sdlfltk_cpp_sources = files(
     'ui/app.cpp',
     'ui/common.cpp',
     'ui/debugger.cpp',
+    'ui/memory_tools.cpp',
     'ui/screen.cpp',
     'ui/theme.cpp',
     'ui/tool_window.cpp',
