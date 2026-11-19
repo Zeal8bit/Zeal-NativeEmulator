@@ -15,6 +15,7 @@ bool preference(const char* section, const char* key, bool fallback);
 void set_preference(const char* section, const char* key, int value);
 void set_preference(const char* section, const char* key, bool value);
 void persist_register(std::function<void()> capture);
+int config_save_user();
 void persist_capture();
 void persist_finalize();
 

@@ -146,6 +146,7 @@ bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask);
 /*  Implemented by the C++ UI, used by the C machine layer             */
 /* ------------------------------------------------------------------ */
 
+void config_window_update(bool dbg_enabled);
 int  ui_open(bool debug);
 void ui_close(void);
 /** True once the user closed the main window or chose Quit. */

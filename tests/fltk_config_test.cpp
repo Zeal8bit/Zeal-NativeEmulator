@@ -9,6 +9,7 @@
 #include <iterator>
 #include <stdexcept>
 #include "common/machine.h"
+#include "common/persist.h"
 #include "debugger/watch_model.h"
 
 namespace fs = std::filesystem;
@@ -41,7 +42,7 @@ static void round_trip(const fs::path& dir)
           watches[0].brk == WATCHPOINT_WRITE && !watches[0].brk_on, "watch fields lost");
     check(config.audio.volume == 20 && config.window.theme == THEME_DARK, "incorrect preference scope");
     config.window.theme = THEME_SYSTEM;
-    check(config_save_user() == 0 && config_save() == 0, "save failed");
+    check(zui::common::config_save_user() == 0 && config_save() == 0, "save failed");
     check(contents(project) == original, "unchanged project was rewritten");
     check(contents(user).find("theme") == std::string::npos, "System override still present");
     config_unload();

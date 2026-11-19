@@ -19,7 +19,11 @@
 
 #include "utils/config.h"
 #include "utils/version.h"
-#include "utils/config_ini.h"
+/* Reserve an extra byte so the writer can detect a truncated value. */
+#define ZEAL_INI_VALUE_MAX 4095
+#define RINI_MAX_TEXT_SIZE (ZEAL_INI_VALUE_MAX + 2)
+#define RINI_MAX_LINE_SIZE (RINI_MAX_TEXT_SIZE + 256)
+#include "utils/rini.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "utils/log.h"
@@ -142,28 +146,6 @@ int config_parse_file(const char* file) {
     return 0;
 }
 
-config_save_hook_t config_save_hook = NULL;
-
-#define MAX_OWNED_PREFIXES 16
-static const char* owned_prefixes[MAX_OWNED_PREFIXES];
-static int owned_count;
-
-void config_own_project_keys(const char* prefix)
-{
-    for (int i = 0; i < owned_count; i++) {
-        if (strcmp(owned_prefixes[i], prefix) == 0) return;
-    }
-    if (owned_count < MAX_OWNED_PREFIXES) owned_prefixes[owned_count++] = prefix;
-}
-
-static bool owned_key(const char* key)
-{
-    for (int i = 0; i < owned_count; i++) {
-        if (strncmp(key, owned_prefixes[i], strlen(owned_prefixes[i])) == 0) return true;
-    }
-    return false;
-}
-
 static bool has_key(const rini_config* ini, const char* key)
 {
     for (unsigned i = 0; i < ini->count; i++) {
@@ -184,7 +166,7 @@ static void remove_key(rini_config* ini, const char* key)
 }
 
 /* Keys loaded from the project file that nothing wrote this time: keep
- * them unless the frontend manages them (config_own_project_keys). A kept
+ * them so an INI save preserves unknown settings. A kept
  * key that is also a user setting is a project override: its value was
  * only read for this project, so the user file keeps its own value. */
 static void keep_project_keys(rini_config* ini, rini_config* project)
@@ -192,7 +174,7 @@ static void keep_project_keys(rini_config* ini, rini_config* project)
     if (project_ini.values == NULL) return;
     for (unsigned i = 0; i < project_ini.count; i++) {
         const rini_config_value* v = &project_ini.values[i];
-        if (v->key[0] == '\0' || has_key(project, v->key) || owned_key(v->key)) continue;
+        if (v->key[0] == '\0' || has_key(project, v->key)) continue;
         rini_set_config_value_text(project, v->key, v->text, v->desc);
         if (has_key(ini, v->key)) {
             const char* user = user_ini.values ?
@@ -302,7 +284,7 @@ static bool has_values(const rini_config* ini)
     return false;
 }
 
-static int save_files(bool save_project)
+int config_save(void)
 {
     int result = 0;
     rini_config ini = new_output();
@@ -362,8 +344,6 @@ static int save_files(bool save_project)
     rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
 #endif // CONFIG_ENABLE_DEBUGGER
 
-    if (config_save_hook) config_save_hook(&ini, &project);
-
     /* Saved image paths are kept, without -s, in the file they were loaded
      * from: the project file, or the user file (older configurations, and
      * the one-file setup where -c and -P name the same file). */
@@ -396,7 +376,7 @@ static int save_files(bool save_project)
             const rini_config_value* v = &project.values[i];
             if (v->key[0] != '\0') rini_set_config_value_text(&ini, v->key, v->text, v->desc);
         }
-    } else if (save_project && (has_values(&project) || path_exists(config.arguments.project_path))) {
+    } else if (has_values(&project) || path_exists(config.arguments.project_path)) {
         /* Never create a project file in a directory with nothing to save */
         if (!can_write(&project, config.arguments.project_path, project_truncated) ||
             !write_ini(&project, config.arguments.project_path)) {
@@ -413,16 +393,6 @@ static int save_files(bool save_project)
     return result;
 }
 
-int config_save(void)
-{
-    return save_files(true);
-}
-
-int config_save_user(void)
-{
-    return save_files(false);
-}
-
 void config_unload(void)
 {
     if(user_ini.values != NULL) {
@@ -431,18 +401,4 @@ void config_unload(void)
     if(project_ini.values != NULL) {
         rini_unload_config(&project_ini);
     }
-}
-
-int config_get(const char *key, int defaultValue) {
-    return lookup_int(key, defaultValue);
-}
-const char* config_get_text(const char *key, const char *defaultValue) {
-    return lookup_text(key, defaultValue);
-}
-
-void config_set(const char *key, int value, const char *desc) {
-    rini_set_config_value(&user_ini, key, value, desc);
-}
-void config_set_text(const char *key, const char *value, const char *desc) {
-    rini_set_config_value_text(&user_ini, key, value, desc);
 }

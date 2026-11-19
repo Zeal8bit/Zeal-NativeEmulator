@@ -18,6 +18,8 @@
 #include <fontconfig/fontconfig.h>
 #endif
 
+#include "frontend/sdl-fltk/paths.h"
+
 extern "C" {
 #include "utils/paths.h"
 }
@@ -60,22 +62,15 @@ static bool register_font_file(const char* path)
 
 void load_fonts()
 {
-    char exe_dir[PATH_MAX];
-    char path[PATH_MAX + 64];
-    get_executable_dir(exe_dir, sizeof(exe_dir));
+    const char* exe_dir = fltk_executable_dir();
 
-    const char* candidates[3];
     char dev[PATH_MAX + 64];
     char inst[PATH_MAX + 64];
-    snprintf(dev, sizeof(dev), "%s/assets/fonts/%s", exe_dir, FONT_FILE);
+    if (exe_dir) snprintf(dev, sizeof(dev), "%s/assets/fonts/%s", exe_dir, FONT_FILE);
     snprintf(inst, sizeof(inst), "%s/fonts/%s", ZEAL_ASSETS_DIR, FONT_FILE);
-    candidates[0] = dev;
-    candidates[1] = inst;
-    candidates[2] = nullptr;
-
-    for (int i = 0; candidates[i]; i++) {
-        snprintf(path, sizeof(path), "%s", candidates[i]);
-        if (!path_exists(path)) continue;
+    const char* candidates[] = {exe_dir ? dev : nullptr, inst};
+    for (const char* path : candidates) {
+        if (!path || !path_exists(path)) continue;
         if (register_font_file(path)) {
             Fl::set_font(FL_FREE_FONT, FONT_FAMILY);
             DATA_FONT = FL_FREE_FONT;

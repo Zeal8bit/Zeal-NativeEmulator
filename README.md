@@ -462,8 +462,8 @@ the debugger, `debug_disabled.c` and `ui/app/debugger_ui_disabled.cpp` replace
 
 `frontend/common/` contains shared command-line/INI handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
-desktop OS entry point, executable path discovery, and HostFS adapter used
-by SDL/FLTK and headless. The emulator library has no platform-specific branches.
+native entry point and filesystem-backed HostFS adapter used by SDL/FLTK
+and headless. SDL/FLTK locates its own bundled fonts and gamepad mappings. The emulator library has no platform-specific branches.
 
 Native builds produce both `zeal-fltk` and `zeal-headless` by default. Existing
 headless scripts should replace the executable name with `zeal-headless`; the

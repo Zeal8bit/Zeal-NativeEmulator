@@ -53,7 +53,7 @@ static void console_put(char c)
 
 static void console_tap(void* userdata, uint8_t byte)
 {
-    (void) userdata;
+    frontend_host.uart_byte(userdata, byte);
     s_bytes++;
     s_serial++;
     if (byte == '\r') return;
@@ -79,10 +79,12 @@ static void console_tap(void* userdata, uint8_t byte)
     }
 }
 
-void fltk_console_bind(void)
+void fltk_console_bind(zeal_t* machine)
 {
-    frontend_uart_tap = console_tap;
-    frontend_uart_tap_userdata = NULL;
+    static hw_host_t console_host;
+    console_host = frontend_host;
+    console_host.uart_byte = console_tap;
+    machine->uart.host = &console_host;
 }
 
 uint64_t fz_console_serial(void)

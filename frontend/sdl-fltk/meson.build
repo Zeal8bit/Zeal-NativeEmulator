@@ -13,6 +13,7 @@ sdlfltk_sources = files(
     'machine/frontend.c',
     'machine/keyboard.c',
     'machine/mouse.c',
+    'machine/paths.c',
     'machine/snes_adapter.c',
 )
 if get_option('enable_debugger')

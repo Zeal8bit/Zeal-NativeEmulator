@@ -58,7 +58,7 @@ int frontend_init(zeal_t* machine, bool allow_debugger)
     }
     err = frontend_eeprom_init(&frontend_media, &machine->eeprom, config.images.eeprom);
     if (err) return err;
-    frontend_hostfs_bind(&frontend_hostfs, &machine->hostfs);
+    frontend_hostfs_bind(&machine->hostfs);
     if (options.frames) v_log_printf(1, "[RENDER] Blitter: software\n");
     return frontend_bind_output(machine);
 }
@@ -94,7 +94,7 @@ int frontend_configure(int argc, char* argv[])
 
 void frontend_deinit(zeal_t* machine)
 {
-    frontend_hostfs_close(&frontend_hostfs);
+    frontend_hostfs_close();
     frontend_close(machine);
     frontend_media_close(&frontend_media);
     zeal_deinit(machine);

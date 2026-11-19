@@ -18,15 +18,11 @@ static int host_read_byte(void* userdata)
     return read(STDIN_FILENO, &byte, 1) == 1 ? byte : -1;
 }
 
-void (*frontend_uart_tap)(void* userdata, uint8_t byte) = NULL;
-void* frontend_uart_tap_userdata = NULL;
-
 static void host_uart_byte(void* userdata, uint8_t byte)
 {
     (void) userdata;
     printf("%c", byte);
     fflush(stdout);
-    if (frontend_uart_tap) frontend_uart_tap(frontend_uart_tap_userdata, byte);
 }
 
 const hw_host_t frontend_host = {

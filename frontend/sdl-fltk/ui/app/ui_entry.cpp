@@ -77,16 +77,6 @@ void config_window_update(bool dbg_enabled)
     if (main_window() && main_window()->debugger()) main_window()->debugger()->capture_layout();
 }
 
-void config_window_set(bool dbg_enabled)
-{
-    if (main_window()) main_window()->apply_window_config(dbg_enabled);
-}
-
-bool config_keyboard_passthru(bool dbg_enabled)
-{
-    return dbg_enabled && config.debugger.keyboard_passthru;
-}
-
 int ui_open(bool debug)
 {
     /* Cocoa (macOS system menubar) must exist before any menu is built */

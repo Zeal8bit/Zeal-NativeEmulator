@@ -11,6 +11,7 @@
 #include <SDL3/SDL.h>
 #include "frontend/sdl-fltk/frontend.h"
 #include "utils/paths.h"
+#include "frontend/sdl-fltk/paths.h"
 
 #ifndef ZEAL_ASSETS_DIR
 #define ZEAL_ASSETS_DIR "assets"
@@ -58,7 +59,7 @@ void snes_controller_load_mappings(void)
     /* Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path */
     /* Room for a PATH_MAX directory plus the relative database path */
     char path[PATH_MAX + 64];
-    char exe_dir[PATH_MAX];
+    const char* exe_dir = fltk_executable_dir();
     const char* found = NULL;
     const char* config_dir = get_config_dir();
 
@@ -66,8 +67,7 @@ void snes_controller_load_mappings(void)
         snprintf(path, sizeof(path), "%s/gamecontrollerdb.txt", config_dir);
         if (path_exists(path)) found = path;
     }
-    if (!found) {
-        get_executable_dir(exe_dir, sizeof(exe_dir));
+    if (!found && exe_dir) {
         snprintf(path, sizeof(path), "%s/" GAMECONTROLLERDB_DEV_PATH, exe_dir);
         if (path_exists(path)) found = path;
     }

@@ -15,7 +15,7 @@ void fltk_debug_bind(zeal_t* machine)
 {
     fltk_sampler_bind(machine);
     fltk_pcprof_bind(machine);
-    fltk_console_bind();
+    fltk_console_bind(machine);
 }
 
 void fltk_debug_unbind(zeal_t* machine)

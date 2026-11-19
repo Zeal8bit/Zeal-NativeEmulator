@@ -68,7 +68,7 @@ void   fltk_profile_frame_end(double start);
 
 /* Debugger-only machine helpers (debug/), reached through debug.h hooks */
 /* UART console capture (debug/console.c) */
-void fltk_console_bind(void);
+void fltk_console_bind(zeal_t* machine);
 /* Live CPU sampling (debug/sampler.c) */
 void fltk_sampler_bind(zeal_t* machine);
 void fltk_sampler_unbind(void);

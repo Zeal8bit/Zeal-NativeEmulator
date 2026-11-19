@@ -129,24 +129,8 @@ void config_unload(void);
  * @brief Save config file
  */
 int config_save(void);
-/** Save user preferences without writing a separate project file. */
-int config_save_user(void);
-
 /** Atomically replace a configuration file after serialization succeeds. */
 bool config_write_file(const char* path, bool (*write_contents)(FILE*, const void*), const void* data);
-
-/**
- * @brief Update the configs values for window settings
- * @param dbg_enabled Whether the user is in debug mode
- */
-void config_window_update(bool dbg_enabled);
-
-/**
- * @brief Set the Window to the current config settings
- */
-void config_window_set(bool dbg_enabled);
-
-bool config_keyboard_passthru(bool dbg_enabled);
 
 /**
  * @brief Determine if debugger is enabled

@@ -239,5 +239,5 @@ extern "C" int config_parse_file(const char* file)
 }
 
 extern "C" int config_save() { return save_settings(false); }
-extern "C" int config_save_user() { return save_settings(true); }
+int zui::common::config_save_user() { return save_settings(true); }
 extern "C" void config_unload() { user = {}; project = {}; }

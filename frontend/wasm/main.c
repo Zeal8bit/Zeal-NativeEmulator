@@ -14,7 +14,6 @@
 
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
-#include "frontend/common/hostfs.h"
 #include "frontend/common/app.h"
 #include "frontend/wasm/frontend.h"
 #include "frontend/wasm/snes_adapter.h"

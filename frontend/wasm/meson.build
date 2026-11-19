@@ -1,5 +1,5 @@
 # Emscripten integration and browser output belong to this frontend.
-wasm_sources = files('main.c', 'frontend.c', 'hostfs.c', 'paths.c', 'audio.c',
+wasm_sources = files('main.c', 'frontend.c', 'hostfs.c', 'audio.c',
     'controller.c', 'mouse.c', 'notif.c', 'snes_adapter.c', 'video.c')
 wasm_args = ['-D_DEFAULT_SOURCE', '-DPLATFORM_WEB', '-DOPENGL_ES']
 wasm_link_args = ['--emit-symbol-map',

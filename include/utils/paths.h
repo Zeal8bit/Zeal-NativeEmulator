@@ -56,13 +56,7 @@ static inline int os_mkdir(const char* path, int mode) {
 
 #endif // _WIN32
 
-void get_executable_path(char *buffer, size_t size);
-void get_executable_dir(char *buffer, size_t size);
-
-int get_install_dir_file(char dst[PATH_MAX], const char* name);
-
 int path_exists(const char *path);
-char* get_relative_path(const char* absolute_path);
 const char* get_home_dir();
 const char* get_config_dir();
 const char* get_config_path();

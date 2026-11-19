@@ -12,7 +12,7 @@
 
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
-#include "frontend/common/hostfs.h"
+#include "hostfs.h"
 #include "frontend/common/app.h"
 #include "utils/log.h"
 #include "utils/config.h"
@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
         goto deinit;
     }
 
-    if (frontend_hostfs_load_path(&frontend_hostfs, config.arguments.hostfs_path)) {
+    if (frontend_hostfs_load_path(config.arguments.hostfs_path)) {
         goto deinit;
     }
 
