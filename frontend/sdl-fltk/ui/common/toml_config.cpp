@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "frontend/sdl-fltk/config.h"
 #include "common/toml_config.h"
 #include "common/machine.h"
 #if CONFIG_ENABLE_DEBUGGER
@@ -17,6 +18,8 @@ extern "C" {
 #include "utils/paths.h"
 #include "frontend/sdl-fltk/paths.h"
 }
+
+fltk_settings_args_t fltk_settings_args = {CONFIG_USER_FILENAME, CONFIG_PROJECT_FILENAME, false};
 
 namespace zui::common {
 namespace fs = std::filesystem;
@@ -132,7 +135,7 @@ int save_settings(bool theme_only)
         set_preference("audio", "volume", config.audio.volume);
 #if CONFIG_ENABLE_DEBUGGER
         auto& d = config.debugger;
-        set_preference("debugger", "enabled", config.arguments.config_save && d.enabled == DEBUGGER_STATE_ARG
+        set_preference("debugger", "enabled", fltk_settings_args.save_arguments && d.enabled == DEBUGGER_STATE_ARG
                                                ? true : d.config_enabled);
         set_preference("debugger", "width", d.width);
         set_preference("debugger", "height", d.height);
@@ -140,7 +143,7 @@ int save_settings(bool theme_only)
         set_preference("debugger", "y", d.y);
         set_preference("debugger", "uppercase_hex", d.hex_upper);
 #endif
-        if (config.arguments.config_save) {
+        if (fltk_settings_args.save_arguments) {
             const auto& a = config.arguments;
             const char* paths[] = {a.rom_filename, a.eeprom_filename, a.tf_filename};
             const char* keys[] = {"rom", "eeprom", "tf"};
@@ -186,9 +189,9 @@ extern "C" int config_parse_file(const char* file)
 {
     try {
         load(user, file);
-        shared = path_same_file(file, config.arguments.project_path) ||
-                 fs::weakly_canonical(user.path) == fs::weakly_canonical(fs::absolute(config.arguments.project_path));
-        if (!shared) load(project, config.arguments.project_path);
+        shared = path_same_file(file, fltk_settings_args.project_path) ||
+                 fs::weakly_canonical(user.path) == fs::weakly_canonical(fs::absolute(fltk_settings_args.project_path));
+        if (!shared) load(project, fltk_settings_args.project_path);
         auto choice = user.data["appearance"]["theme"];
         std::string theme = choice ? choice.value_or(std::string{}) : "system";
         if (theme != "system" && theme != "light" && theme != "dark")

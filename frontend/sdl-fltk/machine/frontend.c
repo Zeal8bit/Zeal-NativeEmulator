@@ -13,6 +13,7 @@
 #include <SDL3/SDL.h>
 
 #include "frontend/sdl-fltk/frontend.h"
+#include "frontend/sdl-fltk/config.h"
 #include "frontend/sdl-fltk/debug.h"
 #include "frontend/common/app.h"
 #include "utils/config.h"
@@ -139,7 +140,9 @@ int frontend_run(zeal_t* machine)
 
     config_window_update(fltk_debug_active(machine));
     frontend_close(machine);
-    return machine->compactflash.failed ? 1 : 0;
+    if (machine->compactflash.failed) return 1;
+    config_save();
+    return 0;
 }
 
 void frontend_close(zeal_t* machine)

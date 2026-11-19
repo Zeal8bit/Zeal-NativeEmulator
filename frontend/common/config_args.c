@@ -4,15 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <getopt.h>
 #include <stdlib.h>
+#include "frontend/common/cli.h"
 #include <string.h>
 #include "utils/config.h"
 #include "utils/version.h"
 #include "utils/log.h"
 #include "utils/paths.h"
-#ifdef FRONTEND_SDL_FLTK
-#include "frontend/sdl-fltk/paths.h"
-#endif
 #include "hw/zvb/zvb.h"
 
 static const char* module = "[CONFIG]";
@@ -23,16 +22,9 @@ config_t config ={
     },
 
     .arguments = {
-#ifdef FRONTEND_SDL_FLTK
-        .config_path = CONFIG_USER_FILENAME,
-        .project_path = CONFIG_PROJECT_FILENAME,
-#endif
         .rom_filename = NULL,
         .hostfs_path = ".",
         .no_reset = false,
-        .headless = FRONTEND_HEADLESS,
-        .console = false,
-        .headless_run_ticks = 0,
         .verbose = 0,
 #if CONFIG_PROFILE_RENDER
         .profile = false,
@@ -66,20 +58,10 @@ void config_debug(void)
 
     log_printf("%s \n", module);
     log_printf("%s === command line ===\n", module);
-#ifdef FRONTEND_SDL_FLTK
-    log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
-    log_printf("%s  project_path: %s\n", module, config.arguments.project_path);
-#endif
     log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
     log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
     log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
     log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
-    log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
-    log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
-    log_printf("%s     console: %s\n", module, config.arguments.console ? "True" : "False");
-#ifdef FRONTEND_SDL_FLTK
-    log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
-#endif
     log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
     log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
     log_printf("%s        no_dma: %s\n", module, config.arguments.no_dma ? "True" : "False");
@@ -119,16 +101,12 @@ static int print_version(const char* progname)
     exit(0);
 }
 
-int usage(const char* progname)
+static int usage(const char* progname, const frontend_cli_option_t* options, size_t count)
 {
     log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
-#ifdef FRONTEND_SDL_FLTK
-    log_printf("  -c, --config <file>                User settings (default ~/.zeal8bit/" CONFIG_USER_FILENAME ")\n");
-    log_printf("  -P, --project <file>               Project settings (default ./" CONFIG_PROJECT_FILENAME ")\n");
-    log_printf("  -s, --save                         Save image paths and the debugger preference\n");
-#endif
+    for (size_t i = 0; i < count; i++) log_printf("%s\n", options[i].help);
     log_printf("  -r, --rom <file>                   Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
     log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
@@ -137,14 +115,6 @@ int usage(const char* progname)
     log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
     log_printf("  -g, --debug                        Enable debug mode\n");
     log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot (requires debug mode)\n");
-#if FRONTEND_HEADLESS
-    log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
-    log_printf("                                     Optional tstates number to execute can be given\n");
-    log_printf("  -o, --console                      Read control commands from stdin (implies headless)\n");
-#else
-    log_printf("  -n, --headless                     Moved to zeal-headless\n");
-    log_printf("  -o, --console                      Moved to zeal-headless\n");
-#endif
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
     log_printf("      --no-dma                       Disconnect ZVB DMA bus handshake wiring\n");
 #if ZVB_SCANLINE_RENDERING
@@ -201,7 +171,22 @@ void config_resolve_images(void)
         "ZEAL_NATIVE_TF", "roms/tf.img", tf_path);
 }
 
-int parse_command_args(int argc, char* argv[])
+static void read_optional_number(unsigned long* number, int argc, char* argv[])
+{
+    if (optarg) {
+        *number = strtoul(optarg, NULL, 0);
+    } else if (optind < argc) {
+        /* getopt_long only consumes attached optional arguments. */
+        char* end;
+        unsigned long value = strtoul(argv[optind], &end, 0);
+        if (end != argv[optind] && *end == '\0') {
+            *number = value;
+            optind++;
+        }
+    }
+}
+
+int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* options, size_t count)
 {
     enum {
         OPT_NO_DMA = 256,
@@ -215,12 +200,7 @@ int parse_command_args(int argc, char* argv[])
 
     int opt;
 
-    struct option long_options[] = {
-#ifdef FRONTEND_SDL_FLTK
-        {     "save",       no_argument, 0, 's'},
-        {   "config", required_argument, 0, 'c'},
-        {  "project", required_argument, 0, 'P'},
-#endif
+    static const struct option common_options[] = {
         {      "rom", required_argument, 0, 'r'},
         {   "eeprom", required_argument, 0, 'e'},
         {       "tf", required_argument, 0, 't'},
@@ -230,8 +210,6 @@ int parse_command_args(int argc, char* argv[])
         {      "map", required_argument, 0, 'm'},
         {    "debug", optional_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
-        { "headless", optional_argument, 0, 'n'},
-        {  "console",       no_argument, 0, 'o'},
         { "no-reset",       no_argument, 0, 'q'},
         {   "no-dma",       no_argument, 0, OPT_NO_DMA},
 #if ZVB_SCANLINE_RENDERING
@@ -246,29 +224,28 @@ int parse_command_args(int argc, char* argv[])
         {          0,                 0, 0,   0}
     };
 
-#ifdef FRONTEND_SDL_FLTK
-    const char* config_path = get_config_path();
-    if(config_path) config.arguments.config_path = config_path;
-#endif
-    static const char short_options[] =
-#ifdef FRONTEND_SDL_FLTK
-        "c:P:s"
-#endif
-        "r:e:u:t:C:H:m:b:n::oqgvhV";
+    static const char common_short[] = "r:e:u:t:C:H:m:b:qgvhV";
+    const size_t common_count = sizeof(common_options) / sizeof(common_options[0]) - 1;
+    struct option long_options[common_count + count + 1];
+    char short_options[sizeof(common_short) + count * 3];
+    memcpy(long_options, common_options, sizeof(common_options));
+    memcpy(short_options, common_short, sizeof(common_short));
+    size_t pos = sizeof(common_short) - 1;
+    for (size_t i = 0; i < count; i++) {
+        const frontend_cli_option_t* option = &options[i];
+        long_options[common_count + i] = (struct option){
+            option->name, option->argument ? required_argument :
+                          option->number ? optional_argument : no_argument, NULL, option->key
+        };
+        short_options[pos++] = option->key;
+        if (option->argument || option->number) short_options[pos++] = ':';
+        if (option->number) short_options[pos++] = ':';
+    }
+    short_options[pos] = '\0';
+    long_options[common_count + count] = (struct option){0};
 
     while ((opt = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
         switch (opt) {
-#ifdef FRONTEND_SDL_FLTK
-            case 'c':
-                config.arguments.config_path = optarg;
-                break;
-            case 'P':
-                config.arguments.project_path = optarg;
-                break;
-            case 's':
-                config.arguments.config_save = true;
-                break;
-#endif
             case 'r':
                 config.arguments.rom_filename = optarg;
                 break;
@@ -285,7 +262,7 @@ int parse_command_args(int argc, char* argv[])
                 config.arguments.cf_filename = optarg;
                 break;
             case 'h':
-                return usage(argv[0]);
+                return usage(argv[0], options, count);
             case 'V':
                 return print_version(argv[0]);
             case 'H':
@@ -306,27 +283,6 @@ int parse_command_args(int argc, char* argv[])
                 break;
             case 'b':
                 config.arguments.breakpoints = optarg;
-                break;
-            case 'n':
-                config.arguments.headless = true;
-                if (optarg != NULL) {
-                    config.arguments.headless_run_ticks = strtoul(optarg, NULL, 0);
-                } else if (optind < argc) {
-                    /* Optional argument requires the long form to be followed by `=`, so
-                     * --headless 500 is invalid as is, it needs `--headless=500`.
-                     * This branch will parse the next parameter to allow `--headless 500` */
-                    char* endptr = NULL;
-                    unsigned long ticks = strtoul(argv[optind], &endptr, 0);
-                    if (endptr != argv[optind] && endptr != NULL && *endptr == '\0') {
-                        config.arguments.headless_run_ticks = ticks;
-                        optind++;
-                    }
-                }
-                break;
-            case 'o':
-                config.arguments.console = true;
-                /* Console mode is headless by definition */
-                config.arguments.headless = true;
                 break;
             case 'v':
                 if (config.arguments.verbose < UINT8_MAX) {
@@ -351,7 +307,24 @@ int parse_command_args(int argc, char* argv[])
 #endif
             case '?':
                 return 1;
+            default:
+                for (size_t i = 0; i < count; i++) {
+                    if (options[i].key != opt) continue;
+                    if (options[i].argument) *options[i].argument = optarg;
+                    if (options[i].flag) *options[i].flag = true;
+                    if (options[i].number) read_optional_number(options[i].number, argc, argv);
+                    break;
+                }
         }
+    }
+
+    if (config.arguments.hostfs_path == NULL) {
+        log_printf("No HostFS path specified.\n");
+    }
+
+    // Process non-option arguments, if needed
+    for (int i = optind; i < argc; i++) {
+        log_printf("Non-option argument: %s\n", argv[i]);
     }
 
     return 0;

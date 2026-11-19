@@ -3,13 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include "frontend/sdl-fltk/config.h"
 #include "frontend/sdl-fltk/paths.h"
 #include "utils/paths.h"
 #include <libgen.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "utils/config.h"
 
 #ifdef _WIN32
 #include <windows.h>

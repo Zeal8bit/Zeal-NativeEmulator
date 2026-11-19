@@ -8,13 +8,8 @@
 #pragma once
 
 #include <stdio.h>
-#include <getopt.h>
 #include <stdbool.h>
 #include <stdint.h>
-#ifdef FRONTEND_SDL_FLTK
-#define CONFIG_USER_FILENAME "zeal-fltk.toml"
-#define CONFIG_PROJECT_FILENAME "zeal.toml"
-#endif
 
 typedef enum {
     THEME_SYSTEM,
@@ -58,8 +53,6 @@ typedef struct {
 } config_audio_t;
 
 typedef struct {
-    const char* config_path;   /* user settings path */
-    const char* project_path;  /* project settings path */
     const char* rom_filename;
     const char* eeprom_filename;
     const char* tf_filename;
@@ -68,10 +61,6 @@ typedef struct {
     const char* hostfs_path;
     const char* map_file;
     const char* breakpoints;
-    unsigned long headless_run_ticks;
-    bool headless;
-    bool console;
-    bool config_save;
     uint8_t verbose;
     bool no_reset;
     bool no_dma;
@@ -98,37 +87,8 @@ typedef struct {
 
 extern config_t config;
 
-/**
- * @brief Usage message for CLI
- */
-int usage(const char *progname);
 void config_debug(void);
-
-/**
- * @brief Parse command args
- */
-int parse_command_args(int argc, char* argv[]);
-
 void config_resolve_images(void);
-
-#ifdef FRONTEND_SDL_FLTK
-/**
- * @brief Load frontend configuration; return nonzero on failure
- */
-int config_parse_file(const char* file);
-
-/**
- * @brief Release loaded configuration
- */
-void config_unload(void);
-
-/**
- * @brief Save config file
- */
-int config_save(void);
-/** Atomically replace a configuration file after serialization succeeds. */
-bool config_write_file(const char* path, bool (*write_contents)(FILE*, const void*), const void* data);
-#endif
 
 /**
  * @brief Determine if debugger is enabled

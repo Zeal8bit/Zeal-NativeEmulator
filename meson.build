@@ -63,7 +63,7 @@ endif
 if build_headless
     subdir('frontend/headless')
     executable('zeal-headless', common_sources + desktop_sources + headless_sources,
-        dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
+        dependencies: zeal_dep, c_args: host_args, install: true)
 endif
 
 if build_wasm
@@ -71,7 +71,7 @@ if build_wasm
     if raylib_path == ''
         raylib_path = meson.get_external_property('raylib_path', '')
     endif
-    graphics_args = ['-DFRONTEND_HEADLESS=0']
+    graphics_args = []
     graphics_link = ['-lraylib']
     if raylib_path != ''
         graphics_args += '-I' + raylib_path / 'include'
@@ -107,12 +107,11 @@ if build_sdlfltk
     endif
     subdir('frontend/sdl-fltk')
     subdir('assets')
-    sdlfltk_args = ['-DFRONTEND_HEADLESS=0', '-DFRONTEND_SDL_FLTK=1',
-        '-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
+    sdlfltk_args = ['-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
     if get_option('show_fps')
         sdlfltk_args += '-DCONFIG_SHOW_FPS=1'
     endif
-    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
+    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + graphical_cli + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
@@ -132,7 +131,7 @@ endif
 if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
-    exec = executable('zeal.elf', common_sources + wasm_sources,
+    exec = executable('zeal.elf', common_sources + graphical_cli + wasm_sources,
         dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
         link_args: graphics_link + wasm_link_args, install: true)
     run_target('run', command: [exec])

@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "frontend/common/app.h"
-#include "frontend/headless/console.h"
 #include "utils/config.h"
 #include "utils/log.h"
 
@@ -43,17 +42,4 @@ int frontend_bind_output(zeal_t* machine)
 void frontend_close(zeal_t* machine)
 {
     (void) machine;
-}
-
-int frontend_run(zeal_t* machine)
-{
-    if (config.arguments.console) {
-        console_run(machine);
-    } else {
-        zeal_run(machine, config.arguments.headless_run_ticks);
-        if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
-            log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
-        }
-    }
-    return machine->compactflash.failed ? 1 : 0;
 }

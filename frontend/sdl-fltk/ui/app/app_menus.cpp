@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "frontend/sdl-fltk/config.h"
 #include "app/app_menus.h"
 #include <cstdint>
 #include <cstdio>

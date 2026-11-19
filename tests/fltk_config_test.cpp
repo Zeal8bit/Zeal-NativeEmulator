@@ -4,6 +4,7 @@
  */
 
 // Exercise the frontend's parser and writer without opening a display.
+#include "frontend/sdl-fltk/config.h"
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -29,8 +30,8 @@ static void round_trip(const fs::path& dir)
 {
     auto user = (dir / "user.toml").string();
     auto project = (dir / "project.toml").string();
-    config.arguments.config_path = user.c_str();
-    config.arguments.project_path = project.c_str();
+    fltk_settings_args.user_path = user.c_str();
+    fltk_settings_args.project_path = project.c_str();
     std::ofstream(user) << "[audio]\nvolume = 80\n[appearance]\ntheme = 'dark'\n";
     std::ofstream(project) << "# Keep this comment and hexadecimal spelling.\n"
         "[audio]\nvolume = 20\n[debugger]\nbreakpoints = [{address=0x461D, enabled=false}]\n"

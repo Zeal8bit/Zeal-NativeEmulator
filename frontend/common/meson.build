@@ -10,3 +10,4 @@ common_sources = files(
 if get_option('enable_debugger')
     common_sources += files('symbols.c')
 endif
+graphical_cli = files('graphical_cli.c')

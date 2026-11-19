@@ -4,29 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-
-
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
 #include "hostfs.h"
+#include "frontend/common/desktop.h"
 #include "frontend/common/app.h"
 #include "utils/log.h"
 #include "utils/config.h"
 
 static zeal_t machine;
 
-
-int main(int argc, char* argv[])
+int desktop_run(bool frames, bool debug)
 {
     int code = 0;
-    code = frontend_configure(argc, argv);
-    if (code != 0) return code;
-
-    if (frontend_init(&machine, true)) {
+    if (frontend_init(&machine, frames, debug)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }
@@ -49,11 +40,6 @@ int main(int argc, char* argv[])
     if (machine.compactflash.failed) goto deinit;
 
     flash_save_to_file(&machine.rom, config.arguments.rom_filename);
-
-#ifdef FRONTEND_SDL_FLTK
-    config_save();
-    config_unload();
-#endif
 
 deinit:
     frontend_deinit(&machine);

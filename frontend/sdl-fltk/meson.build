@@ -13,6 +13,7 @@ sdlfltk_sources = files(
     'machine/controller.c',
     'machine/frontend.c',
     'machine/keyboard.c',
+    'machine/main.c',
     'machine/mouse.c',
     'machine/paths.c',
     'machine/snes_adapter.c',

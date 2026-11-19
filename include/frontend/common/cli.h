@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#pragma once
+#include <stdbool.h>
+#include <stddef.h>
+
+/* A string takes a required argument, a number takes an optional argument,
+ * and a flag records that the option appeared. */
+typedef struct {
+    char key;
+    const char* name;
+    const char* help;
+    const char** argument;
+    bool* flag;
+    unsigned long* number;
+} frontend_cli_option_t;
+
+int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* options, size_t count);
+/* Graphical launchers also recognize the retired console switches so existing
+ * invocations can be redirected to the dedicated executable. */
+int frontend_configure_graphical(int argc, char* argv[], const frontend_cli_option_t* options, size_t count);

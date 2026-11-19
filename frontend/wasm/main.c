@@ -15,6 +15,7 @@
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
 #include "frontend/common/app.h"
+#include "frontend/common/cli.h"
 #include "frontend/wasm/frontend.h"
 #include "frontend/wasm/snes_adapter.h"
 #include "utils/log.h"
@@ -106,10 +107,10 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-    code = frontend_configure(argc, argv);
+    code = frontend_configure_graphical(argc, argv, NULL, 0);
     if (code != 0) return code;
 
-    if (frontend_init(&machine, false)) {
+    if (frontend_init(&machine, true, false)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }

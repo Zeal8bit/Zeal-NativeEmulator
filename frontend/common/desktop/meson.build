@@ -1,1 +1,1 @@
-desktop_sources = files('main.c', 'hostfs.c')
+desktop_sources = files('run.c', 'hostfs.c')
