@@ -21,8 +21,8 @@ using namespace zui::memtools;
 using namespace zui::common;
 
 static const WindowDef s_defs[] = {
-    { TOOL_CODE, FZ_WIN_NAME " - Code & Profiler", "FLTK_TOOL_CODE" },
-    { TOOL_HARDWARE, FZ_WIN_NAME " - Hardware", "FLTK_TOOL_HW" },
+    { TOOL_CODE, FZ_WIN_NAME " - Code & Profiler", "code_window" },
+    { TOOL_HARDWARE, FZ_WIN_NAME " - Hardware", "hardware_window" },
 };
 
 static std::map<std::string, ToolWindow*>& windows()
@@ -57,21 +57,10 @@ static void persist_once()
 {
     if (s_persist_registered) return;
     s_persist_registered = true;
-    persist_register([](rini_config* ini) {
+    persist_register([]() {
         for (const WindowDef& d : s_defs) {
             ToolWindow* w = get(d.id, false);
-            if (w) {
-                w->save(ini);
-            } else {
-                /* Never opened this session: keep what was loaded */
-                char key[64];
-                const char* fields[] = { "_X", "_Y", "_WIDTH", "_HEIGHT", "_SHOWN", "_VIEW" };
-                const int defaults[] = { -1, -1, 0, 0, 0, 0 };
-                for (int i = 0; i < 6; i++) {
-                    snprintf(key, sizeof(key), "%s%s", d.key, fields[i]);
-                    rini_set_config_value(ini, key, config_get(key, defaults[i]), "");
-                }
-            }
+            if (w) w->save();
         }
     });
 }
@@ -105,9 +94,7 @@ void tool_windows_resume()
     persist_once();
     for (const WindowDef& d : s_defs) {
         ToolWindow* w = get(d.id, false);
-        char key[64];
-        snprintf(key, sizeof(key), "%s_SHOWN", d.key);
-        const bool wanted = w ? w->wanted() : config_get(key, 0) != 0;
+        const bool wanted = w ? w->wanted() : preference(d.key, "shown", false);
         if (wanted) tool_window_show(d.id, true);
     }
 }

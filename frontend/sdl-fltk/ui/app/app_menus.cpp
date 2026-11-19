@@ -259,10 +259,9 @@ void AppMenus::build()
         mb->add("&Debug/&Add Map File...", 0, cb_map_add);
         mb->add("&Debug/&Reload Map Files", 0, cb_map_reload, nullptr, FL_MENU_DIVIDER);
         mb->add("&Debug/Pause After Rese&t", 0, cb_pause_on_reset, nullptr, FL_MENU_TOGGLE | FL_MENU_DIVIDER);
-        fz_pause_on_reset_set(config_get("FLTK_DBG_PAUSE_ON_RESET", 0) != 0);
-        persist_register([](rini_config* ini) {
-            rini_set_config_value(ini, "FLTK_DBG_PAUSE_ON_RESET", fz_pause_on_reset() ? 1 : 0,
-                                  "Debugger: halt after a machine reset");
+        fz_pause_on_reset_set(preference("debugger", "pause_on_reset", false));
+        persist_register([]() {
+            set_preference("debugger", "pause_on_reset", fz_pause_on_reset());
         });
         mb->add("&Debug/&Keyboard Passthrough", 0, cb_passthru, nullptr, FL_MENU_TOGGLE);
         mb->add("&Debug/&Uppercase Hex", 0, cb_hex_upper, nullptr, FL_MENU_TOGGLE);

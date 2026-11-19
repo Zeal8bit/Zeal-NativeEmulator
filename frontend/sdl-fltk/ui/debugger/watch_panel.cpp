@@ -34,7 +34,6 @@ using namespace zui::widgets;
 WatchPanel::WatchPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "WATCH")
 {
-    watches_load();
     m_list = new WatchList(X, Y, 10, 10);
     m_list->tooltip("Click: show in memory    Left edge: break on write / enable / disable\n"
                     "Right-click: break on read/write, change type, move, remove...");
@@ -145,7 +144,7 @@ void WatchPanel::cb_add(Fl_Widget*, void* data)
     w.expr = expr;
     hwaddr addr;
     if (!dbg_ready() || expr.empty() || expr.size() > MAX_EXPR ||
-        expr.find_first_of("|\"") != std::string::npos || (int) list.size() >= MAX_WATCHES ||
+        (int) list.size() >= MAX_WATCHES ||
         !eval_expr(expr, current_regs(), &addr)) {
         fl_beep();
         return;

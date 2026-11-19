@@ -13,6 +13,7 @@
 #include <libgen.h>  // For dirname on Linux/macOS
 #include <sys/stat.h>
 #include "utils/paths.h"
+#include "utils/config.h"
 #include "utils/log.h"
 
 static char path_buffer[PATH_MAX] = { 0 };
@@ -125,7 +126,7 @@ const char *get_config_path(void) {
         return NULL;
     }
 
-    snprintf(path, sizeof(path), "%s/zeal.ini", config_dir);
+    snprintf(path, sizeof(path), "%s/" CONFIG_USER_FILENAME, config_dir);
     return path;
 }
 

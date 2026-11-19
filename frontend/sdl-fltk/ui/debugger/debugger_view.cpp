@@ -146,7 +146,7 @@ DebuggerView::DebuggerView(DockLayout* dock, ScreenView* screen) : m_dock(dock)
 
 DebuggerView::~DebuggerView()
 {
-    project_state_capture();
+    project_state_close();
     fz_map_forget();
     video_window_destroy();
     tool_windows_destroy();
@@ -352,10 +352,6 @@ namespace zui::app {
 
 DebuggerUi* create_debugger_ui(widgets::DockLayout* dock, ScreenView* screen)
 {
-    /* Keep Nuklear's panel settings in the saved configuration */
-    for (int i = 0; i < FRONTEND_PANEL_COUNT; i++) {
-        config_panel_load(&config_panels[i]);
-    }
     return new debugger::DebuggerView(dock, screen);
 }
 

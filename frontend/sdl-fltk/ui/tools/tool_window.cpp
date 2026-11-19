@@ -16,6 +16,7 @@
 #include "app/main_window.h"
 #include "common/clock.h"
 #include "common/machine.h"
+#include "common/persist.h"
 #include "theme/theme.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_tab.h"
@@ -142,38 +143,24 @@ void ToolWindow::reset()
     m_wanted = false;
 }
 
-void ToolWindow::save(rini_config* ini)
+void ToolWindow::save()
 {
     capture();
-    char key[64];
-    rini_set_config_comment_line(ini, m_def.title);
-    snprintf(key, sizeof(key), "%s_X", m_def.key);
-    rini_set_config_value(ini, key, m_x, "X");
-    snprintf(key, sizeof(key), "%s_Y", m_def.key);
-    rini_set_config_value(ini, key, m_y, "Y");
-    snprintf(key, sizeof(key), "%s_WIDTH", m_def.key);
-    rini_set_config_value(ini, key, m_w, "Width");
-    snprintf(key, sizeof(key), "%s_HEIGHT", m_def.key);
-    rini_set_config_value(ini, key, m_h, "Height");
-    snprintf(key, sizeof(key), "%s_SHOWN", m_def.key);
-    rini_set_config_value(ini, key, m_wanted, "Open");
-    snprintf(key, sizeof(key), "%s_VIEW", m_def.key);
-    rini_set_config_value(ini, key, m_current, "Selected view");
+    set_preference(m_def.key, "x", m_x);
+    set_preference(m_def.key, "y", m_y);
+    set_preference(m_def.key, "width", m_w);
+    set_preference(m_def.key, "height", m_h);
+    set_preference(m_def.key, "shown", m_wanted);
+    set_preference(m_def.key, "view", m_current);
 }
 
 void ToolWindow::load()
 {
-    char key[64];
-    snprintf(key, sizeof(key), "%s_X", m_def.key);
-    m_x = config_get(key, -1);
-    snprintf(key, sizeof(key), "%s_Y", m_def.key);
-    m_y = config_get(key, -1);
-    snprintf(key, sizeof(key), "%s_WIDTH", m_def.key);
-    m_w = config_get(key, 0);
-    snprintf(key, sizeof(key), "%s_HEIGHT", m_def.key);
-    m_h = config_get(key, 0);
-    snprintf(key, sizeof(key), "%s_VIEW", m_def.key);
-    m_current = config_get(key, 0);
+    m_x = preference(m_def.key, "x", -1);
+    m_y = preference(m_def.key, "y", -1);
+    m_w = preference(m_def.key, "width", 0);
+    m_h = preference(m_def.key, "height", 0);
+    m_current = preference(m_def.key, "view", 0);
     if (m_w > 200 && m_h > 150) {
         resize(m_x >= 0 ? m_x : x(), m_y >= 0 ? m_y : y(), m_w, m_h);
     }

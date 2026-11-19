@@ -1,12 +1,19 @@
 common_sources = files(
     'app.c',
-    'config.c',
+    'config_args.c',
+    'config_file.c',
     'flash.c',
     'host.c',
     'media.c',
     'paths.c',
     'rtc.c',
 )
+if not build_sdlfltk
+    common_sources += files('config.c')
+    if get_option('enable_debugger')
+        common_sources += files('panels.c')
+    endif
+endif
 if get_option('enable_debugger')
-    common_sources += files('symbols.c', 'panels.c')
+    common_sources += files('symbols.c')
 endif

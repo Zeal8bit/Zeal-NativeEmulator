@@ -14,7 +14,6 @@
 #include <vector>
 #include "common/format.h"
 #include "common/machine.h"
-#include "common/persist.h"
 #include "debugger/address_lookup.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
@@ -66,40 +65,6 @@ void read_mem(hwaddr addr, int len, uint8_t* out)
     if (first < len) debugger_read_memory(fz_debugger(), 0, len - first, out + first);
 }
 
-int type_from_key(const char* key)
-{
-    for (int i = 0; i < W_COUNT; i++) {
-        if (strcmp(WATCH_TYPES[i].key, key) == 0) return i;
-    }
-    return W_U8;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Persistence                                                        */
-/* ------------------------------------------------------------------ */
-
-void watches_save(rini_config* ini)
-{
-    const std::vector<Watch>& list = watches();
-    if (list.empty()) return; /* no project file just for an empty list */
-    rini_set_config_comment_line(ini, "SDL/FLTK debugger watches (expr|type|length|break: r, w, rw, + off)");
-    rini_set_config_value(ini, "FLTK_WATCH_COUNT", (int) list.size(), "Watch entries");
-    char key[32], text[MAX_EXPR + 32];
-    for (size_t i = 0; i < list.size(); i++) {
-        snprintf(key, sizeof(key), "FLTK_WATCH_%d", (int) i);
-        const Watch& w = list[i];
-        const char* brk = (w.brk & WATCHPOINT_READ) && (w.brk & WATCHPOINT_WRITE) ? "rw"
-                        : (w.brk & WATCHPOINT_WRITE) ? "w" : (w.brk & WATCHPOINT_READ) ? "r" : "";
-        if (*brk) {
-            snprintf(text, sizeof(text), "%s|%s|%d|%s%s", w.expr.c_str(), WATCH_TYPES[w.type].key, w.len, brk,
-                     w.brk_on ? "" : " off");
-        } else {
-            snprintf(text, sizeof(text), "%s|%s|%d", w.expr.c_str(), WATCH_TYPES[w.type].key, w.len);
-        }
-        rini_set_config_value_text(ini, key, text, "Watch");
-    }
-}
-
 } // namespace
 
 const TypeInfo WATCH_TYPES[W_COUNT] = {
@@ -107,7 +72,7 @@ const TypeInfo WATCH_TYPES[W_COUNT] = {
     { "s8", "s8", "s8   signed byte" },
     { "u16", "u16", "u16  unsigned word (LE)" },
     { "s16", "s16", "s16  signed word (LE)" },
-    { "str", "str", "str  ASCII string" },
+    { "string", "str", "str  ASCII string" },
     { "ptr8", "*u8", "*u8  pointer to byte" },
     { "ptr16", "*u16", "*u16 pointer to word" },
     { "bits", "bits", "bits bitfield (8 bits)" },
@@ -307,46 +272,6 @@ bool watch_add_at(hwaddr addr, int type, int len)
     notif_show("Watching %s as %s", w.expr.c_str(), WATCH_TYPES[w.type].tag);
     request_refresh();
     return true;
-}
-
-void watches_load()
-{
-    static bool loaded = false;
-    if (loaded) return;
-    loaded = true;
-    std::vector<Watch>& list = watches();
-    int count = config_get("FLTK_WATCH_COUNT", 0);
-    if (count > MAX_WATCHES) count = MAX_WATCHES;
-    char key[32];
-    for (int i = 0; i < count; i++) {
-        snprintf(key, sizeof(key), "FLTK_WATCH_%d", i);
-        const char* value = config_get_text(key, nullptr);
-        if (value == nullptr || value[0] == '\0') continue;
-        const std::string s = value;
-        Watch w;
-        const size_t p1 = s.find('|');
-        w.expr = trim(s.substr(0, p1));
-        if (w.expr.empty() || w.expr.size() > MAX_EXPR) continue;
-        if (p1 != std::string::npos) {
-            const size_t p2 = s.find('|', p1 + 1);
-            w.type = type_from_key(trim(s.substr(p1 + 1, p2 == std::string::npos ? std::string::npos : p2 - p1 - 1)).c_str());
-            if (p2 != std::string::npos) {
-                const int len = atoi(s.c_str() + p2 + 1);
-                if (len >= 1 && len <= MAX_STR) w.len = len;
-                const size_t p3 = s.find('|', p2 + 1);
-                if (p3 != std::string::npos) {
-                    const std::string brk = trim(s.substr(p3 + 1));
-                    const std::string kind = brk.substr(0, brk.find(' '));
-                    if (kind.find('r') != std::string::npos) w.brk |= WATCHPOINT_READ;
-                    if (kind.find('w') != std::string::npos) w.brk |= WATCHPOINT_WRITE;
-                    w.brk_on = brk.find("off") == std::string::npos;
-                }
-            }
-        }
-        list.push_back(w);
-    }
-    config_own_project_keys("FLTK_WATCH_");
-    persist_register_project(watches_save);
 }
 
 } // namespace zui::debugger

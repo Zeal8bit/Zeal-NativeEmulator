@@ -18,8 +18,6 @@ namespace zui::console {
 
 class ConsoleView : public widgets::Panel {
 public:
-    static constexpr const char* KEY_FOLLOW = "FLTK_CONSOLE_FOLLOW";
-    static constexpr const char* KEY_TIME = "FLTK_CONSOLE_TIME";
 
     ConsoleView(int X, int Y, int W, int H);
     ~ConsoleView() override;

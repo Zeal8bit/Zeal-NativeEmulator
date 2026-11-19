@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
-#include "utils/config.h"
+#include "utils/config_ini.h"
 #define FRONTEND_PANEL_COUNT 8
 
 typedef struct {

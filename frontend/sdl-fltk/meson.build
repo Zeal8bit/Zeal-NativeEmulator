@@ -49,6 +49,7 @@ sdlfltk_cpp_sources = files(
     'ui/common/cp437.cpp',
     'ui/common/format.cpp',
     'ui/common/persist.cpp',
+    'ui/common/toml_config.cpp',
     'ui/theme/fonts.cpp',
     'ui/theme/style.cpp',
     'ui/theme/theme.cpp',

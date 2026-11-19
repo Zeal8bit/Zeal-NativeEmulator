@@ -123,18 +123,25 @@ if build_sdlfltk
     if not build_nuklear
         subdir('assets')
     endif
-    sdlfltk_args = ['-DFRONTEND_HEADLESS=0',
+    sdlfltk_args = ['-DFRONTEND_HEADLESS=0', '-DFRONTEND_SDL_FLTK=1',
         '-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
     if get_option('show_fps')
         sdlfltk_args += '-DCONFIG_SHOW_FPS=1'
     endif
     sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
+    sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
-        include_directories: sdlfltk_ui_inc,
-        link_with: sdlfltk_c, dependencies: [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep],
+        include_directories: [sdlfltk_ui_inc, include_directories('frontend/sdl-fltk/vendor', is_system: true)],
+        link_with: sdlfltk_c, dependencies: sdlfltk_deps,
         objcpp_args: ['-std=c++17'],
         cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
+    if get_option('enable_debugger')
+        test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
+            objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
+            include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
+            cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
+    endif
     run_target('run-fltk', command: [exec])
 endif
 if build_wasm

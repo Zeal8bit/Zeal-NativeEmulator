@@ -5,13 +5,12 @@
  */
 
 /* Sizes of the debugger layout and the Video window, saved in the
- * configuration under FLTK_* keys. */
+ * user TOML configuration. */
 #pragma once
 
 namespace zui::debugger {
 
-/** Debugger layout saved under FLTK_* keys (Nuklear's panel keys are left
- *  untouched; their meaning differs). 0 = default. */
+/** Debugger layout. Zero sizes use the default layout. */
 struct LayoutConfig {
     int left_w = 0;
     int screen_h = 0;

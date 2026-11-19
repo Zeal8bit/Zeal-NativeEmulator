@@ -98,10 +98,9 @@ MainWindow::MainWindow(bool debug)
     show_fps = CONFIG_SHOW_FPS;
 #endif
     /* Debugger screen scale, in percent (0 = fit the panel) */
-    m_debug_zoom = config_get("FLTK_DBG_SCREEN_ZOOM", 0) / 100.0f;
-    persist_register([this](rini_config* ini) {
-        rini_set_config_value(ini, "FLTK_DBG_SCREEN_ZOOM", (int) std::lround(m_debug_zoom * 100.0f),
-                              "Debugger screen scale in percent (0 = fit the panel)");
+    m_debug_zoom = preference("debugger", "screen_zoom", 0) / 100.0f;
+    persist_register([this]() {
+        set_preference("debugger", "screen_zoom", (int) std::lround(m_debug_zoom * 100.0f));
     });
     s_window = this;
     color(COLOR_BG);

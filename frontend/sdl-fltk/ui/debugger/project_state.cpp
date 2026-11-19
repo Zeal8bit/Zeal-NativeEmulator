@@ -1,20 +1,15 @@
 /*
  * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "debugger/project_state.h"
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <string>
-#include <vector>
+#include <algorithm>
+#include <set>
 #include <FL/Fl.H>
-#include <FL/filename.H>
-#include <FL/fl_utf8.h>
 #include "common/machine.h"
 #include "common/persist.h"
+#include "common/toml_config.h"
 #include "debugger/machine_state.h"
 #include "debugger/navigation.h"
 #include "debugger/watch_breaks.h"
@@ -22,192 +17,194 @@
 #include "frontend/sdl-fltk/bridge/symbols.h"
 
 namespace zui::debugger {
-
 using namespace zui::common;
+namespace fs = std::filesystem;
 
 namespace {
 
-/* Saved as BREAKPOINT_<n> = "C000" or "C000 off" and MAP_FILE_<n> = path
- * (relative to the project directory when inside it). Memory breaks are
- * part of the watches (FLTK_WATCH_<n>, watch_model). */
-constexpr int MAX_ITEMS = 128;
+bool restored;
+bool breakpoint_overflow;
+std::vector<breakpoint_t> stops;
+std::vector<fs::path> maps;
+toml::array last_maps, last_stops, last_watches;
 
-bool s_restored;
-/* Taken when the debugger UI closes: the machine is unbound before the
- * configuration is saved */
-bool s_captured;
-std::vector<std::string> s_breakpoints, s_maps;
-std::string key_of(const char* list, int index)
+const toml::array& list(const char* key)
 {
-    char key[40];
-    snprintf(key, sizeof(key), "%s_%d", list, index);
-    return key;
+    static const toml::array empty;
+    auto node = project_config()["debugger"][key];
+    if (!node) return empty;
+    if (auto* array = node.as_array()) return *array;
+    throw std::runtime_error(std::string("debugger.") + key + " must be an array");
 }
 
-std::vector<std::string> saved_list(const char* list)
+void check_fields(const toml::node& row, const char* list_name, std::initializer_list<std::string_view> allowed)
 {
-    std::vector<std::string> out;
-    const int count = config_get((std::string(list) + "_COUNT").c_str(), 0);
-    for (int i = 0; i < count && i < MAX_ITEMS; i++) {
-        const char* value = config_get_text(key_of(list, i).c_str(), nullptr);
-        if (value && *value) out.push_back(value);
-    }
-    return out;
-}
-
-void write_list(rini_config* ini, const char* list, const std::vector<std::string>& items, const char* what)
-{
-    /* Nothing written for an empty list: no project file is created in a
-     * directory that has nothing to save */
-    if (items.empty()) return;
-    rini_set_config_value(ini, (std::string(list) + "_COUNT").c_str(), (int) items.size(), what);
-    for (size_t i = 0; i < items.size(); i++) {
-        rini_set_config_value_text(ini, key_of(list, (int) i).c_str(), items[i].c_str(), "");
+    auto* table = row.as_table();
+    if (!table) throw std::runtime_error(std::string("expected a table in debugger.") + list_name);
+    for (const auto& [key, value] : *table) {
+        if (std::find(allowed.begin(), allowed.end(), key.str()) == allowed.end())
+            throw std::runtime_error(std::string("unknown field in debugger.") + list_name + ": " + std::string(key.str()));
     }
 }
 
-/** Path to save: relative to the current (project) directory when inside it. */
-std::string project_relative(const char* path)
+template<typename T>
+T field(const toml::node& row, const char* key, T fallback)
 {
-    char cwd[FL_PATH_MAX];
-    if (fl_getcwd(cwd, sizeof(cwd)) == nullptr) return path;
-    std::string dir(cwd);
-    if (!dir.empty() && dir.back() != '/') dir += '/';
-    if (strncmp(path, dir.c_str(), dir.size()) == 0) return path + dir.size();
-    return path;
+    auto node = toml::node_view{row}[key];
+    if (!node) return fallback;
+    if (auto value = node.value_exact<T>()) return *value;
+    throw std::runtime_error(std::string("invalid debugger list field: ") + key);
 }
 
-std::vector<std::string> current_breakpoints()
+toml::array encode_watches()
 {
-    std::vector<std::string> out;
-    dbg_t* dbg = fz_debugger();
-    hwaddr bps[DBG_MAX_POINTS];
-    const int count = debugger_get_breakpoints(dbg, bps, DBG_MAX_POINTS);
-    for (int i = 0; i < count; i++) {
-        char text[24];
-        snprintf(text, sizeof(text), "%04X%s", (unsigned) bps[i],
-                 debugger_is_breakpoint_enabled(dbg, bps[i]) ? "" : " off");
-        out.push_back(text);
-    }
-    return out;
-}
-
-std::vector<std::string> current_maps()
-{
-    std::vector<std::string> out;
-    for (int i = 0; i < fz_map_count(); i++) out.push_back(project_relative(fz_map_path(i)));
-    return out;
-}
-
-/* Older writers padded short paths with leading spaces. Prefer the
- * literal filename, falling back only if the trimmed file exists. */
-bool load_saved_map(const std::string& saved)
-{
-    const char* path = saved.c_str();
-    const size_t skip = saved.find_first_not_of(' ');
-    if (saved.size() == 6 && skip != std::string::npos && skip > 0 &&
-        fl_access(path, 0) != 0 && fl_access(path + skip, 0) == 0) path += skip;
-    return fz_map_restore(path);
-}
-
-void save(rini_config* ini)
-{
-    if (s_captured) {
-        write_list(ini, "BREAKPOINT", s_breakpoints, "Breakpoints (hex address, \"off\" = disabled)");
-        write_list(ini, "MAP_FILE", s_maps, "Map files");
-        return;
-    }
-    if (!s_restored || !dbg_ready()) {
-        /* The machine never came up: keep what was loaded */
-        write_list(ini, "BREAKPOINT", saved_list("BREAKPOINT"), "Breakpoints");
-        write_list(ini, "MAP_FILE", saved_list("MAP_FILE"), "Map files");
-        return;
-    }
-    write_list(ini, "BREAKPOINT", current_breakpoints(), "Breakpoints (hex address, \"off\" = disabled)");
-    write_list(ini, "MAP_FILE", current_maps(), "Map files");
-}
-
-void restore()
-{
-    dbg_t* dbg = fz_debugger();
-    /* Maps first: watch breaks and other saved state may name their
-     * symbols. Keep any -m map, add the project's others. */
-    int missing = 0;
-    std::string first_missing;
-    for (const std::string& path : saved_list("MAP_FILE")) {
-        if (!load_saved_map(path)) {
-            if (missing++ == 0) first_missing = path;
+    toml::array out;
+    for (const Watch& w : watches()) {
+        toml::table row{{"expression", w.expr}, {"type", WATCH_TYPES[w.type].key}};
+        if (w.type == W_STR) row.insert("length", w.len);
+        if (w.brk) {
+            row.insert("break_on", w.brk == WATCHPOINT_READ ? "read" : w.brk == WATCHPOINT_WRITE ? "write" : "read_write");
+            if (!w.brk_on) row.insert("break_enabled", false);
         }
+        row.is_inline(true);
+        out.push_back(std::move(row));
     }
-    if (missing == 1) notif_show("Map file not loaded: %s (use Reload)", first_missing.c_str());
-    else if (missing) notif_show("%d map files not loaded (use Reload)", missing);
-    for (const std::string& item : saved_list("BREAKPOINT")) {
-        const hwaddr addr = (hwaddr) strtoul(item.c_str(), nullptr, 16) & 0xFFFF;
-        debugger_set_breakpoint(dbg, addr);
-        if (item.find(" off") != std::string::npos) debugger_enable_breakpoint(dbg, addr, false);
-    }
-    /* Older builds saved watchpoints separately: they become watch rows
-     * with a break (watch_breaks.h) */
-    for (const std::string& item : saved_list("WATCHPOINT")) {
-        char type[4] = "";
-        unsigned start = 0, end = 0;
-        const int n = sscanf(item.c_str(), "%3s %x-%x", type, &start, &end);
-        if (n < 2 || (int) watches().size() >= MAX_WATCHES) continue;
-        Watch w;
-        char expr[8];
-        snprintf(expr, sizeof(expr), "$%04X", start & 0xFFFF);
-        w.expr = expr;
-        const int bytes = n == 3 && end > start ? (int) (end - start) + 1 : 1;
-        w.type = bytes == 1 ? W_U8 : bytes == 2 ? W_U16 : W_STR;
-        if (w.type == W_STR) w.len = bytes > MAX_STR ? MAX_STR : bytes;
-        if (strchr(type, 'r')) w.brk |= WATCHPOINT_READ;
-        if (strchr(type, 'w')) w.brk |= WATCHPOINT_WRITE;
-        w.brk_on = item.find(" off") == std::string::npos;
-        if (w.brk) watches().push_back(w);
-    }
-    watch_breaks_sync();
-    s_restored = true;
-    request_refresh();
+    return out;
 }
 
-/* Fallback for a debugger UI created after the machine started: restore as
- * soon as a machine is bound */
+void append_stop(toml::array& out, hwaddr addr, bool enabled)
+{
+    toml::table row;
+    row.insert("address", static_cast<int64_t>(addr), toml::value_flags::format_as_hexadecimal);
+    if (!enabled) row.insert("enabled", false);
+    row.is_inline(true);
+    out.push_back(std::move(row));
+}
+
+void append_map(toml::array& out, const fs::path& path)
+{
+    auto relative = fs::absolute(path).lexically_normal().lexically_relative(project_directory());
+    out.push_back((relative.empty() ? path : relative).generic_string());
+}
+
+// Compare the decoded state. An untouched project keeps its spelling and comments.
+void update_list(const char* key, toml::array values, toml::array& previous)
+{
+    if (values == previous) return;
+    set_project_list(key, values);
+    previous = std::move(values);
+}
+
+void capture()
+{
+    if (!restored || !dbg_ready()) return;
+    if (!breakpoint_overflow) {
+        toml::array values;
+        hwaddr addresses[DBG_MAX_POINTS];
+        dbg_t* dbg = fz_debugger();
+        const int count = debugger_get_breakpoints(dbg, addresses, DBG_MAX_POINTS);
+        for (int i = 0; i < count; i++)
+            append_stop(values, addresses[i], debugger_is_breakpoint_enabled(dbg, addresses[i]));
+        update_list("breakpoints", std::move(values), last_stops);
+    }
+    toml::array files;
+    for (int i = 0; i < fz_map_count(); ++i) append_map(files, fz_map_path(i));
+    update_list("maps", std::move(files), last_maps);
+    update_list("watches", encode_watches(), last_watches);
+}
+
 void try_restore(void*)
 {
-    if (s_restored) return;
-    if (!dbg_ready()) {
-        Fl::repeat_timeout(0.05, try_restore);
-        return;
-    }
-    restore();
+    if (!dbg_ready()) Fl::repeat_timeout(0.05, try_restore);
+    else project_state_restore();
 }
-
 } // namespace
+
+void project_state_load()
+{
+    restored = breakpoint_overflow = false;
+    stops.clear();
+    maps.clear();
+    watches().clear();
+    last_maps.clear();
+    last_stops.clear();
+    for (const auto& entry : list("maps")) {
+        auto path = entry.value<std::string>();
+        if (!path || path->empty() || path->find('\0') != std::string::npos)
+            throw std::runtime_error("debugger.maps requires nonempty path strings");
+        maps.push_back((project_directory() / *path).lexically_normal());
+        append_map(last_maps, maps.back());
+    }
+    std::set<hwaddr> addresses;
+    if (list("breakpoints").size() > DBG_MAX_POINTS)
+        throw std::runtime_error("debugger.breakpoints exceeds the machine limit of " + std::to_string(DBG_MAX_POINTS));
+    for (const auto& entry : list("breakpoints")) {
+        check_fields(entry, "breakpoints", {"address", "enabled"});
+        auto addr = field<int64_t>(entry, "address", -1);
+        if (addr < 0 || addr > 0xffff || !addresses.insert((hwaddr) addr).second)
+            throw std::runtime_error("invalid or duplicate debugger breakpoint address");
+        breakpoint_t bp{};
+        bp.addr = (hwaddr) addr;
+        bp.disabled = !field(entry, "enabled", true);
+        stops.push_back(bp);
+        append_stop(last_stops, bp.addr, !bp.disabled);
+    }
+    if (list("watches").size() > MAX_WATCHES)
+        throw std::runtime_error("debugger.watches exceeds the watch limit of " + std::to_string(MAX_WATCHES));
+    for (const auto& entry : list("watches")) {
+        check_fields(entry, "watches", {"expression", "type", "length", "break_on", "break_enabled"});
+        Watch w;
+        w.expr = field(entry, "expression", std::string{});
+        if (w.expr.empty() || w.expr.size() > MAX_EXPR || w.expr.find('\0') != std::string::npos)
+            throw std::runtime_error("invalid watch expression");
+        auto type = field(entry, "type", std::string("u8"));
+        for (w.type = 0; w.type < W_COUNT && type != WATCH_TYPES[w.type].key; ++w.type) {}
+        if (w.type == W_COUNT) throw std::runtime_error("unknown watch type: " + type);
+        auto length = field<int64_t>(entry, "length", DEFAULT_STR);
+        if (length < 1 || length > MAX_STR) throw std::runtime_error("watch length out of range");
+        w.len = static_cast<int>(length);
+        auto access = field(entry, "break_on", std::string{});
+        if (access == "read") w.brk = WATCHPOINT_READ;
+        else if (access == "write") w.brk = WATCHPOINT_WRITE;
+        else if (access == "read_write") w.brk = WATCHPOINT_READ | WATCHPOINT_WRITE;
+        else if (!access.empty()) throw std::runtime_error("unknown watch break_on: " + access);
+        w.brk_on = field(entry, "break_enabled", true);
+        watches().push_back(w);
+    }
+    last_watches = encode_watches();
+}
 
 void project_state_restore()
 {
-    if (s_restored || !dbg_ready()) return;
+    if (restored || !dbg_ready()) return;
     Fl::remove_timeout(try_restore);
-    restore();
-}
-
-void project_state_capture()
-{
-    if (!s_restored || !dbg_ready()) return;
-    s_breakpoints = current_breakpoints();
-    s_maps = current_maps();
-    s_captured = true;
+    int missing = 0;
+    for (const auto& path : maps) {
+        if (!fz_map_restore(path.string().c_str())) ++missing;
+    }
+    if (missing) notif_show("%d map file(s) not loaded (use Reload)", missing);
+    auto* dbg = fz_debugger();
+    for (const auto& bp : stops) {
+        debugger_set_breakpoint(dbg, bp.addr);
+        if (!debugger_has_breakpoint(dbg, bp.addr)) breakpoint_overflow = true;
+        else debugger_enable_breakpoint(dbg, bp.addr, !bp.disabled);
+    }
+    if (breakpoint_overflow) notif_show("Breakpoint table full; saved breakpoint list preserved");
+    watch_breaks_sync();
+    restored = true;
+    request_refresh();
 }
 
 void project_state_init()
 {
-    /* Written in full by save(): stale entries must go */
-    config_own_project_keys("BREAKPOINT_");
-    config_own_project_keys("MAP_FILE_");
-    /* Migrated into watches by restore() */
-    config_own_project_keys("WATCHPOINT_");
-    persist_register_project(save);
+    persist_register(capture);
     Fl::add_timeout(0.0, try_restore);
+}
+
+void project_state_close()
+{
+    Fl::remove_timeout(try_restore);
+    restored = false;
 }
 
 } // namespace zui::debugger

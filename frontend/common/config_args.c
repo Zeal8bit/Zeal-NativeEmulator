@@ -1,0 +1,339 @@
+/*
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <stdlib.h>
+#include <string.h>
+#include "utils/config.h"
+#include "utils/version.h"
+#include "utils/log.h"
+#include "utils/paths.h"
+#include "hw/zvb/zvb.h"
+
+static const char* module = "[CONFIG]";
+
+config_t config ={
+    .audio = {
+        .volume = 100,
+    },
+
+    .arguments = {
+        .config_path = CONFIG_USER_FILENAME,
+        .project_path = CONFIG_PROJECT_FILENAME,
+        .rom_filename = NULL,
+        .hostfs_path = ".",
+        .config_save = false,
+        .no_reset = false,
+        .headless = FRONTEND_HEADLESS,
+        .console = false,
+        .headless_run_ticks = 0,
+        .verbose = 0,
+#if CONFIG_PROFILE_RENDER
+        .profile = false,
+#endif
+    },
+
+    .debugger = {
+        .enabled = false,
+        .keyboard_passthru = false,
+        .hex_upper = true,
+        .width = -1,
+        .height = -1,
+        .x = -1,
+        .y = -1,
+    },
+
+    .window = {
+        .width = -1,
+        .height = -1,
+        .x = -1,
+        .y = -1,
+        .display = -1,
+    },
+};
+
+void config_debug(void)
+{
+    if(config.arguments.verbose < 2) return;
+
+    log_printf("%s == CONFIG ==\n", module);
+
+    log_printf("%s \n", module);
+    log_printf("%s === command line ===\n", module);
+    log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
+    log_printf("%s  project_path: %s\n", module, config.arguments.project_path);
+    log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
+    log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
+    log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
+    log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
+    log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
+    log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
+    log_printf("%s     console: %s\n", module, config.arguments.console ? "True" : "False");
+    log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
+    log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
+    log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
+    log_printf("%s        no_dma: %s\n", module, config.arguments.no_dma ? "True" : "False");
+#if CONFIG_PROFILE_RENDER
+    log_printf("%s       profile: %s\n", module, config.arguments.profile ? "True" : "False");
+#endif
+
+    log_printf("%s \n", module);
+    log_printf("%s === audio ===\n", module);
+    log_printf("%s  volume: %d\n", module, config.audio.volume);
+
+    log_printf("%s \n", module);
+    log_printf("%s === debugger ===\n", module);
+    log_printf("%s enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
+
+    log_printf("%s \n", module);
+    log_printf("%s === window ===\n", module);
+    log_printf("%s   width: %d\n", module, config.window.width);
+    log_printf("%s  height: %d\n", module, config.window.height);
+    log_printf("%s       x: %d\n", module, config.window.x);
+    log_printf("%s       y: %d\n", module, config.window.y);
+    log_printf("%s display: %d\n", module, config.window.display);
+
+    log_printf("%s \n", module);
+    log_printf("%s === debugger ===\n", module);
+    log_printf("%s   width: %d\n", module, config.debugger.width);
+    log_printf("%s  height: %d\n", module, config.debugger.height);
+    log_printf("%s       x: %d\n", module, config.debugger.x);
+    log_printf("%s       y: %d\n", module, config.debugger.y);
+    log_printf("%s \n\n", module);
+}
+
+static int print_version(const char* progname)
+{
+    (void) progname;
+    log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
+    exit(0);
+}
+
+int usage(const char* progname)
+{
+    log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
+    log_printf("Usage: %s [OPTIONS]\n", progname);
+    log_printf("\nOptions:\n");
+    log_printf("  -c, --config <file>                User settings (default ~/.zeal8bit/" CONFIG_USER_FILENAME ")\n");
+    log_printf("  -P, --project <file>               Project settings (default ./" CONFIG_PROJECT_FILENAME ")\n");
+    log_printf("  -s, --save                         Save * arguments to the project settings\n");
+    log_printf("  -r, --rom <file>                   * Load ROM file\n");
+    log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
+    log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
+    log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
+    log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
+    log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
+    log_printf("  -g, --debug                        * Enable debug mode\n");
+    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
+#if FRONTEND_HEADLESS
+    log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
+    log_printf("                                     Optional tstates number to execute can be given\n");
+    log_printf("  -o, --console                      Read control commands from stdin (implies headless)\n");
+#else
+    log_printf("  -n, --headless                     Moved to zeal-headless\n");
+    log_printf("  -o, --console                      Moved to zeal-headless\n");
+#endif
+    log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
+    log_printf("      --no-dma                       Disconnect ZVB DMA bus handshake wiring\n");
+#if ZVB_SCANLINE_RENDERING
+    log_printf("      --no-scanline-rendering         Render whole frames instead of scanlines\n");
+#endif
+#if CONFIG_PROFILE_RENDER
+    log_printf("      --profile                      Log aggregated render profiling data\n");
+#endif
+    log_printf("  -v, --verbose                      Verbose console output; repeat for more detail (-vvv)\n");
+    log_printf("  -h, --help                         Show this help message\n");
+    log_printf("  -V, --version                      Show version information\n");
+    log_printf("\n");
+    log_printf("Example:\n");
+    log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
+
+    exit(0);
+}
+
+static const char* resolve_image_path(const char* configured, const char* env_name,
+                                      const char* relative_path, char path[PATH_MAX])
+{
+    if (configured != NULL) {
+        return configured;
+    }
+    const char* env_path = getenv(env_name);
+    if (env_path != NULL && env_path[0] != '\0' && path_exists(env_path)) {
+        return env_path;
+    }
+    if (path_exists(relative_path)) {
+        return relative_path;
+    }
+    const char* config_dir = get_config_dir();
+    if (config_dir == NULL) {
+        return NULL;
+    }
+
+    const int length = snprintf(path, PATH_MAX, "%s/%s", config_dir, relative_path);
+    if (length < 0 || length >= PATH_MAX || !path_exists(path)) {
+        return NULL;
+    }
+    return path;
+}
+
+void config_resolve_images(void)
+{
+    static char rom_path[PATH_MAX];
+    static char eeprom_path[PATH_MAX];
+    static char tf_path[PATH_MAX];
+    config.images.rom = resolve_image_path(config.arguments.rom_filename,
+        "ZEAL_NATIVE_ROM", "roms/default.img", rom_path);
+    config.images.eeprom = resolve_image_path(config.arguments.eeprom_filename,
+        "ZEAL_NATIVE_EEPROM", "roms/eeprom.img", eeprom_path);
+    config.images.tf = resolve_image_path(config.arguments.tf_filename,
+        "ZEAL_NATIVE_TF", "roms/tf.img", tf_path);
+}
+
+int parse_command_args(int argc, char* argv[])
+{
+    enum {
+        OPT_NO_DMA = 256,
+#if ZVB_SCANLINE_RENDERING
+        OPT_NO_SCANLINE_RENDERING,
+#endif
+#if CONFIG_PROFILE_RENDER
+        OPT_PROFILE,
+#endif
+    };
+
+    int opt;
+
+    struct option long_options[] = {
+        {   "config", required_argument, 0, 'c'},
+        {  "project", required_argument, 0, 'P'},
+        {      "rom", required_argument, 0, 'r'},
+        {   "eeprom", required_argument, 0, 'e'},
+        {       "tf", required_argument, 0, 't'},
+        {    "uprog", required_argument, 0, 'u'},
+        {       "cf", required_argument, 0, 'C'},
+        {   "hostfs", required_argument, 0, 'H'},
+        {      "map", required_argument, 0, 'm'},
+        {    "debug", optional_argument, 0, 'g'},
+        {      "brk", required_argument, 0, 'b'},
+        { "headless", optional_argument, 0, 'n'},
+        {  "console",       no_argument, 0, 'o'},
+        { "no-reset",       no_argument, 0, 'q'},
+        {   "no-dma",       no_argument, 0, OPT_NO_DMA},
+#if ZVB_SCANLINE_RENDERING
+        { "no-scanline-rendering", no_argument, 0, OPT_NO_SCANLINE_RENDERING},
+#endif
+#if CONFIG_PROFILE_RENDER
+        {  "profile",       no_argument, 0, OPT_PROFILE},
+#endif
+        {     "save",       no_argument, 0, 's'},
+        {  "verbose",       no_argument, 0, 'v'},
+        {    "help",        no_argument, 0, 'h'},
+        { "version",        no_argument, 0, 'V'},
+        {          0,                 0, 0,   0}
+    };
+
+    const char* config_path = get_config_path();
+    if(config_path) config.arguments.config_path = config_path;
+
+    while ((opt = getopt_long(argc, argv, "c:P:r:e:u:t:C:H:m:b:n::oqsgvhV", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'c':
+                config.arguments.config_path = optarg;
+                break;
+            case 'P':
+                config.arguments.project_path = optarg;
+                break;
+            case 's':
+                config.arguments.config_save = true;
+                break;
+            case 'r':
+                config.arguments.rom_filename = optarg;
+                break;
+            case 'e':
+                config.arguments.eeprom_filename = optarg;
+                break;
+            case 't':
+                config.arguments.tf_filename = optarg;
+                break;
+            case 'u':
+                config.arguments.uprog_filename = optarg;
+                break;
+            case 'C':
+                config.arguments.cf_filename = optarg;
+                break;
+            case 'h':
+                return usage(argv[0]);
+            case 'V':
+                return print_version(argv[0]);
+            case 'H':
+                config.arguments.hostfs_path = optarg;
+                break;
+            case 'm':
+                config.arguments.map_file = optarg;
+                break;
+            case 'g':
+                // did user disable the debug mode (override config?)
+                if(optarg == NULL) {
+                    config.debugger.enabled = DEBUGGER_STATE_ARG;
+                } else if(optarg[0] == '0' && optarg[1] == '\0') {
+                    config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
+                } else {
+                    config.debugger.enabled = DEBUGGER_STATE_ARG;
+                }
+                break;
+            case 'b':
+                config.arguments.breakpoints = optarg;
+                break;
+            case 'n':
+                config.arguments.headless = true;
+                if (optarg != NULL) {
+                    config.arguments.headless_run_ticks = strtoul(optarg, NULL, 0);
+                } else if (optind < argc) {
+                    /* Optional argument requires the long form to be followed by `=`, so
+                     * --headless 500 is invalid as is, it needs `--headless=500`.
+                     * This branch will parse the next parameter to allow `--headless 500` */
+                    char* endptr = NULL;
+                    unsigned long ticks = strtoul(argv[optind], &endptr, 0);
+                    if (endptr != argv[optind] && endptr != NULL && *endptr == '\0') {
+                        config.arguments.headless_run_ticks = ticks;
+                        optind++;
+                    }
+                }
+                break;
+            case 'o':
+                config.arguments.console = true;
+                /* Console mode is headless by definition */
+                config.arguments.headless = true;
+                break;
+            case 'v':
+                if (config.arguments.verbose < UINT8_MAX) {
+                    config.arguments.verbose++;
+                }
+                break;
+            case 'q':
+                config.arguments.no_reset = true;
+                break;
+            case OPT_NO_DMA:
+                config.arguments.no_dma = true;
+                break;
+#if ZVB_SCANLINE_RENDERING
+            case OPT_NO_SCANLINE_RENDERING:
+                config.arguments.no_scanline_rendering = true;
+                break;
+#endif
+#if CONFIG_PROFILE_RENDER
+            case OPT_PROFILE:
+                config.arguments.profile = true;
+                break;
+#endif
+            case '?':
+                // Handle unknown options
+                log_err_printf("[CONFIG] Unknown option -%c\n", optopt);
+                return 1;
+        }
+    }
+
+    return 0;
+}

@@ -5,7 +5,7 @@
  */
 
 /* Watch expressions of the Watch panel: their types, evaluation against
- * the machine state, formatting and persistence (FLTK_WATCH_* keys). */
+ * the machine state, formatting. */
 #pragma once
 
 #include <cstddef>
@@ -24,9 +24,6 @@ struct TypeInfo {
     const char* label; /* context menu */
 };
 
-/* Each watch is saved as one FLTK_WATCH_<n> config value; rini holds
- * RINI_MAX_VALUE_CAPACITY (512, frontend/common/config.c) values in all and
- * the rest of the configuration uses about 100. */
 constexpr int MAX_WATCHES = 64;
 constexpr int MAX_EXPR = 48;
 constexpr int MAX_STR = 64;
@@ -80,8 +77,6 @@ void take_snapshot(Watch& w);
 
 /** HEX and DEC cell texts. Strings use `hex` only (quoted text). */
 void format(const Watch& w, char* hex, size_t hs, char* dec, size_t ds);
-
-void watches_load();
 
 /** Add a watch of `type` at `addr` (memory view), named after the symbol at
  *  that address when there is one. `len` is the string length. */

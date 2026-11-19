@@ -12,7 +12,6 @@
 extern "C" {
 #include "frontend/sdl-fltk/bridge/machine.h"
 #include "debugger/debugger.h"
-#include "frontend/common/panels.h"
 #include "utils/config.h"
 #include "utils/notif.h"
 }

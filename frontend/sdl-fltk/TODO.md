@@ -65,8 +65,7 @@ reference.
   (`host_read_byte`).
 - **Watch:** write values from the panel; long expressions are clipped in the
   narrow column.
-  - **Done:** the list is capped at 64 entries instead of 16. Each watch is one
-    `FLTK_WATCH_<n>` config value and rini now holds 512 (about 100 used).
+  - **Done:** the list is capped at 64 entries instead of 16. Watches are stored in the project TOML array.
 - **Hot Functions:** expose the sampling interval in the UI; optionally cap the
   "nearest preceding symbol" distance so sparse maps don't blame far-away code;
   samples are per 16-bit logical address (MMU-swapped code at the same address
@@ -83,18 +82,13 @@ reference.
 
 ## Settings
 
-- **Done: user vs project settings.** `~/.zeal8bit/zeal.ini` (or `-c`) holds
+- **Done: user vs project settings.** `~/.zeal8bit/zeal-fltk.toml` (or `-c`) holds
   what every program shares (windows, layout, tool windows, audio, display
-  preferences); `./zeal.ini` where the emulator is launched (or `-P`) holds
+  preferences); `./zeal.toml` where the emulator is launched (or `-P`) holds
   the program's own: images saved with `-s`, breakpoints, watchpoints,
   watches, map files (paths relative to the project when inside it). Values
   are looked up in the project first. A project file is only created when
   there is something to save.
-  Left to do:
-  - Nuklear does not save breakpoints yet (its breakpoint UI could use the
-    same BREAKPOINT_<n> keys).
-  - Watches saved in the user file by older builds move to the first project
-    the emulator is run from.
 
 ## UI polish
 
@@ -106,7 +100,7 @@ reference.
   (`widgets::TabbedPanel`); a break hit opens the Watch tab. The CPU panel is
   compact (registers, flags) and its MORE chip adds interrupts, (HL)/(SP)
   and timing. Memory collapses to its title too, giving the screen the
-  column. All of it is saved (FLTK_DBG_* user settings) and View > Reset
+  column. All of it is saved (user TOML settings) and View > Reset
   Debugger Layout restores the defaults.
   Left to do: collapsing the disassembly or the screen; per-panel show/hide
   from the View menu.

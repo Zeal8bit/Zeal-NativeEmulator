@@ -57,9 +57,9 @@ You will then have graphical `zeal-native` and console/batch `zeal-headless` bin
 `zeal-fltk` is an alternative desktop frontend that does not use Raylib: FLTK
 provides the windows, native menus, keyboard/mouse input and the docked
 debugger, and SDL3 (initialized without video) provides audio and gamepads.
-It accepts the same command-line options and configuration file as `zeal-native`.
+It accepts the same command-line options as `zeal-native` and stores settings in TOML.
 **View → Theme** defaults to **System** and follows appearance changes while the
-emulator is open. Choosing **Light** or **Dark** saves `FLTK_THEME` in the user
+emulator is open. Choosing **Light** or **Dark** saves `appearance.theme` in the user
 configuration. Choosing **System** removes that override. On Linux it reads the desktop portal’s color-scheme setting
 over D-Bus and uses the dark theme if the setting is unavailable.
 
@@ -109,8 +109,50 @@ memory editor (with the MMU page map) on the left, disassembly in the centre,
 and CPU registers, stack and breakpoints on the right. Right-click the
 disassembly for run-to-cursor and set-PC; registers, flags and memory are
 editable while paused. The VRAM viewers and the semihost profiler open in a
-separate Video & Profiler window (Cmd/Ctrl+Shift+V). Split sizes are saved under
-`FLTK_*` keys in the configuration file, so they do not disturb Nuklear's layout.
+separate Video & Profiler window (Cmd/Ctrl+Shift+V). Split sizes and tool window preferences are saved in the user TOML file.
+
+#### SDL/FLTK configuration
+
+User preferences are stored in `~/.zeal8bit/zeal-fltk.toml` (`-c FILE`).
+Project state is stored in `./zeal.toml` (`-P FILE`). An empty project does
+not create a file. The two flags may also name the same TOML file. FLTK starts
+with a fresh layout and does not import either legacy INI file.
+
+Example user file:
+
+```toml
+[audio]
+volume = 80
+
+[appearance]
+theme = "dark"  # Omit to follow the system.
+```
+
+Example project file:
+
+```toml
+[images]
+rom = "build/firmware.img"
+
+[debugger]
+maps = ["build/firmware.map", "lib/zos.map"]
+breakpoints = [
+    { address = 0x461D },
+    { address = 0x4800, enabled = false },
+]
+watches = [
+    { expression = "player_x", type = "u16" },
+    { expression = "$C000", type = "u8", break_on = "write", break_enabled = false },
+    { expression = "message", type = "string", length = 32 },
+]
+```
+
+Image and map paths in TOML resolve relative to the file containing them.
+Watch types are `u8`, `s8`, `u16`, `s16`, `string`, `ptr8`, `ptr16`, and `bits`.
+Access breaks support `read`, `write`, and `read_write`. Omit `break_on` for
+a display-only watch. The debugger supports 128 breakpoint slots and 64 watches.
+Unchanged project state preserves comments and formatting. Saving changes
+rewrites that document with toml++ and drops its comments.
 
 ### WebAssembly compilation
 
@@ -193,15 +235,14 @@ Or simply delete the build directory.
 
 You can add `zeal-native` to your `$PATH` and run it from anywhere.
 
-Settings live in two files, read together at startup (project values win):
+The Nuklear and headless frontends use two INI files, read together at startup (project values win):
 
 - **User settings**, `~/.zeal8bit/zeal.ini` (or `-c FILE`): what every program
   shares, such as window size and position, debugger layout, tool windows,
   audio volume and display preferences.
 - **Project settings**, `zeal.ini` in the directory the emulator is launched
   from (or `-P FILE`): what belongs to the program being developed, such as
-  image paths saved with `--save`, and in the SDL/FLTK debugger the
-  breakpoints, watchpoints, watches and loaded map files.
+  image paths saved with `--save`.
 
 Both are written on exit. A project file is only created when there is
 something project-specific to save. Keys a frontend does not manage are kept,
@@ -220,7 +261,7 @@ download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Z
 ROM, EEPROM, and TF/SD card images use the following priority, independently:
 
 1. Command-line flag: `-r`/`--rom`, `-e`/`--eeprom`, or `-t`/`--tf`.
-2. `zeal.ini` value: `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME` (project file first, then user file).
+2. Configured image path: SDL/FLTK uses `[images]` keys `rom`, `eeprom` and `tf`; INI frontends use `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME` (project file first, then user file).
 3. Existing file named by `ZEAL_NATIVE_ROM`, `ZEAL_NATIVE_EEPROM`, or `ZEAL_NATIVE_TF`.
 4. Existing `roms/default.img`, `roms/eeprom.img`, or `roms/tf.img` relative to the current working directory.
 5. Existing `~/.zeal8bit/roms/default.img`, `~/.zeal8bit/roms/eeprom.img`, or `~/.zeal8bit/roms/tf.img`.

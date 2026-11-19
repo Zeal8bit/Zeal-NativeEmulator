@@ -8,6 +8,7 @@ roms/*
 external/
 tests/*
 !tests/trace_test.c
+!tests/fltk_config_test.cpp
 raylib/web/*
 !raylib/web/README.md
 !raylib/web/LICENSE.txt

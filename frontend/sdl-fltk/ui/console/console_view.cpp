@@ -69,19 +69,19 @@ ConsoleView::ConsoleView(int X, int Y, int W, int H)
     m_bar->callback(cb_bar, this);
     m_text = new ConsoleText(X, Y, 10, 10, m_bar);
     m_text->tooltip("Click: select a line    Right-click: copy, clear, save");
-    m_text->follow = config_get(KEY_FOLLOW, 1) != 0;
-    m_text->time = config_get(KEY_TIME, 0) != 0;
+    m_text->follow = preference("console", "follow", true);
+    m_text->time = preference("console", "timestamps", false);
     m_text->on_follow = [this](bool f) { m_follow->value(f ? 1 : 0); };
     m_text->on_menu = [this] { context_menu(); };
-    m_follow->value(m_text->follow ? 1 : 0);
-    m_time->value(m_text->time ? 1 : 0);
+    m_follow->value(m_text->follow);
+    m_time->value(m_text->time);
     resizable(m_text);
     end();
     resize(X, Y, W, H);
 
-    persist_register([this](rini_config* ini) {
-        rini_set_config_value(ini, KEY_FOLLOW, m_text->follow ? 1 : 0, "Console view: follow output");
-        rini_set_config_value(ini, KEY_TIME, m_text->time ? 1 : 0, "Console view: timestamps");
+    persist_register([this]() {
+        set_preference("console", "follow", m_text->follow);
+        set_preference("console", "timestamps", m_text->time);
     });
     Fl::add_timeout(0.1, cb_tick, this);
 }

@@ -35,7 +35,7 @@ public:
     bool wanted() const { return m_wanted; }
     void capture();
     void reset();
-    void save(rini_config* ini);
+    void save();
 
 private:
     void load();

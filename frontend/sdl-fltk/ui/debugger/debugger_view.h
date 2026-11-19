@@ -18,7 +18,7 @@
  *   +----------------+---------------------+-----------------------+
  *
  * Graphics viewers and the profiler live in a separate tool window
- * (video/). Split sizes are saved under FLTK_* config keys. */
+ * (video/). Split sizes are saved in the user TOML file. */
 #pragma once
 
 #include <cstdint>
