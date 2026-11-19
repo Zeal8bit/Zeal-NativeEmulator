@@ -62,7 +62,7 @@ endif
 
 if build_headless
     subdir('frontend/headless')
-    executable('zeal-headless', common_sources + ini_sources + desktop_sources + headless_sources,
+    executable('zeal-headless', common_sources + desktop_sources + headless_sources,
         dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
 endif
 
@@ -132,7 +132,7 @@ endif
 if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
-    exec = executable('zeal.elf', common_sources + ini_sources + wasm_sources,
+    exec = executable('zeal.elf', common_sources + wasm_sources,
         dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
         link_args: graphics_link + wasm_link_args, install: true)
     run_target('run', command: [exec])

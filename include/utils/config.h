@@ -14,9 +14,6 @@
 #ifdef FRONTEND_SDL_FLTK
 #define CONFIG_USER_FILENAME "zeal-fltk.toml"
 #define CONFIG_PROJECT_FILENAME "zeal.toml"
-#else
-#define CONFIG_USER_FILENAME "zeal.ini"
-#define CONFIG_PROJECT_FILENAME "zeal.ini"
 #endif
 
 typedef enum {
@@ -112,13 +109,13 @@ void config_debug(void);
  */
 int parse_command_args(int argc, char* argv[]);
 
+void config_resolve_images(void);
+
+#ifdef FRONTEND_SDL_FLTK
 /**
  * @brief Load frontend configuration; return nonzero on failure
  */
 int config_parse_file(const char* file);
-
-/** Resolve image paths after parsing both command-line arguments and the settings file. */
-void config_resolve_images(void);
 
 /**
  * @brief Release loaded configuration
@@ -131,6 +128,7 @@ void config_unload(void);
 int config_save(void);
 /** Atomically replace a configuration file after serialization succeeds. */
 bool config_write_file(const char* path, bool (*write_contents)(FILE*, const void*), const void* data);
+#endif
 
 /**
  * @brief Determine if debugger is enabled

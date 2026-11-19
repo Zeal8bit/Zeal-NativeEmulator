@@ -76,7 +76,9 @@ int frontend_configure(int argc, char* argv[])
         return 1;
     }
 #endif
+#ifdef FRONTEND_SDL_FLTK
     if (config_parse_file(config.arguments.config_path) != 0) return 1;
+#endif
     config_resolve_images();
     config_debug();
 

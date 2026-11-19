@@ -50,9 +50,10 @@ int main(int argc, char* argv[])
 
     flash_save_to_file(&machine.rom, config.arguments.rom_filename);
 
-    int saved = config_save();
+#ifdef FRONTEND_SDL_FLTK
+    config_save();
     config_unload();
-    (void) saved;
+#endif
 
 deinit:
     frontend_deinit(&machine);

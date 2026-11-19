@@ -10,6 +10,9 @@
 #include "utils/version.h"
 #include "utils/log.h"
 #include "utils/paths.h"
+#ifdef FRONTEND_SDL_FLTK
+#include "frontend/sdl-fltk/paths.h"
+#endif
 #include "hw/zvb/zvb.h"
 
 static const char* module = "[CONFIG]";
@@ -20,11 +23,12 @@ config_t config ={
     },
 
     .arguments = {
+#ifdef FRONTEND_SDL_FLTK
         .config_path = CONFIG_USER_FILENAME,
         .project_path = CONFIG_PROJECT_FILENAME,
+#endif
         .rom_filename = NULL,
         .hostfs_path = ".",
-        .config_save = false,
         .no_reset = false,
         .headless = FRONTEND_HEADLESS,
         .console = false,
@@ -62,8 +66,10 @@ void config_debug(void)
 
     log_printf("%s \n", module);
     log_printf("%s === command line ===\n", module);
+#ifdef FRONTEND_SDL_FLTK
     log_printf("%s   config_path: %s\n", module, config.arguments.config_path);
     log_printf("%s  project_path: %s\n", module, config.arguments.project_path);
+#endif
     log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
     log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
     log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
@@ -71,7 +77,9 @@ void config_debug(void)
     log_printf("%s     headless: %s\n", module, config.arguments.headless ? "True" : "False");
     log_printf("%s headless_run_ticks: %lu\n", module, config.arguments.headless_run_ticks);
     log_printf("%s     console: %s\n", module, config.arguments.console ? "True" : "False");
+#ifdef FRONTEND_SDL_FLTK
     log_printf("%s   config_save: %s\n", module, config.arguments.config_save ? "True" : "False");
+#endif
     log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
     log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
     log_printf("%s        no_dma: %s\n", module, config.arguments.no_dma ? "True" : "False");
@@ -116,17 +124,19 @@ int usage(const char* progname)
     log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
+#ifdef FRONTEND_SDL_FLTK
     log_printf("  -c, --config <file>                User settings (default ~/.zeal8bit/" CONFIG_USER_FILENAME ")\n");
     log_printf("  -P, --project <file>               Project settings (default ./" CONFIG_PROJECT_FILENAME ")\n");
-    log_printf("  -s, --save                         Save * arguments to the project settings\n");
-    log_printf("  -r, --rom <file>                   * Load ROM file\n");
+    log_printf("  -s, --save                         Save image paths and the debugger preference\n");
+#endif
+    log_printf("  -r, --rom <file>                   Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
     log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
     log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
     log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
     log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
-    log_printf("  -g, --debug                        * Enable debug mode\n");
-    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)\n");
+    log_printf("  -g, --debug                        Enable debug mode\n");
+    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot (requires debug mode)\n");
 #if FRONTEND_HEADLESS
     log_printf("  -n, --headless [<tstates>]         Run without GUI (no window/input/rendering)\n");
     log_printf("                                     Optional tstates number to execute can be given\n");
@@ -206,8 +216,11 @@ int parse_command_args(int argc, char* argv[])
     int opt;
 
     struct option long_options[] = {
+#ifdef FRONTEND_SDL_FLTK
+        {     "save",       no_argument, 0, 's'},
         {   "config", required_argument, 0, 'c'},
         {  "project", required_argument, 0, 'P'},
+#endif
         {      "rom", required_argument, 0, 'r'},
         {   "eeprom", required_argument, 0, 'e'},
         {       "tf", required_argument, 0, 't'},
@@ -227,18 +240,25 @@ int parse_command_args(int argc, char* argv[])
 #if CONFIG_PROFILE_RENDER
         {  "profile",       no_argument, 0, OPT_PROFILE},
 #endif
-        {     "save",       no_argument, 0, 's'},
         {  "verbose",       no_argument, 0, 'v'},
         {    "help",        no_argument, 0, 'h'},
         { "version",        no_argument, 0, 'V'},
         {          0,                 0, 0,   0}
     };
 
+#ifdef FRONTEND_SDL_FLTK
     const char* config_path = get_config_path();
     if(config_path) config.arguments.config_path = config_path;
+#endif
+    static const char short_options[] =
+#ifdef FRONTEND_SDL_FLTK
+        "c:P:s"
+#endif
+        "r:e:u:t:C:H:m:b:n::oqgvhV";
 
-    while ((opt = getopt_long(argc, argv, "c:P:r:e:u:t:C:H:m:b:n::oqsgvhV", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
         switch (opt) {
+#ifdef FRONTEND_SDL_FLTK
             case 'c':
                 config.arguments.config_path = optarg;
                 break;
@@ -248,6 +268,7 @@ int parse_command_args(int argc, char* argv[])
             case 's':
                 config.arguments.config_save = true;
                 break;
+#endif
             case 'r':
                 config.arguments.rom_filename = optarg;
                 break;
@@ -329,8 +350,6 @@ int parse_command_args(int argc, char* argv[])
                 break;
 #endif
             case '?':
-                // Handle unknown options
-                log_err_printf("[CONFIG] Unknown option -%c\n", optopt);
                 return 1;
         }
     }

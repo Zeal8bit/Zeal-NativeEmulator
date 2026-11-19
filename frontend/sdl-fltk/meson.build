@@ -9,6 +9,7 @@ sdlfltk_sources = files(
     'bridge/input.c',
     'bridge/machine.c',
     'machine/audio.c',
+    'machine/config_file.c',
     'machine/controller.c',
     'machine/frontend.c',
     'machine/keyboard.c',

@@ -137,10 +137,6 @@ int main(int argc, char* argv[])
     frontend_eeprom_close(&frontend_media);
     frontend_tf_close(&frontend_media);
 
-    int saved = config_save();
-    config_unload();
-    (void) saved;
-
 deinit:
     frontend_deinit(&machine);
     return code;

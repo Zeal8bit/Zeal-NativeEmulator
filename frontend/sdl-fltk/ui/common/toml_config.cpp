@@ -15,6 +15,7 @@
 
 extern "C" {
 #include "utils/paths.h"
+#include "frontend/sdl-fltk/paths.h"
 }
 
 namespace zui::common {

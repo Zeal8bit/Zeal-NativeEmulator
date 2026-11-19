@@ -230,9 +230,7 @@ Or simply delete the build directory.
 You can add `zeal-fltk` to your `$PATH` and run it from anywhere.
 
 For desktop settings, see [SDL/FLTK configuration](#sdlfltk-configuration).
-The headless frontend uses `~/.zeal8bit/zeal.ini` for user settings and
-`./zeal.ini` for project settings, including image paths saved with `--save`.
-Project values take precedence. Use `-c FILE` and `-P FILE` to override the paths.
+Headless takes its options on the command line. WASM takes launch arguments from the embedding page. Only SDL/FLTK reads and writes settings files.
 
 ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
@@ -243,14 +241,14 @@ download the latest build from the [Zeal 8-bit OS Releases](https://github.com/Z
 ROM, EEPROM, and TF/SD card images use the following priority, independently:
 
 1. Command-line flag: `-r`/`--rom`, `-e`/`--eeprom`, or `-t`/`--tf`.
-2. Configured image path: SDL/FLTK uses `[images]` keys `rom`, `eeprom` and `tf`; INI frontends use `ROM_FILENAME`, `EEPROM_FILENAME`, or `TF_FILENAME` (project file first, then user file).
+2. SDL/FLTK only: the TOML `[images]` keys `rom`, `eeprom` and `tf`, checked first in project settings and then in user settings.
 3. Existing file named by `ZEAL_NATIVE_ROM`, `ZEAL_NATIVE_EEPROM`, or `ZEAL_NATIVE_TF`.
 4. Existing `roms/default.img`, `roms/eeprom.img`, or `roms/tf.img` relative to the current working directory.
 5. Existing `~/.zeal8bit/roms/default.img`, `~/.zeal8bit/roms/eeprom.img`, or `~/.zeal8bit/roms/tf.img`.
 
-Explicit flag and INI paths are used as given, even if missing. Missing environment
+Explicit paths take precedence even if the file is missing. Relative TOML paths resolve from the settings file’s directory. Missing environment
 and default paths are skipped. EEPROM and TF images are optional; a ROM is required.
-`--save` records configured image paths, not automatic fallbacks. Automatically
+In SDL/FLTK, `--save` records configured image paths, not automatic fallbacks. Automatically
 selected ROM images are not written back; EEPROM and TF images retain their normal writeback behavior.
 
 ```sh
@@ -261,15 +259,15 @@ Usage: build/zeal-fltk [OPTIONS]
 Options:
   -c, --config <file>                User settings (default ~/.zeal8bit/zeal-fltk.toml)
   -P, --project <file>               Project settings (default ./zeal.toml)
-  -s, --save                         Save * arguments to the project settings
-  -r, --rom <file>                   * Load ROM file
+  -s, --save                         Save image paths and the debugger preference
+  -r, --rom <file>                   Load ROM file
   -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address
   -e, --eeprom <file>                Load EEPROM file
   -t, --tf <file>                    Load TF/SDcard file
   -H, --hostfs <path>                Set host filesystem path
   -m, --map <file>                   Load memory map file (for debugging)
-  -g, --debug                        * Enable debug mode
-  -b, --brk <addr/sym>[,<addr/sym>]  * Set breakpoints on boot (requires debug mode)
+  -g, --debug                        Enable debug mode
+  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot (requires debug mode)
   -n, --headless [<tstates>]         Moved to zeal-headless
   -o, --console                      Moved to zeal-headless
   -q, --no-reset                     Exit emulator when a reset is detected
@@ -361,7 +359,7 @@ The emulator also implements a debugger, with the following features:
 * Step/stop/restart/continue
 * Disassembler: when the emulator reaches a breakpoint, the code at program counter is disassembled. Clicking on one of the instructions will toggle a breakpoint.
 * Load a map file generated from `z88dk-z88dk` to view symbols in the assembly view when doing step-by-step debugging
-* Set breakpoints with either a hexadecimal PC address or a symbol (from the map file)
+Set breakpoints with either a hexadecimal PC address or a symbol (from the map file)
 * View RAM memory content at any virtual address, updated in real-time
 * View VRAM memory content, including the current palette, tileset, tilemaps and font
 
@@ -460,18 +458,15 @@ Optional parts are whole files chosen by Meson rather than `#if` blocks: without
 the debugger, `debug_disabled.c` and `ui/app/debugger_ui_disabled.cpp` replace
 `debug/` and the debugger UI directories.
 
-`frontend/common/` contains shared command-line/INI handling, image files,
+`frontend/common/` contains shared command-line handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
 native entry point and filesystem-backed HostFS adapter used by SDL/FLTK
 and headless. SDL/FLTK locates its own bundled fonts and gamepad mappings. The emulator library has no platform-specific branches.
 
 Native builds produce both `zeal-fltk` and `zeal-headless` by default. Existing
-headless scripts should replace the executable name with `zeal-headless`; the
-headless flags and console commands are unchanged. The graphical executable
-prints migration guidance when passed `--headless` or `--console`. Headless
-runs retain the existing INI format and default image search paths, and no
-longer load or report graphical gamepad-mapping assets (loaded, empty, or
-missing `gamecontrollerdb.txt` messages).
+headless scripts should use `zeal-headless` and supply image paths as arguments
+or through the image search paths above. The graphical executable prints
+migration guidance when passed `--headless` or `--console`.
 
 Select targets explicitly with Meson:
 

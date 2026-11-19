@@ -5,6 +5,7 @@
  */
 
 #include "utils/paths.h"
+#include "frontend/sdl-fltk/paths.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
