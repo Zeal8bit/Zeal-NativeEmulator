@@ -41,7 +41,7 @@ jobs:
       - name: Test executables
         shell: pwsh
         run: |
-          ./build/zeal-native.exe --help
+          ./build/zeal-fltk.exe --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./build/zeal-headless.exe --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -59,23 +59,9 @@ jobs:
         include:
           - name: core only
             args: -Dfrontend=none
-            native: false
             headless: false
           - name: headless only
             args: -Dfrontend=headless
-            native: false
-            headless: true
-          - name: Nuklear only
-            args: -Dfrontend=nuklear
-            native: true
-            headless: false
-          - name: debugger and scanline disabled
-            args: -Dfrontend=both -Denable_debugger=false -Dscanline_rendering=false
-            native: true
-            headless: true
-          - name: profiling enabled
-            args: -Dfrontend=both -Dprofile_render=true -Dshow_fps=true
-            native: true
             headless: true
     steps:
       - name: Checkout code
@@ -84,19 +70,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+          sudo apt-get install -y meson ninja-build gcc pkg-config
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
-          raylib-path: ${{ github.workspace }}/raylib/linux64
           meson-args: ${{ matrix.args }}
-
-      - name: Test graphical executable
-        if: matrix.native
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/raylib/linux64/lib
-        run: ./build/zeal-native --help
 
       - name: Test headless executable
         if: matrix.headless
@@ -115,6 +94,9 @@ jobs:
           - name: macOS, no debugger
             runner: macos-latest
             args: -Denable_debugger=false -Dscanline_rendering=false
+          - name: macOS, profiling
+            runner: macos-latest
+            args: -Dprofile_render=true -Dshow_fps=true
           - name: Ubuntu 22.04
             runner: ubuntu-22.04
             args: ''
@@ -132,43 +114,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install meson ninja pkg-config fltk sdl3
 
-      - name: Install dependencies (Linux)
+      - name: Install desktop dependencies (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc g++ pkg-config cmake \
-            libxft-dev libgl-dev libx11-dev libfontconfig-dev \
-            libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
-
-      - name: Checkout FLTK 1.4.5 (Linux)
-        if: runner.os == 'Linux'
-        uses: actions/checkout@v6
-        with:
-          repository: fltk/fltk
-          ref: a9b1113516ffd15fc7602a6d425a317df30f4720
-          path: fltk-src
-          persist-credentials: false
-
-      - name: Build FLTK (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cmake -S fltk-src -B "$RUNNER_TEMP/fltk-build" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_TEST=OFF -DFLTK_BACKEND_WAYLAND=OFF
-          cmake --build "$RUNNER_TEMP/fltk-build"
-          sudo cmake --install "$RUNNER_TEMP/fltk-build"
-
-      # Ubuntu 22.04/24.04 have no SDL3 package: build the pinned release.
-      - name: Cache SDL3 (Linux)
-        if: runner.os == 'Linux'
-        id: sdl3-cache
-        uses: actions/cache@v4
-        with:
-          path: sdl3/linux
-          key: sdl3-${{ matrix.runner }}-${{ hashFiles('tools/build_sdl3.py') }}
-
-      - name: Build SDL3 (Linux)
-        if: runner.os == 'Linux' && steps.sdl3-cache.outputs.cache-hit != 'true'
-        run: python3 tools/build_sdl3.py --prefix sdl3/linux
+        uses: ./.github/actions/linux-desktop-deps
 
       - name: Build with Meson (macOS)
         if: runner.os == 'macOS'

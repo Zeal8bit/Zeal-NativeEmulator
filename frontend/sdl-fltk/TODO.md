@@ -38,7 +38,7 @@ reference.
   - The call stack only exists while the trace records, and code that
     rewrites return addresses can confuse it.
   - The MMU page of each entry is recorded but not shown.
-  - Nuklear and headless record too (no UI there).
+  - Headless builds also record the trace.
 - **Debugger step cost.** With the debugger on, emulation runs about 4.6x
   slower than without (59 vs 274 MT/s); most of it is likely the scan of all
   128 breakpoint slots on every step. A bitmap like the watchpoints' would
@@ -53,7 +53,7 @@ reference.
 
 - **PS/2 scancode table (`hw/keyboard.c`).** No scancodes for keypad Enter
   (`E0 5A`), Right Ctrl, Menu and keypad `=`; Left Ctrl is mapped to `E0 14`
-  (Right Ctrl's code, Left Ctrl is `14`). Affects zeal-native too.
+  (Right Ctrl's code, Left Ctrl is `14`).
 - **CLI breakpoints parse a leading `0` as octal** (`-b 0236` stops at `$009E`).
   `debugger_set_breakpoints_str` uses `strtoul(..., 0)`; addresses are
   conventionally hex.

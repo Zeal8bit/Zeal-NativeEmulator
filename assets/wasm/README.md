@@ -221,17 +221,16 @@ missing executable/file, and copy operations. It writes a screenshot to
 `<build>/wasm-tests/hostfs-zshell.png`. Without `ZEAL_OS_IMAGE`, that check is
 explicitly skipped; the browser HostFS protocol/error tests still run.
 
-See `raylib/web/README.md` for the reproducible dependency build. Native
-Raylib bundles are independent of the web dependency.
+See `raylib/web/README.md` for the reproducible dependency build.
 
 
 ### Frontend boundary
 
 Emscripten builds select `frontend/wasm/` (`-Dfrontend=wasm`, or `auto`). It owns
 the Raylib normal-view renderer, browser input/audio, loop, Emscripten exports,
-OPFS startup, and HostFS bridge. It does not compile or link Nuklear, debugger
+OPFS startup, and HostFS bridge. It does not compile or link FLTK, debugger
 panels, or debugger textures. `-Denable_debugger=true` enables only the emulator
-core API. The desktop debugger remains in `frontend/nuklear/`.
+core API. The desktop debugger remains in `frontend/sdl-fltk/`.
 
 The native web template no longer offers a debugger button. For compatibility
 with existing embedding code, `toggleDebugger()` remains callable and returns

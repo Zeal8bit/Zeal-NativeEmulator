@@ -8,7 +8,7 @@
 
 This project is a software emulator for Zeal 8-bit Computer: a homebrew 8-bit computer based on a Z80 CPU.
 
-The emulator is written in C, and runs natively on desktop platforms. It uses a CPU software renderer, and is designed to precisely replicate the behavior of the original hardware.
+The emulator core is written in C, and runs natively on desktop platforms. It uses a CPU software renderer, and is designed to precisely replicate the behavior of the original hardware.
 
 Whether you're developing software for Zeal 8-bit Computer or just using it to execute existing software, this emulator provides a fast and flexible environment for running and testing your code.
 
@@ -17,7 +17,7 @@ Whether you're developing software for Zeal 8-bit Computer or just using it to e
 An emulator for the Zeal 8-bit Computer already exists: it's called [Zeal-WebEmulator](https://github.com/Zeal8bit/Zeal-WebEmulator). That emulator is also public and open-source. To make it easily accessible without requiring any installation, it was developed in JavaScript and runs entirely in the web browser. However, due to this implementation choice, it struggles to maintain full speed and deliver a native-like experience when running Z80 CPU-intensive programs.
 
 That's where the **Zeal Native Emulator** comes in!
-This project is written entirely in C, using Raylib for 2D rendering and Nuklear for UI. It renders on the CPU with its software blitter and uses Raylib to display the finished frame, delivering a fast and smooth experience that works just like the real hardware. Even if the emulated programs are very demanding or CPU-intensive, the emulator always runs at full speed!
+The emulator renders frames on the CPU. The desktop frontend displays them with FLTK and OpenGL and uses SDL3 for audio and gamepads.
 
 Thanks to its native implementation, this emulator is also much more portable, it can be adapted to other platforms including (but not limited to) WASM and Android. See the [Ports](#ports) section for more details.
 
@@ -31,13 +31,13 @@ To compile the emulator, you will need the following software:
 
 * **Meson** build system
 * **GCC** or **Clang** compiler
-* Raylib **6.2** (native bundles for Linux x86-64 and Win64, plus a WebAssembly build helper; see [dependency details](raylib/README.md)).
+* Desktop builds require FLTK 1.4+, SDL3, OpenGL and a C++17 compiler. WebAssembly builds use Raylib 6.2.
 
 ### Hardware Requirements
 
 * For the native (desktop) version:
-  * The software renderer draws pixels on the CPU and uses Raylib to display the finished frame.
-  * Raylib must be able to create an OpenGL context and display the window.
+  * The software renderer draws pixels on the CPU and uses OpenGL to display the finished frame.
+  * FLTK must be able to create an OpenGL context and display the window.
 * For the WebAssembly (WASM) version, the browser must support WebGL2 (OpenGL ES 3.0), which Raylib uses for display.
 
 ### Native compilation
@@ -50,14 +50,14 @@ cd build
 meson compile
 ```
 
-You will then have graphical `zeal-native` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
+You will then have graphical `zeal-fltk` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-fltk --help`, or print the version with `./zeal-fltk --version`.
 
-### SDL3 + FLTK frontend (optional)
+### SDL3 + FLTK desktop frontend
 
-`zeal-fltk` is an alternative desktop frontend that does not use Raylib: FLTK
+`zeal-fltk` is the desktop frontend. FLTK
 provides the windows, native menus, keyboard/mouse input and the docked
 debugger, and SDL3 (initialized without video) provides audio and gamepads.
-It accepts the same command-line options as `zeal-native` and stores settings in TOML.
+It stores settings in TOML.
 **View → Theme** defaults to **System** and follows appearance changes while the
 emulator is open. Choosing **Light** or **Dark** saves `appearance.theme` in the user
 configuration. Choosing **System** removes that override. On Linux it reads the desktop portal’s color-scheme setting
@@ -98,7 +98,7 @@ meson compile -C build-fltk
 Distributions that package SDL3 (Ubuntu 25.04+, Debian 13+) can use
 `libsdl3-dev` instead and skip the helper and the two extra options.
 
-Shortcuts use Cmd on macOS and Ctrl elsewhere, as in `zeal-native`:
+Shortcuts use Cmd on macOS and Ctrl elsewhere:
 Cmd/Ctrl+F1 toggles the debugger, F5/F6/F10/F11/F9 (with Cmd/Ctrl) continue,
 pause, step over, step into and toggle a breakpoint, Shift+=/- scale the
 window, Shift+0/9 change the volume and Shift+Backspace resets. A middle click
@@ -166,7 +166,7 @@ meson compile
 ```
 
 > [!NOTE]
-> WebAssembly builds use the Raylib-only WASM frontend, with no Nuklear debugger UI.
+> WebAssembly builds use the Raylib-only WASM frontend, without a desktop debugger UI.
 > `-Denable_debugger=true` enables only the emulator core debugger API.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
@@ -181,12 +181,6 @@ remote update notifications, alternative backends, and browser tests.
 ### Compilation options
 
 All the compilation options are listed in the `meson_options.txt` file. Check it to see all the available options.
-
-For example, if Raylib is not installed in the system's default path, you can pass its location to the Meson command line by adding `-Draylib_path=/path/to/your/raylib`. For native compilation, the command would be:
-
-```sh
-meson setup build -Draylib_path=/path/to/your/raylib
-```
 
 #### Execution trace depth
 
@@ -208,9 +202,9 @@ Stop). `meson test -C build trace` checks the recorder.
 
 ### Renderer options
 
-The software renderer draws pixels on the CPU and uses Raylib to display them.
+The software renderer draws pixels on the CPU and passes each frame to the frontend for display.
 Scanline rendering is compiled in and enabled by default. Use
-`--no-scanline-rendering` or the debugger's Video → Scanline rendering checkbox
+`--no-scanline-rendering` or the View → Scanline Rendering
 to render whole frames instead. Debugger changes take effect on the next frame
 and survive emulated resets. Whole-frame rendering approximates per-line RPU
 effects; RPU programs do not override this choice. RPU execution is batched at
@@ -218,7 +212,7 @@ H-blank entry before scanline capture, with 50 MHz clock accounting. CPU/RPU
 interleaving within a scanline is approximated; audio retains independent timing.
 
 Set `-Dscanline_rendering=false` to compile out scanline
-capture and its command-line/debugger controls. Raylib handles display scaling;
+capture and its command-line/debugger controls. The frontend handles display scaling;
 the CPU renders native-resolution rows.
 
 ### Clean
@@ -233,24 +227,12 @@ Or simply delete the build directory.
 
 ### Running
 
-You can add `zeal-native` to your `$PATH` and run it from anywhere.
+You can add `zeal-fltk` to your `$PATH` and run it from anywhere.
 
-The Nuklear and headless frontends use two INI files, read together at startup (project values win):
-
-- **User settings**, `~/.zeal8bit/zeal.ini` (or `-c FILE`): what every program
-  shares, such as window size and position, debugger layout, tool windows,
-  audio volume and display preferences.
-- **Project settings**, `zeal.ini` in the directory the emulator is launched
-  from (or `-P FILE`): what belongs to the program being developed, such as
-  image paths saved with `--save`.
-
-Both are written on exit. A project file is only created when there is
-something project-specific to save. Keys a frontend does not manage are kept,
-so running another frontend or a build without the debugger in the same
-directory does not erase the debugger's breakpoints, watches or maps. A user
-setting placed in the project file (e.g. `AUDIO_VOLUME`) overrides it for
-that project only and is kept there; the user file keeps its own value.
-Pointing `-c` and `-P` at the same file keeps everything in one file.
+For desktop settings, see [SDL/FLTK configuration](#sdlfltk-configuration).
+The headless frontend uses `~/.zeal8bit/zeal.ini` for user settings and
+`./zeal.ini` for project settings, including image paths saved with `--save`.
+Project values take precedence. Use `-c FILE` and `-P FILE` to override the paths.
 
 ROM images are external runtime files; builds do not copy or embed them.
 For first time users, you will need to provide a `roms/default.img` or use the `-r path/to/os_with_romdisk.img`.
@@ -272,13 +254,13 @@ and default paths are skipped. EEPROM and TF images are optional; a ROM is requi
 selected ROM images are not written back; EEPROM and TF images retain their normal writeback behavior.
 
 ```sh
-$ build/zeal-native -h
+$ build/zeal-fltk -h
 Zeal Native Emulator 1.0.1
-Usage: build/zeal-native [OPTIONS]
+Usage: build/zeal-fltk [OPTIONS]
 
 Options:
-  -c, --config <file>                User settings (default ~/.zeal8bit/zeal.ini)
-  -P, --project <file>               Project settings (default ./zeal.ini)
+  -c, --config <file>                User settings (default ~/.zeal8bit/zeal-fltk.toml)
+  -P, --project <file>               Project settings (default ./zeal.toml)
   -s, --save                         Save * arguments to the project settings
   -r, --rom <file>                   * Load ROM file
   -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address
@@ -298,12 +280,12 @@ Options:
   -V, --version                      Show version information
 
 Example:
-  build/zeal-native --rom game.bin --map mem.map --debug
+  build/zeal-fltk --rom game.bin --map mem.map --debug
 ```
 
 Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
 features running. DMA is enabled by default. The option applies to the current
-run, survives emulated resets, and is not saved to `zeal.ini`.
+run, survives emulated resets, and is not saved in the configuration.
 
 ## Headless Console
 
@@ -385,8 +367,6 @@ The emulator also implements a debugger, with the following features:
 
 ## Ports
 
-Raylib supports a wide range of platforms, which makes the Zeal Native Emulator easy to port to other targets.
-
 ### WebAssembly
 
 > [!NOTE]
@@ -446,9 +426,6 @@ It is now possible to switch to 320x240 text-mode and display text.
 
 * Z80 CPU C implementation from [Superzazu](https://github.com/superzazu/z80) is distributed under the [MIT licence](https://github.com/superzazu/z80/blob/master/LICENSE).
 * [Raylib](https://github.com/raysan5/raylib) is distributed under this [LICENSE](raylib/LICENSE.txt)
-* [raylib-nuklear](https://github.com/RobLoach/raylib-nuklear) is distributed under an [unmodified zlib/libpng license](include/ui//raylib-nuklear.h)
-* [nuklear](https://github.com/Immediate-Mode-UI/Nuklear/) is distributed under [various licenses](include/ui/nuklear.h)
-* ProggyClean font is distributed under this [LICENSE](https://github.com/chrissimpkins/codeface/blob/master/fonts/proggy-clean/license.txt)
 
 All other files are distributed under the Apache 2.0 License, unless noted otherwise. See LICENSE file for more information.
 
@@ -468,14 +445,11 @@ buffer. Host I/O is supplied through instance-bound callbacks; the core does
 not open files, poll input devices, read host time, or present graphics/audio.
 The standalone static library is `libzeal.a` (`zeal_dep` for Meson subprojects).
 
-`frontend/nuklear/` owns the desktop graphical application and all Nuklear
-code, including debugger panels, input, textures, and audio playback.
 `frontend/wasm/` independently owns the browser application: Raylib rendering,
 input and audio, the browser loop, Emscripten exports, OPFS startup, and the
-browser HostFS bridge. It always shows the normal emulator view and never
-builds or links Nuklear, including when the core debugger API is enabled.
+browser HostFS bridge. It shows the normal emulator view even when the core debugger API is enabled.
 `frontend/headless/` owns the batch and console application.
-`frontend/sdl-fltk/` owns the optional SDL3 + FLTK desktop application. Its C
+`frontend/sdl-fltk/` owns the SDL3 + FLTK desktop application. Its C
 side drives the machine (`machine/`: run loop, audio, gamepads, keyboard),
 exposes state to the UI (`bridge/`) and holds the debugger-only helpers
 (`debug/`). Its C++ `ui/` holds the FLTK windows, one class per file, with each
@@ -489,10 +463,9 @@ the debugger, `debug_disabled.c` and `ui/app/debugger_ui_disabled.cpp` replace
 `frontend/common/` contains shared command-line/INI handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
 desktop OS entry point, executable path discovery, and HostFS adapter used
-by Nuklear, SDL/FLTK and headless. Graphical frontend code is not shared between Nuklear
-and WASM. The emulator library has no platform-specific branches.
+by SDL/FLTK and headless. The emulator library has no platform-specific branches.
 
-Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
+Native builds produce both `zeal-fltk` and `zeal-headless` by default. Existing
 headless scripts should replace the executable name with `zeal-headless`; the
 headless flags and console commands are unchanged. The graphical executable
 prints migration guidance when passed `--headless` or `--console`. Headless
@@ -511,10 +484,10 @@ meson setup build-core -Dfrontend=none
 meson compile -C build-core
 ```
 
-`frontend` accepts `auto`, `both`, `nuklear`, `headless`, `sdl-fltk`, `wasm`, or
+`frontend` accepts `auto`, `both`, `headless`, `sdl-fltk`, `wasm`, or
 `none`. `auto` selects both native executables and WASM for Emscripten;
 `sdl-fltk` builds only `zeal-fltk`. Core-only and
-headless-only builds require no Raylib, Nuklear, graphics libraries, or assets.
+headless-only builds require no graphics libraries or assets.
 The debugger and scanline-rendering build options remain independent.
 
 Core consumers initialize a `zeal_t` with `zeal_init` and `zeal_options_t`,
@@ -549,5 +522,5 @@ commands still work. Browser output names and embedding entry points are retaine
 `-Denable_debugger=true` enables the core debugger API only; it does not add a
 browser debugger UI. The old JavaScript `toggleDebugger()` method returns
 `false`, and its C export is retained as a no-op for existing embedders.
-Desktop Nuklear and headless targets require a native toolchain; `frontend=none`
+SDL/FLTK and headless targets require a native toolchain; `frontend=none`
 can build the core library with either native or Emscripten toolchains.

@@ -13,20 +13,16 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+        uses: ./.github/actions/linux-desktop-deps
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
-          raylib-path: ${{ github.workspace }}/raylib/linux64
+          meson-args: -Dsdl3_static=true -Dpkg_config_path=${{ github.workspace }}/sdl3/linux/lib/pkgconfig
 
       - name: Test executables
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/raylib/linux64/lib
         run: |
-          ./build/zeal-native --help
+          ./build/zeal-fltk --help
           ./build/zeal-headless --help
 
       - name: Upload Artifact
@@ -34,6 +30,8 @@ jobs:
         with:
           name: zeal-native-linux
           path: |
-            build/zeal-native
+            build/zeal-fltk
             build/zeal-headless
+            build/assets/fonts/*.TTF
+            build/assets/resources/gamecontrollerdb.txt
           retention-days: 30

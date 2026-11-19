@@ -7,15 +7,14 @@ is_web = host_machine.system() == 'emscripten'
 if frontend == 'auto'
     frontend = is_web ? 'wasm' : 'both'
 endif
-build_nuklear = frontend == 'nuklear' or frontend == 'both'
 build_headless = frontend == 'headless' or frontend == 'both'
 build_wasm = frontend == 'wasm'
-build_sdlfltk = frontend == 'sdl-fltk'
+build_sdlfltk = frontend == 'sdl-fltk' or frontend == 'both'
 if build_wasm and not is_web
     error('frontend=wasm requires an Emscripten cross file (for example wasm-cross.build)')
 endif
-if is_web and (build_nuklear or build_headless or build_sdlfltk)
-    error('Emscripten supports frontend=wasm (or auto) and frontend=none; nuklear and headless are native frontends')
+if is_web and (build_headless or build_sdlfltk)
+    error('Emscripten supports frontend=wasm (or auto) and frontend=none; sdl-fltk and headless are native frontends')
 endif
 
 core_args = []
@@ -49,7 +48,7 @@ if get_option('enable_debugger') and not is_web
         dependencies: zeal_dep, build_by_default: false))
 endif
 
-if build_nuklear or build_headless or build_wasm or build_sdlfltk
+if build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')
     host_args = ['-D_XOPEN_SOURCE=700',
         '-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version())]
@@ -57,20 +56,17 @@ if build_nuklear or build_headless or build_wasm or build_sdlfltk
         host_args += '-D_DARWIN_C_SOURCE'
     endif
 endif
-if build_nuklear or build_headless or build_sdlfltk
+if build_headless or build_sdlfltk
     subdir('frontend/common/desktop')
 endif
 
 if build_headless
     subdir('frontend/headless')
-    executable('zeal-headless', common_sources + desktop_sources + headless_sources,
+    executable('zeal-headless', common_sources + ini_sources + desktop_sources + headless_sources,
         dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
 endif
 
-if build_nuklear or build_wasm
-    if build_nuklear
-        subdir('assets')
-    endif
+if build_wasm
     raylib_path = get_option('raylib_path')
     if raylib_path == ''
         raylib_path = meson.get_external_property('raylib_path', '')
@@ -81,25 +77,11 @@ if build_nuklear or build_wasm
         graphics_args += '-I' + raylib_path / 'include'
         graphics_link += '-L' + raylib_path / 'lib'
     endif
-    if host_machine.system() == 'linux'
-        graphics_link += '-lX11'
-    endif
     if get_option('show_fps')
         graphics_args += '-DCONFIG_SHOW_FPS=1'
     endif
-    if build_nuklear
-        zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
-        graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
-    endif
 endif
 
-if build_nuklear
-    subdir('frontend/nuklear')
-    exec = executable('zeal-native', common_sources + desktop_sources + nuklear_sources,
-        dependencies: zeal_dep, c_args: host_args + graphics_args,
-        link_args: graphics_link + meson.get_external_property('link_args', []), install: true)
-    run_target('run', command: [exec])
-endif
 if build_sdlfltk
     add_languages('cpp', native: false)
     sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
@@ -111,7 +93,11 @@ if build_sdlfltk
     endif
     fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
     # Link OpenGL explicitly on platforms where it is a separate library.
-    gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
+    if host_machine.system() == 'windows'
+        gl_dep = cc.find_library('opengl32')
+    else
+        gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
+    endif
     # Registers the bundled pixel font for the debugger on Linux/BSD.
     fontconfig_dep = dependency('fontconfig', required: false,
         disabler: false)
@@ -120,9 +106,7 @@ if build_sdlfltk
         sdlfltk_ui_args += '-DZUI_HAVE_FONTCONFIG=1'
     endif
     subdir('frontend/sdl-fltk')
-    if not build_nuklear
-        subdir('assets')
-    endif
+    subdir('assets')
     sdlfltk_args = ['-DFRONTEND_HEADLESS=0', '-DFRONTEND_SDL_FLTK=1',
         '-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
     if get_option('show_fps')
@@ -142,12 +126,13 @@ if build_sdlfltk
             include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
             cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
     endif
+    run_target('run', command: [exec])
     run_target('run-fltk', command: [exec])
 endif
 if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
-    exec = executable('zeal.elf', common_sources + wasm_sources,
+    exec = executable('zeal.elf', common_sources + ini_sources + wasm_sources,
         dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
         link_args: graphics_link + wasm_link_args, install: true)
     run_target('run', command: [exec])

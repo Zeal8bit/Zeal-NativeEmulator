@@ -22,5 +22,5 @@ Use `--archive /path/to/6.2.tar.gz` to rebuild without downloading again.
 The WASM cross file uses `raylib/web/` by default. CI runs the same helper
 before Meson setup. Re-run it when the pinned Raylib or Emscripten version changes.
 WasmFS/Asyncify are selected when linking the emulator, not when compiling Raylib.
-The native dependency bundles are independent. The web release license is in
+The web release license is in
 [LICENSE.txt](LICENSE.txt).

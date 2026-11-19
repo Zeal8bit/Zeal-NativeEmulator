@@ -2,21 +2,17 @@
 
 ## Development Setup
 
-Use GCC or Clang, Meson, and Ninja. Graphical builds additionally require
-Raylib 6.2 and its platform dependencies (OpenGL natively, WebGL2
-in browsers). Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
+Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLTK 1.4+, SDL3 and OpenGL. Browser builds use Raylib 6.2 and WebGL2. Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
 
 Run commands from the repository root. For development:
 
 ```sh
 meson setup build-dev -Denable_debugger=true
 meson compile -C build-dev
-./build-dev/zeal-native --help
+./build-dev/zeal-fltk --help
 ```
 
-If Raylib is outside the compiler's search paths, add
-`-Draylib_path=/path/to/raylib` when configuring. That directory must contain
-`include/` and `lib/`. Use `meson configure build-dev` to inspect build settings;
+Use `meson configure build-dev` to inspect build settings;
 [meson_options.txt](meson_options.txt) lists project options.
 
 Provide a Zeal ROM through `--rom /path/to/rom.img` or the image locations
@@ -33,7 +29,7 @@ meson compile -C build-wasm
 
 The WASM cross file disables the core debugger API by default; add
 `-Denable_debugger=true` when needed. The WASM frontend never includes the
-Nuklear debugger UI. Serve the generated browser files through
+desktop debugger UI. Serve the generated browser files through
 an HTTP server rather than opening them directly. The helper builds Raylib 6.2
 headers and library in `raylib/web/`, where generated files are ignored by Git;
 see [its build instructions](raylib/web/README.md). Run the browser
@@ -51,14 +47,14 @@ and are not included in a fresh checkout or run by CI.
 | `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend and machine integration. |
 | `hw/userport/` | SNES serial protocol. |
 | `frontend/common/` | CLI/INI, image files, HostFS, RTC and stream adapters. |
-| `frontend/nuklear/` | Desktop-only window loop, input, audio playback, and all Nuklear debugger UI. |
+| `frontend/sdl-fltk/` | Desktop-only window loop, input, audio playback, and all desktop debugger UI. |
 | `frontend/wasm/` | Independent Raylib browser frontend, Emscripten exports, OPFS startup and browser HostFS. |
-| `frontend/common/desktop/` | Desktop OS startup, paths and HostFS shared by Nuklear and headless. |
+| `frontend/common/desktop/` | Desktop OS startup, paths and HostFS shared by SDL/FLTK and headless. |
 | `frontend/headless/` | Batch execution and console/debugger commands. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
 | `utils/` | Portable FIFO and per-machine virtual timers. |
 | `assets/` | Fonts, resources, and browser templates/support code. |
-| `raylib/` | Bundled platform libraries, headers, and license. |
+| `raylib/` | Raylib WebAssembly build instructions and license. |
 | `tools/` | Build-time resource and WASM helper scripts. |
 | `meson.build`, subsystem `meson.build` files | Build configuration and source lists. |
 | `.github/` | Platform build and deployment workflows. |
@@ -197,13 +193,11 @@ Use local harnesses for CPU/device timing, independent contexts, frames/PCM,
 console transcripts, INI serialization, and scratch-media persistence. Match
 against the unchanged build before accepting an ownership refactor. Native
 and browser appearance/input still need interactive verification in addition
-to build and API checks. The legacy Makefile does not build the pre-split
-baseline (it compiles debugger sources without their required definitions and
-omits required sources); it remains unsupported. Use Meson.
+to build and API checks. The root Makefile delegates native builds to Meson.
 
-WASM-specific code and link flags belong in `frontend/wasm/`. Keep all Nuklear
-code in `frontend/nuklear/`; neither frontend may include or compile the other.
+WASM-specific code and link flags belong in `frontend/wasm/`. Keep desktop UI
+code in `frontend/sdl-fltk/`; neither frontend may include or compile the other.
 There is no shared graphics layer. Core-debugger-enabled WASM builds must still
-exclude Nuklear, debugger panels, and debug textures. Preserve build-root web
+exclude FLTK, debugger panels, and debug textures. Preserve build-root web
 artifact names when changing Meson: declaring the executable in a subdirectory
 would change the existing browser URLs.

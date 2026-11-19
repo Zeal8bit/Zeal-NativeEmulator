@@ -5,8 +5,7 @@
  */
 
 #define RINI_VALUE_DELIMITER '='
-/* Room for frontend-specific keys (e.g. SDL/FLTK layout, watches); rini
- * silently drops values beyond its capacity (default 128). */
+/* Keep the existing INI load limit for headless and WASM. */
 #define RINI_MAX_VALUE_CAPACITY 512
 #define RINI_IMPLEMENTATION
 
@@ -20,7 +19,7 @@
 
 #include "utils/config.h"
 #include "utils/version.h"
-#include "frontend/common/panels.h"
+#include "utils/config_ini.h"
 #include "hw/zvb/zvb.h"
 #include "utils/paths.h"
 #include "utils/log.h"
@@ -361,8 +360,6 @@ static int save_files(bool save_project)
     rini_set_config_value(&ini, "DEBUG_POS_Y", debugger->y, "Y Position");
     rini_set_config_value(&ini, "DEBUG_ENABLED", debugger->config_enabled, "Debug Enabled");
     rini_set_config_value(&ini, "DEBUG_HEX_UPPER", debugger->hex_upper, "Use Upper Hex");
-
-    config_panels_save(&ini);
 #endif // CONFIG_ENABLE_DEBUGGER
 
     if (config_save_hook) config_save_hook(&ini, &project);

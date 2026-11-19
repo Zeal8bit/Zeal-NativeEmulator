@@ -93,14 +93,15 @@ jobs:
 
       - name: Create Release Archives
         run: |
+          chmod +x artifacts/{linux,macos-arm,macos-intel}/{zeal-fltk,zeal-headless}
           cd artifacts/linux
-          tar -czf ../../zeal-native-linux-x64.tar.gz zeal-native zeal-headless
+          tar -czf ../../zeal-native-linux-x64.tar.gz zeal-fltk zeal-headless assets
           cd ../macos-arm
-          tar -czf ../../zeal-native-macos-arm.tar.gz zeal-native zeal-headless
+          tar -czf ../../zeal-native-macos-arm.tar.gz zeal-fltk zeal-headless assets
           cd ../macos-intel
-          tar -czf ../../zeal-native-macos-intel.tar.gz zeal-native zeal-headless
+          tar -czf ../../zeal-native-macos-intel.tar.gz zeal-fltk zeal-headless assets
           cd ../windows
-          zip ../../zeal-native-windows-x64.zip zeal-native.exe zeal-headless.exe
+          zip -r ../../zeal-native-windows-x64.zip zeal-fltk.exe zeal-headless.exe *.dll assets
           cd ../wasm
           zip -r ../../zeal-native-wasm.zip .
           cd ../..
