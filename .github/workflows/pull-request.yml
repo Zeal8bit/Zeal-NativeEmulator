@@ -137,8 +137,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y meson ninja-build gcc g++ pkg-config cmake \
-            libfltk1.3-dev libgl-dev libx11-dev libfontconfig-dev \
+            libxft-dev libgl-dev libx11-dev libfontconfig-dev \
             libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+
+      - name: Checkout FLTK 1.4.5 (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v6
+        with:
+          repository: fltk/fltk
+          ref: a9b1113516ffd15fc7602a6d425a317df30f4720
+          path: fltk-src
+          persist-credentials: false
+
+      - name: Build FLTK (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S fltk-src -B "$RUNNER_TEMP/fltk-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_TEST=OFF -DFLTK_BACKEND_WAYLAND=OFF
+          cmake --build "$RUNNER_TEMP/fltk-build"
+          sudo cmake --install "$RUNNER_TEMP/fltk-build"
 
       # Ubuntu 22.04/24.04 have no SDL3 package: build the pinned release.
       - name: Cache SDL3 (Linux)

@@ -103,14 +103,14 @@ endif
 if build_sdlfltk
     add_languages('cpp', native: false)
     sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
-    fltk_config = find_program('fltk-config')
+    fltk_config = find_program('fltk-config', version: '>=1.4.0')
     fltk_cxxflags = run_command(fltk_config, '--use-gl', '--cxxflags', check: true).stdout().strip().split()
     fltk_ldflags = run_command(fltk_config, '--use-gl', '--ldflags', check: true).stdout().strip().split()
     if host_machine.system() == 'darwin'
         fltk_ldflags += ['-framework', 'ApplicationServices']
     endif
     fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
-    # fltk-config omits libGL on some distributions (FLTK 1.3); macOS uses the framework.
+    # Link OpenGL explicitly on platforms where it is a separate library.
     gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
     # Registers the bundled pixel font for the debugger on Linux/BSD.
     fontconfig_dep = dependency('fontconfig', required: false,

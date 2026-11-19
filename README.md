@@ -63,7 +63,7 @@ emulator is open. Choosing **Light** or **Dark** saves `FLTK_THEME` in the user
 configuration. Choosing **System** removes that override. On Linux it reads the desktop portal’s color-scheme setting
 over D-Bus and uses the dark theme if the setting is unavailable.
 
-Requirements: **FLTK 1.3.8 or newer** (1.4 recommended, with `fltk-config` on
+Requirements: **FLTK 1.4 or newer** (with `fltk-config` on
 `PATH`), **SDL 3**, OpenGL and a C++17 compiler. Linux and BSD builds also
 require the D-Bus development package (`dbus-1` in pkg-config).
 
@@ -75,13 +75,20 @@ meson compile -C build-fltk
 ./build-fltk/zeal-fltk
 ```
 
-Ubuntu 22.04 and 24.04 have no SDL3 package. `tools/build_sdl3.py` builds the
+Ubuntu 22.04 and 24.04 package FLTK 1.3. Build FLTK 1.4 from source on
+these releases, or put an existing FLTK 1.4+ installation’s `fltk-config`
+on `PATH`. These releases also lack an SDL3 package. `tools/build_sdl3.py` builds the
 pinned, checksum-verified SDL3 release as a static library into `sdl3/linux64`
 (ignored by Git), so `zeal-fltk` does not need SDL3 installed at runtime:
 
 ```sh
-sudo apt install meson ninja-build g++ pkg-config cmake libfltk1.3-dev libgl-dev \
+sudo apt install meson ninja-build g++ git pkg-config cmake libxft-dev libgl-dev \
     libx11-dev libfontconfig-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+git clone --depth 1 --branch release-1.4.5 https://github.com/fltk/fltk.git /tmp/fltk-src
+cmake -S /tmp/fltk-src -B /tmp/fltk-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DFLTK_BUILD_TEST=OFF -DFLTK_BACKEND_WAYLAND=OFF
+cmake --build /tmp/fltk-build
+sudo cmake --install /tmp/fltk-build
 python3 tools/build_sdl3.py
 meson setup build-fltk -Dfrontend=sdl-fltk -Dsdl3_static=true \
     -Dpkg_config_path=$PWD/sdl3/linux64/lib/pkgconfig
