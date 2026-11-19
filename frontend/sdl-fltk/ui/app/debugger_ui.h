@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* What the main window needs from the debugger UI. The debugger implements
- * it (debugger/debugger.cpp); without the debugger, Meson builds
- * app/debugger_ui_disabled.cpp instead and create_debugger_ui() returns
- * nullptr, so app/ never depends on debugger code. */
+/* Debugger panels and commands used by the main window. */
 #pragma once
 
 class Fl_Group;

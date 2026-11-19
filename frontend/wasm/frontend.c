@@ -246,7 +246,7 @@ void frontend_reset_input(zeal_t* machine)
     zeal_read_keyboard_reset(machine);
 }
 
-void frontend_open(bool debug)
+void frontend_open(void)
 {
     SetTraceLogLevel(WIN_LOG_LEVEL);
     /* Initialize the Raylib window. */
@@ -259,7 +259,6 @@ void frontend_open(bool debug)
     BeginDrawing();
     ClearBackground(BLACK);
     EndDrawing();
-    (void) debug;
 }
 
 void frontend_bind_input(zeal_t* machine)

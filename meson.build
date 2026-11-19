@@ -17,8 +17,9 @@ if is_web and (build_headless or build_sdlfltk)
     error('Emscripten supports frontend=wasm (or auto) and frontend=none; sdl-fltk and headless are native frontends')
 endif
 
+debugger_api = not is_web or get_option('enable_debugger')
 core_args = []
-if get_option('enable_debugger')
+if debugger_api
     core_args += '-DCONFIG_ENABLE_DEBUGGER=1'
     core_args += '-DCONFIG_TRACE_DEPTH=@0@'.format(get_option('trace_depth'))
 endif
@@ -39,11 +40,11 @@ zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
 
 # Core tests (meson test -C <builddir>)
-if get_option('enable_debugger') and get_option('trace_depth') > 0 and not is_web
+if get_option('trace_depth') > 0 and not is_web
     test('trace', executable('trace_test', 'tests/trace_test.c',
         dependencies: zeal_dep, c_args: ['-D_POSIX_C_SOURCE=200809L'], build_by_default: false))
 endif
-if get_option('enable_debugger') and not is_web
+if not is_web
     test('debug_inspect', executable('debug_inspect_test', 'tests/debug_inspect_test.c',
         dependencies: zeal_dep, build_by_default: false))
 endif
@@ -119,12 +120,10 @@ if build_sdlfltk
         link_with: sdlfltk_c, dependencies: sdlfltk_deps,
         objcpp_args: ['-std=c++17'],
         cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
-    if get_option('enable_debugger')
-        test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
-            objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
-            include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
-            cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
-    endif
+    test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
+        objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
+        include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
+        cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
     run_target('run', command: [exec])
     run_target('run-fltk', command: [exec])
 endif

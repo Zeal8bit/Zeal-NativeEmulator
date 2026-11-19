@@ -91,7 +91,7 @@ void MainWindow::reset_quit()
 /*  MainWindow                                                         */
 /* ------------------------------------------------------------------ */
 
-MainWindow::MainWindow(bool debug)
+MainWindow::MainWindow()
     : Fl_Double_Window(FZ_SCREEN_WIDTH, FZ_SCREEN_HEIGHT, FZ_WIN_NAME)
 {
 #ifdef CONFIG_SHOW_FPS
@@ -141,22 +141,18 @@ MainWindow::MainWindow(bool debug)
     m_screen->end();
     m_dock->end();
     m_debugger = create_debugger_ui(m_dock, m_screen);
-    if (m_debugger) {
-        begin();
-        m_toolbar = m_debugger->toolbar(0, m_menubar_h, w(), TOOLBAR_H);
-        end();
-        m_toolbar->hide();
-    } else {
-        m_dock->set_root(m_screen, nullptr);
-    }
+    begin();
+    m_toolbar = m_debugger->toolbar(0, m_menubar_h, w(), TOOLBAR_H);
+    end();
+    m_toolbar->hide();
     end();
 
     resizable(m_dock);
     apply_size_range();
     m_menus = new AppMenus(m_menubar, this);
 
-    m_debug = !debug; /* force the initial layout */
-    set_debug_layout(debug);
+    m_debug = false;
+    set_debug_layout(true);
 }
 
 MainWindow::~MainWindow()
@@ -256,8 +252,8 @@ int MainWindow::handle(int event)
 
 void MainWindow::set_debug_layout(bool debug)
 {
-    if (debug && m_debugger == nullptr) debug = false;
     if (debug == m_debug) return;
+    if (shown()) capture_window_config(m_debug);
     m_debug = debug;
     /* The normal window is sized to the picture, so it always fits */
     m_screen->zoom(debug ? m_debug_zoom : 0.0f);
@@ -406,8 +402,7 @@ void MainWindow::frame_presented()
 
 void MainWindow::update_status()
 {
-    char state[96];
-    snprintf(state, sizeof(state), fz_debugger_enabled() ? "Running (debugger)" : "Running");
+    char state[96] = "Running";
     unsigned pc_value;
     if (m_debugger && m_debugger->paused_at(&pc_value)) {
         char pc[8];

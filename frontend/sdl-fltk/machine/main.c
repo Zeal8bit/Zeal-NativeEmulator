@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
          .argument = &fltk_settings_args.user_path},
         {'P', "project", "  -P, --project <file>               Project settings (default ./" CONFIG_PROJECT_FILENAME ")",
          .argument = &fltk_settings_args.project_path},
-        {'s', "save", "  -s, --save                         Save image paths and the debugger preference",
+        {'s', "save", "  -s, --save                         Save image paths to project settings",
          .flag = &fltk_settings_args.save_arguments},
     };
     int code = frontend_configure_graphical(argc, argv, options, sizeof(options) / sizeof(options[0]));
@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
     v_log_printf(2, "[CONFIG]   config_path: %s\n", fltk_settings_args.user_path);
     v_log_printf(2, "[CONFIG]  project_path: %s\n", fltk_settings_args.project_path);
     v_log_printf(2, "[CONFIG]   config_save: %s\n", fltk_settings_args.save_arguments ? "True" : "False");
-    code = desktop_run(true, config_debugger_enabled());
+    code = desktop_run(true);
     config_unload();
     return code;
 }

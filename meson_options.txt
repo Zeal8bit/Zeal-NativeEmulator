@@ -5,7 +5,7 @@ option('raylib_path', type : 'string', value : '', description : 'Path to WebAss
 option('sdl3_static', type : 'boolean', value : false, description : 'Link SDL3 statically (sdl-fltk; e.g. built with tools/build_sdl3.py)')
 
 ## Debugger
-option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
+option('enable_debugger', type: 'boolean', value: true, description: 'Include the core debugger API in WebAssembly builds (always included in native builds)')
 option('trace_depth', type: 'integer', value: 4096, min: 0, max: 1048576, description: 'Debugger execution trace: instructions kept (32 bytes each); 0 compiles the trace and call stack out')
 
 ## Rendering

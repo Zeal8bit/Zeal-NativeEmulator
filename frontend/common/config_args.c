@@ -32,7 +32,6 @@ config_t config ={
     },
 
     .debugger = {
-        .enabled = false,
         .keyboard_passthru = false,
         .hex_upper = true,
         .width = -1,
@@ -61,7 +60,6 @@ void config_debug(void)
     log_printf("%s  rom_filename: %s\n", module, config.arguments.rom_filename);
     log_printf("%s   hostfs_path: %s\n", module, config.arguments.hostfs_path);
     log_printf("%s      map_file: %s\n", module, config.arguments.map_file);
-    log_printf("%s debug_enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_ARG ? "True" : "False");
     log_printf("%s       verbose: %u\n", module, config.arguments.verbose);
     log_printf("%s      no_reset: %s\n", module, config.arguments.no_reset ? "True" : "False");
     log_printf("%s        no_dma: %s\n", module, config.arguments.no_dma ? "True" : "False");
@@ -72,10 +70,6 @@ void config_debug(void)
     log_printf("%s \n", module);
     log_printf("%s === audio ===\n", module);
     log_printf("%s  volume: %d\n", module, config.audio.volume);
-
-    log_printf("%s \n", module);
-    log_printf("%s === debugger ===\n", module);
-    log_printf("%s enabled: %s\n", module, config.debugger.enabled == DEBUGGER_STATE_CONFIG ? "True" : "False");
 
     log_printf("%s \n", module);
     log_printf("%s === window ===\n", module);
@@ -106,15 +100,16 @@ static int usage(const char* progname, const frontend_cli_option_t* options, siz
     log_printf("%s %s\n", ZEAL_NATIVE_NAME, ZEAL_NATIVE_VERSION);
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
-    for (size_t i = 0; i < count; i++) log_printf("%s\n", options[i].help);
+    for (size_t i = 0; i < count; i++) {
+        if (options[i].help) log_printf("%s\n", options[i].help);
+    }
     log_printf("  -r, --rom <file>                   Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");
     log_printf("  -e, --eeprom <file>                Load EEPROM file\n");
     log_printf("  -t, --tf <file>                    Load TF/SDcard file\n");
     log_printf("  -H, --hostfs <path>                Set host filesystem path\n");
     log_printf("  -m, --map <file>                   Load memory map file (for debugging)\n");
-    log_printf("  -g, --debug                        Enable debug mode\n");
-    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot (requires debug mode)\n");
+    log_printf("  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot\n");
     log_printf("  -q, --no-reset                     Exit emulator when a reset is detected\n");
     log_printf("      --no-dma                       Disconnect ZVB DMA bus handshake wiring\n");
 #if ZVB_SCANLINE_RENDERING
@@ -128,7 +123,7 @@ static int usage(const char* progname, const frontend_cli_option_t* options, siz
     log_printf("  -V, --version                      Show version information\n");
     log_printf("\n");
     log_printf("Example:\n");
-    log_printf("  %s --rom game.bin --map mem.map --debug\n", progname);
+    log_printf("  %s --rom game.bin --map mem.map\n", progname);
 
     exit(0);
 }
@@ -208,7 +203,6 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
         {       "cf", required_argument, 0, 'C'},
         {   "hostfs", required_argument, 0, 'H'},
         {      "map", required_argument, 0, 'm'},
-        {    "debug", optional_argument, 0, 'g'},
         {      "brk", required_argument, 0, 'b'},
         { "no-reset",       no_argument, 0, 'q'},
         {   "no-dma",       no_argument, 0, OPT_NO_DMA},
@@ -224,7 +218,7 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
         {          0,                 0, 0,   0}
     };
 
-    static const char common_short[] = "r:e:u:t:C:H:m:b:qgvhV";
+    static const char common_short[] = "r:e:u:t:C:H:m:b:qvhV";
     const size_t common_count = sizeof(common_options) / sizeof(common_options[0]) - 1;
     struct option long_options[common_count + count + 1];
     char short_options[sizeof(common_short) + count * 3];
@@ -235,7 +229,7 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
         const frontend_cli_option_t* option = &options[i];
         long_options[common_count + i] = (struct option){
             option->name, option->argument ? required_argument :
-                          option->number ? optional_argument : no_argument, NULL, option->key
+                          (option->number || option->optional_bool) ? optional_argument : no_argument, NULL, option->key
         };
         short_options[pos++] = option->key;
         if (option->argument || option->number) short_options[pos++] = ':';
@@ -271,16 +265,6 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
             case 'm':
                 config.arguments.map_file = optarg;
                 break;
-            case 'g':
-                // did user disable the debug mode (override config?)
-                if(optarg == NULL) {
-                    config.debugger.enabled = DEBUGGER_STATE_ARG;
-                } else if(optarg[0] == '0' && optarg[1] == '\0') {
-                    config.debugger.enabled = DEBUGGER_STATE_ARG_DISABLE;
-                } else {
-                    config.debugger.enabled = DEBUGGER_STATE_ARG;
-                }
-                break;
             case 'b':
                 config.arguments.breakpoints = optarg;
                 break;
@@ -311,7 +295,7 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
                 for (size_t i = 0; i < count; i++) {
                     if (options[i].key != opt) continue;
                     if (options[i].argument) *options[i].argument = optarg;
-                    if (options[i].flag) *options[i].flag = true;
+                    if (options[i].flag) *options[i].flag = !optarg || !options[i].optional_bool || strcmp(optarg, "0") != 0;
                     if (options[i].number) read_optional_number(options[i].number, argc, argv);
                     break;
                 }

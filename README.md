@@ -184,7 +184,7 @@ All the compilation options are listed in the `meson_options.txt` file. Check it
 
 #### Execution trace depth
 
-While the debugger is enabled, the core records the last executed
+With trace recording enabled, the core records the last executed
 instructions (PC, opcode bytes, AF/BC/DE/HL/IX/IY/SP before execution and the
 T-state count, plus interrupts and resets) in a fixed ring buffer, and derives
 a heuristic call stack from CALL/RST/interrupts and returns. `zeal-fltk` shows
@@ -196,7 +196,7 @@ meson setup build -Dtrace_depth=16384   # default 4096 (128 KB)
 meson setup build -Dtrace_depth=0       # compile the trace and call stack out
 ```
 
-Recording never runs while the debugger is disabled. With it enabled it costs
+Trace recording costs
 roughly 10% of emulation speed and can be switched off at run time (Trace >
 Stop). `meson test -C build trace` checks the recorder.
 
@@ -259,15 +259,14 @@ Usage: build/zeal-fltk [OPTIONS]
 Options:
   -c, --config <file>                User settings (default ~/.zeal8bit/zeal-fltk.toml)
   -P, --project <file>               Project settings (default ./zeal.toml)
-  -s, --save                         Save image paths and the debugger preference
+  -s, --save                         Save image paths to project settings
   -r, --rom <file>                   Load ROM file
   -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address
   -e, --eeprom <file>                Load EEPROM file
   -t, --tf <file>                    Load TF/SDcard file
   -H, --hostfs <path>                Set host filesystem path
   -m, --map <file>                   Load memory map file (for debugging)
-  -g, --debug                        Enable debug mode
-  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot (requires debug mode)
+  -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot
   -n, --headless [<tstates>]         Moved to zeal-headless
   -o, --console                      Moved to zeal-headless
   -q, --no-reset                     Exit emulator when a reset is detected
@@ -278,7 +277,7 @@ Options:
   -V, --version                      Show version information
 
 Example:
-  build/zeal-fltk --rom game.bin --map mem.map --debug
+  build/zeal-fltk --rom game.bin --map mem.map
 ```
 
 Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
@@ -307,7 +306,7 @@ $ printf 'tap ENTER\nrun 10000\nquit\n' | build/zeal-headless --headless --conso
 
 ### Debugger console
 
-Adding `--debug` turns the console into a headless debugger front-end, using the same `dbg_t` back-end as the GUI debugger. Since the console is the only headless debugger front-end, `--headless --debug` is equivalent to `--console --debug`:
+The headless console always provides the same debugger commands and breakpoints as the native debugger backend. Use `--console` (or its compatibility alias `--debug`) to read commands from stdin. Batch runs also honor breakpoints.
 
 | Command              | Description                     |
 | -------------------- | ------------------------------- |
@@ -326,7 +325,7 @@ Adding `--debug` turns the console into a headless debugger front-end, using the
 | `mmu`                | Show MMU mappings               |
 
 ```sh
-$ printf 'bp main\nc\nregs\nquit\n' | build/zeal-headless --console --debug --rom game.elf
+$ printf 'bp main\nc\nregs\nquit\n' | build/zeal-headless --console --rom game.elf
 ```
 
 ## Supported Features
@@ -454,9 +453,7 @@ exposes state to the UI (`bridge/`) and holds the debugger-only helpers
 directory a namespace (`ui/app/` is `zui::app`, `ui/debugger/` is
 `zui::debugger`, and so on). The two halves only meet through the headers in
 `include/frontend/sdl-fltk/bridge/`, so the C++ code never includes `hw/zeal.h`.
-Optional parts are whole files chosen by Meson rather than `#if` blocks: without
-the debugger, `debug_disabled.c` and `ui/app/debugger_ui_disabled.cpp` replace
-`debug/` and the debugger UI directories.
+SDL/FLTK and headless always build and run with the debugger enabled. In SDL/FLTK, View → Show Debugger shows or hides the panels without interrupting execution or disabling breakpoints.
 
 `frontend/common/` contains shared command-line handling, image files,
 RTC conversion, and stream adapters. `frontend/common/desktop/` contains the
@@ -484,7 +481,7 @@ meson compile -C build-core
 `none`. `auto` selects both native executables and WASM for Emscripten;
 `sdl-fltk` builds only `zeal-fltk`. Core-only and
 headless-only builds require no graphics libraries or assets.
-The debugger and scanline-rendering build options remain independent.
+Scanline rendering can be configured independently for each build.
 
 Core consumers initialize a `zeal_t` with `zeal_init` and `zeal_options_t`,
 provide ROM bytes/media callbacks, then call `zeal_step`, `zeal_run`, or

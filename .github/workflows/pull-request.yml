@@ -91,9 +91,9 @@ jobs:
           - name: macOS
             runner: macos-latest
             args: ''
-          - name: macOS, no debugger
+          - name: macOS, whole-frame rendering
             runner: macos-latest
-            args: -Denable_debugger=false -Dscanline_rendering=false
+            args: -Dscanline_rendering=false
           - name: macOS, profiling
             runner: macos-latest
             args: -Dprofile_render=true -Dshow_fps=true
@@ -103,9 +103,9 @@ jobs:
           - name: Ubuntu 24.04
             runner: ubuntu-24.04
             args: ''
-          - name: Ubuntu 24.04, no debugger
+          - name: Ubuntu 24.04, whole-frame rendering
             runner: ubuntu-24.04
-            args: -Denable_debugger=false -Dscanline_rendering=false
+            args: -Dscanline_rendering=false
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

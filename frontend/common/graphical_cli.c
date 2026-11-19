@@ -6,7 +6,7 @@ int frontend_configure_graphical(int argc, char* argv[], const frontend_cli_opti
 {
     bool redirected = false;
     unsigned long ignored_ticks = 0;
-    frontend_cli_option_t all[count + 2];
+    frontend_cli_option_t all[count + 3];
     for (size_t i = 0; i < count; i++) all[i] = options[i];
     all[count] = (frontend_cli_option_t){
         'n', "headless", "  -n, --headless                     Moved to zeal-headless",
@@ -16,7 +16,10 @@ int frontend_configure_graphical(int argc, char* argv[], const frontend_cli_opti
         'o', "console", "  -o, --console                      Moved to zeal-headless", .flag = &redirected
     };
 
-    int code = frontend_configure(argc, argv, all, count + 2);
+    /* Older launchers pass --debug. Graphical startup needs no switch. */
+    all[count + 2] = (frontend_cli_option_t){'g', "debug", .optional_bool = true};
+
+    int code = frontend_configure(argc, argv, all, count + 3);
     if (code) return code;
     if (redirected) {
         log_err_printf("Headless and console modes moved to zeal-headless; use zeal-headless with the same arguments.\n");

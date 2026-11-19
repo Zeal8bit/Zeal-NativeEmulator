@@ -23,7 +23,10 @@ int frontend_run(zeal_t* machine)
 
 int main(int argc, char* argv[])
 {
+    bool debug_console = false;
     const frontend_cli_option_t options[] = {
+        {'g', "debug", "  -g, --debug                        Alias for --console",
+         .flag = &debug_console, .optional_bool = true},
         {'n', "headless", "  -n, --headless [<tstates>]         Run without a GUI, optionally for a fixed number of tstates",
          .number = &run_ticks},
         {'o', "console", "  -o, --console                      Read control commands from stdin",
@@ -31,9 +34,8 @@ int main(int argc, char* argv[])
     };
     int code = frontend_configure(argc, argv, options, sizeof(options) / sizeof(options[0]));
     if (code) return code;
-    bool debug = config.debugger.enabled == DEBUGGER_STATE_ARG;
-    if (debug) console = true;
+    if (debug_console) console = true;
     v_log_printf(2, "[CONFIG] headless_run_ticks: %lu\n", run_ticks);
     v_log_printf(2, "[CONFIG] console: %s\n", console ? "True" : "False");
-    return desktop_run(false, debug);
+    return desktop_run(false);
 }

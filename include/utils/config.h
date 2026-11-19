@@ -27,18 +27,7 @@ typedef struct {
     bool aspect_force;
 } config_window_t;
 
-typedef enum {
-    DEBUGGER_STATE_ARG_DISABLE = -1,
-    DEBUGGER_STATE_DISABLED    = 0,
-    DEBUGGER_STATE_CONFIG      = 1,
-    DEBUGGER_STATE_ARG         = 2,
-    DEBUGGER_STATE_USER        = 3,
-} debugger_state_t;
-
 typedef struct {
-    debugger_state_t enabled;
-    bool config_enabled;
-
     bool keyboard_passthru; // whether to pass all keypresses through to emulator
     bool hex_upper;
 
@@ -89,11 +78,3 @@ extern config_t config;
 
 void config_debug(void);
 void config_resolve_images(void);
-
-/**
- * @brief Determine if debugger is enabled
- */
-static inline bool config_debugger_enabled(void) {
-    // enum uses <= DEBUGGER_STATE_DISABLED for disabled
-    return config.debugger.enabled > DEBUGGER_STATE_DISABLED;
-}

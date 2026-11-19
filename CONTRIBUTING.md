@@ -7,7 +7,7 @@ Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLT
 Run commands from the repository root. For development:
 
 ```sh
-meson setup build-dev -Denable_debugger=true
+meson setup build-dev
 meson compile -C build-dev
 ./build-dev/zeal-fltk --help
 ```
@@ -145,7 +145,7 @@ formatter cannot preserve their grouping and spacing.
 
 Build the affected configuration and inspect compiler warnings. For changes
 that interact with optional code, also build the relevant feature combinations
-in separate directories, such as debugger enabled/disabled or software
+in separate directories, such as WASM debugger enabled/disabled or software
 scanline rendering enabled/disabled. Use `-Dscanline_rendering=false` to
 validate builds without scanline support.
 
@@ -183,7 +183,7 @@ used to validate a change, along with any unavailable target validation.
 ## Boundary validation
 
 Build `-Dfrontend=none` and `-Dfrontend=headless` without graphical paths, then
-build both frontends with debugger/scanline support disabled and profiling
+build both native frontends with scanline support disabled and profiling
 enabled. `zeal_dep` exports the core headers, feature definitions, and portable
 link dependencies. Do not add host macros, graphical dependencies, or frontend
 includes to this dependency. Keep mutable core data in machine/device contexts;

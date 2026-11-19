@@ -58,7 +58,7 @@ static void sample_cb(void* userdata)
     zeal_t* machine = (zeal_t*) userdata;
     schedule_next();
     /* Single steps also advance the clock: only count free-running code */
-    if (machine->dbg_enabled && machine->dbg_state != ST_RUNNING) {
+    if (machine->dbg_state != ST_RUNNING) {
         s_mark_ns = clock_ns();
         return;
     }
@@ -130,7 +130,7 @@ uint64_t fz_profile_total(void)
 uint64_t fz_profile_elapsed_us(void)
 {
     uint64_t ns = s_elapsed_ns;
-    if (s_running && s_machine && !(s_machine->dbg_enabled && s_machine->dbg_state != ST_RUNNING)) {
+    if (s_running && s_machine && s_machine->dbg_state == ST_RUNNING) {
         const uint64_t now = clock_ns();
         if (now > s_mark_ns) ns += now - s_mark_ns;
     }

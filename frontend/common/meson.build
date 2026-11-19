@@ -7,7 +7,7 @@ common_sources = files(
     'paths.c',
     'rtc.c',
 )
-if get_option('enable_debugger')
+if debugger_api
     common_sources += files('symbols.c')
 endif
 graphical_cli = files('graphical_cli.c')

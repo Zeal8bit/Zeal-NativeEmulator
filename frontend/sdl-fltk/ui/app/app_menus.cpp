@@ -50,8 +50,9 @@ void cb_reset(Fl_Widget*, void*)
 
 void cb_toggle_debugger(Fl_Widget*, void*)
 {
-    fz_debugger_set_enabled(!fz_debugger_enabled());
-    if (main_window()) main_window()->update_menus();
+    if (MainWindow* window = main_window()) {
+        window->set_debug_layout(!window->debug_layout());
+    }
 }
 
 DebuggerUi* debugger_ui()
@@ -59,12 +60,12 @@ DebuggerUi* debugger_ui()
     return main_window() ? main_window()->debugger() : nullptr;
 }
 
-/* Debug menu commands turn the debugger on first */
+/* Reveal the debugger panels for commands issued from the screen layout. */
 void debug_command(DebugCommand command)
 {
     DebuggerUi* debugger = debugger_ui();
     if (debugger == nullptr) return;
-    if (!fz_debugger_enabled()) fz_debugger_set_enabled(true);
+    main_window()->set_debug_layout(true);
     debugger->command(command);
     main_window()->update_status();
 }
@@ -249,7 +250,7 @@ void AppMenus::build()
 
     mb->add("&Machine/&Reset", FL_COMMAND + FL_SHIFT + FL_BackSpace, cb_reset, nullptr, FL_MENU_DIVIDER);
     if (m_window->debugger()) {
-        mb->add("&Machine/&Debugger", FL_COMMAND + (FL_F + 1), cb_toggle_debugger, nullptr, FL_MENU_TOGGLE);
+        mb->add("&View/Show &Debugger", FL_COMMAND + (FL_F + 1), cb_toggle_debugger, nullptr, FL_MENU_TOGGLE);
 
         mb->add("&Debug/&Continue", FL_COMMAND + (FL_F + 5), cb_continue);
         mb->add("&Debug/&Pause", FL_COMMAND + (FL_F + 6), cb_pause);
@@ -304,8 +305,7 @@ void AppMenus::build()
 void AppMenus::update()
 {
     Fl_Menu_Bar* mb = m_bar;
-    const bool dbg = fz_debugger_enabled();
-    set_toggle(mb, "&Machine/&Debugger", dbg);
+    set_toggle(mb, "&View/Show &Debugger", m_window->debug_layout());
     set_toggle(mb, "&Debug/&Keyboard Passthrough", config.debugger.keyboard_passthru);
     set_toggle(mb, "&Debug/&Uppercase Hex", config.debugger.hex_upper);
     set_toggle(mb, "&Debug/Pause After Rese&t", fz_pause_on_reset());

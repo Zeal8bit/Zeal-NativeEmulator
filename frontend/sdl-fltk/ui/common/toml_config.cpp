@@ -6,9 +6,7 @@
 #include "frontend/sdl-fltk/config.h"
 #include "common/toml_config.h"
 #include "common/machine.h"
-#if CONFIG_ENABLE_DEBUGGER
 #include "debugger/project_state.h"
-#endif
 #include "common/persist.h"
 #include <algorithm>
 #include <sstream>
@@ -133,16 +131,12 @@ int save_settings(bool theme_only)
         set_preference("window", "y", w.y);
         set_preference("window", "display", w.display);
         set_preference("audio", "volume", config.audio.volume);
-#if CONFIG_ENABLE_DEBUGGER
         auto& d = config.debugger;
-        set_preference("debugger", "enabled", fltk_settings_args.save_arguments && d.enabled == DEBUGGER_STATE_ARG
-                                               ? true : d.config_enabled);
         set_preference("debugger", "width", d.width);
         set_preference("debugger", "height", d.height);
         set_preference("debugger", "x", d.x);
         set_preference("debugger", "y", d.y);
         set_preference("debugger", "uppercase_hex", d.hex_upper);
-#endif
         if (fltk_settings_args.save_arguments) {
             const auto& a = config.arguments;
             const char* paths[] = {a.rom_filename, a.eeprom_filename, a.tf_filename};
@@ -210,9 +204,6 @@ extern "C" int config_parse_file(const char* file)
         d.x = preference("debugger", "x", -1);
         d.y = preference("debugger", "y", -1);
         d.hex_upper = preference("debugger", "uppercase_hex", true);
-        d.config_enabled = preference("debugger", "enabled", false);
-        if (d.enabled != DEBUGGER_STATE_ARG && d.enabled != DEBUGGER_STATE_ARG_DISABLE)
-            d.enabled = d.config_enabled ? DEBUGGER_STATE_CONFIG : DEBUGGER_STATE_DISABLED;
         auto& a = config.arguments;
         const char** paths[] = {&a.rom_filename, &a.eeprom_filename, &a.tf_filename};
         const char* keys[] = {"rom", "eeprom", "tf"};
@@ -226,13 +217,11 @@ extern "C" int config_parse_file(const char* file)
             image_paths[i] = (doc.path.parent_path() / *value).lexically_normal().string();
             *paths[i] = image_paths[i].c_str();
         }
-#if CONFIG_ENABLE_DEBUGGER
         try {
             zui::debugger::project_state_load();
         } catch (const std::runtime_error& ex) {
             throw std::runtime_error(program().path.string() + ": " + ex.what());
         }
-#endif
         return 0;
     } catch (const toml::parse_error& ex) {
         std::cerr << "[CONFIG] " << ex << '\n';

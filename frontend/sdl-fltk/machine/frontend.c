@@ -29,7 +29,7 @@
 zeal_t* fltk_machine;
 static bool s_sdl_ready;
 
-void frontend_open(bool debug)
+void frontend_open(void)
 {
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     /* Keep default SIGINT/SIGTERM behaviour; SDL would turn them into an
@@ -42,7 +42,7 @@ void frontend_open(bool debug)
         log_err_printf("[SDL] Initialization failed: %s\n", SDL_GetError());
     }
     notif_reset();
-    ui_open(debug);
+    ui_open();
 }
 
 void frontend_bind_input(zeal_t* machine)
@@ -78,22 +78,19 @@ void frontend_reset_input(zeal_t* machine)
 static bool run_frame(zeal_t* machine)
 {
     for (;;) {
-        const bool debugging = fltk_debug_active(machine);
-        zeal_step_result_t result = zeal_step(machine, debugging);
+        zeal_step_result_t result = zeal_step(machine, true);
         if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) return false;
         if (!(result & ZEAL_STEP_FRAME)) continue;
 
         const double profile_start = fltk_profile_frame_begin();
         const zvb_frame_t frame = zvb_frame(&machine->zvb);
         ui_present(frame.pixels, frame.width, frame.height);
-        if (debugging) {
-            /* Breakpoints and single steps must show their final state;
-             * otherwise the UI throttles refreshes of a running machine. */
-            static bool s_last_paused;
-            const bool paused = fltk_debug_paused(machine);
-            ui_debug_refresh((result & ZEAL_STEP_DEBUG_STOP) || (paused && !s_last_paused));
-            s_last_paused = paused;
-        }
+        /* Breakpoints and single steps must show their final state;
+         * otherwise the UI throttles refreshes of a running machine. */
+        static bool s_last_paused;
+        const bool paused = fltk_debug_paused(machine);
+        ui_debug_refresh((result & ZEAL_STEP_DEBUG_STOP) || (paused && !s_last_paused));
+        s_last_paused = paused;
         snes_controller_poll();
         snes_adapter_update(&frontend_snes);
         fltk_profile_frame_end(profile_start);
@@ -138,7 +135,7 @@ int frontend_run(zeal_t* machine)
         } while (now < deadline && !ui_closed() && !machine->should_exit);
     }
 
-    config_window_update(fltk_debug_active(machine));
+    config_window_update();
     frontend_close(machine);
     if (machine->compactflash.failed) return 1;
     config_save();

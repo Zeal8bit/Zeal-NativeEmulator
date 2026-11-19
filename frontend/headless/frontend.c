@@ -3,9 +3,8 @@
 #include "utils/config.h"
 #include "utils/log.h"
 
-void frontend_open(bool debug)
+void frontend_open(void)
 {
-    (void) debug;
 }
 void frontend_reset_input(zeal_t* machine)
 {

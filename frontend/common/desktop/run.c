@@ -14,10 +14,10 @@
 
 static zeal_t machine;
 
-int desktop_run(bool frames, bool debug)
+int desktop_run(bool frames)
 {
     int code = 0;
-    if (frontend_init(&machine, frames, debug)) {
+    if (frontend_init(&machine, frames, true)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }

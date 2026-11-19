@@ -24,10 +24,9 @@ class ScreenView;
 /** Main window: menu bar, the screen or the debugger layout, status bar. */
 class MainWindow : public Fl_Double_Window {
 public:
-    MainWindow(bool debug);
+    MainWindow();
     ~MainWindow() override;
     ScreenView* screen() const { return m_screen; }
-    /** The debugger UI, nullptr when the debugger is compiled out. */
     DebuggerUi* debugger() const { return m_debugger; }
     bool debug_layout() const { return m_debug; }
     void set_debug_layout(bool debug);

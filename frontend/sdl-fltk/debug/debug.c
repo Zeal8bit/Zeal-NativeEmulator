@@ -28,21 +28,14 @@ void fltk_debug_unbind(zeal_t* machine)
 
 void fltk_debug_start(zeal_t* machine)
 {
-    if (!machine->dbg_enabled) return;
-    ui_debug_mode(true);
     /* Start running; the user pauses explicitly or with breakpoints. */
     debugger_clear_stop_reason(&machine->dbg);
     machine->dbg_state = ST_RUNNING;
 }
 
-bool fltk_debug_active(const zeal_t* machine)
-{
-    return machine->dbg_enabled;
-}
-
 bool fltk_debug_paused(const zeal_t* machine)
 {
-    return machine->dbg_enabled && machine->dbg_state == ST_PAUSED;
+    return machine->dbg_state == ST_PAUSED;
 }
 
 bool fltk_debug_keep_running(const zeal_t* machine)
@@ -52,7 +45,7 @@ bool fltk_debug_keep_running(const zeal_t* machine)
 
 bool fltk_debug_keyboard_blocked(const zeal_t* machine)
 {
-    return machine->dbg_enabled && machine->dbg_state != ST_RUNNING;
+    return machine->dbg_state != ST_RUNNING;
 }
 
 bool fltk_debug_reset(zeal_t* machine, bool pause_after)
@@ -60,7 +53,7 @@ bool fltk_debug_reset(zeal_t* machine, bool pause_after)
     dbg_t* dbg = &machine->dbg;
     if (dbg->reset_cb == NULL) return false;
     /* The core always halts after a reset with the debugger on */
-    const bool was_running = machine->dbg_enabled && !fltk_debug_paused(machine);
+    const bool was_running = !fltk_debug_paused(machine);
     dbg->reset_cb(dbg);
     if (was_running && !pause_after) debugger_continue(dbg);
     return true;
@@ -75,30 +68,9 @@ dbg_t* fz_debugger(void)
     return fltk_machine ? &fltk_machine->dbg : NULL;
 }
 
-bool fz_debugger_enabled(void)
-{
-    return fltk_machine && fltk_machine->dbg_enabled;
-}
-
 bool fz_paused(void)
 {
     return fltk_machine && fltk_debug_paused(fltk_machine);
-}
-
-void fz_debugger_set_enabled(bool enabled)
-{
-    zeal_t* machine = fltk_machine;
-    if (machine == NULL || machine->dbg_enabled == enabled) return;
-    config_window_update(machine->dbg_enabled);
-    machine->dbg_enabled = enabled;
-    /* Showing or hiding the debugger never stops the machine; pause from
-     * the toolbar (or a breakpoint) when needed */
-    debugger_clear_stop_reason(&machine->dbg);
-    machine->dbg_state = ST_RUNNING;
-    log_printf("[DEBUGGER]: %s\n", enabled ? "Enabled" : "Disabled");
-    fz_keys_release_all();
-    ui_debug_mode(enabled);
-    ui_debug_refresh(true);
 }
 
 bool fz_vram_render(dbg_vram_t view, fz_image_t* out)

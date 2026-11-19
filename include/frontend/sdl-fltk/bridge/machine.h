@@ -34,10 +34,8 @@ bool fz_pause_on_reset(void);
 void fz_pause_on_reset_set(bool pause);
 void fz_quit(void);
 
-/* Debugger: fz_debugger() is NULL when the debugger is compiled out. */
+/* Debugger: fz_debugger() is NULL until the machine is bound. */
 dbg_t* fz_debugger(void);
-bool   fz_debugger_enabled(void);
-void   fz_debugger_set_enabled(bool enabled);
 bool   fz_paused(void);
 
 /**
@@ -146,8 +144,8 @@ bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask);
 /*  Implemented by the C++ UI, used by the C machine layer             */
 /* ------------------------------------------------------------------ */
 
-void config_window_update(bool dbg_enabled);
-int  ui_open(bool debug);
+void config_window_update(void);
+int  ui_open(void);
 void ui_close(void);
 /** True once the user closed the main window or chose Quit. */
 bool ui_closed(void);
@@ -155,8 +153,6 @@ bool ui_closed(void);
 void ui_wait(double seconds);
 /** Present a new emulator frame: RGB565 rows with a 640-pixel stride. */
 void ui_present(const uint16_t* pixels, int width, int height);
-/** Switch between the plain and the debugger layout. */
-void ui_debug_mode(bool enabled);
 /** The machine is bound and has not executed yet: restore saved debugger
  *  state (project breakpoints and watches) before the first instruction. */
 void ui_machine_bound(void);

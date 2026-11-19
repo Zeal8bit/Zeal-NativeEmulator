@@ -342,7 +342,7 @@ int ScreenView::handle(int event)
         case FL_KEYDOWN:
         case FL_KEYUP: {
             const bool down = event == FL_KEYDOWN;
-            if (down && !(fz_debugger_enabled() && config.debugger.keyboard_passthru)) {
+            if (down && !config.debugger.keyboard_passthru) {
                 MainWindow* mw = main_window();
                 /* Let menu shortcuts through; everything else is the machine's */
                 if (mw && mw->menubar() && mw->menubar()->menu() &&

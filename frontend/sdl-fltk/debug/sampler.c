@@ -44,7 +44,6 @@ static void sample_cb(void* userdata)
 {
     zeal_t* machine = (zeal_t*) userdata;
     schedule_next();
-    if (!machine->dbg_enabled) return;
     dbg_t* dbg = &machine->dbg;
     debugger_get_registers(dbg, &s_sample.regs);
     debugger_read_memory(dbg, s_sample.regs.sp, SAMPLE_STACK_BYTES, s_sample.stack);

@@ -325,7 +325,7 @@ void DebuggerView::reset_layout()
 
 void DebuggerView::show_tool(app::ToolId tool, bool show)
 {
-    if (show && !fz_debugger_enabled()) fz_debugger_set_enabled(true);
+    if (show && app::main_window()) app::main_window()->set_debug_layout(true);
     switch (tool) {
         case app::ToolId::Video:
             video_window_show(show);

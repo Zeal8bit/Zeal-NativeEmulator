@@ -3,4 +3,4 @@
 
 #include <stdbool.h>
 
-int desktop_run(bool frames, bool debug);
+int desktop_run(bool frames);

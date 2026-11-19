@@ -71,13 +71,13 @@ void maybe_screenshot()
 
 extern "C" {
 
-void config_window_update(bool dbg_enabled)
+void config_window_update(void)
 {
-    if (main_window()) main_window()->capture_window_config(dbg_enabled);
+    if (main_window()) main_window()->capture_window_config(main_window()->debug_layout());
     if (main_window() && main_window()->debugger()) main_window()->debugger()->capture_layout();
 }
 
-int ui_open(bool debug)
+int ui_open(void)
 {
     /* Cocoa (macOS system menubar) must exist before any menu is built */
     fl_open_display();
@@ -90,7 +90,7 @@ int ui_open(bool debug)
     Fl::visible_focus(0);
 
     MainWindow::reset_quit();
-    MainWindow* window = new MainWindow(debug);
+    MainWindow* window = new MainWindow();
     window->show();
     window->screen()->show();
     window->screen()->take_focus();
@@ -134,11 +134,6 @@ void ui_present(const uint16_t* pixels, int width, int height)
     main_window()->frame_presented();
 }
 
-void ui_debug_mode(bool enabled)
-{
-    if (main_window()) main_window()->set_debug_layout(enabled);
-}
-
 void ui_machine_bound(void)
 {
     if (main_window() && main_window()->debugger()) main_window()->debugger()->machine_bound();
@@ -146,6 +141,7 @@ void ui_machine_bound(void)
 
 void ui_debug_refresh(bool force)
 {
+    if (force && fz_paused() && main_window()) main_window()->set_debug_layout(true);
     if (main_window() && main_window()->debugger() && main_window()->debug_layout()) {
         main_window()->debugger()->refresh(force);
         if (force) main_window()->update_status();

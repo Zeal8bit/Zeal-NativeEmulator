@@ -8,7 +8,6 @@
 
 #include "frontend/headless/console.h"
 
-#if CONFIG_ENABLE_DEBUGGER
 
 /* Debugger command handlers, defined in console_debug.c and referenced by the
  * console dispatch table (console.c). */
@@ -26,5 +25,3 @@ void console_debug_r32(zeal_t* machine, int argc, char** argv);
 void console_debug_wb(zeal_t* machine, int argc, char** argv);
 void console_debug_disasm(zeal_t* machine, int argc, char** argv);
 void console_debug_mmu(zeal_t* machine, int argc, char** argv);
-
-#endif /* CONFIG_ENABLE_DEBUGGER */

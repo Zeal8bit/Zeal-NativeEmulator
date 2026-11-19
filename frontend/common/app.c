@@ -28,7 +28,7 @@ int frontend_init(zeal_t* machine, bool frames, bool debug)
 #if !CONFIG_ENABLE_DEBUGGER
     debug = false;
 #endif
-    frontend_open(debug);
+    frontend_open();
     const zeal_options_t options = {
         .host = &frontend_host,
         .frames = frames,

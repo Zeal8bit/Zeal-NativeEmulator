@@ -218,7 +218,7 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
                 }
             }
             if (machine->dbg_state == ST_PAUSED) result |= ZEAL_STEP_DEBUG_STOP;
-        } else
+        }
 #endif
         /* PC is back to zero: stop on software reset when requested. */
         if (machine->stop_on_reset && machine->cpu.pc == 0) {
