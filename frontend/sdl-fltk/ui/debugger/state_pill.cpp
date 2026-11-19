@@ -5,7 +5,9 @@
  */
 
 #include "debugger/state_pill.h"
+#include <algorithm>
 #include <cctype>
+#include "common/machine.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -25,31 +27,42 @@ StatePill::StatePill(int X, int Y, int W, int H)
 
 void StatePill::set(bool paused, uint16_t pc, const char* reason)
 {
-    m_tip[0] = '\0';
+    m_tip.clear();
     if (paused && reason != nullptr) {
         /* "Write $C000 = $3E at PC $1234": the pill keeps "WRITE $C000 = $3E" */
-        snprintf(m_tip, sizeof(m_tip), "Paused by a watchpoint: %s", reason);
+        m_tip = std::string("Paused by a watchpoint: ") + reason;
         const char* at = strstr(reason, " at ");
         const int len = at ? (int) (at - reason) : (int) strlen(reason);
-        snprintf(m_text, sizeof(m_text), "%.*s", len, reason);
-        for (char* t = m_text; *t && *t != ' '; t++) *t = (char) toupper((unsigned char) *t);
+        m_text.assign(reason, len);
+        for (char& c : m_text) {
+            if (c == ' ') break;
+            c = (char) toupper((unsigned char) c);
+        }
     } else if (paused) {
         char addr[8];
+        dbg_t* dbg = fz_debugger();
+        if (dbg && dbg->breakpoint_stopped) pc = dbg->breakpoint_hit_addr;
         hex16(addr, sizeof(addr), pc);
-        snprintf(m_text, sizeof(m_text), "PAUSED $%s", addr);
+        m_text = dbg && dbg->breakpoint_stopped ? "BREAKPOINT $" : "PAUSED $";
+        m_text += addr;
+        if (const char* symbol = debugger_get_symbol(dbg, pc)) {
+            m_text += " ";
+            m_text += symbol;
+        }
+        m_tip = m_text;
     } else {
-        snprintf(m_text, sizeof(m_text), "RUNNING");
+        m_text = "RUNNING";
     }
     m_paused = paused;
-    tooltip(m_tip[0] ? m_tip : nullptr);
+    tooltip(m_tip.empty() ? nullptr : m_tip.c_str());
     redraw();
 }
 
 void StatePill::draw()
 {
     fl_font(DATA_FONT, DATA_SIZE);
-    const int tw = (int) fl_width(m_text);
-    const int pw = tw + 32;
+    const int tw = (int) fl_width(m_text.c_str());
+    const int pw = std::min(w(), tw + 32);
     const int px = x() + w() - pw;
     const Fl_Color c = m_paused ? COLOR_AMBER : COLOR_GREEN;
     fl_color(COLOR_BG);
@@ -59,7 +72,9 @@ void StatePill::draw()
     fl_color(c);
     fl_rect(px, y() + 2, pw, h() - 4);
     fl_pie(px + 9, y() + h() / 2 - 4, 8, 8, 0, 360);
-    fl_draw(m_text, px + 24, y() + (h() + fl_height()) / 2 - fl_descent());
+    fl_push_clip(px, y(), pw, h());
+    fl_draw(m_text.c_str(), px + 24, y() + (h() + fl_height()) / 2 - fl_descent());
+    fl_pop_clip();
 }
 
 } // namespace zui::debugger

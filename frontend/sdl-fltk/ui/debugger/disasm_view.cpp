@@ -86,7 +86,7 @@ void DisasmView::draw()
         const bool is_bp = debugger_has_breakpoint(dbg, addr);
         const bool bp_on = is_bp && debugger_is_breakpoint_enabled(dbg, addr);
         if (is_pc) {
-            fl_color(COLOR_PC);
+            fl_color(dbg->breakpoint_stopped && addr == dbg->breakpoint_hit_addr ? COLOR_BREAK_ROW : COLOR_PC);
             fl_rectf(x() + GUTTER, yy, w() - GUTTER, lh);
             fl_color(COLOR_GREEN);
             fl_rectf(x() + GUTTER, yy, 2, lh);

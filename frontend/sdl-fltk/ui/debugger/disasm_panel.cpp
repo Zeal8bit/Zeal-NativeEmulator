@@ -54,6 +54,11 @@ void DisasmPanel::refresh(bool paused, bool force)
 void DisasmPanel::go(hwaddr addr)
 {
     m_follow->value(0);
+    reveal_address(addr);
+}
+
+void DisasmPanel::reveal_address(hwaddr addr)
+{
     m_view->selected = (int) addr;
     m_view->go(addr);
 }

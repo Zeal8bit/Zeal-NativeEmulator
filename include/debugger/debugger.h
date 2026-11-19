@@ -51,6 +51,8 @@ void debugger_watchpoint_hit(dbg_t *dbg, hwaddr address, hwaddr pc, uint8_t valu
 /* The hit that stopped the machine, false once execution resumed */
 bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit);
 void debugger_clear_watchpoint_hit(dbg_t *dbg);
+/* Forget the current stop when resuming or resetting; retain hit counts. */
+void debugger_clear_stop_reason(dbg_t *dbg);
 
 /* Memory inspection */
 void debugger_read_memory(dbg_t *dbg, hwaddr addr, int len, uint8_t *val);

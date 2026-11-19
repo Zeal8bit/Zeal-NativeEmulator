@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <FL/Fl_Widget.H>
 
 namespace zui::debugger {
@@ -19,8 +20,8 @@ public:
     void draw() override;
 
 private:
-    char m_text[32] = "RUNNING";
-    char m_tip[96] = "";
+    std::string m_text = "RUNNING";
+    std::string m_tip;
     bool m_paused = false;
 };
 

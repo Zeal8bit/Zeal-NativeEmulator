@@ -31,6 +31,7 @@ void fltk_debug_start(zeal_t* machine)
     if (!machine->dbg_enabled) return;
     ui_debug_mode(true);
     /* Start running; the user pauses explicitly or with breakpoints. */
+    debugger_clear_stop_reason(&machine->dbg);
     machine->dbg_state = ST_RUNNING;
 }
 
@@ -92,6 +93,7 @@ void fz_debugger_set_enabled(bool enabled)
     machine->dbg_enabled = enabled;
     /* Showing or hiding the debugger never stops the machine; pause from
      * the toolbar (or a breakpoint) when needed */
+    debugger_clear_stop_reason(&machine->dbg);
     machine->dbg_state = ST_RUNNING;
     log_printf("[DEBUGGER]: %s\n", enabled ? "Enabled" : "Disabled");
     fz_keys_release_all();

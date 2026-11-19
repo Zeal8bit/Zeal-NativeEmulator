@@ -5,6 +5,7 @@
  */
 
 #include "debugger/toolbar.h"
+#include <algorithm>
 #include <cstdint>
 #include <FL/Fl_Group.H>
 #include <FL/Fl_Widget.H>
@@ -45,7 +46,7 @@ Toolbar::Toolbar(int X, int Y, int W, int H)
     m_run_to = make(Icon::RunTo, "Run to", 84, cb_run_to, "Run to the line selected in the disassembly");
     bx += 12;
     make(Icon::Reset, "Reset", 76, cb_reset, "Reset the machine (Cmd/Ctrl+Shift+Backspace)");
-    m_pill = new StatePill(X + W - 230, by, 222, bh);
+    m_pill = new StatePill(bx, by, std::max(0, X + W - 8 - bx), bh);
     resizable(nullptr);
     end();
 }
@@ -60,7 +61,8 @@ void Toolbar::resize(int X, int Y, int W, int H)
         if (c == m_pill) continue;
         c->resize(c->x() + dx, c->y() + dy, c->w(), c->h());
     }
-    m_pill->resize(X + W - 230, Y + 4, 222, H - 8);
+    const int left = m_pill->x() + dx;
+    m_pill->resize(left, Y + 4, std::max(0, X + W - 8 - left), H - 8);
 }
 
 void Toolbar::update(bool paused, uint16_t pc, const char* reason)

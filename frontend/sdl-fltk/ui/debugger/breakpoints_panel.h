@@ -18,6 +18,7 @@ class BreakpointsPanel : public widgets::Panel {
 public:
     BreakpointsPanel(int X, int Y, int W, int H);
     void refresh(bool paused, bool force) override;
+    void reveal(hwaddr addr) { m_list->reveal(addr); }
     void resize(int X, int Y, int W, int H) override;
 
 private:

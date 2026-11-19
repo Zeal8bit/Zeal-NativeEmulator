@@ -425,8 +425,14 @@ bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit)
 
 void debugger_clear_watchpoint_hit(dbg_t *dbg)
 {
+    if (dbg != NULL) dbg->watch_stopped = false;
+}
+
+void debugger_clear_stop_reason(dbg_t *dbg)
+{
     if (dbg != NULL) {
-        dbg->watch_stopped = false;
+        debugger_clear_watchpoint_hit(dbg);
+        dbg->breakpoint_stopped = false;
     }
 }
 

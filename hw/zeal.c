@@ -149,7 +149,7 @@ int zeal_reset(zeal_t* machine)
     if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, true);
 
 #if CONFIG_ENABLE_DEBUGGER
-    debugger_clear_watchpoint_hit(&machine->dbg);
+    debugger_clear_stop_reason(&machine->dbg);
     machine->cpu.watch_hit_type = 0;
     zeal_trace_on_reset(machine);
     if (machine->dbg_enabled) {
@@ -211,6 +211,11 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
             if (machine->dbg_state == ST_REQ_STEP || debugger_is_breakpoint_set(&machine->dbg, machine->cpu.pc)) {
                 machine->dbg_state = ST_PAUSED;
                 debugger_clear_breakpoint_if_temporary(&machine->dbg, machine->cpu.pc);
+                if (!machine->dbg.watch_stopped && debugger_is_breakpoint_enabled(&machine->dbg, machine->cpu.pc)) {
+                    machine->dbg.breakpoint_hit_addr = machine->cpu.pc;
+                    machine->dbg.breakpoint_hits++;
+                    machine->dbg.breakpoint_stopped = true;
+                }
             }
             if (machine->dbg_state == ST_PAUSED) result |= ZEAL_STEP_DEBUG_STOP;
         } else
@@ -258,7 +263,7 @@ static zeal_run_result_t zeal_run_budget(zeal_t* machine, unsigned long max_tsta
 bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
 {
     if (machine->dbg_state == ST_PAUSED) machine->dbg_state = ST_RUNNING;
-    debugger_clear_watchpoint_hit(&machine->dbg);
+    debugger_clear_stop_reason(&machine->dbg);
     return (zeal_run_budget(machine, max_tstates, true).reason & ZEAL_STEP_DEBUG_STOP) != 0;
 }
 #endif

@@ -21,6 +21,7 @@ public:
     DisasmPanel(int X, int Y, int W, int H);
     void refresh(bool paused, bool force) override;
     void go(hwaddr addr);
+    void reveal_address(hwaddr addr);
     int selected() const;
     void resize(int X, int Y, int W, int H) override;
 

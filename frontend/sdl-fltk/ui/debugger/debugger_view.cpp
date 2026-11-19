@@ -6,6 +6,7 @@
 
 #include "debugger/debugger_view.h"
 #include <algorithm>
+#include <cstdio>
 #include <FL/Fl.H>
 #include <FL/Fl_Group.H>
 #include "app/debugger_ui.h"
@@ -173,6 +174,14 @@ void DebuggerView::refresh(bool force)
     m_lists->refresh(paused, force);
     m_disasm->refresh(paused, force);
     m_memory->refresh(paused, force);
+    dbg_t* dbg = fz_debugger();
+    if (paused && dbg->breakpoint_stopped && dbg->breakpoint_hits != m_breakpoint_hits) {
+        m_breakpoint_hits = dbg->breakpoint_hits;
+        m_disasm->reveal_address(dbg->breakpoint_hit_addr);
+        if (m_lists->collapsed()) m_side->toggle_collapse(m_lists);
+        m_lists->select(1);
+        m_breakpoints->reveal(dbg->breakpoint_hit_addr);
+    }
     watchpoint_hit_t hit;
     if (watch_stop && debugger_get_watchpoint_hit(fz_debugger(), &hit) && hit.count != m_watch_hits) {
         /* A watchpoint stopped the machine: say why and show the byte */
@@ -215,6 +224,10 @@ bool DebuggerView::paused_at(unsigned* pc) const
 
 bool DebuggerView::pause_reason(char* text, int size) const
 {
+    if (fz_paused() && fz_debugger()->breakpoint_stopped) {
+        snprintf(text, size, "Breakpoint");
+        return true;
+    }
     return fz_paused() && watch_hit_text(text, (size_t) size, true);
 }
 

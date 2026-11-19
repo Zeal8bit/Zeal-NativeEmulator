@@ -84,9 +84,14 @@ void BreakpointList::draw()
     for (int i = m_top; i < (int) addrs.size() && i <= m_top + visible_rows(); i++) {
         const int ry = y() + 2 + (i - m_top) * lh;
         const bool enabled = debugger_is_breakpoint_enabled(fz_debugger(), addrs[i]);
-        if (i == m_hover || (Fl::focus() == this && i == m_selection)) {
-            fl_color(COLOR_HOVER);
+        const dbg_t* dbg = fz_debugger();
+        const bool hit = fz_paused() && dbg->breakpoint_stopped && dbg->breakpoint_hit_addr == addrs[i];
+        const bool hover = i == m_hover || (Fl::focus() == this && i == m_selection);
+        if (hit || hover) {
+            fl_color(hit ? COLOR_BREAK_ROW : COLOR_HOVER);
             fl_rectf(x(), ry, w(), lh);
+        }
+        if (hover) {
             fl_color(COLOR_BREAK);
             fl_draw("x", x() + w() - cw * 2, ry + asc);
         }

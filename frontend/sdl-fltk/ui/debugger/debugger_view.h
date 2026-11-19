@@ -90,6 +90,7 @@ private:
     DisasmPanel* m_disasm = nullptr;
     MemoryPanel* m_memory = nullptr;
     double m_last_refresh = 0;
+    uint32_t m_breakpoint_hits = 0;
     uint32_t m_watch_hits = 0; /* watchpoint hits already reported */
 };
 

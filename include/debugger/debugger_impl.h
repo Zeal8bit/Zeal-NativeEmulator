@@ -118,6 +118,9 @@ struct dbg_t {
      * otherwise: the CPU only checks accesses when it is set. */
     uint8_t*        watch_map;
     const uint8_t*  watch_live;
+    uint32_t breakpoint_hits;
+    hwaddr breakpoint_hit_addr;
+    bool breakpoint_stopped;
     watchpoint_hit_t watch_hit;
     bool            watch_stopped; // The machine stopped on watch_hit and did not resume
     uint64_t        symbol_generation;
