@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-    code = frontend_configure_graphical(argc, argv, NULL, 0);
+    code = frontend_configure(argc, argv, NULL, 0);
     if (code != 0) return code;
 
     if (frontend_init(&machine, true, false)) {

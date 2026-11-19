@@ -101,7 +101,7 @@ static int usage(const char* progname, const frontend_cli_option_t* options, siz
     log_printf("Usage: %s [OPTIONS]\n", progname);
     log_printf("\nOptions:\n");
     for (size_t i = 0; i < count; i++) {
-        if (options[i].help) log_printf("%s\n", options[i].help);
+        log_printf("%s\n", options[i].help);
     }
     log_printf("  -r, --rom <file>                   Load ROM file\n");
     log_printf("  -u, --uprog <file>[,<addr>]        Load user program in romdisk at hex address\n");

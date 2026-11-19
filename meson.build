@@ -112,7 +112,7 @@ if build_sdlfltk
     if get_option('show_fps')
         sdlfltk_args += '-DCONFIG_SHOW_FPS=1'
     endif
-    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + graphical_cli + desktop_sources + sdlfltk_sources,
+    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
     exec = executable('zeal-fltk', sdlfltk_cpp_sources,
@@ -130,7 +130,7 @@ endif
 if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
-    exec = executable('zeal.elf', common_sources + graphical_cli + wasm_sources,
+    exec = executable('zeal.elf', common_sources + wasm_sources,
         dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
         link_args: graphics_link + wasm_link_args, install: true)
     run_target('run', command: [exec])

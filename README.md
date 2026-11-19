@@ -267,8 +267,6 @@ Options:
   -H, --hostfs <path>                Set host filesystem path
   -m, --map <file>                   Load memory map file (for debugging)
   -b, --brk <addr/sym>[,<addr/sym>]  Set breakpoints on boot
-  -n, --headless [<tstates>]         Moved to zeal-headless
-  -o, --console                      Moved to zeal-headless
   -q, --no-reset                     Exit emulator when a reset is detected
       --no-dma                       Disconnect ZVB DMA bus handshake wiring
       --no-scanline-rendering         Use whole-frame rendering (when compiled in)
@@ -463,8 +461,7 @@ command-line parser. SDL/FLTK locates its own bundled fonts and gamepad mappings
 
 Native builds produce both `zeal-fltk` and `zeal-headless` by default. Existing
 headless scripts should use `zeal-headless` and supply image paths as arguments
-or through the image search paths above. The graphical executable prints
-migration guidance when passed `--headless` or `--console`.
+or through the image search paths above.
 
 Select targets explicitly with Meson:
 

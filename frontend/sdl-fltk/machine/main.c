@@ -19,7 +19,7 @@ int main(int argc, char* argv[])
         {'s', "save", "  -s, --save                         Save image paths to project settings",
          .flag = &fltk_settings_args.save_arguments},
     };
-    int code = frontend_configure_graphical(argc, argv, options, sizeof(options) / sizeof(options[0]));
+    int code = frontend_configure(argc, argv, options, sizeof(options) / sizeof(options[0]));
     if (code) return code;
     if (config_parse_file(fltk_settings_args.user_path) != 0) return 1;
 

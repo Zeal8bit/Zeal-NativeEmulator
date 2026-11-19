@@ -16,6 +16,3 @@ typedef struct {
 } frontend_cli_option_t;
 
 int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* options, size_t count);
-/* Graphical launchers also recognize the retired console switches so existing
- * invocations can be redirected to the dedicated executable. */
-int frontend_configure_graphical(int argc, char* argv[], const frontend_cli_option_t* options, size_t count);
