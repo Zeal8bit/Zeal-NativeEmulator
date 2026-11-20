@@ -53,7 +53,7 @@ void load(Document& doc, const char* path)
     doc = {};
     doc.path = fs::absolute(path).lexically_normal();
     if (doc.path.extension() == ".ini")
-        throw std::runtime_error(doc.path.string() + ": zeal-fltk expects TOML; use a separate TOML file");
+        throw std::runtime_error(doc.path.string() + ": zeal-native expects TOML; use a separate TOML file");
     if (!fs::exists(doc.path)) return;
     if (!fs::is_regular_file(doc.path)) throw std::runtime_error(doc.path.string() + ": expected a regular file");
     doc.data = toml::parse_file(doc.path.string());

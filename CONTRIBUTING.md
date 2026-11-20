@@ -9,7 +9,7 @@ Run commands from the repository root. For development:
 ```sh
 meson setup build-dev
 meson compile -C build-dev
-./build-dev/zeal-fltk --help
+./build-dev/zeal-native --help
 ```
 
 Use `meson configure build-dev` to inspect build settings;

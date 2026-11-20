@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Build a static SDL3 from the pinned, unmodified release for zeal-fltk.
+"""Build a static SDL3 from the pinned, unmodified release for zeal-native.
 
 For systems without an SDL3 package (for example Ubuntu 22.04 and 24.04).
 The result installs into sdl3/<platform>/ (ignored by Git); configure with
@@ -131,7 +131,7 @@ def main():
                 "-DSDL_TEST_LIBRARY=OFF",
                 "-DSDL_TESTS=OFF",
                 "-DSDL_EXAMPLES=OFF",
-                # zeal-fltk uses SDL only for audio and gamepads (FLTK owns the
+                # zeal-native uses SDL only for audio and gamepads (FLTK owns the
                 # windows), so do not require X11/Wayland development files.
                 "-DSDL_UNIX_CONSOLE_BUILD=ON",
             ],

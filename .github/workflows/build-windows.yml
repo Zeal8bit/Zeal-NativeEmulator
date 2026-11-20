@@ -24,7 +24,7 @@ jobs:
           meson setup build
           meson compile -C build
           meson test -C build --print-errorlogs
-          for exe in build/zeal-fltk.exe build/zeal-headless.exe; do
+          for exe in build/zeal-native.exe build/zeal-headless.exe; do
             ldd "$exe" | awk '/=> \/ucrt64\/bin\// { print $3 }' | xargs -r -I '{}' cp '{}' build/
           done
 
@@ -33,7 +33,7 @@ jobs:
         with:
           name: zeal-native-windows
           path: |
-            build/zeal-fltk.exe
+            build/zeal-native.exe
             build/zeal-headless.exe
             build/*.dll
             build/assets/fonts/*.TTF

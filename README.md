@@ -50,11 +50,11 @@ cd build
 meson compile
 ```
 
-You will then have graphical `zeal-fltk` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-fltk --help`, or print the version with `./zeal-fltk --version`.
+You will then have graphical `zeal-native` and console/batch `zeal-headless` binaries. You can check all the parameters via `./zeal-native --help`, or print the version with `./zeal-native --version`.
 
 ### SDL3 + FLTK desktop frontend
 
-`zeal-fltk` is the desktop frontend. FLTK
+`zeal-native` is the desktop frontend. FLTK
 provides the windows, native menus, keyboard/mouse input and the docked
 debugger, and SDL3 (initialized without video) provides audio and gamepads.
 It stores settings in TOML.
@@ -72,14 +72,14 @@ require the D-Bus development package (`dbus-1` in pkg-config).
 brew install fltk sdl3
 meson setup build-fltk -Dfrontend=sdl-fltk
 meson compile -C build-fltk
-./build-fltk/zeal-fltk
+./build-fltk/zeal-native
 ```
 
 Ubuntu 22.04 and 24.04 package FLTK 1.3. Build FLTK 1.4 from source on
 these releases, or put an existing FLTK 1.4+ installation’s `fltk-config`
 on `PATH`. These releases also lack an SDL3 package. `tools/build_sdl3.py` builds the
 pinned, checksum-verified SDL3 release as a static library into `sdl3/linux64`
-(ignored by Git), so `zeal-fltk` does not need SDL3 installed at runtime:
+(ignored by Git), so `zeal-native` does not need SDL3 installed at runtime:
 
 ```sh
 sudo apt install meson ninja-build g++ git pkg-config cmake libxft-dev libgl-dev \
@@ -185,7 +185,7 @@ All the compilation options are listed in the `meson_options.txt` file. Check it
 With trace recording enabled, the core records the last executed
 instructions (PC, opcode bytes, AF/BC/DE/HL/IX/IY/SP before execution and the
 T-state count, plus interrupts and resets) in a fixed ring buffer, and derives
-a heuristic call stack from CALL/RST/interrupts and returns. `zeal-fltk` shows
+a heuristic call stack from CALL/RST/interrupts and returns. `zeal-native` shows
 them in Code & Profiler > Trace and Call Stack. The ring depth is a
 compile-time value, 32 bytes per entry:
 
@@ -225,7 +225,7 @@ Or simply delete the build directory.
 
 ### Running
 
-You can add `zeal-fltk` to your `$PATH` and run it from anywhere.
+You can add `zeal-native` to your `$PATH` and run it from anywhere.
 
 For desktop settings, see [SDL/FLTK configuration](#sdlfltk-configuration).
 Headless takes its options on the command line. WASM takes launch arguments from the embedding page. Only SDL/FLTK reads and writes settings files.
@@ -250,9 +250,9 @@ In SDL/FLTK, `--save` records configured image paths, not automatic fallbacks. A
 selected ROM images are not written back; EEPROM and TF images retain their normal writeback behavior.
 
 ```sh
-$ build/zeal-fltk -h
+$ build/zeal-native -h
 Zeal Native Emulator 1.0.1
-Usage: build/zeal-fltk [OPTIONS]
+Usage: build/zeal-native [OPTIONS]
 
 Options:
   -c, --config <file>                User settings (default ~/.zeal8bit/zeal-fltk.toml)
@@ -273,7 +273,7 @@ Options:
   -V, --version                      Show version information
 
 Example:
-  build/zeal-fltk --rom game.bin --map mem.map
+  build/zeal-native --rom game.bin --map mem.map
 ```
 
 Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB
@@ -457,7 +457,7 @@ native machine lifecycle and filesystem-backed HostFS adapter shared by SDL/FLTK
 and headless. Each frontend owns its entry point and supplies its options to the shared
 command-line parser. SDL/FLTK locates its own bundled fonts and gamepad mappings. The emulator library has no platform-specific branches.
 
-Native builds produce both `zeal-fltk` and `zeal-headless` by default. Existing
+Native builds produce both `zeal-native` and `zeal-headless` by default. Existing
 headless scripts should use `zeal-headless` and supply image paths as arguments
 or through the image search paths above.
 
@@ -474,7 +474,7 @@ meson compile -C build-core
 
 `frontend` accepts `auto`, `both`, `headless`, `sdl-fltk`, `wasm`, or
 `none`. `auto` selects both native executables and WASM for Emscripten;
-`sdl-fltk` builds only `zeal-fltk`. Core-only and
+`sdl-fltk` builds only `zeal-native`. Core-only and
 headless-only builds require no graphics libraries or assets.
 Scanline rendering can be configured independently for each build.
 

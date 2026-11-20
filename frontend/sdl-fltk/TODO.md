@@ -1,4 +1,4 @@
-# zeal-fltk TODO
+# zeal-native TODO
 
 Ideas and follow-ups for the SDL3 + FLTK frontend. Roughly ordered by value
 within each section; finished items are marked **Done** and kept for
@@ -117,7 +117,7 @@ reference.
 ## Platform
 
 - Windows build (MinGW/MSVC) with FLTK + SDL3, and release packaging of
-  `zeal-fltk` (static SDL3 from `tools/build_sdl3.py`).
+  `zeal-native` (static SDL3 from `tools/build_sdl3.py`).
 - Wayland: SNES mouse capture only hides the cursor (no pointer warp); use the
   pointer-constraints protocol when FLTK exposes it.
 - Non-US host keyboard layouts: keys are mapped by character (US physical

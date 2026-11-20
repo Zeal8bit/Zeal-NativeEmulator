@@ -27,7 +27,7 @@ jobs:
 
       - name: Test Executable
         run: |
-          ./build/zeal-fltk --help
+          ./build/zeal-native --help
           ./build/zeal-headless --help
 
       - name: Upload Artifact
@@ -35,7 +35,7 @@ jobs:
         with:
           name: zeal-native-macos
           path: |
-            build/zeal-fltk
+            build/zeal-native
             build/zeal-headless
             build/assets/fonts/*.TTF
             build/assets/resources/gamecontrollerdb.txt
