@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLTK 1.4+, SDL3 and OpenGL. Browser builds use Raylib 6.2 and WebGL2. Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
+Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLTK 1.4+, SDL3 and OpenGL. Browser builds use the Emscripten SDL3 port and WebGL2. Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
 
 Run commands from the repository root. For development:
 
@@ -22,21 +22,14 @@ For WebAssembly, activate Emscripten **7.0.0** with `emcc`, `em++`, and
 `emar` available, then configure a separate build:
 
 ```sh
-python3 tools/build_raylib_web.py
-meson setup build-wasm --cross-file wasm-cross.build
+meson setup build-wasm --cross-file frontend/wasm/wasm-cross.build
 meson compile -C build-wasm
 ```
 
 The WASM cross file disables the core debugger API by default; add
 `-Denable_debugger=true` when needed. The WASM frontend never includes the
 desktop debugger UI. Serve the generated browser files through
-an HTTP server rather than opening them directly. The helper builds Raylib 6.2
-headers and library in `raylib/web/`, where generated files are ignored by Git;
-see [its build instructions](raylib/web/README.md). Run the browser
-storage and lifecycle checks, when available locally, with
-`node tests/wasm-tests/run.mjs build-wasm`
-([details](assets/wasm/README.md)). The harnesses are untracked under `tests/`
-and are not included in a fresh checkout or run by CI.
+an HTTP server rather than opening them directly. Emscripten fetches its SDL3 port during the first build. See the [browser configuration guide](frontend/wasm/README.md).
 
 ## Project Structure
 
@@ -46,15 +39,14 @@ and are not included in a fresh checkout or run by CI.
 | `hw/zvb/` | Video-board components and RGB565 software frame generation. |
 | `hw/debugger/`, `hw/zeal_debugger.c` | Debugger backend and machine integration. |
 | `hw/userport/` | SNES serial protocol. |
-| `frontend/common/` | CLI/INI, image files, HostFS, RTC and stream adapters. |
+| `frontend/common/` | Launch options, image files, HostFS, RTC and stream adapters. |
 | `frontend/sdl-fltk/` | Desktop-only window loop, input, audio playback, and all desktop debugger UI. |
-| `frontend/wasm/` | Independent Raylib browser frontend, Emscripten exports, OPFS startup and browser HostFS. |
+| `frontend/wasm/` | SDL3 browser frontend, templates, Emscripten exports, OPFS startup and browser HostFS. |
 | `frontend/common/desktop/` | Desktop OS startup, paths and HostFS shared by SDL/FLTK and headless. |
 | `frontend/headless/` | Batch execution and console/debugger commands. |
 | `include/` | Headers organized by subsystem, plus bundled header libraries. |
 | `utils/` | Portable FIFO and per-machine virtual timers. |
-| `assets/` | Fonts, resources, and browser templates/support code. |
-| `raylib/` | Raylib WebAssembly build instructions and license. |
+| `assets/` | Desktop fonts and resources. |
 | `tools/` | Build-time resource and WASM helper scripts. |
 | `meson.build`, subsystem `meson.build` files | Build configuration and source lists. |
 | `.github/` | Platform build and deployment workflows. |

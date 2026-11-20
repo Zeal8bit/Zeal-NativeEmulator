@@ -107,22 +107,6 @@
         }
     }
 
-    canvas.addEventListener('keydown', event => {
-        event.preventDefault();
-        event.stopPropagation();
-    }, true);
-
-    canvas.addEventListener('keyup', event => {
-        event.preventDefault();
-        event.stopPropagation();
-    }, true);
-
-    window.addEventListener('keydown', event => {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'Escape'].includes(event.key)) {
-            event.preventDefault();
-        }
-    }, true);
-
     document.getElementById('unmute').addEventListener('click', () => {
         emulator.resumeAudio().catch(reportError);
     });

@@ -1,7 +1,6 @@
 # meson_options.txt
 
 ## Build Options
-option('raylib_path', type : 'string', value : '', description : 'Path to WebAssembly Raylib')
 option('sdl3_static', type : 'boolean', value : false, description : 'Link SDL3 statically (sdl-fltk; e.g. built with tools/build_sdl3.py)')
 
 ## Debugger
@@ -16,6 +15,6 @@ option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
 option('profile_render', type: 'boolean', value: false, description: 'Log aggregated frame and sprite rendering timings')
 
 ## WASM / Web Builds
-option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
+option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, see frontend/wasm/templates')
 
 option('frontend', type: 'combo', choices: ['auto', 'none', 'headless', 'both', 'sdl-fltk', 'wasm'], value: 'auto', description: 'Frontend targets; auto builds both native or the WASM frontend on Emscripten')

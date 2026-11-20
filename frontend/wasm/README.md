@@ -4,7 +4,7 @@ ROM images are supplied at runtime by the embedding page. The emulator build
 does not copy or embed `default.img`; serve the configured image alongside the
 page or provide its URL through the template configuration.
 
-The browser build uses Raylib 6.2, Emscripten 7.0.0, WasmFS and Asyncify. Chrome
+The browser build uses the Emscripten SDL3 port, Emscripten 7.0.0, WasmFS and Asyncify. Chrome
 is the supported browser. Serve over HTTPS (or localhost for development).
 GitHub Pages works without custom response headers, cross-origin isolation,
 SharedArrayBuffer, or service workers. Other browsers may work with the same APIs.
@@ -82,7 +82,7 @@ absolute image URLs in the example provide stable default keys.
 Choose the namespace when creating `ZealNative`. Selecting another namespace
 does not delete, reset, or migrate data from the old one; removing the option
 returns to that page's original store. Explicit workspaces do not automatically
-adopt old page-directory disks. Namespace selection applies to all three
+adopt old page-directory disks. Namespace selection applies to both
 backends; `memory` data still lasts only for that instance. Only one emulator can
 own a workspace in a given backend at a time, even across different chapter URLs.
 Storage ownership is released after orderly exit; closing the tab also releases
@@ -192,42 +192,24 @@ clear unrelated images, old IndexedDB records, or HostFS files.
 
 ## Building and checking
 
-The browser regression harnesses are local, untracked files under
-`tests/wasm-tests/`. They are not included in a fresh checkout or run by CI.
-When the harnesses are available locally, activate Emscripten 7.0.0, then:
+Activate Emscripten 7.0.0 and build from the repository root.
 
 ```sh
-python3 tools/build_raylib_web.py
-meson setup build-wasm --cross-file wasm-cross.build
+meson setup build-wasm --cross-file frontend/wasm/wasm-cross.build
 meson compile -C build-wasm
-node tests/wasm-tests/run.mjs build-wasm
-# Include real guest shell/keyboard/HostFS coverage (an emulator-target OS image):
-ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tests/wasm-tests/run.mjs build-wasm
-# Run only the HostFS protocol and optional guest-shell checks:
-ZEAL_OS_IMAGE=/path/to/os_with_romdisk.img node tests/wasm-tests/run.mjs build-wasm --hostfs-only
 ```
 
-The test runner uses Node 22+ and Chrome, with no npm dependencies. Set `CHROME`
-to the Chrome executable if it is not at the default macOS path or named
-`google-chrome` on other platforms. It starts an ordinary localhost server and
-an isolated browser profile, tests real device writes and persistence across
-page reloads, update safety, backend selection, device error reporting, and emulator lifecycle.
-It also verifies completed writes across an abrupt Chrome termination and a new
-browser session, without flushing or closing the writer devices, then
-removes its profile. Generated test modules stay in the build directory.
-
-The real guest-shell check uses Chrome keyboard events to run H: directory,
-missing executable/file, and copy operations. It writes a screenshot to
-`<build>/wasm-tests/hostfs-zshell.png`. Without `ZEAL_OS_IMAGE`, that check is
-explicitly skipped; the browser HostFS protocol/error tests still run.
-
-See `raylib/web/README.md` for the reproducible dependency build.
-
+Emscripten downloads and caches its SDL3 port on first use. Place the configured
+images in the output directory and serve it over localhost or HTTPS. Select a
+template with `-Dwasm_template=native|minimal|game`. The embedder passes image
+sources and a focusable canvas to `new ZealNative({...})`. Keyboard events go to
+the focused canvas. SDL maps connected gamepads to SNES controllers. The middle
+mouse button toggles capture and the wheel adjusts SNES mouse sensitivity.
 
 ### Frontend boundary
 
 Emscripten builds select `frontend/wasm/` (`-Dfrontend=wasm`, or `auto`). It owns
-the Raylib normal-view renderer, browser input/audio, loop, Emscripten exports,
+the SDL3 canvas renderer, browser input/audio, loop, Emscripten exports,
 OPFS startup, and HostFS bridge. It does not compile or link FLTK, debugger
 panels, or debugger textures. `-Denable_debugger=true` enables only the emulator
 core API. The desktop debugger remains in `frontend/sdl-fltk/`.

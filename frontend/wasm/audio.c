@@ -1,18 +1,48 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <string.h>
-#include "frontend/wasm/audio.h"
+#include <stdatomic.h>
+#include <SDL3/SDL.h>
+#include "audio.h"
+#include "utils/log.h"
+
+typedef struct {
+    SDL_AudioStream* stream;
+    bool enabled;
+    /* Host playback queue, separate from the emulated hardware FIFO. */
+    atomic_flag        output_lock;
+    zvb_pcm_frame_t    output_samples[SAMPLE_OUTPUT_SIZE];
+    uint32_t output_head;
+    uint32_t output_tail;
+    uint32_t output_count;
+    /* Host-only resampling state; never feeds back into FPGA synthesis. */
+    zvb_pcm_frame_t playback_last;
+    bool playback_started;
+    double playback_position;
+    double playback_rate;
+    /* Host AC coupling, after resampling; protected by output_lock. */
+    double playback_dc_input[SOUND_CHANNELS];
+    double playback_dc_output[SOUND_CHANNELS];
+    bool playback_dc_ready;
+} wasm_audio_t;
+
+#define AUDIO_CHUNK_FRAMES  512
 
 /* About 93 ms of queued audio absorbs video-frame bursts and host jitter,
  * including an occasional missed presentation while correcting clock drift.
  * Slowly correct clock drift at the host boundary, without skipping chunks
  * of the FPGA output or changing any emulated clocks/registers. */
-#define SOUND_PLAYBACK_TARGET (SAMPLE_OUTPUT_SIZE / 2)
-#define SOUND_PLAYBACK_CORRECTION_SECS (0.5)
-#define SOUND_PLAYBACK_SMOOTH_SECS (0.25)
-/* Frame-paced browser delivery supplies samples; correct residual clock drift. */
-#define SOUND_PLAYBACK_MAX_CORRECTION (0.01)
+#define SOUND_PLAYBACK_TARGET           (SAMPLE_OUTPUT_SIZE / 2)
+#define SOUND_PLAYBACK_CORRECTION_SECS  (0.5)
+#define SOUND_PLAYBACK_SMOOTH_SECS      (0.25)
+/* Correct residual clock drift between browser playback and emulation. */
+#define SOUND_PLAYBACK_MAX_CORRECTION   (0.01)
 /* First-order AC coupling at 5 Hz preserves bass while rejecting DC. */
-#define SOUND_PLAYBACK_DC_POLE (1.0 / (1.0 + 2.0 * 3.141592653589793 * 5.0 / SAMPLE_RATE))
+#define SOUND_PLAYBACK_DC_POLE          (1.0 / (1.0 + 2.0 * 3.141592653589793 * 5.0 / SAMPLE_RATE))
 
 static wasm_audio_t playback;
 static wasm_audio_t* g_sound = &playback;
@@ -70,7 +100,7 @@ static zvb_pcm_frame_t playback_ac_couple(wasm_audio_t* sound, zvb_pcm_frame_t s
             sound->playback_dc_input[channel] = input[channel];
         }
         const double filtered = SOUND_PLAYBACK_DC_POLE *
-                                (sound->playback_dc_output[channel] + input[channel] - sound->playback_dc_input[channel]);
+            (sound->playback_dc_output[channel] + input[channel] - sound->playback_dc_input[channel]);
         sound->playback_dc_input[channel] = input[channel];
         sound->playback_dc_output[channel] = filtered;
         /* A full-range input step can exceed signed PCM after DC removal.
@@ -82,9 +112,8 @@ static zvb_pcm_frame_t playback_ac_couple(wasm_audio_t* sound, zvb_pcm_frame_t s
     return (zvb_pcm_frame_t){output[0], output[1]};
 }
 
-static void audio_callback(void* rbuf, unsigned int frames)
+static void audio_fill(int16_t* buffer, unsigned int frames)
 {
-    int16_t* buffer = rbuf;
     /* The host only consumes complete frames; all registers and synthesis
      * belong to the emulation thread. */
     output_lock(g_sound);
@@ -106,7 +135,8 @@ static void audio_callback(void* rbuf, unsigned int frames)
         zvb_pcm_frame_t sample = g_sound->playback_last;
         if (g_sound->playback_started && g_sound->output_count >= 2) {
             const zvb_pcm_frame_t first = g_sound->output_samples[g_sound->output_tail];
-            const zvb_pcm_frame_t second = g_sound->output_samples[(g_sound->output_tail + 1) % SAMPLE_OUTPUT_SIZE];
+            const zvb_pcm_frame_t second = g_sound->output_samples[
+                (g_sound->output_tail + 1) % SAMPLE_OUTPUT_SIZE];
             const double fraction = g_sound->playback_position;
             sample.left = first.left + (second.left - first.left) * fraction;
             sample.right = first.right + (second.right - first.right) * fraction;
@@ -132,22 +162,44 @@ static void audio_callback(void* rbuf, unsigned int frames)
     output_unlock(g_sound);
 }
 
+
+static void SDLCALL audio_callback(void* userdata, SDL_AudioStream* stream, int additional_amount, int total_amount)
+{
+    (void) userdata;
+    (void) total_amount;
+    int16_t buffer[AUDIO_CHUNK_FRAMES * SOUND_CHANNELS];
+    const int frame_bytes = (int) sizeof(int16_t) * SOUND_CHANNELS;
+    int frames = additional_amount / frame_bytes;
+    while (frames > 0) {
+        const int chunk = frames > AUDIO_CHUNK_FRAMES ? AUDIO_CHUNK_FRAMES : frames;
+        audio_fill(buffer, (unsigned int) chunk);
+        SDL_PutAudioStreamData(stream, buffer, chunk * frame_bytes);
+        frames -= chunk;
+    }
+}
+
 /* One playback device per graphical application; close it before rebinding. */
-void wasm_audio_init(zvb_sound_t* sound, bool enabled)
+void wasm_audio_init(zvb_sound_t* sound)
 {
     memset(&playback, 0, sizeof(playback));
     atomic_flag_clear(&playback.output_lock);
     playback.playback_rate = 1.0;
-    playback.enabled = enabled;
-    if (!enabled) return;
-    InitAudioDevice();
-    SetMasterVolume(1.0f);
-    playback.stream = LoadAudioStream(SAMPLE_RATE, 16, SOUND_CHANNELS);
+
+    const SDL_AudioSpec spec = {
+        .format = SDL_AUDIO_S16,
+        .channels = SOUND_CHANNELS,
+        .freq = SAMPLE_RATE,
+    };
+    playback.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, audio_callback, NULL);
+    if (playback.stream == NULL) {
+        log_err_printf("[AUDIO] Could not open the playback device: %s\n", SDL_GetError());
+        return;
+    }
+    playback.enabled = true;
     sound->output_userdata = &playback;
     sound->output = playback_push;
     sound->output_reset = playback_reset;
-    SetAudioStreamCallback(playback.stream, audio_callback);
-    PlayAudioStream(playback.stream);
+    SDL_ResumeAudioStreamDevice(playback.stream);
 }
 
 void wasm_audio_deinit(zvb_sound_t* sound)
@@ -155,9 +207,10 @@ void wasm_audio_deinit(zvb_sound_t* sound)
     sound->output = NULL;
     sound->output_reset = NULL;
     sound->output_userdata = NULL;
-    if (!playback.enabled) return;
-    StopAudioStream(playback.stream);
-    UnloadAudioStream(playback.stream);
-    CloseAudioDevice();
+    if (playback.stream) {
+        /* Destroying the stream closes its device and joins the callback. */
+        SDL_DestroyAudioStream(playback.stream);
+        playback.stream = NULL;
+    }
     playback.enabled = false;
 }

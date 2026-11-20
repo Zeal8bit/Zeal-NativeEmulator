@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "raylib.h"
+#include "video.h"
 #include "utils/notif.h"
 
 #define NOTIF_TEXT_MAX 64
@@ -16,7 +16,6 @@
 #define NOTIF_LIFETIME_SEC 1.5
 /* How long the notification takes to fade out */
 #define NOTIF_FADE_SEC 0.4
-#define NOTIF_FONT_SIZE 22
 
 typedef struct {
     bool active;
@@ -54,7 +53,7 @@ bool notif_visible(void)
         return false;
     }
 
-    if ((GetTime() - g_notif.shown_at) >= NOTIF_LIFETIME_SEC) {
+    if (((SDL_GetTicks() / 1000.0) - g_notif.shown_at) >= NOTIF_LIFETIME_SEC) {
         g_notif.active = false;
         return false;
     }
@@ -75,7 +74,7 @@ void notif_show(const char* fmt, ...)
     va_end(args);
 
     g_notif.active = true;
-    g_notif.shown_at = GetTime();
+    g_notif.shown_at = (SDL_GetTicks() / 1000.0);
 }
 
 int notif_estimate_width(void)
@@ -84,12 +83,12 @@ int notif_estimate_width(void)
         return 0;
     }
 
-    return MeasureText(g_notif.text, NOTIF_FONT_SIZE);
+    return (int)strlen(g_notif.text) * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
 }
 
 void notif_render(int x, int y)
 {
-    const double elapsed = GetTime() - g_notif.shown_at;
+    const double elapsed = (SDL_GetTicks() / 1000.0) - g_notif.shown_at;
     const unsigned char alpha = notif_alpha(elapsed);
 
     if (!notif_visible() || alpha == 0) {
@@ -97,6 +96,6 @@ void notif_render(int x, int y)
         return;
     }
 
-    const Color text = (Color){0xff, 0xe3, 0x45, alpha};
-    DrawText(g_notif.text, x, y, NOTIF_FONT_SIZE, text);
+    SDL_SetRenderDrawColor(wasm_renderer, 255, 227, 69, alpha);
+    SDL_RenderDebugText(wasm_renderer, x, y, g_notif.text);
 }

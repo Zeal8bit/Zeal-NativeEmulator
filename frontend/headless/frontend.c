@@ -26,7 +26,6 @@ static void headless_snes_trace(void* userdata, bool latch, const uint32_t* pack
 
 void frontend_bind_input(zeal_t* machine)
 {
-    /* Raylib previously flushed earlier startup diagnostics while loading mappings. */
     fflush(stdout);
     machine->snes_adapter.attached[1] = true;
     machine->snes_adapter.sample = headless_snes_sample;

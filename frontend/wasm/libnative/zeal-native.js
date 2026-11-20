@@ -31,7 +31,6 @@
             diskImages = {},
             onImageUpdateAvailable = null,
             onStorageError = null,
-            arguments: moduleArguments = null,
             hostfs = null,
             print = text => console.log(`Log: ${text}`),
             printErr = text => console.error(`Error: ${text}`),
@@ -56,7 +55,6 @@
             this.tfPath = tfPath;
             this.imageStorage = imageStorage;
             this.onStorageError = onStorageError;
-            this.arguments = moduleArguments == null ? [] : [...moduleArguments];
 
             this.hostfs = hostfs;
             this.print = print;
@@ -157,15 +155,12 @@
             try {
                 const images = await this.diskImages.loadAll();
                 const userProgram = await this.resolveBinary(this.userProgram);
-                const runtimeArguments = [...this.arguments];
-                for (const image of this.diskImages.images) {
-                    const flag = {romdisk: '-r', eeprom: '-e', tf: '-t'}[image.name];
-                    if (runtimeArguments.includes(flag)) throw new Error(`Configure ${image.name} through diskImages, not ${flag}`);
-                    runtimeArguments.push(flag, image.path);
-                }
-                if (userProgram) runtimeArguments.push('-u', this.userProgramPath);
+                const imagePaths = Object.fromEntries(
+                    this.diskImages.images.map(image => [image.name, image.path])
+                );
+                if (userProgram) imagePaths.userProgram = this.userProgramPath;
                 const moduleOptions = {
-                    arguments: runtimeArguments,
+                    imagePaths,
                     imageStorage: this.imageStorage,
                     hostfsBackend: this.hostfs,
                     print: this.print,
@@ -173,8 +168,6 @@
                     canvas: this.canvas,
                     onRuntimeInitialized() {
                         trackRuntime(this);
-                        // WasmFS does not create the legacy filesystem's home directory.
-                        this.FS.mkdirTree('/home/web_user');
                         for (const image of owner.diskImages.images) {
                             if (images[image.name]) owner.writeBinary(this.FS, image.path, images[image.name]);
                         }
@@ -378,14 +371,8 @@
         }
 
         resumeAudio() {
-            const contexts = new Set();
-            if (this.module?.audioContext) contexts.add(this.module.audioContext);
-            for (const device of window.miniaudio?.devices || []) {
-                if (device?.webaudio) contexts.add(device.webaudio);
-            }
-            return Promise.all([...contexts]
-                .filter(context => context.state === 'suspended')
-                .map(context => context.resume()));
+            const context = this.module?.SDL3?.audioContext;
+            return context?.state === 'suspended' ? context.resume() : Promise.resolve();
         }
 
         setSnesButton(button, pressed) {

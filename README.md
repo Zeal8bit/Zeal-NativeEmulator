@@ -31,14 +31,14 @@ To compile the emulator, you will need the following software:
 
 * **Meson** build system
 * **GCC** or **Clang** compiler
-* Desktop builds require FLTK 1.4+, SDL3, OpenGL and a C++17 compiler. WebAssembly builds use Raylib 6.2.
+* Desktop builds require FLTK 1.4+, SDL3, OpenGL and a C++17 compiler. WebAssembly builds use the Emscripten SDL3 port.
 
 ### Hardware Requirements
 
 * For the native (desktop) version:
   * The software renderer draws pixels on the CPU and uses OpenGL to display the finished frame.
   * FLTK must be able to create an OpenGL context and display the window.
-* For the WebAssembly (WASM) version, the browser must support WebGL2 (OpenGL ES 3.0), which Raylib uses for display.
+* For the WebAssembly (WASM) version, the browser must support WebGL2 (OpenGL ES 3.0), which SDL3 uses for display.
 
 ### Native compilation
 
@@ -159,24 +159,22 @@ rewrites that document with toml++ and drops its comments.
 Activate **Emscripten 7.0.0**, then compile to WASM with:
 
 ```sh
-python3 tools/build_raylib_web.py
-meson setup build-wasm --cross-file wasm-cross.build
+meson setup build-wasm --cross-file frontend/wasm/wasm-cross.build
 cd build-wasm
 meson compile
 ```
 
 > [!NOTE]
-> WebAssembly builds use the Raylib-only WASM frontend, without a desktop debugger UI.
+> WebAssembly builds use the SDL3 browser frontend, without a desktop debugger UI.
 > `-Denable_debugger=true` enables only the emulator core debugger API.
 > You can also pass `-Dwasm_template=minimal` to compile with a minimal set of HTML/CSS
 
-The helper builds **Raylib 6.2** headers and library in `raylib/web/`, where
-generated files are ignored by Git. See its [build instructions](raylib/web/README.md).
+Emscripten fetches and caches its SDL3 port during the first build.
 
 Browser images use OPFS through WasmFS by default. Chrome and ordinary HTTPS
 static hosting (including GitHub Pages) are supported without custom headers.
-See [WASM storage and template APIs](assets/wasm/README.md) for persistence,
-remote update notifications, alternative backends, and browser tests.
+See [WASM storage and template APIs](frontend/wasm/README.md) for persistence,
+remote update notifications, and storage options.
 
 ### Compilation options
 
@@ -420,7 +418,7 @@ It is now possible to switch to 320x240 text-mode and display text.
 ## License
 
 * Z80 CPU C implementation from [Superzazu](https://github.com/superzazu/z80) is distributed under the [MIT licence](https://github.com/superzazu/z80/blob/master/LICENSE).
-* [Raylib](https://github.com/raysan5/raylib) is distributed under this [LICENSE](raylib/LICENSE.txt)
+* SDL3 is distributed under the [zlib license](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt).
 
 All other files are distributed under the Apache 2.0 License, unless noted otherwise. See LICENSE file for more information.
 
@@ -440,7 +438,7 @@ buffer. Host I/O is supplied through instance-bound callbacks; the core does
 not open files, poll input devices, read host time, or present graphics/audio.
 The standalone static library is `libzeal.a` (`zeal_dep` for Meson subprojects).
 
-`frontend/wasm/` independently owns the browser application: Raylib rendering,
+`frontend/wasm/` independently owns the browser application: SDL3 rendering,
 input and audio, the browser loop, Emscripten exports, OPFS startup, and the
 browser HostFS bridge. It shows the normal emulator view even when the core debugger API is enabled.
 `frontend/headless/` owns the batch and console application.
@@ -503,7 +501,7 @@ host device access.
 Build the browser frontend with the Emscripten toolchain active:
 
 ```sh
-meson setup build-wasm --cross-file wasm-cross.build -Dfrontend=wasm
+meson setup build-wasm --cross-file frontend/wasm/wasm-cross.build -Dfrontend=wasm
 meson compile -C build-wasm
 ```
 

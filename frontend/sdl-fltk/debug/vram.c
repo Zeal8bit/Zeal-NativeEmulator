@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* VRAM debugger views rasterised into plain RGB buffers for FLTK images.
- * Ported from the Nuklear frontend's Raylib image renderer. */
+/* VRAM debugger views rasterised into plain RGB buffers for FLTK images. */
 
 #include <stdlib.h>
 #include "frontend/sdl-fltk/frontend.h"

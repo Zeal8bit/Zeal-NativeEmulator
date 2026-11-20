@@ -23,8 +23,6 @@ static void frontend_reset(void* userdata, zeal_t* machine, bool after_devices)
 
 int frontend_init(zeal_t* machine, bool frames, bool debug)
 {
-    config_resolve_images();
-    config_debug();
 #if !CONFIG_ENABLE_DEBUGGER
     debug = false;
 #endif

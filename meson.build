@@ -11,7 +11,7 @@ build_headless = frontend == 'headless' or frontend == 'both'
 build_wasm = frontend == 'wasm'
 build_sdlfltk = frontend == 'sdl-fltk' or frontend == 'both'
 if build_wasm and not is_web
-    error('frontend=wasm requires an Emscripten cross file (for example wasm-cross.build)')
+    error('frontend=wasm requires an Emscripten cross file (for example frontend/wasm/wasm-cross.build)')
 endif
 if is_web and (build_headless or build_sdlfltk)
     error('Emscripten supports frontend=wasm (or auto) and frontend=none; sdl-fltk and headless are native frontends')
@@ -67,22 +67,6 @@ if build_headless
         dependencies: zeal_dep, c_args: host_args, install: true)
 endif
 
-if build_wasm
-    raylib_path = get_option('raylib_path')
-    if raylib_path == ''
-        raylib_path = meson.get_external_property('raylib_path', '')
-    endif
-    graphics_args = []
-    graphics_link = ['-lraylib']
-    if raylib_path != ''
-        graphics_args += '-I' + raylib_path / 'include'
-        graphics_link += '-L' + raylib_path / 'lib'
-    endif
-    if get_option('show_fps')
-        graphics_args += '-DCONFIG_SHOW_FPS=1'
-    endif
-endif
-
 if build_sdlfltk
     add_languages('cpp', native: false)
     sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
@@ -131,44 +115,24 @@ if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
     exec = executable('zeal.elf', common_sources + wasm_sources,
-        dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
-        link_args: graphics_link + wasm_link_args, install: true)
+        dependencies: zeal_dep, c_args: host_args + wasm_args,
+        link_args: wasm_link_args, install: true)
     run_target('run', command: [exec])
-    OUTPUT_BIN = 'zeal.elf'
 
     wasm_template = get_option('wasm_template')
-    wasm_dir = join_paths(meson.project_source_root(), 'assets', 'wasm', wasm_template)
-    configure_file(
-        input: join_paths(wasm_dir, 'index.html'),
-        output: 'index.html',
-        copy: true
-    )
-    configure_file(
-        input: join_paths(wasm_dir, 'index.js'),
-        output: 'index.js',
-        copy: true
-    )
-    configure_file(
-        input: join_paths(wasm_dir, 'index.css'),
-        output: 'index.css',
-        copy: true
-    )
-    if wasm_template == 'native'
-        configure_file(
-            input: join_paths(wasm_dir, 'favicon.ico'),
-            output: 'favicon.ico',
-            copy: true
-        )
-    endif
+    wasm_dir = join_paths(meson.project_source_root(), 'frontend', 'wasm', 'templates', wasm_template)
+    foreach asset : ['index.html', 'index.js', 'index.css', 'favicon.ico']
+        configure_file(input: wasm_dir / asset, output: asset, copy: true)
+    endforeach
 
     wasm_lib_sources = files(
-        'assets/wasm/libnative/disk-images.js',
-        'assets/wasm/libnative/hostfs.js',
-        'assets/wasm/libnative/zeal-native.js',
+        'frontend/wasm/libnative/disk-images.js',
+        'frontend/wasm/libnative/hostfs.js',
+        'frontend/wasm/libnative/zeal-native.js',
     )
     wasm_lib_copy_script = join_paths(
         meson.project_source_root(),
-        'tools',
+        'frontend', 'wasm',
         'copy_wasm_lib.py',
     )
     custom_target(
@@ -182,15 +146,6 @@ if build_wasm
             '@OUTPUT@',
             '@INPUT@',
         ],
-        build_by_default: true,
-    )
-
-    patch_script = join_paths(meson.project_source_root(), 'tools', 'wasm_patch.py')
-
-    patch_wasm = custom_target('patch_wasm',
-        output: 'dummy_file',
-        command: ['python3', patch_script, meson.project_build_root() / (OUTPUT_BIN + '.js')],
-        depends: exec,
         build_by_default: true,
     )
 endif

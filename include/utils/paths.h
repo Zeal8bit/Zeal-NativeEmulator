@@ -10,7 +10,6 @@
 #include <string.h>
 
 #ifdef _WIN32
-    /* Including windows.h can lead to conflicts with Raylib API, stdlib defines PATH_MAX */
     #include <stdlib.h>
     #define realpath(N,R) _fullpath((R),(N),_MAX_PATH)
     #define HOME_VAR      "APPDATA"

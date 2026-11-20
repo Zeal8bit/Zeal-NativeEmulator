@@ -17,6 +17,8 @@ static zeal_t machine;
 int desktop_run(bool frames)
 {
     int code = 0;
+    config_resolve_images();
+    config_debug();
     if (frontend_init(&machine, frames, true)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;

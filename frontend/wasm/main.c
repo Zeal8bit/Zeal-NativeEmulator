@@ -15,16 +15,16 @@
 #include "hw/zeal.h"
 #include "frontend/common/media.h"
 #include "frontend/common/app.h"
-#include "frontend/common/cli.h"
-#include "frontend/wasm/frontend.h"
-#include "frontend/wasm/snes_adapter.h"
+#include "frontend.h"
+#include "snes_adapter.h"
 #include "utils/log.h"
 #include "utils/config.h"
 
+config_t config;
 static zeal_t machine;
 
 /* Only request work from JS. File I/O must run on the main Asyncify stack,
- * rather than re-entering it while Raylib is sleeping between frames. */
+ * rather than re-entering it while the main loop is sleeping between frames. */
 #define WEB_STORAGE_FLUSH 1
 #define WEB_STORAGE_EXIT 2
 
@@ -32,6 +32,11 @@ static int web_storage_request;
 
 // These macro bodies contain JavaScript, not C.
 // clang-format off
+EM_JS(char*, web_path, (const char* name), {
+    const path = Module.imagePaths?.[UTF8ToString(name)];
+    return path ? stringToNewUTF8(path) : 0;
+});
+EM_JS_DEPS(web_path, "$stringToNewUTF8,$UTF8ToString");
 EM_JS(int, web_uses_opfs, (), { return Module.imageStorage === 'opfs'; });
 EM_JS(void, web_ready, (), { Module.onEmulatorReady?.(); });
 EM_JS(void, web_storage_complete, (int error), { Module.onStorageComplete?.(error); });
@@ -97,9 +102,9 @@ void zeal_snes_clear_web(void)
     snes_adapter_clear_virtual_buttons(&frontend_snes);
 }
 
-int main(int argc, char* argv[])
+int main(void)
 {
-    int code = 0;
+    int code = 1;
     if (web_uses_opfs()) {
         const backend_t backend = wasmfs_create_opfs_backend();
         if (wasmfs_create_directory("/opfs", 0777, backend) != 0) {
@@ -107,8 +112,10 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-    code = frontend_configure(argc, argv, NULL, 0);
-    if (code != 0) return code;
+    config.images.rom = web_path("romdisk");
+    config.images.eeprom = web_path("eeprom");
+    config.images.tf = web_path("tf");
+    config.arguments.uprog_filename = web_path("userProgram");
 
     if (frontend_init(&machine, true, false)) {
         log_err_printf("Error initializing the machine\n");
@@ -116,7 +123,6 @@ int main(int argc, char* argv[])
     }
     if (config.images.eeprom && !frontend_media.eeprom) {
         log_err_printf("Could not open configured EEPROM image for persistence\n");
-        code = 1;
         goto deinit;
     }
 
@@ -134,11 +140,13 @@ int main(int argc, char* argv[])
     code = frontend_run(&machine);
     if (machine.compactflash.failed) goto deinit;
 
-    flash_save_to_file(&machine.rom, config.arguments.rom_filename);
-    frontend_eeprom_close(&frontend_media);
-    frontend_tf_close(&frontend_media);
+    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) code = 1;
 
 deinit:
     frontend_deinit(&machine);
+    free((void*)config.images.rom);
+    free((void*)config.images.eeprom);
+    free((void*)config.images.tf);
+    free((void*)config.arguments.uprog_filename);
     return code;
 }

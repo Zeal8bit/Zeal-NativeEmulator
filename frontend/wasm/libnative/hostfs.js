@@ -292,9 +292,11 @@
                 const writer = await descriptor.handle.createWritable({keepExistingData: true});
                 try {
                     await writer.write({type: 'write', position, data: request.data});
-                } finally {
-                    await writer.close();
+                } catch (error) {
+                    await writer.abort().catch(() => {});
+                    throw error;
                 }
+                await writer.close();
             }, {missingStatus: STATUS.FAILURE, write: true});
             this.complete(STATUS.SUCCESS, [
                 0, 0, 0, 0, request.data.length & 0xff, request.data.length >>> 8,

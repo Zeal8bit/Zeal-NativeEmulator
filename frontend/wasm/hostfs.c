@@ -62,7 +62,7 @@ EM_JS(void, hostfs_web_start, (int operation, const char* path, int flags, int d
         offset: offset >>> 0,
         guestAddress: guest_address,
         length,
-        data: write_data ? HEAPU8.slice(write_data, write_data + length) : null,
+        data: write_data ? HEAPU8.slice(write_data, write_data + length) : new Uint8Array(0),
     };
     Module.hostfsBackend.start(request);
 });

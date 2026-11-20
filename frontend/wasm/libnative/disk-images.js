@@ -34,7 +34,10 @@
 
         async open() {
             if (this.releaseLock) return;
-            if (!navigator.locks) throw new Error('Image storage requires HTTPS and the Web Locks API');
+            if (!window.isSecureContext) {
+                throw new Error('Open the emulator using HTTPS, or use http://localhost or http://127.0.0.1 on the machine running the server.');
+            }
+            if (!navigator.locks) throw new Error('The Web Locks API is unavailable in this browser context.');
             // Keep the legacy input byte-for-byte when no workspace is selected.
             // Explicit identifiers have a separate domain and are never URL-resolved.
             const namespace = await this.hash(this.storageNamespace === undefined
@@ -60,7 +63,7 @@
             try {
                 if (this.storage === 'opfs') {
                     if (!navigator.storage?.getDirectory) {
-                        throw new Error('OPFS is unavailable; use HTTPS and a browser with OPFS support');
+                        throw new Error('The origin private file system (OPFS) is unavailable in this browser context.');
                     }
                     const rootDirectory = await navigator.storage.getDirectory();
                     const applicationDirectory = await rootDirectory.getDirectoryHandle('zeal-native', {create: true});

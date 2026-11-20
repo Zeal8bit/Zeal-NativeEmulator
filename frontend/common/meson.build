@@ -1,6 +1,5 @@
 common_sources = files(
     'app.c',
-    'config_args.c',
     'flash.c',
     'host.c',
     'media.c',
