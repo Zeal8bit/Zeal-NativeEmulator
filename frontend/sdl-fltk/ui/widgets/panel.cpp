@@ -97,7 +97,7 @@ void Panel::header_toggle(const char* label, bool on, std::function<void(bool)> 
 
 void Panel::extra(const char* text)
 {
-    if (strcmp(m_extra, text) == 0) return;
+    if (strncmp(m_extra, text, sizeof(m_extra) - 1) == 0) return;
     snprintf(m_extra, sizeof(m_extra), "%s", text);
     damage(FL_DAMAGE_ALL, x(), y(), w(), HEADER_H);
 }

@@ -99,12 +99,16 @@ if build_sdlfltk
     sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
     sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
+    # The Objective-C++ driver already links libc++ for both UI languages.
+    ui_link_options = host_machine.system() == 'darwin' ? {'link_language': 'objcpp'} : {}
     exec = executable('zeal-native', sdlfltk_cpp_sources,
+        kwargs: ui_link_options,
         include_directories: [sdlfltk_ui_inc, include_directories('frontend/sdl-fltk/vendor', is_system: true)],
         link_with: sdlfltk_c, dependencies: sdlfltk_deps,
         objcpp_args: ['-std=c++17'],
         cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
     test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
+        kwargs: ui_link_options,
         objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
         include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
         cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))

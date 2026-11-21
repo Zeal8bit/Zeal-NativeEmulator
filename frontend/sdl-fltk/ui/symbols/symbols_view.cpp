@@ -6,7 +6,6 @@
 
 #include "symbols/symbols_view.h"
 #include <algorithm>
-#include <cstdio>
 #include <initializer_list>
 #include <string>
 #include <FL/Fl_Button.H>
@@ -123,25 +122,24 @@ void SymbolsView::draw()
 
 void SymbolsView::update_extra()
 {
-    char count[32];
-    if (m_list->filtered()) snprintf(count, sizeof(count), "%zu of %zu", m_list->shown(), m_list->total());
-    else snprintf(count, sizeof(count), "%zu symbol%s", m_list->total(), m_list->total() == 1 ? "" : "s");
+    const auto total = m_list->total();
+    std::string text = std::to_string(total);
+    if (m_list->filtered()) text = std::to_string(m_list->shown()) + " of " + text;
+    else text += total == 1 ? " symbol" : " symbols";
     /* Which map files they came from */
     const int maps = fz_map_count();
-    char text[64];
     /* Saved project maps that could not be loaded: Reload retries them */
     int missing = 0;
     for (int i = 0; i < maps; i++) missing += !fz_map_loaded(i);
     if (missing > 0) {
-        snprintf(text, sizeof(text), "%s  %d map%s missing", count, missing, missing == 1 ? "" : "s");
-    } else if (maps == 0) {
-        snprintf(text, sizeof(text), "%s", count);
+        text += "  " + std::to_string(missing) + (missing == 1 ? " map missing" : " maps missing");
     } else if (maps == 1) {
-        snprintf(text, sizeof(text), "%s  %s", count, base_name(fz_map_path(0)));
-    } else {
-        snprintf(text, sizeof(text), "%s  %d maps", count, maps);
+        text += "  ";
+        text += base_name(fz_map_path(0));
+    } else if (maps > 1) {
+        text += "  " + std::to_string(maps) + " maps";
     }
-    extra(text);
+    extra(text.c_str());
 
     /* Full paths in the Reload tooltip */
     std::string tip = "Reload the map files (after rebuilding the program)";
