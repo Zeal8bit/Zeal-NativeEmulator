@@ -14,7 +14,7 @@
  * are deterministic and can run faster than real time.
  *
  * Debugger commands (see console_debug.c) are registered in the dispatch
- * table and are only available when the debugger is enabled (--debug).
+ * table alongside the execution and input commands.
  */
 
 #include <stdio.h>
@@ -29,12 +29,6 @@
 
 #define CONSOLE_LINE_MAX 256
 #define CONSOLE_MAX_ARGS 8
-#if CONFIG_ENABLE_DEBUGGER
-/* Debugger commands are grouped at the end of CONSOLE_COMMANDS[]; this is the
- * index of the first one. Used to gate them on the debugger being enabled.
- * Keep in sync with the non-debugger commands listed above. */
-#define CONSOLE_FIRST_DEBUG_CMD 7
-#endif
 
 static void console_run_tstates(zeal_t* machine, int argc, char** argv)
 {
@@ -79,25 +73,21 @@ static void console_print_help(zeal_t* machine)
     log_printf("  run <tstates>         Advance the emulation by N Z80 T-states\n");
     log_printf("  reset                 Reset the emulator\n");
     log_printf("  quit                  Exit the emulator\n");
-#if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled) {
-        log_printf("\nDebugger commands:\n");
-        log_printf("  c, continue           Continue until breakpoint\n");
-        log_printf("  s, step               Single step\n");
-        log_printf("  so, step_over         Step over a call\n");
-        log_printf("  p, pause              Pause\n");
-        log_printf("  bp <addr|sym>         Set a breakpoint\n");
-        log_printf("  bc <addr|sym>         Clear a breakpoint\n");
-        log_printf("  bl                    List breakpoints\n");
-        log_printf("  regs                  Show CPU registers\n");
-        log_printf("  rb <addr> [count]     Read memory bytes\n");
-        log_printf("  r16 <addr>            Read a 16-bit value\n");
-        log_printf("  r32 <addr>            Read a 32-bit value\n");
-        log_printf("  wb <addr> <v...>      Write memory bytes\n");
-        log_printf("  u <addr> [count]      Disassemble memory\n");
-        log_printf("  mmu                   Show MMU mappings\n");
-    }
-#endif
+    log_printf("\nDebugger commands:\n");
+    log_printf("  c, continue           Continue until breakpoint\n");
+    log_printf("  s, step               Single step\n");
+    log_printf("  so, step_over         Step over a call\n");
+    log_printf("  p, pause              Pause\n");
+    log_printf("  bp <addr|sym>         Set a breakpoint\n");
+    log_printf("  bc <addr|sym>         Clear a breakpoint\n");
+    log_printf("  bl                    List breakpoints\n");
+    log_printf("  regs                  Show CPU registers\n");
+    log_printf("  rb <addr> [count]     Read memory bytes\n");
+    log_printf("  r16 <addr>            Read a 16-bit value\n");
+    log_printf("  r32 <addr>            Read a 32-bit value\n");
+    log_printf("  wb <addr> <v...>      Write memory bytes\n");
+    log_printf("  u <addr> [count]      Disassemble memory\n");
+    log_printf("  mmu                   Show MMU mappings\n");
     log_printf("\nKeys: A-Z, 0-9, UP, DOWN, LEFT, RIGHT, ENTER, ESC, SPACE, BACKSPACE,\n");
     log_printf("      TAB, SHIFT, CTRL, ALT, HOME, END, DELETE, INSERT, PAGE_UP,\n");
     log_printf("      PAGE_DOWN, F1-F12, keypad and punctuation keys.\n");
@@ -121,7 +111,6 @@ static const console_cmd_t CONSOLE_COMMANDS[] = {
     { "run",     console_run_tstates },
     { "reset",   console_reset },
     { "quit",    console_quit  },
-#if CONFIG_ENABLE_DEBUGGER
     { "continue", console_debug_continue },
     { "c",        console_debug_continue },
     { "step",     console_debug_step },
@@ -140,7 +129,6 @@ static const console_cmd_t CONSOLE_COMMANDS[] = {
     { "wb",       console_debug_wb },
     { "u",        console_debug_disasm },
     { "mmu",      console_debug_mmu },
-#endif
 };
 
 
@@ -198,13 +186,6 @@ static void console_exec_line(zeal_t* machine, char* line)
 
     for (unsigned int i = 0; i < DIM(CONSOLE_COMMANDS); i++) {
         if (strcmp(argv[0], CONSOLE_COMMANDS[i].name) == 0) {
-#if CONFIG_ENABLE_DEBUGGER
-            /* Debugger commands are only available when the debugger is on */
-            if (i >= CONSOLE_FIRST_DEBUG_CMD && !machine->dbg_enabled) {
-                log_err_printf("[CONSOLE] Debugger not enabled (use --debug)\n");
-                return;
-            }
-#endif
             CONSOLE_COMMANDS[i].handler(machine, argc, argv);
             return;
         }

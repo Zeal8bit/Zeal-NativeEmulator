@@ -1,12 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "frontend/common/app.h"
-#include "frontend/headless/console.h"
 #include "utils/config.h"
 #include "utils/log.h"
 
-void frontend_open(bool debug)
+void frontend_open(void)
 {
-    (void) debug;
 }
 void frontend_reset_input(zeal_t* machine)
 {
@@ -28,7 +26,6 @@ static void headless_snes_trace(void* userdata, bool latch, const uint32_t* pack
 
 void frontend_bind_input(zeal_t* machine)
 {
-    /* Raylib previously flushed earlier startup diagnostics while loading mappings. */
     fflush(stdout);
     machine->snes_adapter.attached[1] = true;
     machine->snes_adapter.sample = headless_snes_sample;
@@ -43,17 +40,4 @@ int frontend_bind_output(zeal_t* machine)
 void frontend_close(zeal_t* machine)
 {
     (void) machine;
-}
-
-int frontend_run(zeal_t* machine)
-{
-    if (config.arguments.console) {
-        console_run(machine);
-    } else {
-        zeal_run(machine, config.arguments.headless_run_ticks);
-        if (config.arguments.headless_run_ticks > 0 && machine->cpu.cyc >= config.arguments.headless_run_ticks) {
-            log_printf("[ZEAL] Ran for %lu ticks\n", machine->cpu.cyc);
-        }
-    }
-    return machine->compactflash.failed ? 1 : 0;
 }

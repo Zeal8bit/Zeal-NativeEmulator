@@ -165,5 +165,11 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value);
  */
 uint8_t zvb_spi_read(zvb_spi_t* spi, uint32_t addr);
 
+/**
+ * @brief Same as zvb_spi_read without side effects (debugger inspection):
+ * the FIFO is not consumed and no pending transfer is completed.
+ */
+uint8_t zvb_spi_peek(const zvb_spi_t* spi, uint32_t addr);
+
 
 void zvb_spi_bind_tf(zvb_spi_t* spi, const zvb_tf_backend_t* backend);

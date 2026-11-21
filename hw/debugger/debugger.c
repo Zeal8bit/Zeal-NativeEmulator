@@ -14,10 +14,25 @@
 
 #define MAX_LINE_LENGTH     256
 
+/* User (permanent) breakpoint at the address, enabled or disabled */
 static breakpoint_t* find_breakpoint(dbg_t *dbg, hwaddr address)
 {
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->breakpoints[i].active &&
+        if (dbg->breakpoints[i].active && !dbg->breakpoints[i].temporary &&
+            dbg->breakpoints[i].addr == address)
+        {
+            return &dbg->breakpoints[i];
+        }
+    }
+
+    return NULL;
+}
+
+/* Temporary breakpoint at the address (step over, run to cursor) */
+static breakpoint_t* find_temporary_breakpoint(dbg_t *dbg, hwaddr address)
+{
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        if (dbg->breakpoints[i].active && dbg->breakpoints[i].temporary &&
             dbg->breakpoints[i].addr == address)
         {
             return &dbg->breakpoints[i];
@@ -43,21 +58,53 @@ bool debugger_is_breakpoint_set(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    return find_breakpoint(dbg, address) != NULL;
+    const breakpoint_t* brk = find_breakpoint(dbg, address);
+    return (brk != NULL && !brk->disabled) || find_temporary_breakpoint(dbg, address) != NULL;
+}
+
+bool debugger_has_breakpoint(dbg_t *dbg, hwaddr address)
+{
+    return dbg != NULL && find_breakpoint(dbg, address) != NULL;
+}
+
+bool debugger_is_breakpoint_enabled(dbg_t *dbg, hwaddr address)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    const breakpoint_t* brk = find_breakpoint(dbg, address);
+    return brk != NULL && !brk->disabled;
+}
+
+bool debugger_enable_breakpoint(dbg_t *dbg, hwaddr address, bool enabled)
+{
+    if (dbg == NULL) {
+        return false;
+    }
+    breakpoint_t* brk = find_breakpoint(dbg, address);
+    if (brk == NULL) {
+        return false;
+    }
+    brk->disabled = !enabled;
+    return true;
 }
 
 
 bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address)
 {
-    /* No need to set a temporary breakpoint if there is a real breakpoint already */
+    if (dbg == NULL) {
+        return false;
+    }
+    /* No need to set a temporary breakpoint if execution stops there already */
     if (debugger_is_breakpoint_set(dbg, address)) {
         return false;
     }
-    /* Add a temporary breakpoint */
+    /* Add a temporary breakpoint (also on top of a disabled user breakpoint) */
     breakpoint_t* brk = find_free_breakpoint(dbg);
     if (brk != NULL) {
         brk->active = true;
         brk->temporary = true;
+        brk->disabled = false;
         brk->addr = address;
     }
     return brk != NULL;
@@ -68,20 +115,27 @@ bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    /* If the breakpoint already exists as a temporary one, make it permanent */
+    /* Setting an existing (possibly disabled) breakpoint enables it */
     breakpoint_t* brk = find_breakpoint(dbg, address);
     if (brk != NULL) {
-        const bool was_temp = brk->temporary;
-        /* Make it permanent in any case */
+        const bool was_disabled = brk->disabled;
+        brk->disabled = false;
+        return was_disabled;
+    }
+    /* If the breakpoint already exists as a temporary one, make it permanent */
+    brk = find_temporary_breakpoint(dbg, address);
+    if (brk != NULL) {
         brk->temporary = false;
-        /* Count it as a new breakpoint if it was temporary */
-        return was_temp;
+        brk->disabled = false;
+        /* Count it as a new breakpoint since it was temporary */
+        return true;
     }
 
     brk = find_free_breakpoint(dbg);
     if (brk != NULL) {
         brk->active = true;
         brk->temporary = false;
+        brk->disabled = false;
         brk->addr = address;
     }
     return brk != NULL;
@@ -135,13 +189,12 @@ bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
-    breakpoint_t* brk = find_breakpoint(dbg, address);
-    const bool valid = brk != NULL && brk->temporary;
-    if (valid) {
+    breakpoint_t* brk = find_temporary_breakpoint(dbg, address);
+    if (brk != NULL) {
         brk->active = false;
         return true;
     }
-    return valid;
+    return false;
 }
 
 bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
@@ -149,22 +202,22 @@ bool debugger_clear_breakpoint(dbg_t *dbg, hwaddr address)
     if (dbg == NULL) {
         return false;
     }
+    /* Temporary breakpoints cannot be cleared using this routine */
     breakpoint_t* brk = find_breakpoint(dbg, address);
-    /* It should not be possible clear a breakpoint that is temporary using this routine */
-    const bool valid = brk != NULL && !brk->temporary;
-    if (valid) {
+    if (brk != NULL) {
         brk->active = false;
+        brk->disabled = false;
+        return true;
     }
-    return valid;
+    return false;
 }
 
 bool debugger_toggle_breakpoint(dbg_t *dbg, hwaddr address) {
     if (dbg == NULL) {
         return false;
     }
-    breakpoint_t* brk = find_breakpoint(dbg, address);
     /* Toggling a temporary breakpoint doesn't make sense */
-    if (brk != NULL && !brk->temporary) {
+    if (find_breakpoint(dbg, address) != NULL) {
         return debugger_clear_breakpoint(dbg, address);
     } else {
         return debugger_set_breakpoint(dbg, address);
@@ -188,21 +241,76 @@ int debugger_get_breakpoints(dbg_t *dbg, hwaddr *bp, unsigned int size)
 
 
 /* Watchpoint management */
+#define WATCH_ADDR_MAX  0xffff
+
+static hwaddr watchpoint_end(const watchpoint_t* wp)
+{
+    return wp->end > wp->addr ? wp->end : wp->addr;
+}
+
+static watchpoint_t* find_watchpoint(dbg_t *dbg, hwaddr address)
+{
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        if (dbg->watchpoints[i].type != 0 && dbg->watchpoints[i].addr == address) {
+            return &dbg->watchpoints[i];
+        }
+    }
+    return NULL;
+}
+
+/* Rebuild the per-address map the CPU checks, after any watchpoint change */
+static void update_watch_map(dbg_t *dbg)
+{
+    bool any = false;
+    for (int i = 0; i < DBG_MAX_POINTS && !any; i++) {
+        any = dbg->watchpoints[i].type != 0 && !dbg->watchpoints[i].disabled;
+    }
+    if (!any) {
+        dbg->watch_live = NULL;
+        return;
+    }
+    if (dbg->watch_map == NULL) {
+        dbg->watch_map = malloc(WATCH_ADDR_MAX + 1);
+        if (dbg->watch_map == NULL) {
+            hw_log(dbg->host, true, 0, "[DEBUGGER] Not enough memory for watchpoints\n");
+            dbg->watch_live = NULL;
+            return;
+        }
+    }
+    memset(dbg->watch_map, 0, WATCH_ADDR_MAX + 1);
+    for (int i = 0; i < DBG_MAX_POINTS; i++) {
+        const watchpoint_t* wp = &dbg->watchpoints[i];
+        if (wp->type == 0 || wp->disabled) continue;
+        for (hwaddr a = wp->addr; a <= watchpoint_end(wp); a++) {
+            dbg->watch_map[a] |= (uint8_t) wp->type;
+        }
+    }
+    dbg->watch_live = dbg->watch_map;
+}
+
 bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
-    if (!dbg) {
+    if (dbg == NULL || (wp.type & WATCHPOINT_RW) == 0 || wp.addr > WATCH_ADDR_MAX) {
         return false;
     }
-    /* Check if a watchpoint already exists at the address */
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == wp.addr) {
-            dbg->watchpoints[i].type |= wp.type;
-            return true;
-        }
+    wp.type &= WATCHPOINT_RW;
+    wp.end = watchpoint_end(&wp);
+    if (wp.end > WATCH_ADDR_MAX) wp.end = WATCH_ADDR_MAX;
+    wp.disabled = false;
+
+    /* A watchpoint at the same start address is updated */
+    watchpoint_t* slot = find_watchpoint(dbg, wp.addr);
+    if (slot != NULL) {
+        slot->type |= wp.type;
+        slot->end = wp.end;
+        slot->disabled = false;
+        update_watch_map(dbg);
+        return true;
     }
     /* Find an empty slot and add the new watchpoint */
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == 0) {
+        if (dbg->watchpoints[i].type == 0) {
             dbg->watchpoints[i] = wp;
+            update_watch_map(dbg);
             return true;
         }
     }
@@ -211,13 +319,54 @@ bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
 
 
 bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
+    return debugger_set_watchpoint_type(dbg, address, 0);
+}
+
+bool debugger_set_watchpoint_type(dbg_t *dbg, hwaddr address, watchpoint_type_t type) {
+    if (dbg == NULL) {
+        return false;
+    }
+    watchpoint_t* wp = find_watchpoint(dbg, address);
+    if (wp == NULL) {
+        return false;
+    }
+    wp->type = type & WATCHPOINT_RW;
+    if (wp->type == 0) {
+        memset(wp, 0, sizeof(*wp));
+    }
+    update_watch_map(dbg);
+    return true;
+}
+
+bool debugger_enable_watchpoint(dbg_t *dbg, hwaddr address, bool enabled) {
+    if (dbg == NULL) {
+        return false;
+    }
+    watchpoint_t* wp = find_watchpoint(dbg, address);
+    if (wp == NULL) {
+        return false;
+    }
+    wp->disabled = !enabled;
+    update_watch_map(dbg);
+    return true;
+}
+
+void debugger_clear_watchpoints(dbg_t *dbg) {
+    if (dbg == NULL) {
+        return;
+    }
+    memset(dbg->watchpoints, 0, sizeof(dbg->watchpoints));
+    update_watch_map(dbg);
+}
+
+bool debugger_find_watchpoint(dbg_t *dbg, hwaddr address, watchpoint_t *out) {
     if (dbg == NULL) {
         return false;
     }
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
-            dbg->watchpoints[i].addr = 0;
-            dbg->watchpoints[i].type = 0;
+        const watchpoint_t* wp = &dbg->watchpoints[i];
+        if (wp->type != 0 && address >= wp->addr && address <= watchpoint_end(wp)) {
+            if (out) *out = *wp;
             return true;
         }
     }
@@ -225,15 +374,14 @@ bool debugger_remove_watchpoint(dbg_t *dbg, hwaddr address) {
 }
 
 bool debugger_is_watchpoint_set(dbg_t *dbg, hwaddr address) {
-    if (dbg == NULL) {
-        return false;
+    return debugger_find_watchpoint(dbg, address, NULL);
+}
+
+watchpoint_type_t debugger_watchpoint_type_at(dbg_t *dbg, hwaddr address) {
+    if (dbg == NULL || dbg->watch_live == NULL || address > WATCH_ADDR_MAX) {
+        return 0;
     }
-    for (int i = 0; i < DBG_MAX_POINTS; i++) {
-        if (dbg->watchpoints[i].addr == address) {
-            return true;
-        }
-    }
-    return false;
+    return (watchpoint_type_t) dbg->watch_live[address];
 }
 
 int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
@@ -243,12 +391,49 @@ int debugger_get_watchpoints(dbg_t *dbg, watchpoint_t *wps, unsigned int size) {
 
     unsigned int found = 0;
     for (int i = 0; i < DBG_MAX_POINTS && found < size; i++) {
-        if (dbg->watchpoints[i].addr != 0) {
-            wps[found++] = dbg->watchpoints[i];
+        if (dbg->watchpoints[i].type != 0) {
+            wps[found] = dbg->watchpoints[i];
+            wps[found].end = watchpoint_end(&wps[found]);
+            found++;
         }
     }
 
     return found;
+}
+
+void debugger_watchpoint_hit(dbg_t *dbg, hwaddr address, hwaddr pc, uint8_t value, watchpoint_type_t type)
+{
+    if (dbg == NULL) {
+        return;
+    }
+    dbg->watch_hit.addr = address;
+    dbg->watch_hit.pc = pc;
+    dbg->watch_hit.value = value;
+    dbg->watch_hit.type = type;
+    dbg->watch_hit.count++;
+    dbg->watch_stopped = true;
+}
+
+bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit)
+{
+    if (dbg == NULL || !dbg->watch_stopped) {
+        return false;
+    }
+    if (hit) *hit = dbg->watch_hit;
+    return true;
+}
+
+void debugger_clear_watchpoint_hit(dbg_t *dbg)
+{
+    if (dbg != NULL) dbg->watch_stopped = false;
+}
+
+void debugger_clear_stop_reason(dbg_t *dbg)
+{
+    if (dbg != NULL) {
+        debugger_clear_watchpoint_hit(dbg);
+        dbg->breakpoint_stopped = false;
+    }
 }
 
 
@@ -459,6 +644,17 @@ void debugger_init(dbg_t *dbg)
 
 void debugger_deinit(dbg_t* dbg)
 {
+    debugger_clear_symbols(dbg);
+    if (dbg != NULL) {
+        free(dbg->watch_map);
+        dbg->watch_map = NULL;
+        dbg->watch_live = NULL;
+    }
+}
+
+
+void debugger_clear_symbols(dbg_t* dbg)
+{
     if (!dbg) return;
     symbols_t* node = &dbg->symbols;
     while (node) {
@@ -468,5 +664,6 @@ void debugger_deinit(dbg_t* dbg)
         if (node != &dbg->symbols) free(node);
         node = next;
     }
+    dbg->symbol_generation++;
     memset(&dbg->symbols, 0, sizeof(dbg->symbols));
 }

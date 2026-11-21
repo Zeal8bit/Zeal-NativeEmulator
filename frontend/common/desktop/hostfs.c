@@ -22,10 +22,37 @@
 #include <libgen.h>
 
 
+#include "hostfs.h"
 #include "frontend/common/hostfs.h"
 #include "hw/mmu.h"
 #include "utils/log.h"
 #include "utils/paths.h"
+
+#define MAX_OPENED_FILES        256
+#define ZOS_MAX_NAME_LENGTH     16
+
+
+typedef struct {
+    uint8_t is_dir;
+    char    name[ZOS_MAX_NAME_LENGTH];
+#ifdef _WIN32
+    /* On Windows, we cannot stat an opened directory, so keep the path */
+    char    path[256];
+#endif
+    union {
+        FILE* file;
+        DIR*  dir;
+        void* raw;
+    };
+} hostfs_fd_t;
+
+typedef struct {
+    zeal_hostfs_t* core;
+    const char* root_path;
+    hostfs_fd_t descriptors[MAX_OPENED_FILES];
+} frontend_hostfs_t;
+
+static frontend_hostfs_t frontend_hostfs;
 
 #define MIN(a,b)    ((a) < (b) ? (a) : (b))
 
@@ -656,7 +683,7 @@ static void handle_operation(frontend_hostfs_t* host, uint8_t operation)
 }
 
 
-int frontend_hostfs_load_path(frontend_hostfs_t* hostfs, const char* root_path)
+int frontend_hostfs_load_path(const char* root_path)
 {
     char resolved_path_buffer[PATH_MAX];
     struct stat path_stat;
@@ -701,9 +728,9 @@ int frontend_hostfs_load_path(frontend_hostfs_t* hostfs, const char* root_path)
         log_err_printf("[HostFS] Could not allocate memory!\n");
         return 1;
     }
-    hostfs->root_path = final_path;
+    frontend_hostfs.root_path = final_path;
 
-    log_printf("[HostFS] %s loaded successfully\n", path_sanitize(get_relative_path(hostfs->root_path)));
+    log_printf("[HostFS] %s loaded successfully\n", path_sanitize(frontend_hostfs.root_path));
 
     return 0;
 }
@@ -713,16 +740,18 @@ static void frontend_hostfs_dispatch(void* userdata, uint8_t operation)
     handle_operation(userdata, operation);
 }
 
-void frontend_hostfs_bind(frontend_hostfs_t* host, zeal_hostfs_t* core)
+void frontend_hostfs_bind(zeal_hostfs_t* core)
 {
+    frontend_hostfs_t* host = &frontend_hostfs;
     memset(host, 0, sizeof(*host));
     host->core = core;
     core->userdata = host;
     core->dispatch = frontend_hostfs_dispatch;
 }
 
-void frontend_hostfs_close(frontend_hostfs_t* host)
+void frontend_hostfs_close(void)
 {
+    frontend_hostfs_t* host = &frontend_hostfs;
     for (int i = 0; i < MAX_OPENED_FILES; i++) {
         hostfs_fd_t* fd = &host->descriptors[i];
         if (fd->raw) {
@@ -739,5 +768,3 @@ void frontend_hostfs_close(frontend_hostfs_t* host)
         host->core = NULL;
     }
 }
-
-frontend_hostfs_t frontend_hostfs;

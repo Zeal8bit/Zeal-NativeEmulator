@@ -35,9 +35,6 @@
 #define ZVB_MASTER_CLOCK_NS             (20)
 #define ZVB_VISIBLE_LINE_NS             (ZVB_MAX_RES_WIDTH * ZVB_PIXEL_NS)
 #define ZVB_HBLANK_NS                   ((ZVB_TOTAL_PIXELS_PER_LINE - ZVB_MAX_RES_WIDTH) * ZVB_PIXEL_NS)
-#define ZVB_PIXEL_NS                     (40)
-#define ZVB_TOTAL_PIXELS_PER_LINE        (800)
-#define ZVB_TOTAL_SCANLINES              (524)
 #define ZVB_SCANLINE_NS                  (ZVB_VISIBLE_LINE_NS + ZVB_HBLANK_NS)
 #define ZVB_HPOS_HIGH_MASK               (7)
 #define ZVB_HPOS_LOW_MASK                (255)
@@ -162,6 +159,8 @@ static bool zvb_mem_dma_access_can_defer(device_t* dev, uint32_t addr)
            IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr);
 }
 
+static uint8_t zvb_video_mem_read(zvb_t* zvb, uint32_t addr);
+
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
@@ -174,6 +173,34 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
         }
         return zvb_io_read(dev, io_addr);
     }
+    return zvb_video_mem_read(zvb, addr);
+}
+
+
+/* Debugger view of the memory-mapped area (snapshots, trace, searches):
+ * same values as zvb_mem_read, but nothing a read changes on the board
+ * (position latches, SPI FIFO, timer latch) and no catch-up of sound,
+ * SPI or timer state to the current time. */
+static uint8_t zvb_peripheral_peek(const zvb_t* zvb, uint8_t bank, uint32_t addr)
+{
+    switch (bank) {
+        case ZVB_IO_MAPPING_SPI:    return zvb_spi_peek(&zvb->spi, addr);
+        case ZVB_IO_MAPPING_TIMER:  return zvb_timer_peek(&zvb->peri_timer, addr);
+        /* Pure readers */
+        case ZVB_IO_MAPPING_TEXT:
+        case ZVB_IO_MAPPING_CRC:
+        case ZVB_IO_MAPPING_SOUND:
+        case ZVB_IO_MAPPING_DMA:
+        case ZVB_IO_MAPPING_RPU:
+            return zvb_peripheral_read((zvb_t*) zvb, bank, addr);
+        default:
+            return 0;
+    }
+}
+
+/* Video memories: plain arrays, no side effect */
+static uint8_t zvb_video_mem_read(zvb_t* zvb, uint32_t addr)
+{
     /* Prevent a compilation warning, since LAYER0_ADDR_START is 0 */
     if (addr < LAYER0_ADDR_END) {
         return zvb_tilemap_read(&zvb->layers, 0, addr);
@@ -188,6 +215,56 @@ static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
     } else if(IN_RANGE(TILESET_ADDR_START, TILESET_ADDR_END, addr)) {
         return zvb_tileset_read(&zvb->tileset, addr - TILESET_ADDR_START);
     }
+    return 0;
+}
+
+static uint8_t zvb_mem_debug_read(device_t* dev, uint32_t addr)
+{
+    zvb_t* zvb = (zvb_t*) dev;
+    int bank;
+    const int io_addr = zvb_mem_io_address(addr, &bank);
+    if (io_addr < 0) {
+        return zvb_video_mem_read(zvb, addr);
+    }
+    if (bank != ZVB_MEM_CONFIG_BANK) {
+        return zvb_peripheral_peek(zvb, bank, io_addr);
+    }
+    if (io_addr >= ZVB_IO_CONF_START && io_addr < ZVB_IO_CONF_END) {
+        switch (io_addr - ZVB_IO_CONF_START) {
+            /* Reading a low byte latches the high byte: report the value
+             * without latching */
+            case ZVB_IO_CONFIG_VPOS_LOW:
+                return zvb->current_scanline & 0xff;
+            case ZVB_IO_CONFIG_HPOS_LOW: {
+                const uint32_t hpos = (vtimer_now_ns(zvb->timer.clock) - zvb->line_start_ns) / ZVB_PIXEL_NS;
+                return hpos & ZVB_HPOS_LOW_MASK;
+            }
+            case ZVB_IO_CONFIG_VPOS_HIGH:       return zvb->ctrl.vpos_latch;
+            case ZVB_IO_CONFIG_HPOS_HIGH:       return zvb->ctrl.hpos_latch;
+            case ZVB_IO_CONFIG_L0_SCR_Y_LOW:    return (zvb->ctrl.l0_scroll_y >> 0) & 0xff;
+            case ZVB_IO_CONFIG_L0_SCR_Y_HIGH:   return (zvb->ctrl.l0_scroll_y >> 8) & 0xff;
+            case ZVB_IO_CONFIG_L0_SCR_X_LOW:    return (zvb->ctrl.l0_scroll_x >> 0) & 0xff;
+            case ZVB_IO_CONFIG_L0_SCR_X_HIGH:   return (zvb->ctrl.l0_scroll_x >> 8) & 0xff;
+            case ZVB_IO_CONFIG_L1_SCR_Y_LOW:    return (zvb->ctrl.l1_scroll_y >> 0) & 0xff;
+            case ZVB_IO_CONFIG_L1_SCR_Y_HIGH:   return (zvb->ctrl.l1_scroll_y >> 8) & 0xff;
+            case ZVB_IO_CONFIG_L1_SCR_X_LOW:    return (zvb->ctrl.l1_scroll_x >> 0) & 0xff;
+            case ZVB_IO_CONFIG_L1_SCR_X_HIGH:   return (zvb->ctrl.l1_scroll_x >> 8) & 0xff;
+            case ZVB_IO_CONFIG_MODE_REG:        return zvb->mode;
+            case ZVB_IO_CONFIG_STATUS_REG:      return zvb->status.raw;
+            case ZVB_IO_CONFIG_INT_STATUS_REG:  return zvb->blank_latches | (zvb_gp_interrupt(zvb) << 2);
+            case ZVB_IO_CONFIG_EXT_STATUS_REG:  return zvb_external_interrupts(zvb);
+            default:                            return 0;
+        }
+    }
+    if (io_addr >= ZVB_IO_BANK_START && io_addr < ZVB_IO_BANK_END) {
+        return zvb_peripheral_peek(zvb, zvb->io_bank, io_addr - ZVB_IO_BANK_START);
+    }
+    if (io_addr >= ZVB_IO_SCRAT0_REG && io_addr <= ZVB_IO_SCRAT3_REG) return zvb->scratch[io_addr - ZVB_IO_SCRAT0_REG];
+    if (io_addr == ZVB_IO_REV_REG)   return ZVB_EMULATED_REV;
+    if (io_addr == ZVB_IO_MINOR_REG) return ZVB_EMULATED_MINOR;
+    if (io_addr == ZVB_IO_MAJOR_REG) return ZVB_EMULATED_MAJOR;
+    if (io_addr == ZVB_IO_BANK_REG)  return zvb->io_bank;
+    if (io_addr == ZVB_MEM_START_REG) return ZVB_DEFAULT_PHYS_BANK;
     return 0;
 }
 
@@ -412,7 +489,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
 
     /* Initialize the structure and register it on both the memory and I/O buses */
     memset(dev, 0, sizeof(zvb_t));
-    device_init_mem(DEVICE(dev), "zvb_dev", zvb_mem_read, zvb_mem_write, ZVB_MEM_SIZE);
+    device_init_mem_debug(DEVICE(dev), "zvb_dev", zvb_mem_read, zvb_mem_write, zvb_mem_debug_read, ZVB_MEM_SIZE);
     dev->parent.mem_region.dma_access_can_defer = zvb_mem_dma_access_can_defer;
     device_init_io(DEVICE(dev),  "zvb_dev", zvb_io_read, zvb_io_write, ZVB_IO_SIZE);
     device_register_reset(DEVICE(dev), zvb_reset);
@@ -480,6 +557,7 @@ static void zvb_reset(device_t* dev)
     vtimer_cancel(&zvb->timer);
     zvb->current_hpos = 0;
     zvb->current_scanline = 0;
+    zvb->frame_count = 0;
     zvb->state = STATE_RENDERING;
     zvb->need_render = false;
 #if ZVB_SCANLINE_RENDERING
@@ -700,6 +778,7 @@ static void zvb_fsm_next(void* userdata)
             zvb_text_update(&zvb->text, &info);
         } else if (zvb->current_scanline >= ZVB_TOTAL_SCANLINES) {
             zvb->current_scanline = 0;
+            zvb->frame_count++;
             zvb->status.v_blank = 0;
 #if ZVB_SCANLINE_RENDERING
             if (zvb->scanline_rendering != zvb->scanline_requested) {

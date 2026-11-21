@@ -7,6 +7,6 @@ roms/*
 .vscode
 external/
 tests/*
-raylib/web/*
-!raylib/web/README.md
-!raylib/web/LICENSE.txt
+!tests/trace_test.c
+!tests/fltk_config_test.cpp
+sdl3/

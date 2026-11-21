@@ -22,13 +22,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y meson ninja-build make unzip
 
-      - name: Build Raylib for WebAssembly
-        run: python3 tools/build_raylib_web.py
-
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
-          cross-file: wasm-cross.build
+          cross-file: frontend/wasm/wasm-cross.build
           meson-args: -Dwasm_template=native
 
       - name: Build with core debugger enabled
@@ -36,7 +33,7 @@ jobs:
         uses: ./.github/actions/meson-build
         with:
           build-dir: build-debugger
-          cross-file: wasm-cross.build
+          cross-file: frontend/wasm/wasm-cross.build
           meson-args: -Dwasm_template=native -Denable_debugger=true
 
       - name: Download latest Zeal 8-bit OS image

@@ -7,19 +7,21 @@ is_web = host_machine.system() == 'emscripten'
 if frontend == 'auto'
     frontend = is_web ? 'wasm' : 'both'
 endif
-build_nuklear = frontend == 'nuklear' or frontend == 'both'
 build_headless = frontend == 'headless' or frontend == 'both'
 build_wasm = frontend == 'wasm'
+build_sdlfltk = frontend == 'sdl-fltk' or frontend == 'both'
 if build_wasm and not is_web
-    error('frontend=wasm requires an Emscripten cross file (for example wasm-cross.build)')
+    error('frontend=wasm requires an Emscripten cross file (for example frontend/wasm/wasm-cross.build)')
 endif
-if is_web and (build_nuklear or build_headless)
-    error('Emscripten supports frontend=wasm (or auto) and frontend=none; nuklear and headless are native frontends')
+if is_web and (build_headless or build_sdlfltk)
+    error('Emscripten supports frontend=wasm (or auto) and frontend=none; sdl-fltk and headless are native frontends')
 endif
 
+debugger_api = not is_web or get_option('enable_debugger')
 core_args = []
-if get_option('enable_debugger')
+if debugger_api
     core_args += '-DCONFIG_ENABLE_DEBUGGER=1'
+    core_args += '-DCONFIG_TRACE_DEPTH=@0@'.format(get_option('trace_depth'))
 endif
 if get_option('scanline_rendering')
     core_args += '-DZVB_SCANLINE_RENDERING=1'
@@ -37,7 +39,17 @@ core = static_library('zeal', sources, include_directories: includes,
 zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
 
-if build_nuklear or build_headless or build_wasm
+# Core tests (meson test -C <builddir>)
+if get_option('trace_depth') > 0 and not is_web
+    test('trace', executable('trace_test', 'tests/trace_test.c',
+        dependencies: zeal_dep, c_args: ['-D_POSIX_C_SOURCE=200809L'], build_by_default: false))
+endif
+if not is_web
+    test('debug_inspect', executable('debug_inspect_test', 'tests/debug_inspect_test.c',
+        dependencies: zeal_dep, build_by_default: false))
+endif
+
+if build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')
     host_args = ['-D_XOPEN_SOURCE=700',
         '-DZEAL_NATIVE_VERSION="@0@"'.format(meson.project_version())]
@@ -45,91 +57,86 @@ if build_nuklear or build_headless or build_wasm
         host_args += '-D_DARWIN_C_SOURCE'
     endif
 endif
-if build_nuklear or build_headless
+if build_headless or build_sdlfltk
     subdir('frontend/common/desktop')
 endif
 
 if build_headless
     subdir('frontend/headless')
     executable('zeal-headless', common_sources + desktop_sources + headless_sources,
-        dependencies: zeal_dep, c_args: host_args + ['-DFRONTEND_HEADLESS=1'], install: true)
+        dependencies: zeal_dep, c_args: host_args, install: true)
 endif
 
-if build_nuklear or build_wasm
-    if build_nuklear
-        subdir('assets')
+if build_sdlfltk
+    add_languages('cpp', native: false)
+    sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
+    fltk_config = find_program('fltk-config', version: '>=1.4.0')
+    fltk_cxxflags = run_command(fltk_config, '--use-gl', '--cxxflags', check: true).stdout().strip().split()
+    fltk_ldflags = run_command(fltk_config, '--use-gl', '--ldflags', check: true).stdout().strip().split()
+    if host_machine.system() == 'darwin'
+        fltk_ldflags += ['-framework', 'ApplicationServices']
     endif
-    raylib_path = get_option('raylib_path')
-    if raylib_path == ''
-        raylib_path = meson.get_external_property('raylib_path', '')
+    fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
+    # Link OpenGL explicitly on platforms where it is a separate library.
+    if host_machine.system() == 'windows'
+        gl_dep = cc.find_library('opengl32')
+    else
+        gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
     endif
-    graphics_args = ['-DFRONTEND_HEADLESS=0']
-    graphics_link = ['-lraylib']
-    if raylib_path != ''
-        graphics_args += '-I' + raylib_path / 'include'
-        graphics_link += '-L' + raylib_path / 'lib'
+    # Registers the bundled pixel font for the debugger on Linux/BSD.
+    fontconfig_dep = dependency('fontconfig', required: false,
+        disabler: false)
+    sdlfltk_ui_args = []
+    if fontconfig_dep.found() and host_machine.system() not in ['darwin', 'windows']
+        sdlfltk_ui_args += '-DZUI_HAVE_FONTCONFIG=1'
     endif
-    if host_machine.system() == 'linux'
-        graphics_link += '-lX11'
-    endif
+    subdir('frontend/sdl-fltk')
+    subdir('assets')
+    sdlfltk_args = ['-DZEAL_ASSETS_DIR="' + (get_option('prefix') / get_option('datadir') / 'zeal-native/assets') + '"']
     if get_option('show_fps')
-        graphics_args += '-DCONFIG_SHOW_FPS=1'
+        sdlfltk_args += '-DCONFIG_SHOW_FPS=1'
     endif
-    if build_nuklear
-        zeal_assets_dir = get_option('prefix') / get_option('datadir') / 'zeal-native/assets'
-        graphics_args += '-DZEAL_ASSETS_DIR="' + zeal_assets_dir + '"'
-    endif
-endif
-
-if build_nuklear
-    subdir('frontend/nuklear')
-    exec = executable('zeal-native', common_sources + desktop_sources + nuklear_sources,
-        dependencies: zeal_dep, c_args: host_args + graphics_args,
-        link_args: graphics_link + meson.get_external_property('link_args', []), install: true)
+    sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
+        dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
+    sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
+    # The Objective-C++ driver already links libc++ for both UI languages.
+    ui_link_options = host_machine.system() == 'darwin' ? {'link_language': 'objcpp'} : {}
+    exec = executable('zeal-native', sdlfltk_cpp_sources,
+        kwargs: ui_link_options,
+        include_directories: [sdlfltk_ui_inc, include_directories('frontend/sdl-fltk/vendor', is_system: true)],
+        link_with: sdlfltk_c, dependencies: sdlfltk_deps,
+        objcpp_args: ['-std=c++17'],
+        cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
+    test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
+        kwargs: ui_link_options,
+        objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
+        include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
+        cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
     run_target('run', command: [exec])
+    run_target('run-fltk', command: [exec])
 endif
 if build_wasm
     subdir('frontend/wasm')
     # Root placement preserves existing browser URLs and deployment artifacts.
     exec = executable('zeal.elf', common_sources + wasm_sources,
-        dependencies: zeal_dep, c_args: host_args + graphics_args + wasm_args,
-        link_args: graphics_link + wasm_link_args, install: true)
+        dependencies: zeal_dep, c_args: host_args + wasm_args,
+        link_args: wasm_link_args, install: true)
     run_target('run', command: [exec])
-    OUTPUT_BIN = 'zeal.elf'
 
     wasm_template = get_option('wasm_template')
-    wasm_dir = join_paths(meson.project_source_root(), 'assets', 'wasm', wasm_template)
-    configure_file(
-        input: join_paths(wasm_dir, 'index.html'),
-        output: 'index.html',
-        copy: true
-    )
-    configure_file(
-        input: join_paths(wasm_dir, 'index.js'),
-        output: 'index.js',
-        copy: true
-    )
-    configure_file(
-        input: join_paths(wasm_dir, 'index.css'),
-        output: 'index.css',
-        copy: true
-    )
-    if wasm_template == 'native'
-        configure_file(
-            input: join_paths(wasm_dir, 'favicon.ico'),
-            output: 'favicon.ico',
-            copy: true
-        )
-    endif
+    wasm_dir = join_paths(meson.project_source_root(), 'frontend', 'wasm', 'templates', wasm_template)
+    foreach asset : ['index.html', 'index.js', 'index.css', 'favicon.ico']
+        configure_file(input: wasm_dir / asset, output: asset, copy: true)
+    endforeach
 
     wasm_lib_sources = files(
-        'assets/wasm/libnative/disk-images.js',
-        'assets/wasm/libnative/hostfs.js',
-        'assets/wasm/libnative/zeal-native.js',
+        'frontend/wasm/libnative/disk-images.js',
+        'frontend/wasm/libnative/hostfs.js',
+        'frontend/wasm/libnative/zeal-native.js',
     )
     wasm_lib_copy_script = join_paths(
         meson.project_source_root(),
-        'tools',
+        'frontend', 'wasm',
         'copy_wasm_lib.py',
     )
     custom_target(
@@ -143,15 +150,6 @@ if build_wasm
             '@OUTPUT@',
             '@INPUT@',
         ],
-        build_by_default: true,
-    )
-
-    patch_script = join_paths(meson.project_source_root(), 'tools', 'wasm_patch.py')
-
-    patch_wasm = custom_target('patch_wasm',
-        output: 'dummy_file',
-        command: ['python3', patch_script, meson.project_build_root() / (OUTPUT_BIN + '.js')],
-        depends: exec,
         build_by_default: true,
     )
 endif

@@ -6,10 +6,10 @@
 
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifdef _WIN32
-    /* Including windows.h can lead to conflicts with Raylib API, stdlib defines PATH_MAX */
     #include <stdlib.h>
     #define realpath(N,R) _fullpath((R),(N),_MAX_PATH)
     #define HOME_VAR      "APPDATA"
@@ -55,14 +55,7 @@ static inline int os_mkdir(const char* path, int mode) {
 
 #endif // _WIN32
 
-void get_executable_path(char *buffer, size_t size);
-void get_executable_dir(char *buffer, size_t size);
-
-int get_install_dir_file(char dst[PATH_MAX], const char* name);
-
 int path_exists(const char *path);
-char* get_relative_path(const char* absolute_path);
 const char* get_home_dir();
 const char* get_config_dir();
-const char* get_config_path();
 const char* path_sanitize(const char* path);

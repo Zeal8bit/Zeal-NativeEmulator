@@ -101,6 +101,7 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
     if (addr & 0x80000000) {
         hw_log(dbg->host, false, 0, "TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
+        if (len < 0 || len > 0x10000) return -1;
         mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
     } else {
         // Invalid address
@@ -126,6 +127,8 @@ static bool zeal_debugger_is_paused_cb(dbg_t* dbg) {
 
 static void zeal_debugger_continue_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_stop_reason(dbg);
     machine->dbg_state = ST_RUNNING;
 }
 
@@ -138,12 +141,16 @@ static void zeal_debugger_reset_cb(dbg_t* dbg) {
 
 static void zeal_debugger_step_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_stop_reason(dbg);
     machine->dbg_state = ST_REQ_STEP;
 }
 
 
 static void zeal_debugger_step_over_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
+    /* Resuming forgets why the machine stopped */
+    debugger_clear_stop_reason(dbg);
     machine->dbg_state = ST_REQ_STEP_OVER;
 }
 
@@ -260,6 +267,12 @@ static const char* processes_ixiy_cb(dbg_t* dbg, uint8_t fourth)
 }
 
 
+bool zeal_debugger_uses_index(uint8_t opcode)
+{
+    return disassembled_ixiy_opcodes[opcode].fmt != NULL || opcode == 0xCB ||
+           ((opcode & 0xF8) == 0x70 && opcode != 0x76);
+}
+
 static int process_ixiy_opcodes(dbg_t* dbg, const uint8_t mem[4], dbg_instr_t* instr)
 {
     /* Choose between IX and IY register */
@@ -305,7 +318,6 @@ static int process_ixiy_opcodes(dbg_t* dbg, const uint8_t mem[4], dbg_instr_t* i
 
 static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 {
-    const char* label = NULL;
     uint8_t mem[4];
 
     if (instr == NULL) {
@@ -313,11 +325,24 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
     }
 
     /* Instructions are never bigger than 4 bytes on the Z80 */
-    if (zeal_debugger_get_mem(dbg, address, 4, instr->opcodes) != 0) {
+    if (zeal_debugger_get_mem(dbg, address, 4, mem) != 0) {
         hw_log(dbg->host, true, 0, "[DEBUGGER] Error disassembling address: %x\n", address);
         return -1;
     }
-    memcpy(mem, instr->opcodes, 4);
+    return zeal_debugger_disassemble_bytes(dbg, address, mem, instr);
+}
+
+
+int zeal_debugger_disassemble_bytes(dbg_t *dbg, hwaddr address, const uint8_t bytes[4], dbg_instr_t* instr)
+{
+    const char* label = NULL;
+    uint8_t mem[4];
+
+    if (dbg == NULL || instr == NULL) {
+        return -1;
+    }
+    memcpy(mem, bytes, 4);
+    memcpy(instr->opcodes, bytes, 4);
 
     /* By default, clear the returned instruction */
     instr->instruction[0] = 0;

@@ -37,6 +37,11 @@
 
 #define ZVB_MAX_RES_WIDTH   640
 #define ZVB_MAX_RES_HEIGHT  480
+
+/* Raster timing: 25 MHz pixel clock, 800 x 524 pixels per frame (~59.6 Hz) */
+#define ZVB_PIXEL_NS                (40)
+#define ZVB_TOTAL_PIXELS_PER_LINE   (800)
+#define ZVB_TOTAL_SCANLINES         (524)
 #define ZVB_PHYS_ADDR_BASE  (0x100000U)
 
 /**
@@ -201,6 +206,7 @@ typedef struct {
     int              state; // Any of the STATE_* macros
     vtimer_node_t    timer;
     int              current_scanline;
+    uint64_t         frame_count;     /* frames started since reset */
     int              current_hpos;
     vtimer_node_t    sound_event;
     uint64_t         line_start_ns;

@@ -14,7 +14,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install meson ninja pkg-config raylib
+          brew install meson ninja pkg-config sdl3 fltk
 
       - name: Setup Environment Variables
         run: |
@@ -37,4 +37,6 @@ jobs:
           path: |
             build/zeal-native
             build/zeal-headless
+            build/assets/fonts/*.TTF
+            build/assets/resources/gamecontrollerdb.txt
           retention-days: 30

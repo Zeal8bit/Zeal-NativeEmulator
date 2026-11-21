@@ -21,20 +21,15 @@ static void frontend_reset(void* userdata, zeal_t* machine, bool after_devices)
     }
 }
 
-int frontend_init(zeal_t* machine, bool allow_debugger)
+int frontend_init(zeal_t* machine, bool frames, bool debug)
 {
-    bool debug = false;
-    if (allow_debugger && config.arguments.headless && !config.arguments.console && config.debugger.enabled == DEBUGGER_STATE_ARG) {
-        config.arguments.console = true;
-    }
-#if CONFIG_ENABLE_DEBUGGER
-    debug = allow_debugger && (config.arguments.console ? config.debugger.enabled == DEBUGGER_STATE_ARG :
-        config_debugger_enabled() && !config.arguments.headless);
+#if !CONFIG_ENABLE_DEBUGGER
+    debug = false;
 #endif
-    frontend_open(debug);
+    frontend_open();
     const zeal_options_t options = {
         .host = &frontend_host,
-        .frames = !config.arguments.headless,
+        .frames = frames,
         .debugger = debug,
         .stop_on_reset = config.arguments.no_reset,
         .no_dma = config.arguments.no_dma,
@@ -47,7 +42,7 @@ int frontend_init(zeal_t* machine, bool allow_debugger)
     machine->reset_hook = frontend_reset;
 #if CONFIG_ENABLE_DEBUGGER
     /* Load symbols if provided. */
-    if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file);
+    if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file, true);
     if (config.arguments.breakpoints) debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
 #endif
     frontend_bind_input(machine);
@@ -58,43 +53,14 @@ int frontend_init(zeal_t* machine, bool allow_debugger)
     }
     err = frontend_eeprom_init(&frontend_media, &machine->eeprom, config.images.eeprom);
     if (err) return err;
-    frontend_hostfs_bind(&frontend_hostfs, &machine->hostfs);
+    frontend_hostfs_bind(&machine->hostfs);
     if (options.frames) v_log_printf(1, "[RENDER] Blitter: software\n");
     return frontend_bind_output(machine);
 }
 
-int frontend_configure(int argc, char* argv[])
-{
-    int code = parse_command_args(argc, argv);
-    if (code != 0) return code;
-
-#if FRONTEND_HEADLESS
-    config.arguments.headless = true;
-#else
-    if (config.arguments.headless || config.arguments.console) {
-        log_err_printf("Headless and console modes moved to zeal-headless; use zeal-headless with the same arguments.\n");
-        return 1;
-    }
-#endif
-    config_parse_file(config.arguments.config_path);
-    config_resolve_images();
-    config_debug();
-
-    if (config.arguments.hostfs_path == NULL) {
-        log_printf("No HostFS path specified.\n");
-    }
-
-    // Process non-option arguments, if needed
-    for (int i = optind; i < argc; i++) {
-        log_printf("Non-option argument: %s\n", argv[i]);
-    }
-
-    return 0;
-}
-
 void frontend_deinit(zeal_t* machine)
 {
-    frontend_hostfs_close(&frontend_hostfs);
+    frontend_hostfs_close();
     frontend_close(machine);
     frontend_media_close(&frontend_media);
     zeal_deinit(machine);

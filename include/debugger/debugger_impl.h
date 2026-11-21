@@ -56,20 +56,44 @@ struct regs_t {
 };
 
 
+/* Memory watchpoint on logical (16-bit) addresses [addr, end]. The start
+ * address identifies it: adding another one at the same start updates it. */
 typedef struct {
-    hwaddr            addr;
-    watchpoint_type_t type;
+    hwaddr            addr;     // First watched address
+    hwaddr            end;      // Last watched address (inclusive); <= addr: a single byte
+    watchpoint_type_t type;     // WATCHPOINT_READ and/or WATCHPOINT_WRITE; 0: free slot
+    bool              disabled; // Kept in the list but never stops execution
 } watchpoint_t;
+
+/* Last watchpoint that stopped the machine */
+typedef struct {
+    hwaddr            addr;     // Logical address accessed
+    hwaddr            pc;       // Address of the instruction that made the access
+    uint8_t           value;    // Byte read or written
+    watchpoint_type_t type;     // WATCHPOINT_READ or WATCHPOINT_WRITE
+    uint32_t          count;    // Incremented on every hit
+} watchpoint_hit_t;
 
 typedef struct {
     hwaddr  addr;
-    bool    active;
+    bool    active;     // Slot in use
     bool    temporary;  // True if it needs to be deleted when reached
+    bool    disabled;   // Kept in the list but never stops execution
 } breakpoint_t;
+
+/* What a symbol refers to, from the map file section it lives in */
+typedef enum {
+    SYM_KIND_UNKNOWN = 0,   /* no section (equates, absolute values) */
+    SYM_KIND_CODE,          /* code: functions and labels */
+    SYM_KIND_DATA,          /* variables (data, bss) */
+    SYM_KIND_CONST,         /* read-only data */
+} symbol_kind_t;
 
 typedef struct {
     const char* name;
     hwaddr      addr;
+    uint8_t     kind;       /* symbol_kind_t */
+    bool        local;      /* file-local label (z88dk maps only) */
 } symbol_t;
 
 /* List of array for the symbols */
@@ -88,6 +112,18 @@ struct dbg_t {
     bool            running; // should the emulator continue running?
     breakpoint_t    breakpoints[DBG_MAX_POINTS];
     watchpoint_t    watchpoints[DBG_MAX_POINTS];
+    /* One byte per logical address with the watchpoint_type_t bits of the
+     * enabled watchpoints covering it (allocated on the first watchpoint).
+     * watch_live is the map when at least one watchpoint is enabled, NULL
+     * otherwise: the CPU only checks accesses when it is set. */
+    uint8_t*        watch_map;
+    const uint8_t*  watch_live;
+    uint32_t breakpoint_hits;
+    hwaddr breakpoint_hit_addr;
+    bool breakpoint_stopped;
+    watchpoint_hit_t watch_hit;
+    bool            watch_stopped; // The machine stopped on watch_hit and did not resume
+    uint64_t        symbol_generation;
     symbols_t       symbols;
 
     debugger_dis_op  disassemble_cb;

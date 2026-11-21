@@ -59,23 +59,9 @@ jobs:
         include:
           - name: core only
             args: -Dfrontend=none
-            native: false
             headless: false
           - name: headless only
             args: -Dfrontend=headless
-            native: false
-            headless: true
-          - name: Nuklear only
-            args: -Dfrontend=nuklear
-            native: true
-            headless: false
-          - name: debugger and scanline disabled
-            args: -Dfrontend=both -Denable_debugger=false -Dscanline_rendering=false
-            native: true
-            headless: true
-          - name: profiling enabled
-            args: -Dfrontend=both -Dprofile_render=true -Dshow_fps=true
-            native: true
             headless: true
     steps:
       - name: Checkout code
@@ -84,20 +70,68 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev meson ninja-build gcc pkg-config cmake
+          sudo apt-get install -y meson ninja-build gcc pkg-config
 
       - name: Build with Meson
         uses: ./.github/actions/meson-build
         with:
-          raylib-path: ${{ github.workspace }}/raylib/linux64
           meson-args: ${{ matrix.args }}
-
-      - name: Test graphical executable
-        if: matrix.native
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/raylib/linux64/lib
-        run: ./build/zeal-native --help
 
       - name: Test headless executable
         if: matrix.headless
         run: ./build/zeal-headless --help
+
+  build-sdl-fltk:
+    name: Build SDL/FLTK (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            args: ''
+          - name: macOS, whole-frame rendering
+            runner: macos-latest
+            args: -Dscanline_rendering=false
+          - name: macOS, profiling
+            runner: macos-latest
+            args: -Dprofile_render=true -Dshow_fps=true
+          - name: Ubuntu 22.04
+            runner: ubuntu-22.04
+            args: ''
+          - name: Ubuntu 24.04
+            runner: ubuntu-24.04
+            args: ''
+          - name: Ubuntu 24.04, whole-frame rendering
+            runner: ubuntu-24.04
+            args: -Dscanline_rendering=false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install meson ninja pkg-config fltk sdl3
+
+      - name: Install desktop dependencies (Linux)
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-desktop-deps
+
+      - name: Build with Meson (macOS)
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/meson-build
+        with:
+          meson-args: -Dfrontend=sdl-fltk ${{ matrix.args }}
+
+      - name: Build with Meson (Linux)
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/meson-build
+        with:
+          meson-args: >-
+            -Dfrontend=sdl-fltk -Dsdl3_static=true
+            -Dpkg_config_path=${{ github.workspace }}/sdl3/linux/lib/pkgconfig
+            ${{ matrix.args }}
+
+      - name: Test executable
+        run: ./build/zeal-native --help

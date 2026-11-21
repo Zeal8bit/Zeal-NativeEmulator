@@ -1,9 +1,12 @@
 # Emscripten integration and browser output belong to this frontend.
-wasm_sources = files('main.c', 'frontend.c', 'hostfs.c', 'paths.c', 'audio.c',
+wasm_sources = files('main.c', 'frontend.c', 'hostfs.c', 'audio.c',
     'controller.c', 'mouse.c', 'notif.c', 'snes_adapter.c', 'video.c')
-wasm_args = ['-D_DEFAULT_SOURCE', '-DPLATFORM_WEB', '-DOPENGL_ES']
+wasm_args = ['-D_DEFAULT_SOURCE', '--use-port=sdl3']
+if get_option('show_fps')
+    wasm_args += '-DCONFIG_SHOW_FPS=1'
+endif
 wasm_link_args = ['--emit-symbol-map',
-             '-sUSE_GLFW=3',
+             '--use-port=sdl3',
              '-sFORCE_FILESYSTEM=1',
              '-sWASMFS=1',
              '-sEXPORT_NAME="NativeModule"',

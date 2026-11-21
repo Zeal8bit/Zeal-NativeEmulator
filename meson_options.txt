@@ -1,10 +1,11 @@
 # meson_options.txt
 
 ## Build Options
-option('raylib_path', type : 'string', value : '', description : 'Path to Raylib')
+option('sdl3_static', type : 'boolean', value : false, description : 'Link SDL3 statically (sdl-fltk; e.g. built with tools/build_sdl3.py)')
 
 ## Debugger
-option('enable_debugger', type: 'boolean', value: true, description: 'Enable integrated debugger compilation')
+option('enable_debugger', type: 'boolean', value: true, description: 'Include the core debugger API in WebAssembly builds (always included in native builds)')
+option('trace_depth', type: 'integer', value: 4096, min: 0, max: 1048576, description: 'Debugger execution trace: instructions kept (32 bytes each); 0 compiles the trace and call stack out')
 
 ## Rendering
 option('scanline_rendering', type: 'boolean', value: true, description: 'Compile scanline rendering support')
@@ -14,6 +15,6 @@ option('show_fps', type: 'boolean', value: false, description: 'Show FPS')
 option('profile_render', type: 'boolean', value: false, description: 'Log aggregated frame and sprite rendering timings')
 
 ## WASM / Web Builds
-option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, check assets/wasn')
+option('wasm_template', type: 'string', value: 'native', description: 'The WASM Template to use, see frontend/wasm/templates')
 
-option('frontend', type: 'combo', choices: ['auto', 'none', 'headless', 'nuklear', 'both', 'wasm'], value: 'auto', description: 'Frontend targets; auto builds both native or the WASM frontend on Emscripten')
+option('frontend', type: 'combo', choices: ['auto', 'none', 'headless', 'both', 'sdl-fltk', 'wasm'], value: 'auto', description: 'Frontend targets; auto builds both native or the WASM frontend on Emscripten')

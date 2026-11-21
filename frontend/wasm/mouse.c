@@ -1,96 +1,19 @@
-#include "frontend/wasm/frontend.h"
-#include "frontend/wasm/snes_adapter.h"
+/* SPDX-License-Identifier: Apache-2.0 */
 #include <math.h>
-#include <stdint.h>
-#include <stdio.h>
-
-#include "raylib.h"
-#include "hw/zeal.h"
-#include "hw/userport/snes_adapter.h"
-#include "frontend/wasm/mouse.h"
-#include "hw/zvb/zvb.h"
+#include "mouse.h"
+#include "video.h"
 #include "utils/notif.h"
-
-static Vector2 snes_mouse_window_scale(float delta_scale)
-{
-    const int screen_w = GetScreenWidth();
-    const int screen_h = GetScreenHeight();
-    const float texture_ratio = (float) ZVB_MAX_RES_WIDTH / ZVB_MAX_RES_HEIGHT;
-    const float screen_ratio  = (float) screen_w / screen_h;
-    int draw_w = ZVB_MAX_RES_WIDTH;
-    int draw_h = ZVB_MAX_RES_HEIGHT;
-
-    if (texture_ratio > screen_ratio) {
-        draw_w = screen_w;
-        draw_h = (int) (screen_w / texture_ratio);
-    } else {
-        draw_h = screen_h;
-        draw_w = (int) (screen_h * texture_ratio);
-    }
-
-    return (Vector2){
-        .x = ((float) ZVB_MAX_RES_WIDTH / draw_w) * delta_scale,
-        .y = ((float) ZVB_MAX_RES_HEIGHT / draw_h) * delta_scale,
-    };
-}
-
-static uint8_t snes_mouse_magnitude(float value)
-{
-    int magnitude = (int) roundf(fabsf(value));
-
-    if (magnitude > SNES_MOUSE_MAG_MASK) {
-        magnitude = SNES_MOUSE_MAG_MASK;
-    }
-
-    return (uint8_t) magnitude;
-}
-
-static bool snes_mouse_cursor_in_rect(Rectangle bounds)
-{
-    Vector2 position = GetMousePosition();
-
-    return position.x >= bounds.x &&
-           position.y >= bounds.y &&
-           position.x < bounds.x + bounds.width &&
-           position.y < bounds.y + bounds.height;
-}
-
-static Rectangle snes_mouse_active_bounds(snes_mouse_t* mouse)
-{
-    (void) mouse;
-    return (Rectangle){0, 0, (float) GetScreenWidth(), (float) GetScreenHeight()};
-}
-
-static void snes_mouse_capture(snes_mouse_t* mouse)
-{
-    mouse->captured = true;
-    DisableCursor();
-    printf("[SNES] Mouse captured\n");
-}
-
-static void snes_mouse_release(snes_mouse_t* mouse)
-{
-    mouse->captured = false;
-    EnableCursor();
-    printf("[SNES] Mouse released\n");
-}
 
 void snes_mouse_init(snes_mouse_t* mouse)
 {
-    mouse->attached = true;
-    mouse->captured = false;
-    mouse->capture_button_down = false;
-    mouse->machine = NULL;
-    mouse->delta_scale = SNES_MOUSE_DELTA_SCALE;
+    *mouse = (snes_mouse_t){.attached = true, .delta_scale = SNES_MOUSE_DELTA_SCALE};
 }
 
 void snes_mouse_detach(snes_mouse_t* mouse)
 {
     mouse->attached = false;
-    mouse->capture_button_down = false;
-    if (mouse->captured) {
-        snes_mouse_release(mouse);
-    }
+    mouse->dx = mouse->dy = 0;
+    if (wasm_window) SDL_SetWindowRelativeMouseMode(wasm_window, false);
 }
 
 void snes_mouse_reset_scale(snes_mouse_t* mouse)
@@ -99,58 +22,38 @@ void snes_mouse_reset_scale(snes_mouse_t* mouse)
     notif_show("SNES Mouse Scale: x%.2f", mouse->delta_scale);
 }
 
-void snes_mouse_update(snes_mouse_t* mouse)
+void snes_mouse_event(snes_mouse_t* mouse, SDL_Event* event)
 {
-    bool capture_button_down = IsMouseButtonDown(MOUSE_BUTTON_MIDDLE);
-
-    if (!mouse->attached) {
-        if (mouse->captured) {
-            snes_mouse_release(mouse);
-        }
-        mouse->capture_button_down = capture_button_down;
-        return;
-    }
-
-    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
-    if (capture_button_down && !mouse->capture_button_down) {
-        if (mouse->captured) {
-            snes_mouse_release(mouse);
-        } else if (IsWindowFocused() && cursor_in_bounds) {
-            snes_mouse_capture(mouse);
-        }
-    }
-    mouse->capture_button_down = capture_button_down;
-
-    bool active = mouse->captured || cursor_in_bounds;
-    if (active) {
-        float wheel = GetMouseWheelMove();
-        if (wheel != 0.0f) {
-            mouse->delta_scale += wheel * SNES_MOUSE_DELTA_SCALE_STEP;
-            if (mouse->delta_scale < SNES_MOUSE_DELTA_SCALE_MIN) {
-                mouse->delta_scale = SNES_MOUSE_DELTA_SCALE_MIN;
-            } else if (mouse->delta_scale > SNES_MOUSE_DELTA_SCALE_MAX) {
-                mouse->delta_scale = SNES_MOUSE_DELTA_SCALE_MAX;
-            }
-            notif_show("SNES Mouse Speed: x%.2f", mouse->delta_scale);
-        }
+    if (!mouse->attached) return;
+    switch (event->type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        SDL_ConvertEventToRenderCoordinates(wasm_renderer, event);
+        mouse->dx += event->motion.xrel;
+        mouse->dy += event->motion.yrel;
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (event->button.button == SDL_BUTTON_MIDDLE)
+            SDL_SetWindowRelativeMouseMode(wasm_window, !SDL_GetWindowRelativeMouseMode(wasm_window));
+        break;
+    case SDL_EVENT_MOUSE_WHEEL:
+        mouse->delta_scale = SDL_clamp(mouse->delta_scale + event->wheel.y * SNES_MOUSE_DELTA_SCALE_STEP,
+                                       SNES_MOUSE_DELTA_SCALE_MIN, SNES_MOUSE_DELTA_SCALE_MAX);
+        notif_show("SNES Mouse Speed: x%.2f", mouse->delta_scale);
+        break;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        mouse->dx = mouse->dy = 0;
+        break;
     }
 }
 
 uint32_t snes_mouse_latch(snes_mouse_t* mouse)
 {
-    Vector2 delta = GetMouseDelta();
-    bool cursor_in_bounds = snes_mouse_cursor_in_rect(snes_mouse_active_bounds(mouse));
-
-    bool active = mouse->captured || cursor_in_bounds;
-    if (!active) {
-        delta = (Vector2){0.0f, 0.0f};
-    }
-
-    Vector2 scale = snes_mouse_window_scale(mouse->delta_scale);
-    delta.x *= scale.x;
-    delta.y *= scale.y;
-
-    return snes_mouse_packet(snes_mouse_magnitude(delta.x), delta.x < 0.0f,
-                             snes_mouse_magnitude(delta.y), delta.y < 0.0f, SNES_MOUSE_DEFAULT_SPEED,
-                             active && IsMouseButtonDown(MOUSE_BUTTON_LEFT), active && IsMouseButtonDown(MOUSE_BUTTON_RIGHT));
+    float dx = mouse->dx * mouse->delta_scale;
+    float dy = mouse->dy * mouse->delta_scale;
+    mouse->dx = mouse->dy = 0;
+    SDL_MouseButtonFlags buttons = SDL_GetMouseFocus() ? SDL_GetMouseState(NULL, NULL) : 0;
+    return snes_mouse_packet((uint8_t)fminf(roundf(fabsf(dx)), SNES_MOUSE_MAG_MASK), dx < 0,
+                             (uint8_t)fminf(roundf(fabsf(dy)), SNES_MOUSE_MAG_MASK), dy < 0,
+                             SNES_MOUSE_DEFAULT_SPEED, buttons & SDL_BUTTON_LMASK, buttons & SDL_BUTTON_RMASK);
 }

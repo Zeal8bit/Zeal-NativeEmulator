@@ -1,11 +1,11 @@
-#include "frontend/wasm/snes_adapter.h"
+#include "snes_adapter.h"
 #include <stdint.h>
 #include <stdio.h>
 
 #include "utils/log.h"
 #include "hw/userport/snes_adapter.h"
-#include "frontend/wasm/controller.h"
-#include "frontend/wasm/mouse.h"
+#include "controller.h"
+#include "mouse.h"
 #include "hw/pio.h"
 #include "hw/zeal.h"
 
@@ -117,7 +117,6 @@ int wasm_snes_init(wasm_snes_t* snes_adapter, snes_adapter_t* core)
     }
 
     snes_mouse_init(&snes_adapter->mouse);
-    snes_adapter->mouse.machine = core->pio->machine;
     core->userdata = snes_adapter;
     core->sample = wasm_snes_sample;
     core->trace = wasm_snes_trace;
@@ -223,7 +222,6 @@ void snes_adapter_update(wasm_snes_t* snes_adapter)
 
     snes_adapter_attach_available_controllers(snes_adapter);
     snes_adapter->mouse.attached = snes_adapter_get_mouse_port(snes_adapter) != SNES_PORT_DETACHED;
-    snes_mouse_update(&snes_adapter->mouse);
 }
 
 static void snes_adapter_attach_available_controllers(wasm_snes_t* snes_adapter)

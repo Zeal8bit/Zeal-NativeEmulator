@@ -6,23 +6,27 @@ on:
 
 jobs:
   build-windows:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Check
         uses: actions/checkout@v6
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y meson ninja-build gcc-mingw-w64-x86-64 pkg-config cmake
-
-      - name: Build with Meson
-        uses: ./.github/actions/meson-build
+      - uses: msys2/setup-msys2@v2
         with:
-          build-dir: build
-          cross-file: win64-cross.build
-          raylib-path: ${{ github.workspace }}/raylib/win64
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p meson:p ninja:p pkgconf:p fltk:p sdl3:p
+
+      - name: Build desktop and headless executables
+        shell: msys2 {0}
+        run: |
+          meson setup build
+          meson compile -C build
+          meson test -C build --print-errorlogs
+          for exe in build/zeal-native.exe build/zeal-headless.exe; do
+            ldd "$exe" | awk '/=> \/ucrt64\/bin\// { print $3 }' | xargs -r -I '{}' cp '{}' build/
+          done
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
@@ -31,4 +35,7 @@ jobs:
           path: |
             build/zeal-native.exe
             build/zeal-headless.exe
+            build/*.dll
+            build/assets/fonts/*.TTF
+            build/assets/resources/gamecontrollerdb.txt
           retention-days: 30

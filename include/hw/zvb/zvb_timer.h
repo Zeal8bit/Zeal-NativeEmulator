@@ -38,6 +38,9 @@ typedef struct {
 void               zvb_timer_init(zvb_timer_t* timer, vtimer_t* clock, void (*irq_changed)(void*), void* userdata);
 void zvb_timer_reset(zvb_timer_t* timer);
 uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address);
+/* Same as zvb_timer_read without side effects (debugger inspection): no
+ * catch-up to the current time and the high-byte read latch is untouched. */
+uint8_t zvb_timer_peek(const zvb_timer_t* timer, uint32_t address);
 void zvb_timer_write(zvb_timer_t* timer, uint32_t address, uint8_t data);
 static inline bool zvb_timer_interrupt(const zvb_timer_t* timer)
 {
