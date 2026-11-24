@@ -9,10 +9,6 @@
 #include "hw/mmu.h"
 #include "hw/zvb/zvb_dma.h"
 
-/* Compile-time layout checks */
-_Static_assert(sizeof(dma_flags_t) == 1, "DMA flags must be 1 byte big");
-_Static_assert(sizeof(zvb_dma_descriptor_t) == 12, "DMA descriptors must be 12 bytes big");
-
 #define DMA_DESC_SRC_LOW                 (0)
 #define DMA_DESC_SRC_MID                 (1)
 #define DMA_DESC_SRC_HIGH                (2)

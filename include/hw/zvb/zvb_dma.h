@@ -44,30 +44,6 @@ typedef union {
 } zvb_dma_clk_t;
 
 
-typedef union {
-    struct {
-        uint8_t last  : 1;
-        uint8_t rd_op : 2;
-        uint8_t wr_op : 2;
-        uint8_t rsd   : 3;
-    };
-    uint8_t raw;
-} dma_flags_t;
-
-
-/**
- * @brief DMA descriptors array pointed by the `desc_addr` field in the controller
- */
-typedef struct {
-    uint32_t rd_addr    : 24; // Source address
-    uint32_t wr_addr    : 24; // Destination address
-    uint16_t length     : 16; // Transfer length in bytes
-    dma_flags_t flags;        // Descriptor flags
-    uint32_t reserved   : 24; // Padding/future use
-} __attribute__((packed)) zvb_dma_descriptor_t;
-
-
-
 typedef struct {
     /* Address of the current DMA descriptor */
     union {
