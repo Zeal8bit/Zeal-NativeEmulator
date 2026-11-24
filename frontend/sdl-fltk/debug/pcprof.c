@@ -42,7 +42,9 @@ static uint64_t clock_ns(void)
 static void account(void)
 {
     const uint64_t now = clock_ns();
-    if (now > s_mark_ns) s_elapsed_ns += now - s_mark_ns;
+    if (now > s_mark_ns) {
+        s_elapsed_ns += now - s_mark_ns;
+    }
     s_mark_ns = now;
 }
 
@@ -80,12 +82,16 @@ void fltk_pcprof_bind(zeal_t* machine)
 {
     s_machine = machine;
     vtimer_init_node(&s_timer, &machine->cpu.clock, sample_cb, machine);
-    if (s_running) arm();
+    if (s_running) {
+        arm();
+    }
 }
 
 void fltk_pcprof_unbind(void)
 {
-    if (s_machine == NULL) return;
+    if (s_machine == NULL) {
+        return;
+    }
     if (s_running) {
         account();
         vtimer_cancel(&s_timer);
@@ -95,16 +101,24 @@ void fltk_pcprof_unbind(void)
 
 void fz_profile_start(void)
 {
-    if (s_running) return;
+    if (s_running) {
+        return;
+    }
     s_running = true;
-    if (s_machine) arm();
+    if (s_machine) {
+        arm();
+    }
 }
 
 void fz_profile_stop(void)
 {
-    if (!s_running) return;
+    if (!s_running) {
+        return;
+    }
     s_running = false;
-    if (s_machine == NULL) return;
+    if (s_machine == NULL) {
+        return;
+    }
     account();
     vtimer_cancel(&s_timer);
 }
@@ -114,7 +128,9 @@ void fz_profile_reset(void)
     memset(s_counts, 0, sizeof(s_counts));
     s_total = 0;
     s_elapsed_ns = 0;
-    if (s_machine) s_mark_ns = clock_ns();
+    if (s_machine) {
+        s_mark_ns = clock_ns();
+    }
 }
 
 bool fz_profile_running(void)
@@ -132,14 +148,18 @@ uint64_t fz_profile_elapsed_us(void)
     uint64_t ns = s_elapsed_ns;
     if (s_running && s_machine && s_machine->dbg_state == ST_RUNNING) {
         const uint64_t now = clock_ns();
-        if (now > s_mark_ns) ns += now - s_mark_ns;
+        if (now > s_mark_ns) {
+            ns += now - s_mark_ns;
+        }
     }
     return ns / 1000;
 }
 
 uint64_t fz_profile_histogram(const uint32_t** counts)
 {
-    if (counts) *counts = s_counts;
+    if (counts) {
+        *counts = s_counts;
+    }
     return s_total;
 }
 
@@ -150,7 +170,11 @@ unsigned fz_profile_interval_us(void)
 
 void fz_profile_set_interval_us(unsigned us)
 {
-    if (us < MIN_INTERVAL_US) us = MIN_INTERVAL_US;
-    if (us > MAX_INTERVAL_US) us = MAX_INTERVAL_US;
+    if (us < MIN_INTERVAL_US) {
+        us = MIN_INTERVAL_US;
+    }
+    if (us > MAX_INTERVAL_US) {
+        us = MAX_INTERVAL_US;
+    }
     s_interval_us = us;
 }

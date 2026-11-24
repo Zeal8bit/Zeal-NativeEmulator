@@ -37,8 +37,12 @@ void ConsoleText::sync()
     const uint64_t first = fz_console_first();
     const int count = fz_console_count();
     const int max_top = count > rows() ? count - rows() : 0;
-    if (follow || m_top < first) m_top = first + (uint64_t) (follow ? max_top : 0);
-    if (m_top > first + (uint64_t) max_top) m_top = first + (uint64_t) max_top;
+    if (follow || m_top < first) {
+        m_top = first + (uint64_t) (follow ? max_top : 0);
+    }
+    if (m_top > first + (uint64_t) max_top) {
+        m_top = first + (uint64_t) max_top;
+    }
     m_bar->value((int) (m_top - first), rows(), 0, count > rows() ? count : rows());
 }
 
@@ -46,8 +50,12 @@ void ConsoleText::scroll_to(int rel)
 {
     const int count = fz_console_count();
     const int max_top = count > rows() ? count - rows() : 0;
-    if (rel < 0) rel = 0;
-    if (rel > max_top) rel = max_top;
+    if (rel < 0) {
+        rel = 0;
+    }
+    if (rel > max_top) {
+        rel = max_top;
+    }
     m_top = fz_console_first() + (uint64_t) rel;
     set_follow(rel >= max_top);
     sync();
@@ -87,9 +95,13 @@ void ConsoleText::draw()
     char ts[32];
     for (int r = 0; r <= rows(); r++) {
         const uint64_t n = m_top + (uint64_t) r;
-        if (n >= first + (uint64_t) count) break;
+        if (n >= first + (uint64_t) count) {
+            break;
+        }
         fz_console_line_t line;
-        if (!fz_console_line(n, &line)) continue;
+        if (!fz_console_line(n, &line)) {
+            continue;
+        }
         const int ry = y() + 4 + r * lh;
         if (m_sel_valid && n == m_sel) {
             fl_color(COLOR_SELECT);
@@ -146,7 +158,9 @@ int ConsoleText::handle(int event)
                 m_sel_valid = false;
             }
             redraw();
-            if (Fl::event_button() == FL_RIGHT_MOUSE && on_menu) on_menu();
+            if (Fl::event_button() == FL_RIGHT_MOUSE && on_menu) {
+                on_menu();
+            }
             return 1;
         }
         default:
@@ -158,16 +172,22 @@ int ConsoleText::handle(int event)
 uint64_t ConsoleText::line_at(int ey) const
 {
     const int lh = data_line_height();
-    if (lh <= 0 || ey < y() + 4) return UINT64_MAX;
+    if (lh <= 0 || ey < y() + 4) {
+        return UINT64_MAX;
+    }
     const uint64_t n = m_top + (uint64_t) ((ey - y() - 4) / lh);
     return n < fz_console_first() + (uint64_t) fz_console_count() ? n : UINT64_MAX;
 }
 
 void ConsoleText::set_follow(bool f)
 {
-    if (f == follow) return;
+    if (f == follow) {
+        return;
+    }
     follow = f;
-    if (on_follow) on_follow(f);
+    if (on_follow) {
+        on_follow(f);
+    }
 }
 
 } // namespace zui::console

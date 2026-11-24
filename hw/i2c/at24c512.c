@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -80,4 +80,13 @@ int at24c512_init(at24c512_t* eeprom)
 
 
     return 0;
+}
+
+void at24c512_set_persist(at24c512_t* eeprom, at24c512_persist_t persist, void* userdata)
+{
+    if (eeprom == NULL) {
+        return;
+    }
+    eeprom->persist = persist;
+    eeprom->userdata = persist ? userdata : NULL;
 }

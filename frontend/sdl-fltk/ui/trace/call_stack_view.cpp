@@ -28,20 +28,17 @@ namespace zui::trace {
 using namespace zui::common;
 using namespace zui::debugger;
 using namespace zui::theme;
-using namespace zui::widgets;
-
-namespace {
 
 constexpr int HEAD_H = 22;
 
-widgets::Panel* make_callstack(int x, int y, int w, int h)
+static widgets::Panel* make_callstack(int x, int y, int w, int h)
 {
     return new CallStackView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 40, "Call Stack", make_callstack);
+static tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 40, "Call Stack", make_callstack);
 
-const char* frame_kind(uint8_t kind)
+static const char* frame_kind(uint8_t kind)
 {
     switch (kind) {
         case ZEAL_FRAME_RST: return "RST";
@@ -51,7 +48,7 @@ const char* frame_kind(uint8_t kind)
     }
 }
 
-void addr_text(char* out, size_t size, unsigned addr)
+static void addr_text(char* out, size_t size, unsigned addr)
 {
     char h[8];
     hex16(h, sizeof(h), addr);
@@ -62,7 +59,7 @@ struct Cols {
     int num, loc, addr, called, ret, sp;
 };
 
-Cols columns(int x, int w, int cw)
+static Cols columns(int x, int w, int cw)
 {
     Cols c;
     const int left = x + 10;
@@ -78,8 +75,6 @@ Cols columns(int x, int w, int cw)
     c.sp = c.ret + cw * 7;
     return c;
 }
-
-} // namespace
 
 CallStackView::CallStackView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "CALL STACK")
@@ -117,9 +112,13 @@ void CallStackView::refresh(bool paused, bool force)
         m_rows.push_back(r);
     }
     char text[48];
-    if (fz_trace_capacity() == 0) snprintf(text, sizeof(text), "COMPILED OUT");
-    else if (!fz_trace_enabled()) snprintf(text, sizeof(text), "TRACE STOPPED");
-    else snprintf(text, sizeof(text), "%d FRAME%s%s", n, n == 1 ? "" : "S", m_truncated ? "+" : "");
+    if (fz_trace_capacity() == 0) {
+        snprintf(text, sizeof(text), "COMPILED OUT");
+    } else if (!fz_trace_enabled()) {
+        snprintf(text, sizeof(text), "TRACE STOPPED");
+    } else {
+        snprintf(text, sizeof(text), "%d FRAME%s%s", n, n == 1 ? "" : "S", m_truncated ? "+" : "");
+    }
     extra(text);
     clamp_first();
     redraw();
@@ -139,7 +138,9 @@ void CallStackView::clamp_first()
 void CallStackView::draw()
 {
     Panel::draw();
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     fl_push_clip(x(), top(), w(), h() - HEADER_H);
     fl_font(DATA_FONT, DATA_SIZE);
     const int cw = char_width();
@@ -219,7 +220,9 @@ void CallStackView::draw_row(const Row& row, int index, int ry, int lh, int asc,
     }
     char sym[96];
     m_syms.describe(sym, sizeof(sym), row.frame.target);
-    if (sym[0] == 0) addr_text(sym, sizeof(sym), row.frame.target);
+    if (sym[0] == 0) {
+        addr_text(sym, sizeof(sym), row.frame.target);
+    }
     snprintf(buf, sizeof(buf), "%-4s %s", frame_kind(row.frame.kind), sym);
     fl_color(row.frame.kind == ZEAL_FRAME_INT || row.frame.kind == ZEAL_FRAME_NMI ? COLOR_GREEN : COLOR_TEXT);
     fl_push_clip(c.called, ry, c.ret - c.called - cw, lh);
@@ -238,7 +241,9 @@ void CallStackView::draw_row(const Row& row, int index, int ry, int lh, int asc,
 int CallStackView::row_at(int ey) const
 {
     const int ry0 = top() + HEAD_H;
-    if (ey < ry0) return -1;
+    if (ey < ry0) {
+        return -1;
+    }
     const int idx = m_first + (ey - ry0) / data_line_height();
     return idx < (int) m_rows.size() ? idx : -1;
 }
@@ -267,11 +272,16 @@ int CallStackView::handle(int event)
             return 1;
         case FL_PUSH: {
             const int r = row_at(Fl::event_y());
-            if (r < 0 || !dbg_ready()) return 1;
+            if (r < 0 || !dbg_ready()) {
+                return 1;
+            }
             m_selected = r;
             redraw();
-            if (Fl::event_button() == FL_RIGHT_MOUSE) context_menu(r);
-            else goto_disassembly(m_rows[(size_t) r].addr);
+            if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                context_menu(r);
+            } else {
+                goto_disassembly(m_rows[(size_t) r].addr);
+            }
             return 1;
         }
         default:
@@ -313,7 +323,9 @@ void CallStackView::context_menu(int idx)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[8];
     std::string s;
     switch ((int) (picked - items)) {
@@ -327,7 +339,9 @@ void CallStackView::context_menu(int idx)
             break;
         case 5:
             for (size_t i = 0; i < m_rows.size(); i++) s += row_text(m_rows[i], (int) i) + "\n";
-            if (m_truncated) s += "...\n";
+            if (m_truncated) {
+                s += "...\n";
+            }
             Fl::copy(s.c_str(), (int) s.size(), 1);
             break;
         default: break;

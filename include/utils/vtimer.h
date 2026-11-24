@@ -25,6 +25,11 @@
  * @brief A node in the timer linked list. Returned by schedule functions as a handle
  *        that can be passed to vtimer_cancel().
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct vtimer vtimer_t;
 
 typedef struct vtimer_node {
@@ -146,3 +151,7 @@ void vtimer_cancel(vtimer_node_t* node);
 
 /* Schedule an absolute deadline, preserving cadence after late dispatch. */
 void vtimer_schedule_at_ns(vtimer_node_t* node, uint64_t deadline_ns);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -20,9 +20,13 @@ static int unshift_us(int key)
 {
     static const char shifted[]   = ":\"<>?_+{}|~!@#$%^&*()";
     static const char unshifted[] = ";',./-=[]\\`1234567890";
-    if (key >= 'A' && key <= 'Z') return key - 'A' + 'a';
+    if (key >= 'A' && key <= 'Z') {
+        return key - 'A' + 'a';
+    }
     for (int i = 0; shifted[i]; i++) {
-        if (key == (unsigned char) shifted[i]) return (unsigned char) unshifted[i];
+        if (key == (unsigned char) shifted[i]) {
+            return (unsigned char) unshifted[i];
+        }
     }
     return key;
 }
@@ -31,8 +35,12 @@ int fltk_to_zeal_key(int key)
 {
     key = unshift_us(key);
     /* Printable keys: the unshifted ASCII character */
-    if (key >= 'a' && key <= 'z') return ZEAL_KEY_A + (key - 'a');
-    if (key >= '0' && key <= '9') return ZEAL_KEY_ZERO + (key - '0');
+    if (key >= 'a' && key <= 'z') {
+        return ZEAL_KEY_A + (key - 'a');
+    }
+    if (key >= '0' && key <= '9') {
+        return ZEAL_KEY_ZERO + (key - '0');
+    }
     switch (key) {
         case '\'': return ZEAL_KEY_APOSTROPHE;
         case ',':  return ZEAL_KEY_COMMA;
@@ -84,8 +92,12 @@ int fltk_to_zeal_key(int key)
         case FL_KP + '=':    return ZEAL_KEY_KP_EQUAL;
         default: break;
     }
-    if (key >= FL_KP + '0' && key <= FL_KP + '9') return ZEAL_KEY_KP_0 + (key - FL_KP - '0');
-    if (key >= FL_F + 1 && key <= FL_F + 12) return ZEAL_KEY_F1 + (key - FL_F - 1);
+    if (key >= FL_KP + '0' && key <= FL_KP + '9') {
+        return ZEAL_KEY_KP_0 + (key - FL_KP - '0');
+    }
+    if (key >= FL_F + 1 && key <= FL_F + 12) {
+        return ZEAL_KEY_F1 + (key - FL_F - 1);
+    }
     return ZEAL_KEY_NULL;
 }
 

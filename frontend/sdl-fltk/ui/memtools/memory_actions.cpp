@@ -21,16 +21,14 @@ namespace zui::memtools {
 using namespace zui::common;
 using namespace zui::debugger;
 
-namespace {
-
-std::string hex16s(unsigned v)
+static std::string hex16s(unsigned v)
 {
     char t[8];
     hex16(t, sizeof(t), v);
     return t;
 }
 
-bool parse_range(FormDialog& d, int first, unsigned* start, unsigned* end)
+static bool parse_range(FormDialog& d, int first, unsigned* start, unsigned* end)
 {
     hwaddr s, e;
     if (!parse_address(d.value(first), &s)) {
@@ -50,14 +48,12 @@ bool parse_range(FormDialog& d, int first, unsigned* start, unsigned* end)
     return true;
 }
 
-std::string range_text(unsigned start, unsigned end)
+static std::string range_text(unsigned start, unsigned end)
 {
     char t[64];
     snprintf(t, sizeof(t), "$%s-$%s (%u bytes)", hex16s(start).c_str(), hex16s(end).c_str(), end - start + 1);
     return t;
 }
-
-} // namespace
 
 void fill_dialog(unsigned start, unsigned end, const Writer& write)
 {
@@ -69,7 +65,9 @@ void fill_dialog(unsigned start, unsigned end, const Writer& write)
     unsigned s = start, e = end;
     Pattern pattern;
     const bool ok = d.run([&](FormDialog& f) {
-        if (!parse_range(f, 0, &s, &e)) return false;
+        if (!parse_range(f, 0, &s, &e)) {
+            return false;
+        }
         std::string err;
         if (!parse_pattern(f.value(2), pattern, &err, false)) {
             f.error(("Value: " + err).c_str());
@@ -77,7 +75,9 @@ void fill_dialog(unsigned start, unsigned end, const Writer& write)
         }
         return true;
     });
-    if (!ok) return;
+    if (!ok) {
+        return;
+    }
     std::vector<uint8_t> data(e - s + 1);
     for (size_t i = 0; i < data.size(); i++) data[i] = pattern.bytes[i % pattern.bytes.size()];
     if (!write(s, data)) {
@@ -94,7 +94,9 @@ void save_range_dialog(unsigned start, unsigned end)
     d.value(0, hex16s(start).c_str());
     d.value(1, hex16s(end).c_str());
     unsigned s = start, e = end;
-    if (!d.run([&](FormDialog& f) { return parse_range(f, 0, &s, &e); })) return;
+    if (!d.run([&](FormDialog& f) { return parse_range(f, 0, &s, &e); })) {
+        return;
+    }
 
     Fl_Native_File_Chooser chooser;
     chooser.title("Save Memory Range");
@@ -103,7 +105,9 @@ void save_range_dialog(unsigned start, unsigned end)
     char name[64];
     snprintf(name, sizeof(name), "mem_%s_%s.bin", hex16s(s).c_str(), hex16s(e).c_str());
     chooser.preset_file(name);
-    if (chooser.show() != 0 || chooser.filename() == nullptr) return;
+    if (chooser.show() != 0 || chooser.filename() == nullptr) {
+        return;
+    }
 
     std::vector<uint8_t> data(e - s + 1);
     debugger_read_memory(fz_debugger(), (hwaddr) s, (int) data.size(), data.data());
@@ -113,8 +117,11 @@ void save_range_dialog(unsigned start, unsigned end)
         notif_show("Could not write %s", chooser.filename());
         return;
     }
-    if (written) notif_show("Saved %s", range_text(s, e).c_str());
-    else notif_show("Could not write %s", chooser.filename());
+    if (written) {
+        notif_show("Saved %s", range_text(s, e).c_str());
+    } else {
+        notif_show("Could not write %s", chooser.filename());
+    }
 }
 
 void load_file_dialog(unsigned addr, const Writer& write)
@@ -122,7 +129,9 @@ void load_file_dialog(unsigned addr, const Writer& write)
     Fl_Native_File_Chooser chooser;
     chooser.title("Load File into Memory");
     chooser.type(Fl_Native_File_Chooser::BROWSE_FILE);
-    if (chooser.show() != 0 || chooser.filename() == nullptr) return;
+    if (chooser.show() != 0 || chooser.filename() == nullptr) {
+        return;
+    }
     const std::string path = chooser.filename();
 
     FILE* f = fopen(path.c_str(), "rb");
@@ -142,7 +151,9 @@ void load_file_dialog(unsigned addr, const Writer& write)
         return;
     }
     const bool huge = data.size() > 0x10000;
-    if (huge) data.resize(0x10000);
+    if (huge) {
+        data.resize(0x10000);
+    }
 
     const size_t slash = path.find_last_of("/\\");
     const std::string base = slash == std::string::npos ? path : path.substr(slash + 1);
@@ -170,9 +181,13 @@ void load_file_dialog(unsigned addr, const Writer& write)
         }
         return true;
     });
-    if (!ok) return;
+    if (!ok) {
+        return;
+    }
     const size_t fits = 0x10000 - at;
-    if (data.size() > fits) data.resize(fits);
+    if (data.size() > fits) {
+        data.resize(fits);
+    }
     if (!write(at, data)) {
         notif_show("Memory did not retain all bytes");
         return;
@@ -186,11 +201,15 @@ bool address_dialog(const char* title, unsigned initial, unsigned* out)
     d.value(0, hex16s(initial).c_str());
     hwaddr a = 0;
     const bool ok = d.run([&](FormDialog& f) {
-        if (parse_address(f.value(0), &a) && a <= 0xFFFF) return true;
+        if (parse_address(f.value(0), &a) && a <= 0xFFFF) {
+            return true;
+        }
         f.error("Not a hex address or known symbol");
         return false;
     });
-    if (ok) *out = (unsigned) a;
+    if (ok) {
+        *out = (unsigned) a;
+    }
     return ok;
 }
 

@@ -12,7 +12,6 @@
 
 namespace zui::theme {
 
-namespace {
 struct ThemeColor {
     Fl_Color slot;
     unsigned dark;
@@ -40,9 +39,9 @@ constexpr ThemeColor colors[] = {
     {FL_INACTIVE_COLOR,  0x555A66'00, 0x596673'00},
 };
 
-bool using_light;
+static bool using_light;
 
-void apply_palette(bool light)
+static void apply_palette(bool light)
 {
     using_light = light;
     if (light) {
@@ -58,7 +57,7 @@ void apply_palette(bool light)
         Fl::set_color(color.slot, light ? color.light : color.dark);
 }
 
-void check_appearance(void*)
+static void check_appearance(void*)
 {
     const bool light = system_uses_light_theme();
     if (light != using_light) {
@@ -67,8 +66,6 @@ void check_appearance(void*)
     }
     Fl::repeat_timeout(1.0, check_appearance);
 }
-} // namespace
-
 void start_theme()
 {
     Fl::scheme("gtk+");

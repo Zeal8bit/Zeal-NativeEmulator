@@ -35,15 +35,13 @@ using namespace zui::common;
 using namespace zui::theme;
 using namespace zui::widgets;
 
-namespace {
-
-MainWindow* s_window;
-bool s_closed;
+static MainWindow* s_window;
+static bool s_closed;
 
 constexpr int TOOLBAR_H = 34;
 constexpr int STATUS_H = 22;
 
-float scale_quantize_tenths(float scale, float step)
+static float scale_quantize_tenths(float scale, float step)
 {
     const float scaled_tenths = scale * 10.0f;
     const float rounded_tenths = std::round(scaled_tenths);
@@ -53,18 +51,20 @@ float scale_quantize_tenths(float scale, float step)
     } else {
         target = step > 0.0f ? std::ceil(scaled_tenths) : std::floor(scaled_tenths);
     }
-    if (target < 1.0f) target = 1.0f;
+    if (target < 1.0f) {
+        target = 1.0f;
+    }
     return target / 10.0f;
 }
 
-void window_cb(Fl_Widget*, void*)
+static void window_cb(Fl_Widget*, void*)
 {
     /* Escape belongs to the emulated machine, never closes the window */
-    if (Fl::event() == FL_SHORTCUT && Fl::event_key() == FL_Escape) return;
+    if (Fl::event() == FL_SHORTCUT && Fl::event_key() == FL_Escape) {
+        return;
+    }
     MainWindow::quit();
 }
-
-} // namespace
 
 MainWindow* main_window()
 {
@@ -138,7 +138,6 @@ MainWindow::MainWindow()
     /* The screen and the debugger docks live inside the dock layout */
     m_dock->begin();
     m_screen = new ScreenView(0, m_menubar_h, w(), h() - m_menubar_h - STATUS_H);
-    m_screen->end();
     m_dock->end();
     m_debugger = create_debugger_ui(m_dock, m_screen);
     begin();
@@ -159,7 +158,9 @@ MainWindow::~MainWindow()
 {
     delete m_debugger;
     delete m_menus;
-    if (s_window == this) s_window = nullptr;
+    if (s_window == this) {
+        s_window = nullptr;
+    }
 }
 
 int MainWindow::chrome_height() const
@@ -173,7 +174,11 @@ void MainWindow::layout_chrome()
     m_menubar->resize(0, 0, w(), m_menubar_h);
     if (m_toolbar) {
         m_toolbar->resize(0, m_menubar_h, w(), TOOLBAR_H);
-        if (m_debug) m_toolbar->show(); else m_toolbar->hide();
+        if (m_debug) {
+            m_toolbar->show();
+        } else {
+            m_toolbar->hide();
+        }
     }
     m_dock->resize(0, m_menubar_h + tb, w(), h() - m_menubar_h - tb - STATUS_H);
     m_statusbar->resize(0, h() - STATUS_H, w(), STATUS_H);
@@ -191,8 +196,12 @@ void MainWindow::apply_size_range()
         m_debugger->min_body_size(min_w, min_h);
         int sx, sy, sw, sh;
         Fl::screen_work_area(sx, sy, sw, sh, shown() ? screen_num() : 0);
-        if (min_w > sw) min_w = sw;
-        if (min_h + chrome_height() > sh) min_h = sh - chrome_height();
+        if (min_w > sw) {
+            min_w = sw;
+        }
+        if (min_h + chrome_height() > sh) {
+            min_h = sh - chrome_height();
+        }
     }
     size_range(min_w, min_h + chrome_height());
     if (w() < min_w || h() < min_h + chrome_height()) {
@@ -218,7 +227,9 @@ void MainWindow::resize(int nx, int ny, int nw, int nh)
         }
     }
     Fl_Double_Window::resize(nx, ny, nw, nh);
-    if (m_statusbar) layout_status();
+    if (m_statusbar) {
+        layout_status();
+    }
 }
 
 void MainWindow::layout_status()
@@ -237,7 +248,9 @@ void MainWindow::layout_status()
 
 void MainWindow::apply_aspect()
 {
-    if (!aspect_locked()) return;
+    if (!aspect_locked()) {
+        return;
+    }
     Fl_Double_Window::resize(x(), y(), w(), w() * 3 / 4 + chrome_height());
 }
 
@@ -252,8 +265,12 @@ int MainWindow::handle(int event)
 
 void MainWindow::set_debug_layout(bool debug)
 {
-    if (debug == m_debug) return;
-    if (shown()) capture_window_config(m_debug);
+    if (debug == m_debug) {
+        return;
+    }
+    if (shown()) {
+        capture_window_config(m_debug);
+    }
     m_debug = debug;
     /* The normal window is sized to the picture, so it always fits */
     m_screen->zoom(debug ? m_debug_zoom : 0.0f);
@@ -264,7 +281,9 @@ void MainWindow::set_debug_layout(bool debug)
     apply_window_config(debug);
     update_menus();
     update_status();
-    if (m_screen->shown()) m_screen->take_focus();
+    if (m_screen->visible()) {
+        m_screen->take_focus();
+    }
 }
 
 void MainWindow::apply_window_config(bool debug)
@@ -288,7 +307,11 @@ void MainWindow::apply_window_config(bool debug)
             sh = FZ_SCREEN_HEIGHT;
         }
         if (config.window.aspect_force) {
-            if (sw >= sh) sh = sw * 3 / 4; else sw = sh * 4 / 3;
+            if (sw >= sh) {
+                sh = sw * 3 / 4;
+            } else {
+                sw = sh * 4 / 3;
+            }
         }
         W = sw;
         H = sh + chrome_height();
@@ -298,20 +321,34 @@ void MainWindow::apply_window_config(bool debug)
     const int display = config.window.display >= 0 && config.window.display < Fl::screen_count()
         ? config.window.display : 0;
     Fl::screen_work_area(sx, sy, sw, sh, display);
-    if (W > sw) W = sw;
-    if (H > sh) H = sh;
-    if (X < 0 || X > sx + sw - 40) X = sx + (sw - W) / 2;
-    if (Y < 0 || Y > sy + sh - 40) Y = sy + (sh - H) / 2;
+    if (W > sw) {
+        W = sw;
+    }
+    if (H > sh) {
+        H = sh;
+    }
+    if (X < 0 || X > sx + sw - 40) {
+        X = sx + (sw - W) / 2;
+    }
+    if (Y < 0 || Y > sy + sh - 40) {
+        Y = sy + (sh - H) / 2;
+    }
     resize(X, Y, W, H);
 
-    if (debug && m_debugger) m_debugger->apply_layout();
+    if (debug && m_debugger) {
+        m_debugger->apply_layout();
+    }
 }
 
 void MainWindow::capture_window_config(bool debug)
 {
-    if (fullscreen_active()) return;
+    if (fullscreen_active()) {
+        return;
+    }
     if (debug) {
-        if (m_debugger) m_debugger->capture_layout();
+        if (m_debugger) {
+            m_debugger->capture_layout();
+        }
         config.debugger.x = x();
         config.debugger.y = y();
         config.debugger.width = w();
@@ -327,12 +364,16 @@ void MainWindow::capture_window_config(bool debug)
 
 void MainWindow::set_screen_scale(float scale)
 {
-    if (fullscreen_active()) return;
+    if (fullscreen_active()) {
+        return;
+    }
     if (m_debug) {
         /* Debugger: scale the picture inside its panel, never the window
          * (that would reshuffle every panel). Capped at what fits. */
         const float fit = m_screen->fit_scale();
-        if (scale < 0.5f) scale = 0.5f;
+        if (scale < 0.5f) {
+            scale = 0.5f;
+        }
         if (scale >= fit - 0.01f) {
             m_debug_zoom = 0.0f;
             notif_show("Scale: x%.2f (fits the panel)", fit);
@@ -358,12 +399,18 @@ void MainWindow::scale_screen(float step)
 
 void MainWindow::toggle_fullscreen()
 {
-    if (fullscreen_active()) fullscreen_off(); else fullscreen();
+    if (fullscreen_active()) {
+        fullscreen_off();
+    } else {
+        fullscreen();
+    }
 }
 
 void MainWindow::reset_layout()
 {
-    if (m_debugger) m_debugger->reset_layout();
+    if (m_debugger) {
+        m_debugger->reset_layout();
+    }
     if (m_debug) {
         config.debugger.width = config.debugger.height = -1;
         config.debugger.x = config.debugger.y = -1;
@@ -379,7 +426,9 @@ void MainWindow::update_menus()
 
 void MainWindow::poll_menus()
 {
-    if (AppMenus::snes_dirty()) m_menus->rebuild_snes();
+    if (AppMenus::snes_dirty()) {
+        m_menus->rebuild_snes();
+    }
 }
 
 void MainWindow::notify(const char* text)
@@ -421,9 +470,14 @@ void MainWindow::update_status()
     m_screen->picture_rect(px, py, pw, ph);
     const float scale = (float) pw / FZ_SCREEN_WIDTH;
     int n = snprintf(info, sizeof(info), "x%.2f", scale);
-    if (fz_muted()) n += snprintf(info + n, sizeof(info) - n, "   Muted");
-    else n += snprintf(info + n, sizeof(info) - n, "   Vol %d%%", fz_volume());
-    if (show_fps) snprintf(info + n, sizeof(info) - n, "   %d fps", m_fps);
+    if (fz_muted()) {
+        n += snprintf(info + n, sizeof(info) - n, "   Muted");
+    } else {
+        n += snprintf(info + n, sizeof(info) - n, "   Vol %d%%", fz_volume());
+    }
+    if (show_fps) {
+        snprintf(info + n, sizeof(info) - n, "   %d fps", m_fps);
+    }
     m_status_info->copy_label(info);
     m_statusbar->redraw();
     m_status_at = now_seconds();

@@ -13,11 +13,7 @@ namespace zui::video {
 
 using namespace zui::debugger;
 
-namespace {
-
-VideoWindow* s_window;
-
-} // namespace
+static VideoWindow* s_window;
 
 void video_window_show(bool show)
 {
@@ -57,12 +53,16 @@ bool video_window_shown()
 
 void video_window_refresh(bool paused, bool force)
 {
-    if (s_window) s_window->refresh(paused, force);
+    if (s_window) {
+        s_window->refresh(paused, force);
+    }
 }
 
 void video_window_capture_config()
 {
-    if (!s_window || !s_window->shown()) return;
+    if (s_window == nullptr || !s_window->shown()) {
+        return;
+    }
     g_layout.video_x = s_window->x();
     g_layout.video_y = s_window->y();
     g_layout.video_w = s_window->w();

@@ -24,7 +24,9 @@ static inline uint8_t peek(const mmu_t* mmu, uint16_t virt_addr)
     const int idx = (virt_addr >> 14) & 0x3;
     const mmu_cached_page_t* vp = &mmu->vpages[idx];
     device_t* dev = vp->dev;
-    if (!dev) return 0;
+    if (dev == NULL) {
+        return 0;
+    }
     const uint32_t off = (((uint32_t) mmu->pages[idx] << 14) | (virt_addr & (MMU_PAGE_SIZE - 1))) - vp->base_phys;
     return dev->mem_region.debug_read ? dev->mem_region.debug_read(dev, off)
                                       : dev->mem_region.read(dev, off);
@@ -33,8 +35,12 @@ static inline uint8_t peek(const mmu_t* mmu, uint16_t virt_addr)
 static zeal_trace_entry_t* next_slot(zeal_trace_t* t)
 {
     zeal_trace_entry_t* e = &t->entries[t->head];
-    if (++t->head == CONFIG_TRACE_DEPTH) t->head = 0;
-    if (t->count < CONFIG_TRACE_DEPTH) t->count++;
+    if (++t->head == CONFIG_TRACE_DEPTH) {
+        t->head = 0;
+    }
+    if (t->count < CONFIG_TRACE_DEPTH) {
+        t->count++;
+    }
     t->serial++;
     return e;
 }
@@ -93,7 +99,9 @@ static void prune(zeal_trace_t* t, uint16_t sp)
 {
     while (t->depth > 0) {
         const zeal_frame_t* f = &t->frames[t->depth - 1];
-        if (f->segment != t->segment || (int16_t) (uint16_t) (sp - f->sp) <= 0) break;
+        if (f->segment != t->segment || (int16_t) (uint16_t) (sp - f->sp) <= 0) {
+            break;
+        }
         t->depth--;
     }
 }
@@ -147,6 +155,11 @@ static bool is_return(const uint8_t* b)
            (b[0] == 0xED && (b[1] & 0xC7) == 0x45);             /* RETN / RETI */
 }
 
+/* Record the entry for the instruction about to execute: registers as they
+ * are before the step, plus the opcode bytes the disassembler will decode.
+ * A cycle counter that moved since the last hook means code ran untraced
+ * (debugger or trace switched off), so the stack is reset and a gap is
+ * recorded. DMA/HALT do not execute an opcode, so they record nothing. */
 void zeal_trace_before(zeal_t* machine)
 {
     zeal_trace_t* t = &machine->trace;
@@ -159,24 +172,31 @@ void zeal_trace_before(zeal_t* machine)
     }
     t->last_ints = cpu->int_count;
     /* DMA owns the bus (no opcode executes) or HALT repeats: nothing new */
-    if (cpu->bus_requested || cpu->halted) return;
+    if (cpu->bus_requested || cpu->halted) {
+        return;
+    }
     t->pending = (int32_t) t->head;
-    zeal_trace_entry_t* e = next_slot(t);
-    fill_regs(e, cpu);
+    zeal_trace_entry_t* entry = next_slot(t);
+    fill_regs(entry, cpu);
     uint16_t pc = cpu->pc;
     uint8_t op = peek(&cpu->mmu, pc);
-    while ((op == 0xDD || op == 0xFD) && e->skipped_prefixes < UINT16_MAX) {
+    /* Skip DD/FD prefixes that do not form an indexed instruction, so the
+     * recorded bytes start at the opcode that actually executes. */
+    while ((op == 0xDD || op == 0xFD) && entry->skipped_prefixes < UINT16_MAX) {
         const uint8_t next = peek(&cpu->mmu, (uint16_t) (pc + 1));
-        if (zeal_debugger_uses_index(next)) break;
-        e->skipped_prefixes++;
+        if (zeal_debugger_uses_index(next)) {
+            break;
+        }
+        entry->skipped_prefixes++;
         pc++;
         op = next;
     }
-    e->bytes[0] = op;
-    e->bytes[1] = peek(&cpu->mmu, (uint16_t) (pc + 1));
-    e->bytes[2] = peek(&cpu->mmu, (uint16_t) (pc + 2));
-    e->bytes[3] = peek(&cpu->mmu, (uint16_t) (pc + 3));
-    e->kind = ZEAL_TRACE_INSTR;
+    /* Opcode and up to 3 operand bytes, for the disassembly view. */
+    entry->bytes[0] = op;
+    entry->bytes[1] = peek(&cpu->mmu, (uint16_t) (pc + 1));
+    entry->bytes[2] = peek(&cpu->mmu, (uint16_t) (pc + 2));
+    entry->bytes[3] = peek(&cpu->mmu, (uint16_t) (pc + 3));
+    entry->kind = ZEAL_TRACE_INSTR;
 }
 
 void zeal_trace_after(zeal_t* machine)
@@ -205,14 +225,22 @@ void zeal_trace_after(zeal_t* machine)
         if (op == 0xCD || (op & 0xC7) == 0xC4) {
             /* CALL nn / CALL cc,nn (taken when the return address was pushed) */
             prune(t, sp);
-            if (pushed) push_frame(t, ZEAL_FRAME_CALL, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 3), pc, sp);
+            if (pushed) {
+                push_frame(t, ZEAL_FRAME_CALL, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 3), pc, sp);
+            }
         } else if ((op & 0xC7) == 0xC7) {
             prune(t, sp);
-            if (pushed) push_frame(t, ZEAL_FRAME_RST, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 1), pc, sp);
+            if (pushed) {
+                push_frame(t, ZEAL_FRAME_RST, e->pc, (uint16_t) (e->pc + e->skipped_prefixes + 1), pc, sp);
+            }
         } else if (loads_sp(e->bytes)) {
-            if (sp != e->sp) switch_stack(t, e->sp, sp);
+            if (sp != e->sp) {
+                switch_stack(t, e->sp, sp);
+            }
         } else if (is_return(e->bytes) && sp == (uint16_t) (e->sp + 2)) {
-            if (!unwind_to(t, e->sp, pc)) prune(t, sp);
+            if (!unwind_to(t, e->sp, pc)) {
+                prune(t, sp);
+            }
         } else {
             prune(t, sp);
         }
@@ -247,7 +275,9 @@ void zeal_trace_on_reset(zeal_t* machine)
     clear_stack(t, false);
     t->pending = -1;
     t->last_ints = machine->cpu.int_count;
-    if (t->enabled && machine->dbg_enabled) record_event(machine, ZEAL_TRACE_RESET, 0);
+    if (t->enabled && machine->dbg_enabled) {
+        record_event(machine, ZEAL_TRACE_RESET, 0);
+    }
     t->last_cycle = machine->cpu.cyc;
 }
 
@@ -258,9 +288,13 @@ unsigned zeal_trace_count(const zeal_t* machine)
 
 bool zeal_trace_get(const zeal_t* machine, unsigned age, zeal_trace_entry_t* out)
 {
-    if (machine == NULL || out == NULL) return false;
+    if (machine == NULL || out == NULL) {
+        return false;
+    }
     const zeal_trace_t* t = &machine->trace;
-    if (age >= t->count) return false;
+    if (age >= t->count) {
+        return false;
+    }
     const unsigned idx = (t->head + CONFIG_TRACE_DEPTH - 1 - age) % CONFIG_TRACE_DEPTH;
     *out = t->entries[idx];
     return true;
@@ -273,7 +307,9 @@ uint64_t zeal_trace_serial(const zeal_t* machine)
 
 void zeal_trace_clear(zeal_t* machine)
 {
-    if (machine == NULL) return;
+    if (machine == NULL) {
+        return;
+    }
     zeal_trace_t* t = &machine->trace;
     t->head = 0;
     t->count = 0;
@@ -284,7 +320,9 @@ void zeal_trace_clear(zeal_t* machine)
 
 void zeal_trace_set_enabled(zeal_t* machine, bool enabled)
 {
-    if (machine) machine->trace.enabled = enabled;
+    if (machine) {
+        machine->trace.enabled = enabled;
+    }
 }
 
 bool zeal_trace_enabled(const zeal_t* machine)
@@ -294,7 +332,9 @@ bool zeal_trace_enabled(const zeal_t* machine)
 
 int zeal_callstack_get(const zeal_t* machine, zeal_frame_t* out, int max)
 {
-    if (machine == NULL || out == NULL) return 0;
+    if (machine == NULL || out == NULL) {
+        return 0;
+    }
     const zeal_trace_t* t = &machine->trace;
     const int n = t->depth < max ? t->depth : max;
     /* The innermost frames when `out` is too small */

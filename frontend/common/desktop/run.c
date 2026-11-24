@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,7 +39,9 @@ int desktop_run(bool frames)
     }
 
     code = frontend_run(&machine);
-    if (machine.compactflash.failed) goto deinit;
+    if (machine.compactflash.failed) {
+        goto deinit;
+    }
 
     flash_save_to_file(&machine.rom, config.arguments.rom_filename);
 

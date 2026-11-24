@@ -14,6 +14,10 @@
 #include "frontend/sdl-fltk/snes_adapter.h"
 #include "frontend/sdl-fltk/bridge/input.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* The machine driven by this frontend, set by frontend_init. */
 extern zeal_t* fltk_machine;
 
@@ -77,5 +81,9 @@ void fltk_pcprof_bind(zeal_t* machine);
 void fltk_pcprof_unbind(void);
 /* VRAM debug rasteriser (debug/vram.c) */
 bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out);
-bool fltk_debug_sprite(zvb_t* zvb, int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask);
+bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask);
 void fltk_debug_video_free(void);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

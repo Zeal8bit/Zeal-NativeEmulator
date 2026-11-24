@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "hw/zvb/zvb_timer.h"
 #include <string.h>
 
@@ -159,6 +163,8 @@ uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address)
     }
 }
 
+/* Debugger inspection read: same values as zvb_timer_read, without catching up
+ * to the current time or touching the high-byte read latch. */
 uint8_t zvb_timer_peek(const zvb_timer_t* timer, uint32_t address)
 {
     switch (address & TIMER_REGISTER_MASK) {

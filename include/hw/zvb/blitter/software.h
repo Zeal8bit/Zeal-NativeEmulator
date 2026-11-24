@@ -1,8 +1,17 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct {
     const uint16_t* pixels;
@@ -24,3 +33,7 @@ typedef struct {
     bool raster_frame;
 #endif
 } zvb_blitter_t;
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

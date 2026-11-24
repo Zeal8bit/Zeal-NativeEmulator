@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,6 +20,11 @@
 #define IO_I2C_SDA_OUT_PIN  0
 #define I2C_MAX_DEV         128
 
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
     I2C_IDLE = 0,
@@ -66,3 +71,7 @@ void i2c_reset(i2c_t* bus, pio_t* pio);
  * @returns 0 on success
  */
 int i2c_connect(i2c_t* bus, i2c_device_t* device);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

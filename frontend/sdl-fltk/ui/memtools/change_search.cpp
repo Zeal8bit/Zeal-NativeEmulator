@@ -32,11 +32,15 @@ bool ChangeSearch::passes(Filter filter, uint8_t value, uint8_t prev, uint8_t cu
 
 void ChangeSearch::narrow(Filter filter, uint8_t value, const uint8_t* prev, const uint8_t* cur)
 {
-    if (!m_active) start();
+    if (!m_active) {
+        start();
+    }
     size_t keep = 0;
     for (size_t i = 0; i < m_candidates.size(); i++) {
         const uint16_t a = m_candidates[i];
-        if (passes(filter, value, prev ? prev[a] : cur[a], cur[a])) m_candidates[keep++] = a;
+        if (passes(filter, value, prev ? prev[a] : cur[a], cur[a])) {
+            m_candidates[keep++] = a;
+        }
     }
     m_candidates.resize(keep);
     m_rounds++;

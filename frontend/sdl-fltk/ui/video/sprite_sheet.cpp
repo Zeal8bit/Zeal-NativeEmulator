@@ -36,7 +36,9 @@ void SpriteSheet::relayout()
     const int H = (FZ_SPRITE_COUNT / COLUMNS) * card_h() + 8 + (m_data->gfx ? 0 : 28);
     if (w() != W || h() != H) {
         size(W, H);
-        if (parent()) parent()->redraw();
+        if (parent()) {
+            parent()->redraw();
+        }
     }
     redraw();
 }
@@ -56,9 +58,10 @@ void SpriteSheet::draw()
     for (int i = 0; i < FZ_SPRITE_COUNT; i++) {
         const int cx = x() + 4 + (i % COLUMNS) * card_w();
         const int cy = top + (i / COLUMNS) * card_h();
-        if (cx + card_w() < x() || cy > y() + h()) continue;
-        const fz_sprite_t& sp = m_data->info[i];
-        const bool off = !sp.on_screen;
+        if (cx + card_w() < x() || cy > y() + h()) {
+            continue;
+        }
+        const bool off = !m_data->on_screen(i);
         fl_color(i == m_data->hover ? COLOR_HOVER : COLOR_SURFACE);
         fl_rectf(cx + 2, cy + 2, card_w() - 4, card_h() - 4);
         compose_sprite(*m_data, i, zoom, off, m_buf);
@@ -83,14 +86,18 @@ int SpriteSheet::handle(int event)
         case FL_LEAVE:
             m_data->hover = -1;
             redraw();
-            if (inspector) inspector->redraw();
+            if (inspector) {
+                inspector->redraw();
+            }
             return 1;
         case FL_MOVE: {
             const int i = sprite_at(Fl::event_x(), Fl::event_y());
             if (i != m_data->hover) {
                 m_data->hover = i;
                 redraw();
-                if (inspector) inspector->redraw();
+                if (inspector) {
+                    inspector->redraw();
+                }
             }
             return 1;
         }
@@ -98,7 +105,9 @@ int SpriteSheet::handle(int event)
             const int i = sprite_at(Fl::event_x(), Fl::event_y());
             m_data->selected = (i == m_data->selected) ? -1 : i;
             redraw();
-            if (inspector) inspector->redraw();
+            if (inspector) {
+                inspector->redraw();
+            }
             return 1;
         }
         default:
@@ -110,10 +119,14 @@ int SpriteSheet::handle(int event)
 int SpriteSheet::sprite_at(int ex, int ey) const
 {
     const int top = y() + 4 + (m_data->gfx ? 0 : 28);
-    if (ex < x() + 4 || ey < top) return -1;
+    if (ex < x() + 4 || ey < top) {
+        return -1;
+    }
     const int col = (ex - x() - 4) / card_w();
     const int row = (ey - top) / card_h();
-    if (col >= COLUMNS) return -1;
+    if (col >= COLUMNS) {
+        return -1;
+    }
     const int i = row * COLUMNS + col;
     return i < FZ_SPRITE_COUNT ? i : -1;
 }

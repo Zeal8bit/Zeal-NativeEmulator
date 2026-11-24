@@ -17,6 +17,9 @@
 #include "hw/zvb/default_font.h"
 #include "hw/zvb/blitter/blitter.h"
 
+/* Sound advances at I/O accesses, the raster deadline and its own timer
+ * event; video memory traffic deliberately leaves the sound clock alone. */
+
 #define ZVB_MEM_CONFIG_START             (0x1fe0U)
 #define ZVB_MEM_PERIPHERALS_START        (0x2000U)
 #define ZVB_MEM_PERIPHERALS_END          (0x20e0U)
@@ -164,7 +167,6 @@ static uint8_t zvb_video_mem_read(zvb_t* zvb, uint32_t addr);
 static uint8_t zvb_mem_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -218,6 +220,8 @@ static uint8_t zvb_video_mem_read(zvb_t* zvb, uint32_t addr)
     return 0;
 }
 
+/* Debugger-facing read callback: video memories are plain arrays read without
+ * side effects, I/O registers go through zvb_peripheral_peek. */
 static uint8_t zvb_mem_debug_read(device_t* dev, uint32_t addr)
 {
     zvb_t* zvb = (zvb_t*) dev;
@@ -259,12 +263,24 @@ static uint8_t zvb_mem_debug_read(device_t* dev, uint32_t addr)
     if (io_addr >= ZVB_IO_BANK_START && io_addr < ZVB_IO_BANK_END) {
         return zvb_peripheral_peek(zvb, zvb->io_bank, io_addr - ZVB_IO_BANK_START);
     }
-    if (io_addr >= ZVB_IO_SCRAT0_REG && io_addr <= ZVB_IO_SCRAT3_REG) return zvb->scratch[io_addr - ZVB_IO_SCRAT0_REG];
-    if (io_addr == ZVB_IO_REV_REG)   return ZVB_EMULATED_REV;
-    if (io_addr == ZVB_IO_MINOR_REG) return ZVB_EMULATED_MINOR;
-    if (io_addr == ZVB_IO_MAJOR_REG) return ZVB_EMULATED_MAJOR;
-    if (io_addr == ZVB_IO_BANK_REG)  return zvb->io_bank;
-    if (io_addr == ZVB_MEM_START_REG) return ZVB_DEFAULT_PHYS_BANK;
+    if (io_addr >= ZVB_IO_SCRAT0_REG && io_addr <= ZVB_IO_SCRAT3_REG) {
+        return zvb->scratch[io_addr - ZVB_IO_SCRAT0_REG];
+    }
+    if (io_addr == ZVB_IO_REV_REG) {
+        return ZVB_EMULATED_REV;
+    }
+    if (io_addr == ZVB_IO_MINOR_REG) {
+        return ZVB_EMULATED_MINOR;
+    }
+    if (io_addr == ZVB_IO_MAJOR_REG) {
+        return ZVB_EMULATED_MAJOR;
+    }
+    if (io_addr == ZVB_IO_BANK_REG) {
+        return zvb->io_bank;
+    }
+    if (io_addr == ZVB_MEM_START_REG) {
+        return ZVB_DEFAULT_PHYS_BANK;
+    }
     return 0;
 }
 
@@ -272,7 +288,6 @@ static uint8_t zvb_mem_debug_read(device_t* dev, uint32_t addr)
 static void zvb_mem_write(device_t* dev, uint32_t addr, uint8_t data)
 {
     zvb_t* zvb = (zvb_t*) dev;
-    zvb_sync_sound(zvb, vtimer_now_ns(zvb->timer.clock));
     int bank;
     const int io_addr = zvb_mem_io_address(addr, &bank);
     if (io_addr >= 0) {
@@ -332,7 +347,7 @@ static uint8_t zvb_io_read_control(zvb_t* zvb, uint32_t addr)
         case ZVB_IO_CONFIG_EXT_STATUS_REG:
             return zvb_external_interrupts(zvb);
         default:
-            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unknwon register %x\n", addr);
+            hw_log_error(zvb->parent.host, "[ZVB][CTRL] Unknwon register %x\n", addr);
             break;
     }
 
@@ -415,7 +430,7 @@ static void zvb_io_write_control(zvb_t* zvb, uint32_t addr, uint8_t value)
             zvb_update_interrupts(zvb);
             break;
         default:
-            hw_log(zvb->parent.host, true, 0, "[ZVB][CTRL] Unsupported write register %x\n", addr);
+            hw_log_error(zvb->parent.host, "[ZVB][CTRL] Unsupported write register %x\n", addr);
             break;
     }
 }
@@ -507,7 +522,7 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     zvb_spi_init(&dev->spi, clock);
     dev->spi.tf.host = config->host;
     zvb_crc32_init(&dev->peri_crc32);
-    zvb_sound_init(&dev->sound, rendering_enabled);
+    zvb_sound_init(&dev->sound);
     zvb_dma_init(&dev->dma, clock, mmu, bus_requested, !config->dma_disabled);
     zvb_rpu_init(&dev->rpu);
     zvb_timer_init(&dev->peri_timer, clock, zvb_update_interrupts, dev);
@@ -515,7 +530,9 @@ int zvb_init(zvb_t* dev, vtimer_t* clock, const zvb_config_t* config, mmu_t* mmu
     if (dev->rendering_enabled) {
 
         zvb_blitter_init(dev);
-        if (!dev->blitter.framebuffer) return 2;
+        if (dev->blitter.framebuffer == NULL) {
+            return 2;
+        }
     }
 
     /* Set the state to STATE_RENDERING, waiting for the next event */
@@ -570,19 +587,6 @@ static void zvb_reset(device_t* dev)
     zvb->line_start_ns = zvb->sound_clock_ns;
     vtimer_schedule_ns(&zvb->timer, ZVB_VISIBLE_LINE_NS);
     zvb_update_interrupts(zvb);
-}
-
-
-/**
- * @brief Present black when the VGA output is disabled.
- */
-static void zvb_render_disabled_mode(zvb_t* zvb)
-{
-    memset(zvb->blitter.framebuffer, 0, ZVB_MAX_RES_WIDTH * ZVB_MAX_RES_HEIGHT * sizeof(uint16_t));
-    zvb->blitter.width = ZVB_MAX_RES_WIDTH;
-    zvb->blitter.height = ZVB_MAX_RES_HEIGHT;
-    zvb->blitter.sequence++;
-
 }
 
 
@@ -657,11 +661,13 @@ void zvb_render(zvb_t* zvb)
                 break;
         }
     } else {
-        zvb_render_disabled_mode(zvb);
+        zvb_blitter_fill_black(zvb);
     }
 
 #if CONFIG_PROFILE_RENDER
-    if (zvb->profile_render) zvb->profile_render(zvb->profile_userdata, profile_start);
+    if (zvb->profile_render) {
+        zvb->profile_render(zvb->profile_userdata, profile_start);
+    }
 #endif
 }
 
@@ -711,17 +717,19 @@ static void zvb_sound_next(void* userdata)
     zvb_sync_sound(zvb, zvb->sound_event.deadline);
 }
 
-/* Sound remains synchronized at accesses and its own interrupt deadlines. */
+/* Sound is driven by the raster and sound deadlines, not by every memory
+ * access: video RAM traffic must not cancel/reschedule the sound timer. */
 static void zvb_sync_sound(zvb_t* zvb, uint64_t target_ns)
 {
     if (target_ns > zvb->timer.deadline) {
         target_ns = zvb->timer.deadline;
     }
-    if (target_ns > zvb->sound_clock_ns) {
-        const uint32_t clocks = (target_ns - zvb->sound_clock_ns) / ZVB_MASTER_CLOCK_NS;
-        zvb_sound_advance(&zvb->sound, clocks);
-        zvb->sound_clock_ns += (uint64_t)clocks * ZVB_MASTER_CLOCK_NS;
+    if (target_ns <= zvb->sound_clock_ns) {
+        return;
     }
+    const uint32_t clocks = (target_ns - zvb->sound_clock_ns) / ZVB_MASTER_CLOCK_NS;
+    zvb_sound_advance(&zvb->sound, clocks);
+    zvb->sound_clock_ns += (uint64_t)clocks * ZVB_MASTER_CLOCK_NS;
     zvb_schedule_sound(zvb);
     zvb_update_interrupts(zvb);
 }
@@ -812,9 +820,11 @@ void zvb_deinit(zvb_t* zvb)
 
 int zvb_set_frame_output(zvb_t* zvb, bool enabled)
 {
-    if (enabled && !zvb->blitter.framebuffer) {
+    if (enabled && zvb->blitter.framebuffer == NULL) {
         zvb_blitter_init(zvb);
-        if (!zvb->blitter.framebuffer) return 2;
+        if (zvb->blitter.framebuffer == NULL) {
+            return 2;
+        }
     }
     zvb->rendering_enabled = enabled;
     return 0;

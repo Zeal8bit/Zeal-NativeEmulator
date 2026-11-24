@@ -51,8 +51,11 @@ static void send_key(zeal_t* machine, int code, bool make, bool repeat)
 {
     fifo_t* queue = &machine->keyboard.queue;
     const int wr = queue->wr;
-    if (make) key_pressed(&machine->keyboard, (zeal_key_t) code);
-    else key_released(&machine->keyboard, (zeal_key_t) code);
+    if (make) {
+        key_pressed(&machine->keyboard, (zeal_key_t) code);
+    } else {
+        key_released(&machine->keyboard, (zeal_key_t) code);
+    }
 
     fz_scancode_t* entry = &s_log[s_log_total % FZ_SCANCODE_LOG];
     entry->time_ns = vtimer_now_ns(&machine->cpu.clock);
@@ -71,7 +74,9 @@ int fltk_keyboard_held(uint16_t* out, int max)
 {
     int n = 0;
     for (int code = 0; code < HOST_KEY_COUNT && n < max; code++) {
-        if (s_keys[code].state != KEY_NOT_PRESSED) out[n++] = (uint16_t) code;
+        if (s_keys[code].state != KEY_NOT_PRESSED) {
+            out[n++] = (uint16_t) code;
+        }
     }
     return n;
 }
@@ -106,7 +111,9 @@ static bool key_can_repeat(int code)
 
 void fz_key_event(int zeal_key, bool down)
 {
-    if (zeal_key <= ZEAL_KEY_NULL || zeal_key >= HOST_KEY_COUNT) return;
+    if (zeal_key <= ZEAL_KEY_NULL || zeal_key >= HOST_KEY_COUNT) {
+        return;
+    }
     if (down) {
         /* Host auto-repeat is ignored: the emulated keyboard repeats. */
         if (!s_host_down[zeal_key] && s_press_count < HOST_PRESS_QUEUE) {
@@ -127,7 +134,9 @@ void fz_keys_release_all(void)
 void fz_keys_release_nonmodifiers(void)
 {
     for (int code = 0; code < HOST_KEY_COUNT; code++) {
-        if (key_can_repeat(code)) s_host_down[code] = false;
+        if (key_can_repeat(code)) {
+            s_host_down[code] = false;
+        }
     }
     s_press_count = 0;
 }
@@ -154,7 +163,9 @@ static void keyboard_read(zeal_t* machine, int delta)
 
     for (int code = 0; code < HOST_KEY_COUNT; code++) {
         kb_key_t* key = &s_keys[code];
-        if (key->state == KEY_NOT_PRESSED) continue;
+        if (key->state == KEY_NOT_PRESSED) {
+            continue;
+        }
 
         if (!s_host_down[code]) {
             key->state = KEY_NOT_PRESSED;
@@ -178,7 +189,9 @@ static void keyboard_check_cb(void* userdata)
 {
     zeal_t* machine = (zeal_t*) userdata;
     vtimer_schedule_tstates(&s_timer, HOST_KEYB_CHECK_PERIOD);
-    if (fltk_debug_keyboard_blocked(machine)) return;
+    if (fltk_debug_keyboard_blocked(machine)) {
+        return;
+    }
     if (!ui_screen_focused()) {
         /* Keys typed into debugger widgets never reach the machine. */
         s_press_count = 0;
@@ -196,7 +209,9 @@ void fltk_keyboard_bind(zeal_t* machine)
 
 void fltk_keyboard_unbind(void)
 {
-    if (!s_bound) return;
+    if (!s_bound) {
+        return;
+    }
     vtimer_cancel(&s_timer);
     s_bound = false;
     s_machine = NULL;

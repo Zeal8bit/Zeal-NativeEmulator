@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "video.h"
 #include "utils/log.h"
 #include <string.h>
@@ -14,7 +18,9 @@ static SDL_Texture* texture;
 
 EM_JS(char*, canvas_selector, (), {
     const canvas = Module.canvas;
-    if (!canvas.id) canvas.id = 'zeal-' + crypto.randomUUID();
+    if (!canvas.id) {
+        canvas.id = 'zeal-' + crypto.randomUUID();
+    }
     return stringToNewUTF8('#' + CSS.escape(canvas.id));
 });
 EM_JS_DEPS(canvas_selector, "$stringToNewUTF8");
@@ -43,7 +49,9 @@ static void profile_render(void* userdata, double start)
     const double elapsed = (emscripten_get_now() / 1000.0) - start;
     last_core_seconds = elapsed;
     s_render_profile.zvb_total += elapsed;
-    if (elapsed > s_render_profile.zvb_max) s_render_profile.zvb_max = elapsed;
+    if (elapsed > s_render_profile.zvb_max) {
+        s_render_profile.zvb_max = elapsed;
+    }
     s_render_profile.zvb_calls++;
 }
 
@@ -99,10 +107,14 @@ bool wasm_video_init(zvb_t* zvb)
     SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, selector);
     free(selector);
     wasm_window = SDL_CreateWindow(NULL, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, 0);
-    if (!wasm_window) return false;
+    if (wasm_window == NULL) {
+        return false;
+    }
     emscripten_set_blur_callback(SDL_GetHint(SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR), NULL, false, canvas_blur);
     wasm_renderer = SDL_CreateRenderer(wasm_window, NULL);
-    if (!wasm_renderer) return false;
+    if (wasm_renderer == NULL) {
+        return false;
+    }
     if (!SDL_SetRenderLogicalPresentation(wasm_renderer, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT,
                                           SDL_LOGICAL_PRESENTATION_LETTERBOX)) return false;
     texture = SDL_CreateTexture(wasm_renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,

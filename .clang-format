@@ -12,7 +12,7 @@ AlignConsecutiveMacros: true
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: true
 AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortIfStatementsOnASingleLine: Never
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterFunction: true

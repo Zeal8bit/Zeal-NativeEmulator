@@ -16,7 +16,9 @@
 static uint8_t snes_mouse_magnitude(float value)
 {
     int magnitude = (int) roundf(fabsf(value));
-    if (magnitude > SNES_MOUSE_MAG_MASK) magnitude = SNES_MOUSE_MAG_MASK;
+    if (magnitude > SNES_MOUSE_MAG_MASK) {
+        magnitude = SNES_MOUSE_MAG_MASK;
+    }
     return (uint8_t) magnitude;
 }
 
@@ -60,7 +62,9 @@ void snes_mouse_detach(snes_mouse_t* mouse)
     mouse->capture_button_down = false;
     mouse->button_left = mouse->button_right = false;
     mouse->delta_x = mouse->delta_y = 0.0f;
-    if (mouse->captured) snes_mouse_release(mouse);
+    if (mouse->captured) {
+        snes_mouse_release(mouse);
+    }
 }
 
 void snes_mouse_reset_scale(snes_mouse_t* mouse)
@@ -80,7 +84,9 @@ void snes_mouse_toggle_capture(snes_mouse_t* mouse)
 
 void snes_mouse_update(snes_mouse_t* mouse)
 {
-    if (!mouse->attached && mouse->captured) snes_mouse_release(mouse);
+    if (!mouse->attached && mouse->captured) {
+        snes_mouse_release(mouse);
+    }
 }
 
 uint32_t snes_mouse_latch(snes_mouse_t* mouse)
@@ -122,7 +128,9 @@ uint32_t snes_mouse_latch(snes_mouse_t* mouse)
 void fz_mouse_motion(float dx, float dy)
 {
     snes_mouse_t* mouse = &frontend_snes.mouse;
-    if (!snes_mouse_active(mouse)) return;
+    if (!snes_mouse_active(mouse)) {
+        return;
+    }
     mouse->delta_x += dx;
     mouse->delta_y += dy;
 }
@@ -141,7 +149,9 @@ void fz_mouse_hover(bool inside)
 void fz_mouse_wheel(float steps)
 {
     snes_mouse_t* mouse = &frontend_snes.mouse;
-    if (!snes_mouse_active(mouse) || steps == 0.0f) return;
+    if (!snes_mouse_active(mouse) || steps == 0.0f) {
+        return;
+    }
     mouse->delta_scale += steps * SNES_MOUSE_DELTA_SCALE_STEP;
     if (mouse->delta_scale < SNES_MOUSE_DELTA_SCALE_MIN) {
         mouse->delta_scale = SNES_MOUSE_DELTA_SCALE_MIN;
@@ -164,7 +174,9 @@ void fz_mouse_release_all(void)
     mouse->button_left = mouse->button_right = false;
     mouse->capture_button_down = false;
     mouse->delta_x = mouse->delta_y = 0.0f;
-    if (mouse->captured) snes_mouse_release(mouse);
+    if (mouse->captured) {
+        snes_mouse_release(mouse);
+    }
 }
 
 bool fz_mouse_captured(void)

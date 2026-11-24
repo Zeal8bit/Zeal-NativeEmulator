@@ -54,7 +54,9 @@ void BreakpointList::scroll_to(int top)
 
 void BreakpointList::select_row(int row)
 {
-    if (addrs.empty()) return;
+    if (addrs.empty()) {
+        return;
+    }
     m_selection = std::clamp(row, 0, (int) addrs.size() - 1);
     scroll_to(std::clamp(m_top, m_selection - visible_rows() + 1, m_selection));
 }
@@ -62,7 +64,9 @@ void BreakpointList::select_row(int row)
 void BreakpointList::reveal(hwaddr address)
 {
     auto it = std::find(addrs.begin(), addrs.end(), address);
-    if (it != addrs.end()) select_row((int) (it - addrs.begin()));
+    if (it != addrs.end()) {
+        select_row((int) (it - addrs.begin()));
+    }
 }
 
 void BreakpointList::draw()
@@ -135,7 +139,9 @@ int BreakpointList::handle(int event)
             scroll_to(m_top + Fl::event_dy() * 3);
             return 1;
         case FL_FOCUS:
-            if (m_selection < 0) select_row(m_top);
+            if (m_selection < 0) {
+                select_row(m_top);
+            }
             redraw();
             return 1;
         case FL_UNFOCUS:
@@ -150,7 +156,9 @@ int BreakpointList::handle(int event)
                 case FL_Home: select_row(0); return 1;
                 case FL_End: select_row((int) addrs.size() - 1); return 1;
             }
-            if (m_selection < 0 || m_selection >= (int) addrs.size()) break;
+            if (m_selection < 0 || m_selection >= (int) addrs.size()) {
+                break;
+            }
             if (Fl::event_key() == ' ') {
                 hwaddr addr = addrs[m_selection];
                 debugger_enable_breakpoint(fz_debugger(), addr, !debugger_is_breakpoint_enabled(fz_debugger(), addr));
@@ -167,7 +175,9 @@ int BreakpointList::handle(int event)
                 context_menu(r);
                 return 1;
             }
-            if (r < 0) return 1;
+            if (r < 0) {
+                return 1;
+            }
             take_focus();
             select_row(r);
             dbg_t* dbg = fz_debugger();
@@ -211,7 +221,9 @@ void BreakpointList::context_menu(int row)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     const std::vector<hwaddr> all = addrs;
     switch ((int) (picked - items)) {
         case 0: debugger_enable_breakpoint(dbg, addrs[row], !enabled); break;

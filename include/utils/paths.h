@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -55,7 +55,16 @@ static inline int os_mkdir(const char* path, int mode) {
 
 #endif // _WIN32
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int path_exists(const char *path);
 const char* get_home_dir();
 const char* get_config_dir();
 const char* path_sanitize(const char* path);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

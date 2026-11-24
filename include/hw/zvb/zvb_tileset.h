@@ -16,6 +16,11 @@
 #define ZVB_TILESET_SIZE        (65536)
 
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     /* Raw arrays representing the tileset in VRAM */
     uint8_t raw[ZVB_TILESET_SIZE];
@@ -44,3 +49,7 @@ void zvb_tileset_write(zvb_tileset_t* tileset, uint32_t addr, uint8_t data);
  * @param layer Layer to read from (0 or 1)
  */
 uint8_t zvb_tileset_read(zvb_tileset_t* tileset, uint32_t addr);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

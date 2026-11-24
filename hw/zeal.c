@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdlib.h>
 #include <string.h>
 #include "hw/zeal.h"
 #include "hw/host.h"
@@ -35,14 +34,16 @@ static uint8_t debug_read_memory(zeal_t* machine, hwaddr virt_addr)
                     device->mem_region.read(device, phys_addr - start_addr);
     }
 
-    hw_log(machine->host, false, 0, "[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
+    hw_log_info(machine->host, "[INFO] No device replied to memory read: 0x%04x (PC @ 0x%04x)\n", phys_addr, machine->cpu.pc);
     return 0;
 }
 #endif
 
 int zeal_init(zeal_t* machine, const zeal_options_t* options)
 {
-    if (!machine || !options) return 1;
+    if (machine == NULL || options == NULL) {
+        return 1;
+    }
     int err;
     memset(machine, 0, sizeof(*machine));
     machine->host = options->host;
@@ -139,14 +140,18 @@ int zeal_init(zeal_t* machine, const zeal_options_t* options)
 int zeal_reset(zeal_t* machine)
 {
     z80_reset(&machine->cpu);
-    if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, false);
+    if (machine->reset_hook) {
+        machine->reset_hook(machine->reset_userdata, machine, false);
+    }
     device_reset(DEVICE(&machine->cpu.mmu));
     device_reset(DEVICE(&machine->pio));
     i2c_reset(&machine->i2c_bus, &machine->pio);
     device_reset(DEVICE(&machine->keyboard));
     device_reset(DEVICE(&machine->zvb));
 
-    if (machine->reset_hook) machine->reset_hook(machine->reset_userdata, machine, true);
+    if (machine->reset_hook) {
+        machine->reset_hook(machine->reset_userdata, machine, true);
+    }
 
 #if CONFIG_ENABLE_DEBUGGER
     debugger_clear_stop_reason(&machine->dbg);
@@ -161,8 +166,11 @@ int zeal_reset(zeal_t* machine)
 
 zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
 {
-    if (machine->should_exit) return ZEAL_STEP_STOP;
+    if (machine->should_exit) {
+        return ZEAL_STEP_STOP;
+    }
     bool execute = true;
+    (void) debug;
 #if CONFIG_ENABLE_DEBUGGER
     if (debug) {
         execute = machine->dbg_state != ST_PAUSED;
@@ -173,8 +181,6 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
             machine->dbg_state = ST_RUNNING;
         }
     }
-#else
-    (void) debug;
 #endif
     zeal_step_result_t result = ZEAL_STEP_NONE;
     if (execute) {
@@ -187,12 +193,19 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
 #if CONFIG_ENABLE_DEBUGGER && CONFIG_TRACE_DEPTH > 0
         /* Execution trace: only while the debugger is on (see zeal_trace.h) */
         const bool trace = debug && machine->trace.enabled;
-        if (trace) zeal_trace_before(machine);
+        if (trace) {
+            zeal_trace_before(machine);
+        }
         z80_step(&machine->cpu);
-        if (trace) zeal_trace_after(machine);
+        if (trace) {
+            zeal_trace_after(machine);
+        }
 #else
         z80_step(&machine->cpu);
 #endif
+        /* The CompactFlash has no back-pointer to the machine: it only marks
+         * itself failed when a sector transfer fails, so stop right after the
+         * instruction that performed the I/O. */
         if (machine->compactflash.failed) {
             machine->should_exit = true;
             return ZEAL_STEP_FATAL;
@@ -217,12 +230,14 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
                     machine->dbg.breakpoint_stopped = true;
                 }
             }
-            if (machine->dbg_state == ST_PAUSED) result |= ZEAL_STEP_DEBUG_STOP;
+            if (machine->dbg_state == ST_PAUSED) {
+                result |= ZEAL_STEP_DEBUG_STOP;
+            }
         }
 #endif
         /* PC is back to zero: stop on software reset when requested. */
         if (machine->stop_on_reset && machine->cpu.pc == 0) {
-            hw_log(machine->host, false, 0, "[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
+            hw_log_info(machine->host, "[ZEAL] PC returned to 0x0000 after running (cyc=%lu), exiting\n", machine->cpu.cyc);
             machine->should_exit = true;
             return ZEAL_STEP_STOP;
         }
@@ -248,21 +263,34 @@ static zeal_run_result_t zeal_run_budget(zeal_t* machine, unsigned long max_tsta
     zeal_step_result_t reason = ZEAL_STEP_NONE;
     while (!machine->should_exit) {
         reason = zeal_step(machine, debug) & (ZEAL_STEP_STOP | ZEAL_STEP_DEBUG_STOP | ZEAL_STEP_FATAL);
-        if (reason != ZEAL_STEP_NONE) break;
+        if (reason != ZEAL_STEP_NONE) {
+            break;
+        }
         /* Stop once the requested number of T-states has been spent. */
-        if (max_tstates && (machine->cpu.clock.now_ns - start) / TSTATE_NS >= max_tstates) break;
+        if (max_tstates && (machine->cpu.clock.now_ns - start) / TSTATE_NS >= max_tstates) {
+            break;
+        }
     }
-    if (machine->should_exit && reason == ZEAL_STEP_NONE) reason = ZEAL_STEP_STOP;
+    if (machine->should_exit && reason == ZEAL_STEP_NONE) {
+        reason = ZEAL_STEP_STOP;
+    }
 #if CONFIG_ENABLE_DEBUGGER
-    if (debug) machine->dbg_state = ST_PAUSED;
+    if (debug) {
+        machine->dbg_state = ST_PAUSED;
+    }
 #endif
-    return (zeal_run_result_t){(machine->cpu.clock.now_ns - start) / TSTATE_NS, reason};
+    return (zeal_run_result_t){
+        .elapsed_tstates = (machine->cpu.clock.now_ns - start) / TSTATE_NS,
+        .reason = reason,
+    };
 }
 
 #if CONFIG_ENABLE_DEBUGGER
 bool zeal_debugger_run(zeal_t* machine, unsigned long max_tstates)
 {
-    if (machine->dbg_state == ST_PAUSED) machine->dbg_state = ST_RUNNING;
+    if (machine->dbg_state == ST_PAUSED) {
+        machine->dbg_state = ST_RUNNING;
+    }
     debugger_clear_stop_reason(&machine->dbg);
     return (zeal_run_budget(machine, max_tstates, true).reason & ZEAL_STEP_DEBUG_STOP) != 0;
 }
@@ -282,9 +310,13 @@ zeal_run_result_t zeal_run(zeal_t* machine, unsigned long max_tstates)
 zeal_run_result_t zeal_run_for_tstates(zeal_t* machine, unsigned long tstates)
 {
 #if CONFIG_ENABLE_DEBUGGER
-    if (machine->dbg_enabled) return zeal_run(machine, tstates);
+    if (machine->dbg_enabled) {
+        return zeal_run(machine, tstates);
+    }
 #endif
-    if (tstates) return zeal_run(machine, tstates);
+    if (tstates) {
+        return zeal_run(machine, tstates);
+    }
     return (zeal_run_result_t){0, ZEAL_STEP_NONE};
 }
 
@@ -302,13 +334,7 @@ void zeal_deinit(zeal_t* machine)
 #if CONFIG_ENABLE_DEBUGGER
     debugger_deinit(&machine->dbg);
 #endif
-#if CONFIG_NOR_FLASH_DYNAMIC_ARRAY
-    free(machine->rom.data);
-    machine->rom.data = NULL;
-#endif
-#if CONFIG_RAM_DYNAMIC_ARRAY
-    free(machine->ram.data);
-    machine->ram.data = NULL;
-#endif
+    flash_deinit(&machine->rom);
+    ram_deinit(&machine->ram);
     vtimer_init(&machine->cpu.clock);
 }

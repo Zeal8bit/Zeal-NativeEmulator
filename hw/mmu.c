@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -69,7 +69,7 @@ void mmu_register_io_device(mmu_t* mmu, int region_start, device_t* dev)
     const int region_size = dev->io_region.size;
     const int region_end  = region_start + region_size - 1;
     if (region_start >= IO_MAPPING_SIZE || region_end >= IO_MAPPING_SIZE || region_size == 0) {
-        hw_log(mmu ? mmu->parent.host : NULL, true, 0, "%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
+        hw_log_error(mmu ? mmu->parent.host : NULL, "%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
     for (int i = region_start; i <= region_end; i++) {
@@ -83,13 +83,13 @@ void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev)
     const int region_size = dev->mem_region.size;
     const int region_end  = region_start + region_size - 1;
     if (region_start >= MEM_SPACE_SIZE || region_end >= MEM_SPACE_SIZE || region_size == 0) {
-        hw_log(mmu ? mmu->parent.host : NULL, true, 0, "%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
+        hw_log_error(mmu ? mmu->parent.host : NULL, "%s: cannot register device, invalid region 0x%02x (%d bytes)\n", __func__, region_start, region_size);
         return;
     }
 
     /* Make sure the alignment is correct too! */
     if ((region_start & (MEM_SPACE_ALIGN - 1)) != 0 || (region_size & (MEM_SPACE_ALIGN - 1)) != 0) {
-        hw_log(mmu ? mmu->parent.host : NULL, true, 0, "%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
+        hw_log_error(mmu ? mmu->parent.host : NULL, "%s: cannot register device, invalid alignment for region 0x%02x (%d bytes)\n", __func__, region_start,
                region_size);
         return;
     }
@@ -102,7 +102,7 @@ void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev)
         map_entry_t* entry = &mmu->mem_mapping[page];
 
         if (entry->dev != NULL) {
-            hw_log(mmu ? mmu->parent.host : NULL, true, 0, "%s: cannot register device %s in page %d, device %s is already mapped\n",
+            hw_log_error(mmu ? mmu->parent.host : NULL, "%s: cannot register device %s in page %d, device %s is already mapped\n",
                 __func__, dev->name, page, entry->dev->name);
         }
         *entry = (map_entry_t) {.dev = dev, .page_from = start_page};
@@ -121,7 +121,7 @@ void mmu_register_mem_device(mmu_t* mmu, int region_start, device_t* dev)
 int mmu_get_phys_addr(const mmu_t* mmu, uint16_t virt_addr)
 {
     if (mmu == NULL) {
-        hw_log(mmu ? mmu->parent.host : NULL, true, 0, "[MMU] ERROR: MMU must not be NULL!\n");
+        hw_log_error(mmu ? mmu->parent.host : NULL, "[MMU] ERROR: MMU must not be NULL!\n");
         return -1;
     }
     /* Get 22-bit address from 16-bit address */

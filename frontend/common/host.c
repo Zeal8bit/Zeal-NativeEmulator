@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include <stdio.h>
 #include <unistd.h>
 #include "frontend/common/host.h"
@@ -7,7 +11,9 @@
 static void host_log(void* userdata, bool error, int verbosity, const char* format, va_list args)
 {
     (void) userdata;
-    if (verbosity > config.arguments.verbose) return;
+    if (verbosity > config.arguments.verbose) {
+        return;
+    }
     vfprintf(error ? stderr : stdout, format, args);
 }
 

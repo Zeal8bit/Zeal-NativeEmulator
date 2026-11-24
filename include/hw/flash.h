@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +22,11 @@
  * @file Emulation for the NOR Flash (SST39)
  */
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     device_t parent;
     size_t size; // in bytes
@@ -42,5 +47,12 @@ typedef struct {
 
 int flash_init(flash_t* flash, vtimer_t* clock, const hw_host_t* host);
 
+/* Release the flash storage allocated by flash_init (dynamic-array builds). */
+void flash_deinit(flash_t* flash);
+
 /* Mark an externally loaded image as clean without changing pending timers. */
 void flash_loaded(flash_t* flash);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -58,7 +58,9 @@ void Toolbar::resize(int X, int Y, int W, int H)
     Fl_Widget::resize(X, Y, W, H);
     for (int i = 0; i < children(); i++) {
         Fl_Widget* c = child(i);
-        if (c == m_pill) continue;
+        if (c == m_pill) {
+            continue;
+        }
         c->resize(c->x() + dx, c->y() + dy, c->w(), c->h());
     }
     const int left = m_pill->x() + dx;
@@ -69,7 +71,11 @@ void Toolbar::update(bool paused, uint16_t pc, const char* reason)
 {
     m_run->icon(paused ? Icon::Play : Icon::Pause);
     m_run->text(paused ? "Continue" : "Pause");
-    if (paused) m_run_to->activate(); else m_run_to->deactivate();
+    if (paused) {
+        m_run_to->activate();
+    } else {
+        m_run_to->deactivate();
+    }
     m_pill->set(paused, pc, reason);
 }
 
@@ -82,8 +88,14 @@ void Toolbar::draw()
 
 void Toolbar::cb_run(Fl_Widget*, void*)
 {
-    if (!dbg_ready()) return;
-    if (fz_paused()) debugger_continue(fz_debugger()); else debugger_pause(fz_debugger());
+    if (!dbg_ready()) {
+        return;
+    }
+    if (fz_paused()) {
+        debugger_continue(fz_debugger());
+    } else {
+        debugger_pause(fz_debugger());
+    }
     request_refresh();
 }
 
@@ -102,7 +114,9 @@ void Toolbar::cb_reset(Fl_Widget*, void*)
 void Toolbar::cb_run_to(Fl_Widget*, void*)
 {
     DebuggerView* debugger = DebuggerView::instance();
-    if (debugger == nullptr || !dbg_ready() || !fz_paused()) return;
+    if (debugger == nullptr || !dbg_ready() || !fz_paused()) {
+        return;
+    }
     const int addr = debugger->disasm()->selected();
     if (addr < 0) {
         notif_show("Select a line in the disassembly first");

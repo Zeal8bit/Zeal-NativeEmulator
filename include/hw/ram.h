@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,6 +16,11 @@
  * @file Emulation for the RAM (Alliance AS6C4008)
  */
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
         device_t parent;
         size_t size; // in bytes
@@ -27,3 +32,10 @@ typedef struct {
 } ram_t;
 
 int ram_init(ram_t*, const hw_host_t* host);
+
+/* Release the RAM storage allocated by ram_init (dynamic-array builds). */
+void ram_deinit(ram_t* ram);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

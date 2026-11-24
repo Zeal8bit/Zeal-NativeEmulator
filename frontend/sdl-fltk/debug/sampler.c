@@ -62,7 +62,9 @@ void fltk_sampler_bind(zeal_t* machine)
 
 void fltk_sampler_unbind(void)
 {
-    if (!s_bound) return;
+    if (!s_bound) {
+        return;
+    }
     vtimer_cancel(&s_timer);
     s_bound = false;
     s_sample.valid = false;
@@ -71,12 +73,18 @@ void fltk_sampler_unbind(void)
 
 bool fz_live_sample(regs_t* regs, uint8_t* stack, int stack_len, uint8_t* hl, int hl_len)
 {
-    if (!s_sample.valid) return false;
-    if (regs) *regs = s_sample.regs;
+    if (!s_sample.valid) {
+        return false;
+    }
+    if (regs) {
+        *regs = s_sample.regs;
+    }
     if (stack && stack_len > 0) {
         const int n = stack_len < SAMPLE_STACK_BYTES ? stack_len : SAMPLE_STACK_BYTES;
         memcpy(stack, s_sample.stack, (size_t) n);
-        if (stack_len > n) memset(stack + n, 0, (size_t) (stack_len - n));
+        if (stack_len > n) {
+            memset(stack + n, 0, (size_t) (stack_len - n));
+        }
     }
     if (hl && hl_len > 0) {
         const int n = hl_len < SAMPLE_HL_BYTES ? hl_len : SAMPLE_HL_BYTES;

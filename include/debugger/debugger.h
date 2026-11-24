@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +14,11 @@
 
 
 /* Breakpoint management */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool debugger_set_temporary_breakpoint(dbg_t *dbg, hwaddr address);
 bool debugger_clear_breakpoint_if_temporary(dbg_t *dbg, hwaddr address);
 bool debugger_set_breakpoint(dbg_t *dbg, hwaddr address);
@@ -93,3 +98,7 @@ int debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_instr_t* instr)
 void debugger_init(dbg_t *dbg);
 void debugger_deinit(dbg_t *dbg);
 
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

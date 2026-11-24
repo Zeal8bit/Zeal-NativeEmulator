@@ -34,6 +34,11 @@
 #include "debugger/zeal_trace.h"
 #endif
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct zeal_t {
     /* The MMU is integrated in the CPU now, it also manages the memory mapping  */
     z80     cpu;
@@ -101,8 +106,9 @@ typedef struct {
     zeal_step_result_t reason;
 } zeal_run_result_t;
 
-/* Caller owns a zeroable machine and its borrowed host/media callbacks.
- * Calls are synchronous and non-concurrent. Reset is permitted from timer
+/* Caller owns a zeroable machine and the host/media callbacks it binds;
+ * those callbacks are owned by the frontend. Calls are synchronous and
+ * non-concurrent. Reset is permitted from timer
  * callbacks; elapsed execution is measured by the monotonic virtual clock.
  * reset_hook runs after CPU reset, before devices, then after device reset.
  * Input/timer callbacks may reset or change debugger state; media callbacks
@@ -116,11 +122,11 @@ int zeal_init(zeal_t*, const zeal_options_t*);
 /**
  * @brief Reset the CPU and devices, invoking the frontend reset hook at each boundary.
  */
-int                zeal_reset(zeal_t*);
+int zeal_reset(zeal_t*);
 /**
  * @brief Release machine resources after the frontend has detached its host bindings.
  */
-void               zeal_deinit(zeal_t*);
+void zeal_deinit(zeal_t*);
 /**
  * @brief Advance the machine once and report frame readiness or an execution stop.
  */
@@ -135,10 +141,14 @@ zeal_run_result_t zeal_run_for_tstates(zeal_t*, unsigned long tstates);
 /**
  * @brief Request a stop; the frontend is responsible for closing its window and resources.
  */
-void              zeal_exit(zeal_t*);
+void zeal_exit(zeal_t*);
 #if CONFIG_ENABLE_DEBUGGER
 /**
  * @brief Run while the debugger permits execution; return true on a breakpoint or step stop.
  */
 bool zeal_debugger_run(zeal_t*, unsigned long max_tstates);
+#endif
+
+#ifdef __cplusplus
+} /* extern "C" */
 #endif

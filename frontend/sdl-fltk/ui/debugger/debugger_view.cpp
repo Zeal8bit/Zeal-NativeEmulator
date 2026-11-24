@@ -46,9 +46,7 @@ using namespace zui::theme;
 using namespace zui::tools;
 using namespace zui::widgets;
 
-namespace {
-
-DebuggerView* s_instance;
+static DebuggerView* s_instance;
 
 /* Smallest sizes the split panes keep (see min_body_size) */
 constexpr int MIN_SCREEN_H = 120;
@@ -62,22 +60,20 @@ constexpr int DEFAULT_STACK_H = 120;
 constexpr int DEFAULT_DISASM_W = 420;
 constexpr int DEFAULT_MEMORY_H = 300;
 
-int default_left_w()
+static int default_left_w()
 {
     const int pref = MemoryPanel::preferred_width();
     return pref > DEFAULT_LEFT_W ? pref : DEFAULT_LEFT_W;
 }
 
 /* The screen fills the column width at 4:3; memory gets the rest */
-int default_screen_h(int left_w)
+static int default_screen_h(int left_w)
 {
     const int body_h = DEFAULT_SCREEN_H + DEFAULT_MEMORY_H;
     const int fill = left_w * FZ_SCREEN_HEIGHT / FZ_SCREEN_WIDTH;
     const int min_memory = 160;
     return std::max(DEFAULT_SCREEN_H, std::min(fill, body_h - min_memory));
 }
-
-} // namespace
 
 DebuggerView* DebuggerView::instance()
 {
@@ -161,10 +157,14 @@ Fl_Group* DebuggerView::toolbar(int x, int y, int w, int h)
 
 void DebuggerView::refresh(bool force)
 {
-    if (!dbg_ready() || m_toolbar == nullptr) return;
+    if (!dbg_ready() || m_toolbar == nullptr) {
+        return;
+    }
     const bool paused = fz_paused();
     const double now = now_seconds();
-    if (!force && (paused || now - m_last_refresh < 0.1)) return;
+    if (!force && (paused || now - m_last_refresh < 0.1)) {
+        return;
+    }
     m_last_refresh = now;
     char reason[64];
     const bool watch_stop = paused && watch_hit_text(reason, sizeof(reason), false);
@@ -178,7 +178,9 @@ void DebuggerView::refresh(bool force)
     if (paused && dbg->breakpoint_stopped && dbg->breakpoint_hits != m_breakpoint_hits) {
         m_breakpoint_hits = dbg->breakpoint_hits;
         m_disasm->reveal_address(dbg->breakpoint_hit_addr);
-        if (m_lists->collapsed()) m_side->toggle_collapse(m_lists);
+        if (m_lists->collapsed()) {
+            m_side->toggle_collapse(m_lists);
+        }
         m_lists->select(1);
         m_breakpoints->reveal(dbg->breakpoint_hit_addr);
     }
@@ -189,7 +191,9 @@ void DebuggerView::refresh(bool force)
         notif_show("%s", reason);
         m_memory->go(hit.addr);
         /* Show the watch whose break fired */
-        if (m_lists->collapsed()) m_side->toggle_collapse(m_lists);
+        if (m_lists->collapsed()) {
+            m_side->toggle_collapse(m_lists);
+        }
         m_lists->select(0);
     }
     video_window_refresh(paused, force);
@@ -199,7 +203,9 @@ void DebuggerView::refresh(bool force)
 void DebuggerView::command(app::DebugCommand command)
 {
     dbg_t* dbg = fz_debugger();
-    if (dbg == nullptr) return;
+    if (dbg == nullptr) {
+        return;
+    }
     switch (command) {
         case app::DebugCommand::Continue: debugger_continue(dbg); break;
         case app::DebugCommand::Pause: debugger_pause(dbg); break;
@@ -215,10 +221,14 @@ void DebuggerView::command(app::DebugCommand command)
 bool DebuggerView::paused_at(unsigned* pc) const
 {
     dbg_t* dbg = fz_debugger();
-    if (!fz_paused() || dbg == nullptr) return false;
+    if (!fz_paused() || dbg == nullptr) {
+        return false;
+    }
     regs_t regs;
     debugger_get_registers(dbg, &regs);
-    if (pc) *pc = regs.pc;
+    if (pc) {
+        *pc = regs.pc;
+    }
     return true;
 }
 
@@ -278,7 +288,9 @@ void DebuggerView::apply_layout()
         /* Open tool windows once the main window is on screen, so they float above it */
         Fl::add_timeout(0.3, [](void*) {
             if (main_window() && main_window()->shown() && main_window()->debug_layout()) {
-                if (g_layout.video_shown) video_window_show(true);
+                if (g_layout.video_shown) {
+                    video_window_show(true);
+                }
                 tool_windows_resume();
                 main_window()->update_menus();
             }
@@ -288,7 +300,9 @@ void DebuggerView::apply_layout()
 
 void DebuggerView::capture_layout()
 {
-    if (!m_dock->docks_visible()) return;
+    if (!m_dock->docks_visible()) {
+        return;
+    }
     g_layout.left_w = m_root->fixed_size();
     g_layout.screen_h = m_left->fixed_size();
     g_layout.right_w = m_rest->fixed_size();
@@ -325,11 +339,15 @@ void DebuggerView::reset_layout()
 
 void DebuggerView::show_tool(app::ToolId tool, bool show)
 {
-    if (show && app::main_window()) app::main_window()->set_debug_layout(true);
+    if (show && app::main_window()) {
+        app::main_window()->set_debug_layout(true);
+    }
     switch (tool) {
         case app::ToolId::Video:
             video_window_show(show);
-            if (show) refresh(true);
+            if (show) {
+                refresh(true);
+            }
             break;
         case app::ToolId::Code: tool_window_show(TOOL_CODE, show); break;
         case app::ToolId::Hardware: tool_window_show(TOOL_HARDWARE, show); break;

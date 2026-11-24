@@ -27,7 +27,16 @@
 #define container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline unsigned long us_to_tstates(double us)
 {
     return (unsigned long) (us*10);
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

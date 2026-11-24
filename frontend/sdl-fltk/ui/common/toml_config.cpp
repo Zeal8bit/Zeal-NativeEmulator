@@ -5,6 +5,7 @@
 
 #include "frontend/sdl-fltk/config.h"
 #include "common/toml_config.h"
+#include "common/toml_util.h"
 #include "common/machine.h"
 #include "debugger/project_state.h"
 #include "common/persist.h"
@@ -22,8 +23,6 @@ fltk_settings_args_t fltk_settings_args = {CONFIG_USER_FILENAME, CONFIG_PROJECT_
 namespace zui::common {
 namespace fs = std::filesystem;
 
-namespace {
-
 struct Document {
     fs::path path;
     toml::table data;
@@ -31,68 +30,85 @@ struct Document {
     bool writable = true;
 };
 
-Document user, project;
-bool shared;
-std::string image_paths[3];
+static Document user, project;
+static bool shared;
+static std::string image_paths[3];
 
-Document& program()
+static Document& program()
 {
     return shared ? user : project;
 }
 
-toml::table& section(Document& doc, const char* name)
+static toml::table& section(Document& doc, const char* name)
 {
     auto [it, inserted] = doc.data.insert(name, toml::table{});
-    auto* table = it->second.as_table();
-    if (!table) throw std::runtime_error(doc.path.string() + ": expected table [" + name + "]");
-    return *table;
+    return const_cast<toml::table&>(
+        toml_util::table_or_fail(it->second, doc.path.string() + ": expected table [" + name + "]"));
 }
 
-void load(Document& doc, const char* path)
+static void load(Document& doc, const char* path)
 {
     doc = {};
     doc.path = fs::absolute(path).lexically_normal();
-    if (doc.path.extension() == ".ini")
+    if (doc.path.extension() == ".ini") {
         throw std::runtime_error(doc.path.string() + ": zeal-native expects TOML; use a separate TOML file");
-    if (!fs::exists(doc.path)) return;
-    if (!fs::is_regular_file(doc.path)) throw std::runtime_error(doc.path.string() + ": expected a regular file");
+    }
+    if (!fs::exists(doc.path)) {
+        return;
+    }
+    if (!fs::is_regular_file(doc.path)) {
+        throw std::runtime_error(doc.path.string() + ": expected a regular file");
+    }
     doc.data = toml::parse_file(doc.path.string());
     for (const char* name : {"window", "audio", "appearance", "debugger", "images", "video_window",
                              "code_window", "hardware_window", "console"}) {
-        if (auto* node = doc.data.get(name); node && !node->is_table())
+        if (auto* node = doc.data.get(name); node && !node->is_table()) {
             throw std::runtime_error(doc.path.string() + ": expected table [" + name + "]");
+        }
     }
     doc.saved = doc.data;
 }
 
-bool write_text(FILE* file, const void* data)
+static bool write_text(FILE* file, const void* data)
 {
     const auto& text = *static_cast<const std::string*>(data);
     return fwrite(text.data(), 1, text.size(), file) == text.size();
 }
 
-bool save(Document& doc)
+static bool save(Document& doc)
 {
-    if (!doc.writable) return false;
-    if (doc.saved == doc.data) return true;
+    if (!doc.writable) {
+        return false;
+    }
+    if (doc.saved == doc.data) {
+        return true;
+    }
     std::ostringstream out;
     out << doc.data << '\n';
     const std::string text = out.str();
-    if (!config_write_file(doc.path.string().c_str(), write_text, &text)) return false;
+    if (!config_write_file(doc.path.string().c_str(), write_text, &text)) {
+        return false;
+    }
     doc.saved = doc.data;
     return true;
 }
 
 template<typename T>
-T read_preference(const char* group, const char* key, T fallback)
+static T read_preference(const char* group, const char* key, T fallback)
 {
     auto& doc = !shared && project.data[group][key] ? project : user;
     auto node = doc.data[group][key];
-    if (!node) return fallback;
+    if (!node) {
+        return fallback;
+    }
     if constexpr (std::is_same_v<T, bool>) {
-        if (auto v = node.value_exact<bool>()) return *v;
+        if (auto v = node.value_exact<bool>()) {
+            return *v;
+        }
     } else if (node.is_integer()) {
-        if (auto v = node.value<int>()) return *v;
+        if (auto v = node.value<int>()) {
+            return *v;
+        }
     }
     fprintf(stderr, "[CONFIG] %s: invalid %s.%s; using default and preserving file\n",
             doc.path.string().c_str(), group, key);
@@ -101,28 +117,34 @@ T read_preference(const char* group, const char* key, T fallback)
 }
 
 template<typename T>
-void write_preference(const char* group, const char* key, T value)
+static void write_preference(const char* group, const char* key, T value)
 {
-    if (shared || !project.data[group][key]) section(user, group).insert_or_assign(key, value);
+    if (shared || !project.data[group][key]) {
+        section(user, group).insert_or_assign(key, value);
+    }
 }
 
-void save_theme()
+static void save_theme()
 {
     if (config.window.theme == THEME_SYSTEM) {
         if (auto* appearance = user.data["appearance"].as_table()) {
             appearance->erase("theme");
-            if (appearance->empty()) user.data.erase("appearance");
+            if (appearance->empty()) {
+                user.data.erase("appearance");
+            }
         }
     } else {
         section(user, "appearance").insert_or_assign("theme", config.window.theme == THEME_LIGHT ? "light" : "dark");
     }
 }
 
-int save_settings(bool theme_only)
+static int save_settings(bool theme_only)
 {
     try {
         save_theme();
-        if (theme_only) return save(user) ? 0 : -1;
+        if (theme_only) {
+            return save(user) ? 0 : -1;
+        }
         persist_capture();
         auto& w = config.window;
         set_preference("window", "width", w.width);
@@ -142,10 +164,10 @@ int save_settings(bool theme_only)
             const char* paths[] = {a.rom_filename, a.eeprom_filename, a.tf_filename};
             const char* keys[] = {"rom", "eeprom", "tf"};
             for (int i = 0; i < 3; ++i) {
-                if (!paths[i]) continue;
-                auto absolute = fs::absolute(paths[i]).lexically_normal();
-                auto relative = absolute.lexically_relative(project_directory());
-                section(program(), "images").insert_or_assign(keys[i], (relative.empty() ? absolute : relative).generic_string());
+                if (paths[i] == nullptr) {
+                    continue;
+                }
+                section(program(), "images").insert_or_assign(keys[i], toml_util::project_relative(paths[i]));
             }
         }
         bool ok = shared || save(project);
@@ -155,18 +177,19 @@ int save_settings(bool theme_only)
         return -1;
     }
 }
-} // namespace
-
 const toml::table& project_config() { return program().data; }
 fs::path project_directory() { return program().path.parent_path(); }
 
 void set_project_list(const char* key, toml::array values)
 {
     auto& doc = program();
-    if (!values.empty()) section(doc, "debugger").insert_or_assign(key, std::move(values));
-    else if (auto* table = doc.data["debugger"].as_table()) {
+    if (!values.empty()) {
+        section(doc, "debugger").insert_or_assign(key, std::move(values));
+    } else if (auto* table = doc.data["debugger"].as_table()) {
         table->erase(key);
-        if (table->empty()) doc.data.erase("debugger");
+        if (table->empty()) {
+            doc.data.erase("debugger");
+        }
     }
 }
 
@@ -185,11 +208,14 @@ extern "C" int config_parse_file(const char* file)
         load(user, file);
         shared = path_same_file(file, fltk_settings_args.project_path) ||
                  fs::weakly_canonical(user.path) == fs::weakly_canonical(fs::absolute(fltk_settings_args.project_path));
-        if (!shared) load(project, fltk_settings_args.project_path);
+        if (!shared) {
+            load(project, fltk_settings_args.project_path);
+        }
         auto choice = user.data["appearance"]["theme"];
         std::string theme = choice ? choice.value_or(std::string{}) : "system";
-        if (theme != "system" && theme != "light" && theme != "dark")
+        if (theme != "system" && theme != "light" && theme != "dark") {
             throw std::runtime_error(user.path.string() + ": appearance.theme must be light, dark or system");
+        }
         config.window.theme = theme == "light" ? THEME_LIGHT : theme == "dark" ? THEME_DARK : THEME_SYSTEM;
         config.audio.volume = std::clamp(preference("audio", "volume", 100), 0, 100);
         auto& w = config.window;
@@ -210,10 +236,13 @@ extern "C" int config_parse_file(const char* file)
         for (int i = 0; i < 3; ++i) {
             auto& doc = program().data["images"][keys[i]] ? program() : user;
             auto node = doc.data["images"][keys[i]];
-            if (*paths[i] || !node) continue;
+            if (*paths[i] || !node) {
+                continue;
+            }
             auto value = node.value<std::string>();
-            if (!value || value->empty() || value->find('\0') != std::string::npos)
+            if (!value || value->empty() || value->find('\0') != std::string::npos) {
                 throw std::runtime_error(doc.path.string() + ": invalid images." + keys[i]);
+            }
             image_paths[i] = (doc.path.parent_path() / *value).lexically_normal().string();
             *paths[i] = image_paths[i].c_str();
         }

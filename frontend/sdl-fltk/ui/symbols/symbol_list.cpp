@@ -27,15 +27,12 @@ namespace zui::symbols {
 
 using namespace zui::common;
 using namespace zui::debugger;
-using namespace zui::memtools;
 using namespace zui::theme;
-
-namespace {
 
 constexpr int COLS_H = 22;   /* column header row */
 constexpr int GUTTER = 22;   /* breakpoint marker column */
 
-const char* kind_label(uint8_t kind)
+static const char* kind_label(uint8_t kind)
 {
     switch (kind) {
         case SYM_KIND_CODE: return "CODE";
@@ -45,7 +42,7 @@ const char* kind_label(uint8_t kind)
     }
 }
 
-Fl_Color kind_color(uint8_t kind)
+static Fl_Color kind_color(uint8_t kind)
 {
     switch (kind) {
         case SYM_KIND_CODE: return COLOR_GREEN;
@@ -56,12 +53,12 @@ Fl_Color kind_color(uint8_t kind)
 }
 
 /** Code opens in the disassembly, data in the memory editor. */
-bool is_data(uint8_t kind)
+static bool is_data(uint8_t kind)
 {
     return kind == SYM_KIND_DATA || kind == SYM_KIND_CONST;
 }
 
-std::string to_lower(const char* s)
+static std::string to_lower(const char* s)
 {
     std::string out(s ? s : "");
     for (char& c : out) c = (char) tolower((unsigned char) c);
@@ -69,13 +66,14 @@ std::string to_lower(const char* s)
 }
 
 /** Address in hex, honouring the Hex Upper preference. */
-void format_addr(char* out, size_t size, hwaddr addr)
+static void format_addr(char* out, size_t size, hwaddr addr)
 {
-    if (addr <= 0xFFFF) hex16(out, size, addr);
-    else snprintf(out, size, config.debugger.hex_upper ? "%06X" : "%06x", (unsigned) addr);
+    if (addr <= 0xFFFF) {
+        hex16(out, size, addr);
+    } else {
+        snprintf(out, size, config.debugger.hex_upper ? "%06X" : "%06x", (unsigned) addr);
+    }
 }
-
-} // namespace
 
 SymbolList::SymbolList(int X, int Y, int W, int H, Fl_Scrollbar* bar)
     : Fl_Widget(X, Y, W, H), m_bar(bar)
@@ -85,13 +83,17 @@ bool SymbolList::sync()
 {
     dbg_t* dbg = fz_debugger();
     const uint64_t generation = dbg ? dbg->symbol_generation : 0;
-    if (generation == m_generation) return false;
+    if (generation == m_generation) {
+        return false;
+    }
     m_generation = generation;
     m_all.clear();
     for (const symbols_t* b = dbg ? &dbg->symbols : nullptr; b; b = b->next) {
         for (unsigned i = 0; i < b->count; i++) {
             const symbol_t& s = b->array[i];
-            if (s.name == nullptr) continue;
+            if (s.name == nullptr) {
+                continue;
+            }
             m_all.push_back({ s.name, to_lower(s.name), s.addr, s.kind, s.local });
         }
     }
@@ -115,8 +117,9 @@ void SymbolList::filter_kind(int kind)
 
 void SymbolList::sort_by(Sort key)
 {
-    if (key == m_sort) m_ascending = !m_ascending;
-    else {
+    if (key == m_sort) {
+        m_ascending = !m_ascending;
+    } else {
         m_sort = key;
         m_ascending = true;
     }
@@ -228,17 +231,25 @@ int SymbolList::handle(int event)
                 if (Fl::event_button() == FL_LEFT_MOUSE) {
                     const int ex = Fl::event_x();
                     sort_by(ex >= addr_x() - 8 ? Sort::Address : ex >= kind_x() - 8 ? Sort::Kind : Sort::Name);
-                    if (m_changed) m_changed();
+                    if (m_changed) {
+                        m_changed();
+                    }
                 }
                 return 1;
             }
             const int r = row_at(ey);
-            if (r < 0) return 1;
+            if (r < 0) {
+                return 1;
+            }
             const Symbol& s = m_all[(size_t) m_rows[(size_t) r]];
-            if (Fl::event_button() == FL_RIGHT_MOUSE) context_menu(s);
-            else if (Fl::event_button() == FL_LEFT_MOUSE) {
-                if (is_data(s.kind)) goto_memory(s.addr);
-                else goto_disassembly(s.addr);
+            if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                context_menu(s);
+            } else if (Fl::event_button() == FL_LEFT_MOUSE) {
+                if (is_data(s.kind)) {
+                    goto_memory(s.addr);
+                } else {
+                    goto_disassembly(s.addr);
+                }
             }
             return 1;
         }
@@ -256,14 +267,18 @@ int SymbolList::visible_rows() const
 
 int SymbolList::row_at(int ey) const
 {
-    if (ey < y() + COLS_H) return -1;
+    if (ey < y() + COLS_H) {
+        return -1;
+    }
     const int r = m_top + (ey - y() - COLS_H) / row_h();
     return r < (int) m_rows.size() ? r : -1;
 }
 
 void SymbolList::set_hover(int r)
 {
-    if (r == m_hover) return;
+    if (r == m_hover) {
+        return;
+    }
     m_hover = r;
     redraw();
 }
@@ -299,13 +314,18 @@ void SymbolList::draw_column(const char* label, int cx, bool active)
     const int ty = y() + (COLS_H + (int) fl_height()) / 2 - fl_descent();
     fl_color(active ? COLOR_TEXT : COLOR_DIM);
     fl_draw(label, cx, ty);
-    if (!active) return;
+    if (!active) {
+        return;
+    }
     /* Sort direction arrow */
     const int ax = cx + (int) fl_width(label) + 6;
     const int ay = y() + COLS_H / 2;
     fl_color(COLOR_AMBER);
-    if (m_ascending) fl_polygon(ax, ay + 2, ax + 8, ay + 2, ax + 4, ay - 3);
-    else fl_polygon(ax, ay - 2, ax + 8, ay - 2, ax + 4, ay + 3);
+    if (m_ascending) {
+        fl_polygon(ax, ay + 2, ax + 8, ay + 2, ax + 4, ay - 3);
+    } else {
+        fl_polygon(ax, ay - 2, ax + 8, ay - 2, ax + 4, ay + 3);
+    }
 }
 
 void SymbolList::apply()
@@ -313,8 +333,12 @@ void SymbolList::apply()
     m_rows.clear();
     m_name_chars = 0;
     for (size_t i = 0; i < m_all.size(); i++) {
-        if (!m_filter.empty() && m_all[i].lower.find(m_filter) == std::string::npos) continue;
-        if (m_kind != KIND_ALL && m_all[i].kind != m_kind) continue;
+        if (!m_filter.empty() && m_all[i].lower.find(m_filter) == std::string::npos) {
+            continue;
+        }
+        if (m_kind != KIND_ALL && m_all[i].kind != m_kind) {
+            continue;
+        }
         m_rows.push_back((int) i);
         m_name_chars = std::max(m_name_chars, m_all[i].name.size());
     }
@@ -323,19 +347,25 @@ void SymbolList::apply()
     if (m_sort == Sort::Kind) {
         std::stable_sort(m_rows.begin(), m_rows.end(), [&](int a, int b) {
             const int k1 = all[(size_t) a].kind, k2 = all[(size_t) b].kind;
-            if (k1 != k2) return asc ? k1 < k2 : k1 > k2;
+            if (k1 != k2) {
+                return asc ? k1 < k2 : k1 > k2;
+            }
             return all[(size_t) a].addr < all[(size_t) b].addr;
         });
     } else if (m_sort == Sort::Name) {
         std::stable_sort(m_rows.begin(), m_rows.end(), [&](int a, int b) {
             const int c = all[(size_t) a].lower.compare(all[(size_t) b].lower);
-            if (c != 0) return asc ? c < 0 : c > 0;
+            if (c != 0) {
+                return asc ? c < 0 : c > 0;
+            }
             return all[(size_t) a].addr < all[(size_t) b].addr;
         });
     } else {
         std::stable_sort(m_rows.begin(), m_rows.end(), [&](int a, int b) {
             const hwaddr x1 = all[(size_t) a].addr, x2 = all[(size_t) b].addr;
-            if (x1 != x2) return asc ? x1 < x2 : x1 > x2;
+            if (x1 != x2) {
+                return asc ? x1 < x2 : x1 > x2;
+            }
             return all[(size_t) a].lower < all[(size_t) b].lower;
         });
     }
@@ -355,13 +385,17 @@ void SymbolList::context_menu(const Symbol& s)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[16];
     switch ((int) (picked - items)) {
         case 0: goto_disassembly(s.addr); break;
         case 1: goto_memory(s.addr); break;
         case 2:
-            if (dbg) debugger_toggle_breakpoint(dbg, s.addr);
+            if (dbg) {
+                debugger_toggle_breakpoint(dbg, s.addr);
+            }
             request_refresh();
             break;
         case 3: Fl::copy(s.name.c_str(), (int) s.name.size(), 1); break;

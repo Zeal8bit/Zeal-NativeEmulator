@@ -10,6 +10,11 @@
 #define RPU_REG_INT_STATUS               (3)
 #define RPU_PROGRAM_LENGTH               (256)
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint32_t program[RPU_PROGRAM_LENGTH];
     uint32_t instruction;
@@ -40,3 +45,7 @@ static inline bool zvb_rpu_interrupt(const zvb_rpu_t* rpu)
 {
     return rpu->int_enabled && rpu->int_raw;
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -148,19 +148,25 @@ void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
         return;
     }
 
-    /* Copy the string to be able to odify it */
+    /* Copy the string to be able to modify it */
     char* copy = malloc(strlen(list) + 1);
-    if (copy) strcpy(copy, list);
-    if (!copy) {
+    if (copy == NULL) {
         return;
     }
+    strcpy(copy, list);
 
+    /* Parse in place: skip separators/empty entries, cut at the next comma.
+     * strtok would work too but keeps a shared static cursor. */
     char* tok = copy;
     while (*tok) {
         tok += strspn(tok, ",");
-        if (!*tok) break;
+        if (!*tok) {
+            break;
+        }
         char* next = tok + strcspn(tok, ",");
-        if (*next) *next++ = 0;
+        if (*next) {
+            *next++ = 0;
+        }
         char *endptr = NULL;
         /* strtoul will auto-detect the base */
         hwaddr val = strtoul(tok, &endptr, 0);
@@ -173,7 +179,7 @@ void debugger_set_breakpoints_str(dbg_t *dbg, const char* list)
             if (debugger_find_symbol(dbg, tok, &addr)) {
                 debugger_set_breakpoint(dbg, addr);
             } else {
-                hw_log(dbg->host, false, 0, "[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
+                hw_log_info(dbg->host, "[DEBUGGER] Unknown symbol '%s', ignoring\n", tok);
             }
         }
 
@@ -272,15 +278,20 @@ static void update_watch_map(dbg_t *dbg)
     if (dbg->watch_map == NULL) {
         dbg->watch_map = malloc(WATCH_ADDR_MAX + 1);
         if (dbg->watch_map == NULL) {
-            hw_log(dbg->host, true, 0, "[DEBUGGER] Not enough memory for watchpoints\n");
+            hw_log_error(dbg->host, "[DEBUGGER] Not enough memory for watchpoints\n");
             dbg->watch_live = NULL;
             return;
         }
     }
+    /* Rebuild the map from scratch: watchpoints may overlap, so clearing and
+     * re-marking every entry is simpler than tracking per-byte references.
+     * This only runs on debugger edits, never per instruction. */
     memset(dbg->watch_map, 0, WATCH_ADDR_MAX + 1);
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
         const watchpoint_t* wp = &dbg->watchpoints[i];
-        if (wp->type == 0 || wp->disabled) continue;
+        if (wp->type == 0 || wp->disabled) {
+            continue;
+        }
         for (hwaddr a = wp->addr; a <= watchpoint_end(wp); a++) {
             dbg->watch_map[a] |= (uint8_t) wp->type;
         }
@@ -294,7 +305,9 @@ bool debugger_add_watchpoint(dbg_t *dbg, watchpoint_t wp) {
     }
     wp.type &= WATCHPOINT_RW;
     wp.end = watchpoint_end(&wp);
-    if (wp.end > WATCH_ADDR_MAX) wp.end = WATCH_ADDR_MAX;
+    if (wp.end > WATCH_ADDR_MAX) {
+        wp.end = WATCH_ADDR_MAX;
+    }
     wp.disabled = false;
 
     /* A watchpoint at the same start address is updated */
@@ -366,7 +379,9 @@ bool debugger_find_watchpoint(dbg_t *dbg, hwaddr address, watchpoint_t *out) {
     for (int i = 0; i < DBG_MAX_POINTS; i++) {
         const watchpoint_t* wp = &dbg->watchpoints[i];
         if (wp->type != 0 && address >= wp->addr && address <= watchpoint_end(wp)) {
-            if (out) *out = *wp;
+            if (out) {
+                *out = *wp;
+            }
             return true;
         }
     }
@@ -419,13 +434,17 @@ bool debugger_get_watchpoint_hit(dbg_t *dbg, watchpoint_hit_t *hit)
     if (dbg == NULL || !dbg->watch_stopped) {
         return false;
     }
-    if (hit) *hit = dbg->watch_hit;
+    if (hit) {
+        *hit = dbg->watch_hit;
+    }
     return true;
 }
 
 void debugger_clear_watchpoint_hit(dbg_t *dbg)
 {
-    if (dbg != NULL) dbg->watch_stopped = false;
+    if (dbg != NULL) {
+        dbg->watch_stopped = false;
+    }
 }
 
 void debugger_clear_stop_reason(dbg_t *dbg)
@@ -655,13 +674,17 @@ void debugger_deinit(dbg_t* dbg)
 
 void debugger_clear_symbols(dbg_t* dbg)
 {
-    if (!dbg) return;
+    if (dbg == NULL) {
+        return;
+    }
     symbols_t* node = &dbg->symbols;
     while (node) {
         symbols_t* next = node->next;
         for (unsigned int i = 0; i < node->count; i++)
             free((void*) node->array[i].name);
-        if (node != &dbg->symbols) free(node);
+        if (node != &dbg->symbols) {
+            free(node);
+        }
         node = next;
     }
     dbg->symbol_generation++;

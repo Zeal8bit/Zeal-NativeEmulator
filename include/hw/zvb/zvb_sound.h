@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 
 
 #define VOICE_COUNT      4
@@ -43,6 +42,11 @@
 #define REG_MST_VOL    0xE
 #define REG_MST_ENA    0xF
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint8_t freq_low;
     uint8_t freq_high;
@@ -58,7 +62,7 @@ typedef struct {
     bool need_reload;
     bool decrementing;
     unsigned int phase;
-    atomic_int output;
+    int output;
 } zvb_voice_t;
 
 
@@ -80,7 +84,7 @@ typedef struct {
     uint8_t ram_output;
     uint16_t sample_output;
     /* CPU clock owns the FIFO; the host audio thread only reads this sample. */
-    atomic_int output;
+    int output;
 } zvb_sample_table_t;
 
 typedef struct {
@@ -105,8 +109,9 @@ typedef struct {
     uint16_t mean_left;
     uint16_t mean_right;
     zvb_pcm_frame_t output_last;
-    /* Borrowed synchronous sinks; copy samples during output. Neither sink
-     * may recursively execute or destroy the machine. Reset clears playback. */
+    /* Sinks supplied by the frontend and called synchronously; copy the samples
+     * during the callback. Neither sink may recursively execute or destroy the
+     * machine. Reset clears playback. */
     void* output_userdata;
     void (*output)(void*, zvb_pcm_frame_t);
     void (*output_reset)(void*);
@@ -114,9 +119,15 @@ typedef struct {
 
 
 /**
- * @brief Initialize the sound controller
+ * @brief Initialize the sound controller; audio output is bound by the frontend.
  */
-void zvb_sound_init(zvb_sound_t* sound, bool enabled);
+void zvb_sound_init(zvb_sound_t* sound);
+
+/**
+ * @brief Bind the frontend's output sinks; pass NULL callbacks to detach.
+ */
+void zvb_sound_bind_output(zvb_sound_t* sound, void (*output)(void*, zvb_pcm_frame_t),
+                           void (*output_reset)(void*), void* userdata);
 
 
 /**
@@ -158,3 +169,7 @@ static inline bool zvb_sound_interrupt(const zvb_sound_t* sound)
  * @brief Deinitialize the sound controller
  */
 void zvb_sound_deinit(zvb_sound_t* sound);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

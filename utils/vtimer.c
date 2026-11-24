@@ -134,7 +134,9 @@ uint64_t vtimer_stall_bus(vtimer_t* clock, uint64_t max_tstates, const bool* bus
 
 void vtimer_cancel(vtimer_node_t* node)
 {
-    if (node == NULL || node->clock == NULL) return;
+    if (node == NULL || node->clock == NULL) {
+        return;
+    }
     vtimer_t* clock = node->clock;
     if (clock->head == NULL) {
         return;

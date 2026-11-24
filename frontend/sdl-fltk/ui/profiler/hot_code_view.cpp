@@ -31,21 +31,16 @@ namespace zui::profiler {
 using namespace zui::common;
 using namespace zui::debugger;
 using namespace zui::theme;
-using namespace zui::tools;
 using namespace zui::widgets;
-
-namespace {
 
 constexpr int TOP_ADDRESSES = 512;  /* rows in Addresses mode */
 
-widgets::Panel* make_hotcode(int x, int y, int w, int h)
+static widgets::Panel* make_hotcode(int x, int y, int w, int h)
 {
     return new HotCodeView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 20, "Hot Functions", make_hotcode);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 20, "Hot Functions", make_hotcode);
 
 HotCodeView::HotCodeView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "HOT FUNCTIONS")
@@ -98,7 +93,9 @@ void HotCodeView::refresh(bool paused, bool force)
     update_controls();
     const uint64_t total = fz_profile_total();
     /* Called ~4 Hz while visible: re-aggregate only when something changed */
-    if (force || total != m_last_total || m_index.update()) rebuild();
+    if (force || total != m_last_total || m_index.update()) {
+        rebuild();
+    }
     update_status();
 }
 
@@ -116,8 +113,11 @@ void HotCodeView::draw()
 void HotCodeView::cb_start(Fl_Widget*, void* data)
 {
     HotCodeView* self = static_cast<HotCodeView*>(data);
-    if (fz_profile_running()) fz_profile_stop();
-    else fz_profile_start();
+    if (fz_profile_running()) {
+        fz_profile_stop();
+    } else {
+        fz_profile_start();
+    }
     self->update_controls();
     self->update_status();
     self->rebuild();
@@ -147,7 +147,9 @@ void HotCodeView::cb_bar(Fl_Widget*, void* data)
 void HotCodeView::update_controls()
 {
     const bool running = fz_profile_running();
-    if ((int) running == m_shown_running) return;
+    if ((int) running == m_shown_running) {
+        return;
+    }
     m_shown_running = (int) running;
     m_start->icon(running ? Icon::Pause : Icon::Play);
     m_start->text(running ? "Stop" : "Start");
@@ -195,13 +197,20 @@ void HotCodeView::rebuild()
          * and when no symbols are loaded) */
         std::vector<uint64_t> per(symbols.size() + 256, 0);
         for (unsigned pc = 0; pc < FZ_PROFILE_SLOTS; pc++) {
-            if (counts[pc] == 0) continue;
+            if (counts[pc] == 0) {
+                continue;
+            }
             const int si = m_index.preceding(pc);
-            if (si >= 0) per[(size_t) si] += counts[pc];
-            else per[symbols.size() + (pc >> 8)] += counts[pc];
+            if (si >= 0) {
+                per[(size_t) si] += counts[pc];
+            } else {
+                per[symbols.size() + (pc >> 8)] += counts[pc];
+            }
         }
         for (size_t i = 0; i < per.size(); i++) {
-            if (per[i] == 0) continue;
+            if (per[i] == 0) {
+                continue;
+            }
             HotRow r;
             r.samples = per[i];
             if (i < symbols.size()) {
@@ -222,7 +231,9 @@ void HotCodeView::rebuild()
         }
     } else {
         for (unsigned pc = 0; pc < FZ_PROFILE_SLOTS; pc++) {
-            if (counts[pc] == 0) continue;
+            if (counts[pc] == 0) {
+                continue;
+            }
             HotRow r;
             r.addr = pc;
             r.end = pc;
@@ -235,17 +246,24 @@ void HotCodeView::rebuild()
         return x.samples != y.samples ? x.samples > y.samples : x.addr < y.addr;
     });
     if (m_list->addresses) {
-        if (rows.size() > (size_t) TOP_ADDRESSES) rows.resize(TOP_ADDRESSES);
+        if (rows.size() > (size_t) TOP_ADDRESSES) {
+            rows.resize(TOP_ADDRESSES);
+        }
         /* Label only the rows kept: symbol+offset */
         for (HotRow& r : rows) {
             const int si = m_index.preceding(r.addr);
-            if (si < 0) continue;
+            if (si < 0) {
+                continue;
+            }
             const hwaddr off = r.addr - symbols[(size_t) si].addr;
             if (off == 0) {
                 snprintf(name, sizeof(name), "%s", symbols[(size_t) si].name.c_str());
             } else {
-                if (off < 0x100) hex8(a, sizeof(a), off);
-                else hex16(a, sizeof(a), off);
+                if (off < 0x100) {
+                    hex8(a, sizeof(a), off);
+                } else {
+                    hex16(a, sizeof(a), off);
+                }
                 snprintf(name, sizeof(name), "%s+$%s", symbols[(size_t) si].name.c_str(), a);
             }
             r.name = name;

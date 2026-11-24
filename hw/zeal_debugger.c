@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -76,7 +76,7 @@ static int zeal_debugger_get_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        hw_log(dbg->host, false, 0, "TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
+        hw_log_info(dbg->host, "TODO: MEM PHYSICAL ADDRESS READ: %08x\n", addr);
     } else if (addr <= 0xffff) {
         for (int i = 0; i < len; i++) {
             val[i] = machine->dbg_read_memory(machine, (uint16_t) (addr + i));
@@ -99,9 +99,11 @@ static int zeal_debugger_set_mem(dbg_t *dbg, hwaddr addr, int len, uint8_t *val)
 
     /* If upper bit in 32-bit address is set, interpret it as a physical address */
     if (addr & 0x80000000) {
-        hw_log(dbg->host, false, 0, "TODO: PHYSICAL ADDRESS WRITE\n");
+        hw_log_info(dbg->host, "TODO: PHYSICAL ADDRESS WRITE\n");
     } else if (addr <= 0xffff) {
-        if (len < 0 || len > 0x10000) return -1;
+        if (len < 0 || len > 0x10000) {
+            return -1;
+        }
         mmu_virt_write_array(&machine->cpu.mmu, (uint16_t)addr, val, len);
     } else {
         // Invalid address
@@ -134,7 +136,7 @@ static void zeal_debugger_continue_cb(dbg_t* dbg) {
 
 static void zeal_debugger_reset_cb(dbg_t* dbg) {
     zeal_t* machine = (zeal_t*) (dbg->arg);
-    hw_log(dbg->host, false, 0, "[SYSTEM] Reset\n");
+    hw_log_info(dbg->host, "[SYSTEM] Reset\n");
     zeal_reset(machine);
 }
 
@@ -171,7 +173,7 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
 
         dbg_mmu_t* mmu = (dbg_mmu_t*) arg;
         if (arg == NULL) {
-            hw_log(dbg->host, true, 0, "[DEBUGGER] Invalid NULL argument for operation ZEAL_DBG_OP_GET_MMU\n");
+            hw_log_error(dbg->host, "[DEBUGGER] Invalid NULL argument for operation ZEAL_DBG_OP_GET_MMU\n");
             return false;
         }
         for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
@@ -185,7 +187,7 @@ static bool zeal_custom_operations(dbg_t* dbg, int op, void* arg)
             };
             /* Get the device being mapped there */
             if (value >= MEM_MAPPING_SIZE) {
-                hw_log(dbg->host, true, 0, "[DEBUGGER] MMU value cannot exceed total memory space\n");
+                hw_log_error(dbg->host, "[DEBUGGER] MMU value cannot exceed total memory space\n");
                 return false;
             }
             const device_t* mapped_dev = machine->cpu.mmu.mem_mapping[value].dev;
@@ -326,7 +328,7 @@ static int zeal_debugger_disassemble_address(dbg_t *dbg, hwaddr address, dbg_ins
 
     /* Instructions are never bigger than 4 bytes on the Z80 */
     if (zeal_debugger_get_mem(dbg, address, 4, mem) != 0) {
-        hw_log(dbg->host, true, 0, "[DEBUGGER] Error disassembling address: %x\n", address);
+        hw_log_error(dbg->host, "[DEBUGGER] Error disassembling address: %x\n", address);
         return -1;
     }
     return zeal_debugger_disassemble_bytes(dbg, address, mem, instr);

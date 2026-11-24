@@ -51,11 +51,15 @@ bool fltk_debug_keyboard_blocked(const zeal_t* machine)
 bool fltk_debug_reset(zeal_t* machine, bool pause_after)
 {
     dbg_t* dbg = &machine->dbg;
-    if (dbg->reset_cb == NULL) return false;
+    if (dbg->reset_cb == NULL) {
+        return false;
+    }
     /* The core always halts after a reset with the debugger on */
     const bool was_running = !fltk_debug_paused(machine);
     dbg->reset_cb(dbg);
-    if (was_running && !pause_after) debugger_continue(dbg);
+    if (was_running && !pause_after) {
+        debugger_continue(dbg);
+    }
     return true;
 }
 
@@ -75,12 +79,8 @@ bool fz_paused(void)
 
 bool fz_vram_render(dbg_vram_t view, fz_image_t* out)
 {
-    if (fltk_machine == NULL) return false;
+    if (fltk_machine == NULL) {
+        return false;
+    }
     return fltk_debug_video_render(&fltk_machine->zvb, view, out);
-}
-
-bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask)
-{
-    if (fltk_machine == NULL) return false;
-    return fltk_debug_sprite(&fltk_machine->zvb, index, info, rgb, mask);
 }

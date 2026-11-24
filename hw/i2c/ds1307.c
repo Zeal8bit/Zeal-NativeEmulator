@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -47,7 +47,9 @@ static void ds1307_start(i2c_device_t* dev)
     ds1307_t* rtc = (ds1307_t*) dev;
     rtc->count = 0;
     rtc->changed = false;
-    if (rtc->read_time) rtc->read_time(rtc->userdata, rtc->time_diff, rtc->ram);
+    if (rtc->read_time) {
+        rtc->read_time(rtc->userdata, rtc->time_diff, rtc->ram);
+    }
 }
 
 
@@ -57,7 +59,9 @@ static void ds1307_stop(i2c_device_t* dev)
     rtc->reg = 0;
     if (rtc->changed) {
         /* Store the difference with now */
-        if (rtc->adjust_time) rtc->time_diff = rtc->adjust_time(rtc->userdata, rtc->ram);
+        if (rtc->adjust_time) {
+            rtc->time_diff = rtc->adjust_time(rtc->userdata, rtc->ram);
+        }
         rtc->changed = false;
     }
 }
@@ -79,4 +83,15 @@ int ds1307_init(ds1307_t* rtc)
     rtc->ram[DS1307_CTRL_REG] = 0;
 
     return 0;
+}
+
+void ds1307_bind(ds1307_t* rtc, ds1307_read_time_t read_time,
+                 ds1307_adjust_time_t adjust_time, void* userdata)
+{
+    if (rtc == NULL) {
+        return;
+    }
+    rtc->read_time = read_time;
+    rtc->adjust_time = adjust_time;
+    rtc->userdata = userdata;
 }

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,6 +31,11 @@
 /**
  * @brief State machine for the keyboard
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     PS2_IDLE     = 0,
     PS2_ACTIVE   = 1,
@@ -55,3 +60,7 @@ typedef struct {
 int keyboard_init(keyboard_t* keyboard, vtimer_t* clock, pio_t* pio);
 uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode);
 uint8_t key_released(keyboard_t* keyboard, uint16_t keycode);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

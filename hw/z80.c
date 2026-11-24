@@ -843,7 +843,7 @@ static inline void process_interrupts(z80* const z)
                 call(z, rw(z, (z->i << 8) | z->int_data));
                 break;
 
-            default: hw_log(z->mmu.parent.host, true, 0, "unsupported interrupt mode %d\n", z->interrupt_mode); break;
+            default: hw_log_error(z->mmu.parent.host, "unsupported interrupt mode %d\n", z->interrupt_mode); break;
         }
 
         return;
@@ -944,7 +944,7 @@ int z80_instruction_size(z80* const z)
         /* If the size is 0, the instruction is invalid */
         return (size != 0) ? size : 2;
     } else {
-        hw_log(z->mmu.parent.host, true, 0, "[Z80] Invalid size for opcode %x\n", opcode);
+        hw_log_error(z->mmu.parent.host, "[Z80] Invalid size for opcode %x\n", opcode);
     }
     return 1;
 }
@@ -995,11 +995,11 @@ unsigned long z80_run_for(z80* const z, unsigned long tstates)
 // outputs to stdout a debug trace of the emulator
 void z80_debug_output(z80* const z)
 {
-    hw_log(z->mmu.parent.host, false, 0, "PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
+    hw_log_info(z->mmu.parent.host, "PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, "
            "IX: %04X, IY: %04X, I: %02X, R: %02X",
            z->pc, (z->a << 8) | get_f(z), get_bc(z), get_de(z), get_hl(z), z->sp, z->ix, z->iy, z->i, z->r);
 
-    hw_log(z->mmu.parent.host, false, 0, "\t(%02X %02X %02X %02X), cyc: %lu\n", fetchb(z, z->pc), fetchb(z, z->pc + 1), fetchb(z, z->pc + 2), fetchb(z, z->pc + 3),
+    hw_log_info(z->mmu.parent.host, "\t(%02X %02X %02X %02X), cyc: %lu\n", fetchb(z, z->pc), fetchb(z, z->pc + 1), fetchb(z, z->pc + 2), fetchb(z, z->pc + 3),
            z->cyc);
 }
 
@@ -1480,7 +1480,7 @@ void exec_opcode(z80* const z, uint8_t opcode)
         case 0xDD: exec_opcode_ddfd(z, nextb(z), &z->ix); break;
         case 0xFD: exec_opcode_ddfd(z, nextb(z), &z->iy); break;
 
-        default: hw_log(z->mmu.parent.host, true, 0, "unknown opcode %02X\n", opcode); break;
+        default: hw_log_error(z->mmu.parent.host, "unknown opcode %02X\n", opcode); break;
     }
 }
 
@@ -1733,7 +1733,7 @@ void exec_opcode_dcb(z80* const z, uint8_t opcode, uint16_t addr)
         case 2: result = val & ~(1 << y_); break; // res y, (iz+d)
         case 3: result = val | (1 << y_); break;  // set y, (iz+d)
 
-        default: hw_log(z->mmu.parent.host, true, 0, "unknown XYCB opcode: %02X\n", opcode); break;
+        default: hw_log_error(z->mmu.parent.host, "unknown XYCB opcode: %02X\n", opcode); break;
     }
 
     // ld r[z], rot[y] (iz+d)
@@ -2010,7 +2010,7 @@ void exec_opcode_ed(z80* const z, uint8_t opcode)
             z->mem_ptr = get_hl(z) + 1;
         } break; // rld
 
-        default: hw_log(z->mmu.parent.host, true, 0, "unknown ED opcode: %02X\n", opcode); break;
+        default: hw_log_error(z->mmu.parent.host, "unknown ED opcode: %02X\n", opcode); break;
     }
 }
 

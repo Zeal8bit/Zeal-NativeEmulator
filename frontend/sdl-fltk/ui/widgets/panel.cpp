@@ -16,12 +16,8 @@ namespace zui::widgets {
 
 using namespace zui::theme;
 
-namespace {
-
 constexpr int CHEVRON_W = 14;
 constexpr int BUTTON_W = 18;
-
-} // namespace
 
 Panel::Panel(int X, int Y, int W, int H, const char* title)
     : Fl_Group(X, Y, W, H), m_title(title)
@@ -97,7 +93,9 @@ void Panel::header_toggle(const char* label, bool on, std::function<void(bool)> 
 
 void Panel::extra(const char* text)
 {
-    if (strncmp(m_extra, text, sizeof(m_extra) - 1) == 0) return;
+    if (strncmp(m_extra, text, sizeof(m_extra) - 1) == 0) {
+        return;
+    }
     snprintf(m_extra, sizeof(m_extra), "%s", text);
     damage(FL_DAMAGE_ALL, x(), y(), w(), HEADER_H);
 }
@@ -122,7 +120,9 @@ void Panel::draw_header_content(int, int, int)
 
 void Panel::draw_panel_header()
 {
-    if (!m_header) return;
+    if (!m_header) {
+        return;
+    }
     const int hx = title_x();
     draw_header(x(), y(), w(), "", nullptr);
     fl_font(DATA_FONT, DATA_SIZE);
@@ -137,8 +137,11 @@ void Panel::draw_panel_header()
     if (m_collapsible) {
         const int cx = x() + 9, cy = y() + HEADER_H / 2;
         fl_color(COLOR_DIM);
-        if (m_content_hidden) fl_polygon(cx - 2, cy - 4, cx + 3, cy, cx - 2, cy + 4);
-        else fl_polygon(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3);
+        if (m_content_hidden) {
+            fl_polygon(cx - 2, cy - 4, cx + 3, cy, cx - 2, cy + 4);
+        } else {
+            fl_polygon(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3);
+        }
     }
     fl_font(DATA_FONT, DATA_SIZE);
     const int title_end = hx + 10 + (int) fl_width(m_title);
@@ -194,7 +197,9 @@ int Panel::handle(int event)
         chip_rect(chip_x, chip_w);
         if (m_chip && ex >= chip_x && ex < chip_x + chip_w) {
             m_chip_on = !m_chip_on;
-            if (m_chip_changed) m_chip_changed(m_chip_on);
+            if (m_chip_changed) {
+                m_chip_changed(m_chip_on);
+            }
             damage(FL_DAMAGE_ALL, x(), y(), w(), HEADER_H);
             return 1;
         }

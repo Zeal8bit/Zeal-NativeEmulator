@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -161,7 +161,7 @@ void zvb_spi_write(zvb_spi_t* spi, uint32_t addr, uint8_t value)
                 /* Latch the request length; later writes configure the next transfer. */
                 spi->transfer_len = spi->ram_len;
 #if 0
-                hw_log(spi->tf.host, false, 0, "[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
+                hw_log_info(spi->tf.host, "[ZVB][SPI] Data: %x, %x, %x, %x, %x, %x, %x, %x, len: %d\n",
                            spi->ram_wr.data[0],
                            spi->ram_wr.data[1],
                            spi->ram_wr.data[2],
@@ -272,7 +272,7 @@ static void zvb_tf_deassert(zvb_spi_t* spi)
     zvb_tf_t* tf = &spi->tf;
     if (tf->state == TF_READ_BLOCK && tf->reply_idx < TF_BLK_DUMMY_BYTES + TF_BLK_SIZE) {
         const int received = tf->reply_idx > TF_BLK_DUMMY_BYTES ? tf->reply_idx - TF_BLK_DUMMY_BYTES : 0;
-        hw_log(tf->host, true, 0, "[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
+        hw_log_error(tf->host, "[TF] Warning: read block command did not read the whole block! (%d/%d)\n",
                        received, TF_BLK_SIZE);
     }
     tf->write_index = 0;
@@ -313,8 +313,8 @@ static bool zvb_tf_seek_block(zvb_tf_t* tf, uint32_t sector)
 {
     /* Validate a complete sector before multiplying; never wrap a large
      * guest address or extend the host image with an out-of-range write. */
-    if (!tf->backend.read || (uint64_t) sector >= tf->backend.size / TF_BLK_SIZE) {
-        hw_log(tf->host, true, 0, "[TF] Invalid sector: 0x%x (image size: 0x%zx)\n", sector, tf->backend.size);
+    if (tf->backend.read == NULL || (uint64_t) sector >= tf->backend.size / TF_BLK_SIZE) {
+        hw_log_error(tf->host, "[TF] Invalid sector: 0x%x (image size: 0x%zx)\n", sector, tf->backend.size);
         return false;
     }
     return tf->backend.seek(tf->backend.userdata, sector);
@@ -344,7 +344,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
     } else {
         tf->debug_count = 1;
     }
-    hw_log(tf->host, false, 0, "[TF] Command: %d (0x%x), param: %x, count: %d\n",
+    hw_log_info(tf->host, "[TF] Command: %d (0x%x), param: %x, count: %d\n",
         command, command | TF_CMD_MASK, param, tf->debug_count);
     tf->debug_command = command;
     tf->debug_parameter = param;
@@ -374,7 +374,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 r1.ill_cmd = 1;
                 zvb_r1_response(tf, r1.raw);
             } else if (param != 512) {
-                hw_log(tf->host, true, 0, "[TF] Cannot set block size to another value than 512 bytes\n");
+                hw_log_error(tf->host, "[TF] Cannot set block size to another value than 512 bytes\n");
                 r1.param_err = 1;
                 zvb_r1_response(tf, r1.raw);
             } else {
@@ -398,7 +398,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                 tf->reply[2] = TF_DATA_TOKEN;     // Set as ready!
                 const size_t rd = tf->backend.read(tf->backend.userdata, tf->reply + TF_BLK_DUMMY_BYTES);
                 if (rd < TF_BLK_SIZE) {
-                    hw_log(tf->host, true, 0, "[TF] Warning could only read %zu/%d bytes from the image file\n", rd, TF_BLK_SIZE);
+                    hw_log_error(tf->host, "[TF] Warning could only read %zu/%d bytes from the image file\n", rd, TF_BLK_SIZE);
                     r1.param_err = 1;
                     zvb_r1_response(tf, r1.raw);
                     return;
@@ -423,7 +423,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
                     break;
                 }
 #if DEBUG_WRITE
-                hw_log(tf->host, false, 0, "[TF] Write block, offset: 0x%llx (sector: %x)\n",
+                hw_log_info(tf->host, "[TF] Write block, offset: 0x%llx (sector: %x)\n",
                            (unsigned long long)param * TF_BLK_SIZE, param);
 #endif
                 tf->state = TF_WRITE_BLOCK_WAIT_TOK;
@@ -482,7 +482,7 @@ static void zvb_tf_process_command(zvb_spi_t* spi, uint32_t command, uint32_t pa
 static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
 {
     zvb_tf_t* tf = &spi->tf;
-    if (!spi->tf_cs || !tf->backend.read) {
+    if (!spi->tf_cs || tf->backend.read == NULL) {
         return;
     }
     if (tf->state == TF_WRITE_BLOCK_WAIT_TOK) {
@@ -496,18 +496,18 @@ static void zvb_tf_receive_byte(zvb_spi_t* spi, uint8_t data)
         tf->reply[tf->write_index++] = data;
         if (tf->write_index == TF_BLK_SIZE + TF_CRC_BYTES) {
 #if 0
-            hw_log(tf->host, false, 0, "[TF] Writing data: \n");
+            hw_log_info(tf->host, "[TF] Writing data: \n");
             for (int i = 0; i < TF_BLK_SIZE; i++) {
-                hw_log(tf->host, false, 0, "%x, ", tf->reply[i]);
+                hw_log_info(tf->host, "%x, ", tf->reply[i]);
             }
-            hw_log(tf->host, false, 0, "\n");
+            hw_log_info(tf->host, "\n");
 #endif
             const size_t written = tf->backend.write(tf->backend.userdata, tf->reply);
             /* Complete the submitted sector before acknowledging it. On the
              * pinned, non-threaded WasmFS OPFS backend, fflush waits for the
              * backing write's writable-stream close; no extra sync is needed. */
             if (written < TF_BLK_SIZE) {
-                hw_log(tf->host, true, 0, "[TF] Warning could only write %zu/%d bytes to the image file\n", written, TF_BLK_SIZE);
+                hw_log_error(tf->host, "[TF] Warning could only write %zu/%d bytes to the image file\n", written, TF_BLK_SIZE);
             }
             const int flushed = tf->backend.flush(tf->backend.userdata);
             tf->reply[0] = written == TF_BLK_SIZE && flushed == 0 ? TF_WRITE_ACCEPTED : TF_WRITE_ERROR;

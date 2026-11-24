@@ -52,10 +52,8 @@ void watch_range_text(char* out, size_t size, hwaddr lo, hwaddr hi)
     }
 }
 
-namespace {
-
 /** A register appears inside parentheses: (HL), (IX+2), ((DE))... */
-bool follows_register(const std::string& expr)
+static bool follows_register(const std::string& expr)
 {
     std::string up;
     for (char c : expr) up += (char) toupper((unsigned char) c);
@@ -64,15 +62,19 @@ bool follows_register(const std::string& expr)
         size_t q = p + 1;
         while (q < up.size() && (up[q] == ' ' || up[q] == '(')) q++;
         for (const char* r : regs) {
-            if (up.compare(q, 2, r) != 0) continue;
+            if (up.compare(q, 2, r) != 0) {
+                continue;
+            }
             const char next = q + 2 < up.size() ? up[q + 2] : ')';
-            if (next == ')' || next == '+' || next == '-' || next == ' ') return true;
+            if (next == ')' || next == '+' || next == '-' || next == ' ') {
+                return true;
+            }
         }
     }
     return false;
 }
 
-int watch_bytes(const Watch& w)
+static int watch_bytes(const Watch& w)
 {
     switch (w.type) {
         case W_U16:
@@ -94,9 +96,9 @@ struct Armed {
     bool operator==(const Armed& o) const { return lo == o.lo && hi == o.hi && type == o.type && on == o.on; }
 };
 
-std::vector<Armed> s_armed;
+static std::vector<Armed> s_armed;
 
-std::string strip(const std::string& s)
+static std::string strip(const std::string& s)
 {
     size_t b = 0, e = s.size();
     while (b < e && isspace((unsigned char) s[b])) b++;
@@ -104,12 +106,12 @@ std::string strip(const std::string& s)
     return s.substr(b, e - b);
 }
 
-} // namespace
-
 bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why)
 {
     if (follows_register(w.expr)) {
-        if (why) *why = "its address follows a register";
+        if (why) {
+            *why = "its address follows a register";
+        }
         return false;
     }
     const regs_t none = {};
@@ -118,23 +120,31 @@ bool watch_break_target(const Watch& w, hwaddr* lo, hwaddr* hi, const char** why
     if (e.size() > 2 && e.front() == '(' && e.back() == ')') {
         /* (ptr): break on the pointer variable, not on what it points to */
         if (!eval_expr(e.substr(1, e.size() - 2), none, &addr)) {
-            if (why) *why = "the expression does not resolve";
+            if (why) {
+                *why = "the expression does not resolve";
+            }
             return false;
         }
         *lo = addr;
         *hi = (hwaddr) ((addr + 1) & 0xFFFF);
-        if (*hi < *lo) *hi = 0xFFFF; /* never wrap a range around $FFFF */
+        if (*hi < *lo) {
+            *hi = 0xFFFF; /* never wrap a range around $FFFF */
+        }
         return true;
     }
     if (!eval_expr(e, none, &addr)) {
-        if (why) *why = "the expression does not resolve";
+        if (why) {
+            *why = "the expression does not resolve";
+        }
         return false;
     }
     /* Pointer types: the pointer word itself */
     const int n = is_pointer(w) ? 2 : watch_bytes(w);
     *lo = addr;
     *hi = (hwaddr) ((addr + (hwaddr) n - 1) & 0xFFFF);
-    if (*hi < *lo) *hi = 0xFFFF; /* never wrap a range around $FFFF */
+    if (*hi < *lo) {
+        *hi = 0xFFFF; /* never wrap a range around $FFFF */
+    }
     return true;
 }
 
@@ -145,21 +155,29 @@ bool watch_break_permanent(const Watch& w)
 
 void watch_breaks_sync()
 {
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     std::vector<Armed> want;
     for (Watch& w : watches()) {
         hwaddr lo, hi;
-        if (w.brk == 0) continue;
+        if (w.brk == 0) {
+            continue;
+        }
         if (!watch_break_target(w, &lo, &hi)) {
             /* An address following a register can never break (e.g. the row
              * was edited into (HL)). An unresolved symbol keeps the request,
              * unarmed, until a map provides it. */
-            if (watch_break_permanent(w)) w.brk = 0;
+            if (watch_break_permanent(w)) {
+                w.brk = 0;
+            }
             continue;
         }
         want.push_back({ lo, hi, (watchpoint_type_t) w.brk, w.brk_on });
     }
-    if (want == s_armed) return;
+    if (want == s_armed) {
+        return;
+    }
     s_armed = want;
 
     /* Core watchpoints are keyed by their start address, so rows sharing
@@ -189,14 +207,18 @@ void watch_breaks_sync()
         wp.end = (hwaddr) end;
         wp.type = (watchpoint_type_t) (en ? en : dis);
         debugger_add_watchpoint(dbg, wp);
-        if (en == 0) debugger_enable_watchpoint(dbg, wp.addr, false);
+        if (en == 0) {
+            debugger_enable_watchpoint(dbg, wp.addr, false);
+        }
         addr = end + 1;
     }
 }
 
 bool watch_break_range(hwaddr lo, hwaddr hi, watchpoint_type_t type)
 {
-    if (!dbg_ready()) return false;
+    if (!dbg_ready()) {
+        return false;
+    }
     std::vector<Watch>& list = watches();
     Watch* row = nullptr;
     for (Watch& w : list) {
@@ -224,7 +246,9 @@ bool watch_break_range(hwaddr lo, hwaddr hi, watchpoint_type_t type)
         hex16(hex, sizeof(hex), lo);
         w.expr = sym && strlen(sym) <= (size_t) MAX_EXPR ? sym : std::string("$") + hex;
         w.type = n == 1 ? W_U8 : n == 2 ? W_U16 : W_STR;
-        if (w.type == W_STR) w.len = n;
+        if (w.type == W_STR) {
+            w.len = n;
+        }
         list.push_back(w);
         row = &list.back();
     }
@@ -246,7 +270,9 @@ bool watch_break_clear_at(hwaddr addr)
             any = true;
         }
     }
-    if (!any) return false;
+    if (!any) {
+        return false;
+    }
     watch_breaks_sync();
     char range[24];
     watch_range_text(range, sizeof(range), addr, addr);
@@ -258,7 +284,9 @@ bool watch_break_clear_at(hwaddr addr)
 int watch_hit_index()
 {
     watchpoint_hit_t hit;
-    if (!dbg_ready() || !fz_paused() || !debugger_get_watchpoint_hit(fz_debugger(), &hit)) return -1;
+    if (!dbg_ready() || !fz_paused() || !debugger_get_watchpoint_hit(fz_debugger(), &hit)) {
+        return -1;
+    }
     const std::vector<Watch>& list = watches();
     for (size_t i = 0; i < list.size(); i++) {
         hwaddr lo, hi;
@@ -275,15 +303,20 @@ int watch_hit_index()
 bool watch_hit_text(char* out, size_t size, bool brief)
 {
     watchpoint_hit_t hit;
-    if (!dbg_ready() || !debugger_get_watchpoint_hit(fz_debugger(), &hit)) return false;
+    if (!dbg_ready() || !debugger_get_watchpoint_hit(fz_debugger(), &hit)) {
+        return false;
+    }
     char addr[8];
     char value[8];
     char pc[8];
     hex16(addr, sizeof(addr), hit.addr);
     hex8(value, sizeof(value), hit.value);
     hex16(pc, sizeof(pc), hit.pc);
-    if (brief) snprintf(out, size, "%s $%s", watch_type_name(hit.type), addr);
-    else snprintf(out, size, "%s $%s = $%s at PC $%s", watch_type_name(hit.type), addr, value, pc);
+    if (brief) {
+        snprintf(out, size, "%s $%s", watch_type_name(hit.type), addr);
+    } else {
+        snprintf(out, size, "%s $%s = $%s at PC $%s", watch_type_name(hit.type), addr, value, pc);
+    }
     return true;
 }
 

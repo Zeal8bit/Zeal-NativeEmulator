@@ -24,10 +24,6 @@ namespace zui::hardware {
 
 using namespace zui::common;
 using namespace zui::theme;
-using namespace zui::tools;
-using namespace zui::widgets;
-
-namespace {
 
 /* ------------------------------------------------------------------ */
 /*  Keyboard glyph layout: 15 units main block + 3 units navigation    */
@@ -102,14 +98,12 @@ const char* s_snes_names[12] = { "B", "Y", "Select", "Start", "Up", "Down",
 
 /* ------------------------------------------------------------------ */
 
-widgets::Panel* make_input(int x, int y, int w, int h)
+static widgets::Panel* make_input(int x, int y, int w, int h)
 {
     return new InputView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 40, "Input", make_input);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 40, "Input", make_input);
 
 InputView::InputView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "INPUT")
@@ -161,7 +155,9 @@ void InputView::draw()
 
 int InputView::handle(int event)
 {
-    if (event == FL_MOUSEWHEEL) return 1;
+    if (event == FL_MOUSEWHEEL) {
+        return 1;
+    }
     return Panel::handle(event);
 }
 
@@ -178,7 +174,9 @@ void InputView::cb_tick(void* data)
 {
     InputView* self = (InputView*) data;
     /* Held keys and pads change quickly: redraw at 10 Hz while running */
-    if (self->visible_r() && !fz_paused()) self->update();
+    if (self->visible_r() && !fz_paused()) {
+        self->update();
+    }
     Fl::repeat_timeout(0.1, cb_tick, data);
 }
 
@@ -217,7 +215,9 @@ int InputView::chip(int X, int Y, int H, const char* label, bool lit, Fl_Font fo
 bool InputView::held(const fz_keyboard_state_t& kb, uint16_t code)
 {
     for (int i = 0; i < kb.held_count; i++) {
-        if (kb.held[i] == code) return true;
+        if (kb.held[i] == code) {
+            return true;
+        }
     }
     return false;
 }
@@ -230,7 +230,9 @@ void InputView::draw_keyboard(int X, int Y, int W, int bottom)
 
     /* Keyboard glyph */
     float u = W / GLYPH_UNITS;
-    if (u > 26) u = 26;
+    if (u > 26) {
+        u = 26;
+    }
     const int kh = (int) u - 2;
     for (int r = 0; r < GLYPH_ROWS; r++) {
         float fx = 0;
@@ -240,7 +242,9 @@ void InputView::draw_keyboard(int X, int Y, int W, int bottom)
             const int kx = X + (int) (fx * u);
             const int kw = (int) (k.units * u) - 2;
             fx += k.units;
-            if (k.label == nullptr) continue;
+            if (k.label == nullptr) {
+                continue;
+            }
             const bool lit = held(kb, k.code);
             if (lit) {
                 fl_color(COLOR_GREEN);
@@ -254,7 +258,9 @@ void InputView::draw_keyboard(int X, int Y, int W, int bottom)
             fl_font(FL_HELVETICA, u >= 22 ? 9 : 8);
             fl_color(lit ? COLOR_BG : COLOR_DIM);
             const int lw = (int) fl_width(k.label);
-            if (lw < kw) fl_draw(k.label, kx + (kw - lw) / 2, ry + kh / 2 + 3);
+            if (lw < kw) {
+                fl_draw(k.label, kx + (kw - lw) / 2, ry + kh / 2 + 3);
+            }
         }
     }
     yy += (int) (GLYPH_ROWS * u) + 12;
@@ -293,7 +299,9 @@ void InputView::draw_keyboard(int X, int Y, int W, int bottom)
         hex8(hex, sizeof(hex), kb.fifo[i]);
         n += snprintf(text + n, sizeof(text) - (size_t) n, "%s ", hex);
     }
-    if (kb.fifo_count > fit && fit > 0 && n < (int) sizeof(text) - 4) snprintf(text + n, sizeof(text) - (size_t) n, "...");
+    if (kb.fifo_count > fit && fit > 0 && n < (int) sizeof(text) - 4) {
+        snprintf(text + n, sizeof(text) - (size_t) n, "...");
+    }
     fl_color(COLOR_CYAN);
     fl_draw(text, X + cw * 16, yy + asc);
     yy += lh;
@@ -351,8 +359,11 @@ void InputView::draw_keyboard(int X, int Y, int W, int bottom)
         /* Gap to the previous (older) event: hold time, repeat rate */
         if (i + 1 < count) {
             const double ms = (double) (e.time_ns - log[i + 1].time_ns) / 1e6;
-            if (ms < 10000.0) snprintf(text, sizeof(text), "%+9.1f", ms);
-            else snprintf(text, sizeof(text), "%9s", "> 10 s");
+            if (ms < 10000.0) {
+                snprintf(text, sizeof(text), "%+9.1f", ms);
+            } else {
+                snprintf(text, sizeof(text), "%9s", "> 10 s");
+            }
         } else {
             snprintf(text, sizeof(text), "%9s", "-");
         }
@@ -445,8 +456,11 @@ void InputView::draw_snes(int X, int Y, int W, int bottom)
 
     const uint64_t last = fz_input_snes_last_latch_ns();
     const uint32_t latches = fz_input_snes_latches();
-    if (latches == 0) snprintf(text, sizeof(text), "never latched");
-    else snprintf(text, sizeof(text), "last latch %.2f s ago", (double) (fz_emulated_ns() - last) / 1e9);
+    if (latches == 0) {
+        snprintf(text, sizeof(text), "never latched");
+    } else {
+        snprintf(text, sizeof(text), "last latch %.2f s ago", (double) (fz_emulated_ns() - last) / 1e9);
+    }
     int yy = section(X, Y, W, "SNES ADAPTER", text);
 
     fz_snes_mouse_t mouse;
@@ -492,9 +506,13 @@ void InputView::draw_snes(int X, int Y, int W, int bottom)
             int cx = X;
             bool any = false;
             for (int b = 0; b < 12; b++) {
-                if (!((p.pressed >> b) & 1)) continue;
+                if (!((p.pressed >> b) & 1)) {
+                    continue;
+                }
                 any = true;
-                if (cx > X + W - 60) break;
+                if (cx > X + W - 60) {
+                    break;
+                }
                 cx += chip(cx, yy, lh, s_snes_names[b], true, DATA_FONT, DATA_SIZE) + 4;
             }
             if (!any) {
@@ -511,8 +529,11 @@ void InputView::draw_snes(int X, int Y, int W, int bottom)
             fl_draw(mouse.captured ? "CAPTURED" : mouse.hovered ? "hovered" : "not captured", cx, yy + asc);
             yy += lh + 4;
             static const char* speeds[] = { "slow", "medium", "fast", "?" };
-            if (mouse.latched) snprintf(text, sizeof(text), "last dx %+d  dy %+d", mouse.dx, mouse.dy);
-            else snprintf(text, sizeof(text), "not latched yet");
+            if (mouse.latched) {
+                snprintf(text, sizeof(text), "last dx %+d  dy %+d", mouse.dx, mouse.dy);
+            } else {
+                snprintf(text, sizeof(text), "not latched yet");
+            }
             fl_color(mouse.latched ? COLOR_TEXT : COLOR_DIM);
             fl_draw(text, X, yy + asc);
             yy += lh;
@@ -524,7 +545,9 @@ void InputView::draw_snes(int X, int Y, int W, int bottom)
         } else {
             yy += 6;
         }
-        if (yy > bottom) return;
+        if (yy > bottom) {
+            return;
+        }
     }
 
     /* Host gamepads */
@@ -533,13 +556,19 @@ void InputView::draw_snes(int X, int Y, int W, int bottom)
     bool any = false;
     for (int i = 0; i < fz_snes_gamepad_count() && yy + lh <= bottom; i++) {
         const char* name = fz_snes_gamepad_name(i);
-        if (name == nullptr) continue;
+        if (name == nullptr) {
+            continue;
+        }
         any = true;
         const int port = fz_snes_gamepad_port(i);
         snprintf(text, sizeof(text), "%d", i);
         fl_color(COLOR_CYAN);
         fl_draw(text, X, yy + asc);
-        if (port >= 0) snprintf(text, sizeof(text), "%d", port + 1); else snprintf(text, sizeof(text), "-");
+        if (port >= 0) {
+            snprintf(text, sizeof(text), "%d", port + 1);
+        } else {
+            snprintf(text, sizeof(text), "-");
+        }
         fl_color(port >= 0 ? COLOR_TEXT : COLOR_DIM);
         fl_draw(text, X + cw * 6, yy + asc);
         fl_color(fz_snes_gamepad_available(i) ? COLOR_TEXT : COLOR_DIM);

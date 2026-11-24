@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -215,7 +215,9 @@ int keyboard_init(keyboard_t* keyboard, vtimer_t* clock, pio_t* pio)
 
 static uint8_t get_ps2_code(uint16_t keycode, uint8_t* codes)
 {
-    if (keycode >= DIM(TABLE)) return 0;
+    if (keycode >= DIM(TABLE)) {
+        return 0;
+    }
     switch (keycode) {
         case ZEAL_KEY_PAUSE: {
             codes[0] = 0xE1;
@@ -253,7 +255,9 @@ uint8_t key_pressed(keyboard_t* keyboard, uint16_t keycode)
 {
     uint8_t codes[MAX_KEYCODES];
     int n_codes = get_ps2_code(keycode, codes);
-    if (n_codes < 1) return 1;
+    if (n_codes < 1) {
+        return 1;
+    }
     for (int i = 0; i < n_codes; i++) {
         fifo_push(&keyboard->queue, codes[i]);
     }

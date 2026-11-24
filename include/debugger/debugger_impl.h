@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,6 +16,11 @@
 #define DBG_SYM_COUNT   32
 
 /* Callback types */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int  (*debugger_dis_op)(dbg_t *dbg, hwaddr address, dbg_instr_t* instr);
 typedef void (*debugger_ctrl_op)(dbg_t *dbg);
 typedef bool (*debugger_chk_op)(dbg_t *dbg);
@@ -98,33 +103,35 @@ typedef struct {
 
 /* List of array for the symbols */
 typedef struct symbols_t {
-    symbol_t        array[DBG_SYM_COUNT];
-    unsigned int    count;
-    struct symbols_t*      next;
+    symbol_t         array[DBG_SYM_COUNT];
+    unsigned int     count;
+    struct symbols_t* next;
 } symbols_t;
 
 
 struct dbg_t {
     const hw_host_t* host;
-    char ed_fmt[2][64];
-    instr_data_t ed_opcode;
-    char ixiy_fmt[sizeof("bit 0,(i%c%+d)")];
-    bool            running; // should the emulator continue running?
-    breakpoint_t    breakpoints[DBG_MAX_POINTS];
-    watchpoint_t    watchpoints[DBG_MAX_POINTS];
+    char             ed_fmt[2][64];
+    instr_data_t     ed_opcode;
+    /* Formatted indexed-opcode text, e.g. "bit 0,(ix+3)"; the array size is
+     * derived from the longest expansion of the "$c"/"%+d" placeholders. */
+    char             ixiy_fmt[sizeof("bit 0,(i%c%+d)")];
+    bool             running; // should the emulator continue running?
+    breakpoint_t     breakpoints[DBG_MAX_POINTS];
+    watchpoint_t     watchpoints[DBG_MAX_POINTS];
     /* One byte per logical address with the watchpoint_type_t bits of the
      * enabled watchpoints covering it (allocated on the first watchpoint).
      * watch_live is the map when at least one watchpoint is enabled, NULL
      * otherwise: the CPU only checks accesses when it is set. */
-    uint8_t*        watch_map;
-    const uint8_t*  watch_live;
-    uint32_t breakpoint_hits;
-    hwaddr breakpoint_hit_addr;
-    bool breakpoint_stopped;
+    uint8_t*         watch_map;
+    const uint8_t*   watch_live;
+    uint32_t         breakpoint_hits;
+    hwaddr           breakpoint_hit_addr;
+    bool             breakpoint_stopped;
     watchpoint_hit_t watch_hit;
-    bool            watch_stopped; // The machine stopped on watch_hit and did not resume
-    uint64_t        symbol_generation;
-    symbols_t       symbols;
+    bool             watch_stopped; // The machine stopped on watch_hit and did not resume
+    uint64_t         symbol_generation;
+    symbols_t        symbols;
 
     debugger_dis_op  disassemble_cb;
     debugger_ctrl_op pause_cb;
@@ -142,3 +149,7 @@ struct dbg_t {
 
     void*            arg;
 };
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -4,19 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Emulator screen: an OpenGL window that scales the 640x480 RGB565 frame
- * with nearest filtering into a letterboxed 4:3 rectangle, and that turns
- * host keyboard/pointer events into emulated keyboard and SNES mouse input. */
+/* Emulator screen: scales the RGB565 frame on the CPU with nearest-neighbour
+ * sampling into a letterboxed 4:3 rectangle, and turns host keyboard/pointer
+ * events into emulated keyboard and SNES mouse input. */
 
 #pragma once
 
 #include <cstdint>
-#include <FL/Fl_Gl_Window.H>
+#include <vector>
+#include <FL/Fl_Widget.H>
 #include "common/machine.h"
 
 namespace zui::app {
 
-class ScreenView : public Fl_Gl_Window {
+class ScreenView : public Fl_Widget {
 public:
     ScreenView(int x, int y, int w, int h);
     ~ScreenView() override;
@@ -36,12 +37,22 @@ public:
 
 private:
     void pointer_motion();
-    void reset_texture();
+    void rebuild_image(int dst_w, int dst_h);
 
     const uint16_t* m_pixels = nullptr;
     int m_frame_w = FZ_SCREEN_WIDTH;
     int m_frame_h = FZ_SCREEN_HEIGHT;
-    unsigned m_texture = 0;
+    bool m_dirty = true;
+    /* Packed RGB888 copies: the frame at its native size and the picture at
+     * the on-screen size, rebuilt only when the frame or the widget changes. */
+    std::vector<uint8_t> m_native;
+    std::vector<uint8_t> m_scaled;
+    std::vector<int> m_xmap;
+    int m_src_w = 0;
+    int m_src_h = 0;
+    int m_img_w = 0;
+    int m_img_h = 0;
+    int m_map_src_w = 0;
     bool m_locked = false;
     int m_last_x = -1;
     int m_last_y = -1;

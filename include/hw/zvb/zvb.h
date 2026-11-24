@@ -113,6 +113,11 @@
 #define STATE_COUNT         2
 
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     MODE_TEXT_640     = 0,
     MODE_TEXT_320     = 1,
@@ -239,6 +244,29 @@ static inline bool zvb_is_text_mode(const zvb_t* zvb)
     return zvb->mode == MODE_TEXT_640 || zvb->mode == MODE_TEXT_320;
 }
 
+/* 320-pixel modes render at half the horizontal resolution. */
+static inline bool zvb_is_320_mode(const zvb_t* zvb)
+{
+    return zvb->mode == MODE_TEXT_320 || zvb->mode == MODE_BITMAP_320 ||
+           zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT;
+}
+
+/* Modes using 4-bit palette indices out of the tileset. */
+static inline bool zvb_is_4bit_mode(const zvb_t* zvb)
+{
+    return zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT;
+}
+
+static inline int zvb_screen_width(const zvb_t* zvb)
+{
+    return zvb_is_320_mode(zvb) ? 320 : 640;
+}
+
+static inline int zvb_screen_height(const zvb_t* zvb)
+{
+    return zvb_is_320_mode(zvb) ? 240 : 480;
+}
+
 /**
  * @brief Initialize the video board
  *
@@ -288,7 +316,8 @@ bool zvb_scanline_rendering_requested(const zvb_t* zvb);
 void zvb_deinit(zvb_t* zvb);
 
 
-/** Borrowed native-resolution pixels, valid until the next mutating call. */
+/** Native-resolution pixels owned by the ZVB; valid until the next mutating
+ * call. */
 static inline zvb_frame_t zvb_frame(const zvb_t* zvb)
 {
     return (zvb_frame_t){zvb->blitter.framebuffer, zvb->blitter.width,
@@ -299,3 +328,7 @@ static inline zvb_frame_t zvb_frame(const zvb_t* zvb)
  * reported byte stride even at 320px width. The view is updated by execution
  * or an explicit paused refresh; retrieving it has no hardware side effects. */
 int zvb_set_frame_output(zvb_t*, bool enabled);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

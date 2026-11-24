@@ -21,12 +21,9 @@
 
 namespace zui::debugger {
 
-using namespace zui::memtools;
 using namespace zui::common;
 
-namespace {
-
-std::string trim(const std::string& s)
+static std::string trim(const std::string& s)
 {
     size_t b = 0, e = s.size();
     while (b < e && isspace((unsigned char) s[b])) b++;
@@ -35,7 +32,7 @@ std::string trim(const std::string& s)
 }
 
 /** Offset: hex by default ($/0x prefixes accepted), decimal with '#'. */
-bool parse_offset(const std::string& text, long* out)
+static bool parse_offset(const std::string& text, long* out)
 {
     std::string s = trim(text);
     int base = 16;
@@ -48,24 +45,30 @@ bool parse_offset(const std::string& text, long* out)
     } else if (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
         i = 2;
     }
-    if (i >= s.size()) return false;
+    if (i >= s.size()) {
+        return false;
+    }
     char* end = nullptr;
     const long v = strtol(s.c_str() + i, &end, base);
-    if (end == s.c_str() + i || *end != '\0') return false;
+    if (end == s.c_str() + i || *end != '\0') {
+        return false;
+    }
     *out = v;
     return true;
 }
 
-void read_mem(hwaddr addr, int len, uint8_t* out)
+static void read_mem(hwaddr addr, int len, uint8_t* out)
 {
     addr &= 0xFFFF;
     int first = 0x10000 - (int) addr;
-    if (first > len) first = len;
+    if (first > len) {
+        first = len;
+    }
     debugger_read_memory(fz_debugger(), addr, first, out);
-    if (first < len) debugger_read_memory(fz_debugger(), 0, len - first, out + first);
+    if (first < len) {
+        debugger_read_memory(fz_debugger(), 0, len - first, out + first);
+    }
 }
-
-} // namespace
 
 const TypeInfo WATCH_TYPES[W_COUNT] = {
     { "u8", "u8", "u8   unsigned byte" },
@@ -90,7 +93,9 @@ std::vector<Watch>& watches()
 bool eval_expr(const std::string& text, const regs_t& regs, hwaddr* out, int depth)
 {
     const std::string e = trim(text);
-    if (e.empty() || depth > 3) return false;
+    if (e.empty() || depth > 3) {
+        return false;
+    }
 
     if (e.front() == '(' && e.back() == ')') {
         const std::string in = trim(e.substr(1, e.size() - 2));
@@ -104,20 +109,30 @@ bool eval_expr(const std::string& text, const regs_t& regs, hwaddr* out, int dep
             { "SP", regs.sp }, { "IX", regs.ix }, { "IY", regs.iy },
         };
         for (const auto& r : regs16) {
-            if (up.compare(0, 2, r.name) != 0) continue;
+            if (up.compare(0, 2, r.name) != 0) {
+                continue;
+            }
             const std::string rest = trim(in.substr(2));
             long off = 0;
             if (!rest.empty()) {
-                if (rest[0] != '+' && rest[0] != '-') break; /* not a register */
-                if (!parse_offset(rest.substr(1), &off)) return false;
-                if (rest[0] == '-') off = -off;
+                if (rest[0] != '+' && rest[0] != '-') {
+                    break; /* not a register */
+                }
+                if (!parse_offset(rest.substr(1), &off)) {
+                    return false;
+                }
+                if (rest[0] == '-') {
+                    off = -off;
+                }
             }
             *out = (hwaddr) ((r.value + off) & 0xFFFF);
             return true;
         }
         /* Memory indirection: the little-endian word stored at the inner address */
         hwaddr ptr;
-        if (!eval_expr(in, regs, &ptr, depth + 1)) return false;
+        if (!eval_expr(in, regs, &ptr, depth + 1)) {
+            return false;
+        }
         uint8_t b[2];
         read_mem(ptr, 2, b);
         *out = (hwaddr) (b[0] | (b[1] << 8));
@@ -130,11 +145,19 @@ bool eval_expr(const std::string& text, const regs_t& regs, hwaddr* out, int dep
         return true;
     }
     const size_t pos = e.find_last_of("+-");
-    if (pos == std::string::npos || pos == 0) return false;
+    if (pos == std::string::npos || pos == 0) {
+        return false;
+    }
     long off;
-    if (!parse_offset(e.substr(pos + 1), &off)) return false;
-    if (!eval_expr(e.substr(0, pos), regs, &addr, depth + 1)) return false;
-    if (e[pos] == '-') off = -off;
+    if (!parse_offset(e.substr(pos + 1), &off)) {
+        return false;
+    }
+    if (!eval_expr(e.substr(0, pos), regs, &addr, depth + 1)) {
+        return false;
+    }
+    if (e[pos] == '-') {
+        off = -off;
+    }
     *out = (hwaddr) ((addr + off) & 0xFFFF);
     return true;
 }
@@ -239,13 +262,19 @@ void format(const Watch& w, char* hex, size_t hs, char* dec, size_t ds)
         }
         case W_STR: {
             size_t o = 0;
-            if (o + 1 < hs) hex[o++] = '"';
+            if (o + 1 < hs) {
+                hex[o++] = '"';
+            }
             for (int i = 0; i < w.n && o + 2 < hs; i++) {
                 const uint8_t c = w.cur[i];
-                if (c == 0) break; /* C string terminator */
+                if (c == 0) {
+                    break; /* C string terminator */
+                }
                 hex[o++] = (c >= 0x20 && c < 0x7F) ? (char) c : '.';
             }
-            if (o + 1 < hs) hex[o++] = '"';
+            if (o + 1 < hs) {
+                hex[o++] = '"';
+            }
             hex[o] = '\0';
             break;
         }
@@ -267,7 +296,9 @@ bool watch_add_at(hwaddr addr, int type, int len)
     hex16(hex, sizeof(hex), addr);
     w.expr = sym && strlen(sym) <= (size_t) MAX_EXPR && !strchr(sym, '|') ? sym : std::string("$") + hex;
     w.type = type >= 0 && type < W_COUNT ? type : W_U8;
-    if (len >= 1 && len <= MAX_STR) w.len = len;
+    if (len >= 1 && len <= MAX_STR) {
+        w.len = len;
+    }
     list.push_back(w);
     notif_show("Watching %s as %s", w.expr.c_str(), WATCH_TYPES[w.type].tag);
     request_refresh();

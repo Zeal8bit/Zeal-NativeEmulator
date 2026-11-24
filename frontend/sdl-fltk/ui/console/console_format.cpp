@@ -54,7 +54,9 @@ std::string all_text(bool time)
     const int count = fz_console_count();
     for (int i = 0; i < count; i++) {
         fz_console_line_t line;
-        if (!fz_console_line(first + (uint64_t) i, &line)) continue;
+        if (!fz_console_line(first + (uint64_t) i, &line)) {
+            continue;
+        }
         s += line_text(line, time);
         s += '\n';
     }

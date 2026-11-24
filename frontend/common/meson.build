@@ -9,3 +9,6 @@ common_sources = files(
 if debugger_api
     common_sources += files('symbols.c')
 endif
+
+# SDL3 playback shared by the graphical frontends.
+common_audio_sources = files('audio.c')

@@ -35,14 +35,20 @@ void fz_pause_on_reset_set(bool pause)
 
 void fz_reset(void)
 {
-    if (fltk_machine == NULL) return;
-    if (fltk_debug_reset(fltk_machine, s_pause_on_reset)) return;
+    if (fltk_machine == NULL) {
+        return;
+    }
+    if (fltk_debug_reset(fltk_machine, s_pause_on_reset)) {
+        return;
+    }
     zeal_reset(fltk_machine);
 }
 
 void fz_quit(void)
 {
-    if (fltk_machine == NULL) return;
+    if (fltk_machine == NULL) {
+        return;
+    }
     fltk_machine->should_exit = true;
 }
 
@@ -62,8 +68,12 @@ int fz_volume(void)
 
 void fz_volume_set(int percent)
 {
-    if (percent < 0) percent = 0;
-    if (percent > 100) percent = 100;
+    if (percent < 0) {
+        percent = 0;
+    }
+    if (percent > 100) {
+        percent = 100;
+    }
     config.audio.volume = percent;
     apply_gain();
 }
@@ -104,7 +114,9 @@ bool fz_scanline(void)
 void fz_scanline_set(bool enabled)
 {
 #if ZVB_SCANLINE_RENDERING
-    if (fltk_machine) zvb_set_scanline_rendering(&fltk_machine->zvb, enabled);
+    if (fltk_machine) {
+        zvb_set_scanline_rendering(&fltk_machine->zvb, enabled);
+    }
 #else
     (void) enabled;
 #endif
@@ -112,20 +124,32 @@ void fz_scanline_set(bool enabled)
 
 fz_video_mode_t fz_video_mode(void)
 {
-    if (fltk_machine == NULL) return FZ_VIDEO_TEXT;
+    if (fltk_machine == NULL) {
+        return FZ_VIDEO_TEXT;
+    }
     const zvb_t* zvb = &fltk_machine->zvb;
-    if (zvb_is_bitmap_mode(zvb)) return FZ_VIDEO_BITMAP;
-    if (zvb_is_gfx_mode(zvb)) return FZ_VIDEO_GFX;
+    if (zvb_is_bitmap_mode(zvb)) {
+        return FZ_VIDEO_BITMAP;
+    }
+    if (zvb_is_gfx_mode(zvb)) {
+        return FZ_VIDEO_GFX;
+    }
     return FZ_VIDEO_TEXT;
 }
 
 bool fz_gfx_screen(int* width, int* height)
 {
-    if (fltk_machine == NULL || !zvb_is_gfx_mode(&fltk_machine->zvb)) return false;
+    if (fltk_machine == NULL || !zvb_is_gfx_mode(&fltk_machine->zvb)) {
+        return false;
+    }
     const int mode = fltk_machine->zvb.mode;
     const bool mode_320 = mode == MODE_GFX_320_8BIT || mode == MODE_GFX_320_4BIT;
-    if (width) *width = mode_320 ? 320 : 640;
-    if (height) *height = mode_320 ? 240 : 480;
+    if (width) {
+        *width = mode_320 ? 320 : 640;
+    }
+    if (height) {
+        *height = mode_320 ? 240 : 480;
+    }
     return true;
 }
 
@@ -145,37 +169,49 @@ bool fz_snes_gamepad_available(int index)
 
 const char* fz_snes_gamepad_name(int index)
 {
-    if (index < 0 || index >= SNES_GAMEPAD_COUNT) return NULL;
+    if (index < 0 || index >= SNES_GAMEPAD_COUNT) {
+        return NULL;
+    }
     return snes_controller_name((uint8_t) index);
 }
 
 int fz_snes_gamepad_port(int index)
 {
-    if (index < 0 || index >= SNES_GAMEPAD_COUNT || frontend_snes.core == NULL) return SNES_PORT_DETACHED;
+    if (index < 0 || index >= SNES_GAMEPAD_COUNT || frontend_snes.core == NULL) {
+        return SNES_PORT_DETACHED;
+    }
     return snes_adapter_get_controller_port(&frontend_snes, (uint8_t) index);
 }
 
 void fz_snes_gamepad_set_port(int index, int port)
 {
-    if (index < 0 || index >= SNES_GAMEPAD_COUNT || frontend_snes.core == NULL) return;
+    if (index < 0 || index >= SNES_GAMEPAD_COUNT || frontend_snes.core == NULL) {
+        return;
+    }
     snes_adapter_set_controller_port(&frontend_snes, (uint8_t) index, port);
 }
 
 int fz_snes_mouse_port(void)
 {
-    if (frontend_snes.core == NULL) return SNES_PORT_DETACHED;
+    if (frontend_snes.core == NULL) {
+        return SNES_PORT_DETACHED;
+    }
     return snes_adapter_get_mouse_port(&frontend_snes);
 }
 
 void fz_snes_mouse_set_port(int port)
 {
-    if (frontend_snes.core == NULL) return;
+    if (frontend_snes.core == NULL) {
+        return;
+    }
     snes_adapter_set_mouse_port(&frontend_snes, port);
 }
 
 void fz_snes_mouse_reset_scale(void)
 {
-    if (frontend_snes.core == NULL) return;
+    if (frontend_snes.core == NULL) {
+        return;
+    }
     snes_adapter_reset_mouse_scale(&frontend_snes);
 }
 
@@ -190,7 +226,9 @@ int fz_semihost_counter_count(void)
 
 bool fz_semihost_counter(int index, fz_counter_t* out)
 {
-    if (fltk_machine == NULL || out == NULL || index < 0 || index >= SEMIHOST_MAX_COUNTERS) return false;
+    if (fltk_machine == NULL || out == NULL || index < 0 || index >= SEMIHOST_MAX_COUNTERS) {
+        return false;
+    }
     const semihost_t* semihost = &fltk_machine->semihost;
     const semihost_counter_t* counter = &semihost->counters[index];
 
@@ -210,7 +248,9 @@ bool fz_semihost_counter(int index, fz_counter_t* out)
 
 void fz_semihost_toggle_break(int index)
 {
-    if (fltk_machine == NULL || index < 0 || index >= SEMIHOST_MAX_COUNTERS) return;
+    if (fltk_machine == NULL || index < 0 || index >= SEMIHOST_MAX_COUNTERS) {
+        return;
+    }
     semihost_counter_t* counter = &fltk_machine->semihost.counters[index];
     counter->break_on_update = !counter->break_on_update;
 }

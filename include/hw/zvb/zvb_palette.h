@@ -13,6 +13,11 @@
 #define ZVB_COLOR_PALETTE_COUNT     (256)
 
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     /* Raw array representing the colors in VRAM, each color is 2 bytes big */
     uint8_t raw_palette[ZVB_COLOR_PALETTE_COUNT * 2];
@@ -40,3 +45,7 @@ void zvb_palette_write(zvb_palette_t* pal, uint32_t addr, uint8_t data);
  * @brief Function to call when a read occurs on the Palette memory area.
  */
 uint8_t zvb_palette_read(zvb_palette_t* pal, uint32_t addr);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

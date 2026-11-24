@@ -1,6 +1,7 @@
 # Emscripten integration and browser output belong to this frontend.
 wasm_sources = files('main.c', 'frontend.c', 'hostfs.c', 'audio.c',
     'controller.c', 'mouse.c', 'notif.c', 'snes_adapter.c', 'video.c')
+wasm_sources += common_audio_sources
 wasm_args = ['-D_DEFAULT_SOURCE', '--use-port=sdl3']
 if get_option('show_fps')
     wasm_args += '-DCONFIG_SHOW_FPS=1'

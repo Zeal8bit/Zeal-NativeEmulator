@@ -27,13 +27,8 @@ namespace zui::memtools {
 
 using namespace zui::app;
 using namespace zui::theme;
-using namespace zui::widgets;
 
-namespace {
-
-ChangeSearchWindow* s_change_window;
-
-} // namespace
+static ChangeSearchWindow* s_change_window;
 
 ChangeSearchWindow::ChangeSearchWindow()
     : Fl_Double_Window(W, H, "Changed Bytes")
@@ -86,8 +81,11 @@ ChangeSearchWindow::ChangeSearchWindow()
 
 void ChangeSearchWindow::paused()
 {
-    if (m_search.active() && m_auto->value()) apply();
-    else update();
+    if (m_search.active() && m_auto->value()) {
+        apply();
+    } else {
+        update();
+    }
 }
 
 void ChangeSearchWindow::draw()
@@ -111,7 +109,7 @@ void ChangeSearchWindow::apply()
 {
     const uint8_t* prev = nullptr;
     const uint8_t* cur = nullptr;
-    if (!m_source.get || !m_source.get(&prev, &cur)) {
+    if (m_source.get == nullptr || !m_source.get(&prev, &cur)) {
         status("No pause snapshot yet: pause the machine first.", COLOR_BREAK);
         return;
     }
@@ -148,8 +146,11 @@ void ChangeSearchWindow::update()
 
 void ChangeSearchWindow::update_filter()
 {
-    if ((Filter) m_filter->value() == Filter::Equal) m_value->activate();
-    else m_value->deactivate();
+    if ((Filter) m_filter->value() == Filter::Equal) {
+        m_value->activate();
+    } else {
+        m_value->deactivate();
+    }
 }
 
 void ChangeSearchWindow::status(const char* text, Fl_Color c)
@@ -184,14 +185,18 @@ void change_search_show(const SnapshotSource& source)
         s_change_window = new ChangeSearchWindow();
         s_change_window->source(source);
         MainWindow* mw = main_window();
-        if (mw && mw->shown()) s_change_window->position(mw->x() + 40, mw->y() + 80);
+        if (mw && mw->shown()) {
+            s_change_window->position(mw->x() + 40, mw->y() + 80);
+        }
     }
     s_change_window->show();
 }
 
 void change_search_paused()
 {
-    if (s_change_window) s_change_window->paused();
+    if (s_change_window) {
+        s_change_window->paused();
+    }
 }
 
 void change_search_destroy()

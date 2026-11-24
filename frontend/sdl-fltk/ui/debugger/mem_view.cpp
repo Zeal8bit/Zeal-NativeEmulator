@@ -33,7 +33,6 @@
 namespace zui::debugger {
 
 using namespace zui::common;
-using namespace zui::memtools;
 using namespace zui::theme;
 
 MemView::MemView(int X, int Y, int W, int H, Fl_Scrollbar* bar)
@@ -57,13 +56,17 @@ void MemView::go(hwaddr addr, bool select, bool extend)
     addr &= 0xFFFF;
     if (select) {
         m_sel = (int) addr;
-        if (!extend || m_anchor < 0) m_anchor = m_sel;
+        if (!extend || m_anchor < 0) {
+            m_anchor = m_sel;
+        }
         m_nibble = -1;
         selection_changed();
     }
     const int row = (int) addr / COLS;
     const int rows = visible_rows();
-    if (row < m_top || row >= m_top + rows - 1) m_top = row - (select ? 0 : rows / 3);
+    if (row < m_top || row >= m_top + rows - 1) {
+        m_top = row - (select ? 0 : rows / 3);
+    }
     clamp_top();
     sync_bar();
     redraw();
@@ -75,7 +78,9 @@ void MemView::select_range(int lo, int hi)
     m_sel = hi & 0xFFFF;
     m_nibble = -1;
     const int rows = visible_rows();
-    if (lo / COLS < m_top || hi / COLS >= m_top + rows - 1) m_top = lo / COLS - rows / 3;
+    if (lo / COLS < m_top || hi / COLS >= m_top + rows - 1) {
+        m_top = lo / COLS - rows / 3;
+    }
     clamp_top();
     sync_bar();
     selection_changed();
@@ -90,7 +95,9 @@ void MemView::highlight(const memtools::Pattern& p)
 
 void MemView::snapshot()
 {
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     m_prev.swap(m_snapshot);
     debugger_read_memory(fz_debugger(), 0, 0x10000, m_snapshot.data());
     m_have_prev = m_have_snapshot;
@@ -99,7 +106,9 @@ void MemView::snapshot()
 
 bool MemView::snapshots(const uint8_t** prev, const uint8_t** cur) const
 {
-    if (!m_have_snapshot) return false;
+    if (!m_have_snapshot) {
+        return false;
+    }
     *prev = m_have_prev ? m_prev.data() : nullptr;
     *cur = m_snapshot.data();
     return true;
@@ -107,7 +116,9 @@ bool MemView::snapshots(const uint8_t** prev, const uint8_t** cur) const
 
 bool MemView::write(unsigned addr, const std::vector<uint8_t>& data)
 {
-    if (!dbg_ready() || data.empty() || addr >= 0x10000 || data.size() > 0x10000 - addr) return false;
+    if (!dbg_ready() || data.empty() || addr >= 0x10000 || data.size() > 0x10000 - addr) {
+        return false;
+    }
     std::vector<uint8_t> copy(data);
     debugger_write_memory(fz_debugger(), (hwaddr) addr, (int) copy.size(), copy.data());
     debugger_read_memory(fz_debugger(), addr, (int) copy.size(), &m_snapshot[addr]);
@@ -146,10 +157,16 @@ void MemView::draw()
     const int count_rows = rows < 128 ? rows : 128;
     const int start = m_top * COLS;
     int len = count_rows * COLS;
-    if (start + len > 0x10000) len = 0x10000 - start;
-    if (len > 0) debugger_read_memory(fz_debugger(), (hwaddr) start, len, mem);
+    if (start + len > 0x10000) {
+        len = 0x10000 - start;
+    }
+    if (len > 0) {
+        debugger_read_memory(fz_debugger(), (hwaddr) start, len, mem);
+    }
     bool match[COLS * 128] = {};
-    if (len > 0) mark_matches(start, len, match);
+    if (len > 0) {
+        mark_matches(start, len, match);
+    }
 
     /* Faint guides every 4 bytes */
     fl_color(COLOR_BG);
@@ -163,7 +180,9 @@ void MemView::draw()
     const bool range = m_sel >= 0 && hi > lo;
     for (int r = 0; r < count_rows; r++) {
         const int row_addr = start + r * COLS;
-        if (row_addr >= 0x10000) break;
+        if (row_addr >= 0x10000) {
+            break;
+        }
         const int yy = y() + 2 + r * lh;
         hex16(buf, sizeof(buf), (unsigned) row_addr);
         fl_color(COLOR_CYAN);
@@ -261,7 +280,9 @@ int MemView::handle(int event)
             take_focus();
             const int a = addr_at(Fl::event_x(), Fl::event_y());
             m_dragging = false;
-            if (a < 0) return 1;
+            if (a < 0) {
+                return 1;
+            }
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 if (m_sel < 0 || a < sel_lo() || a > sel_hi()) {
                     m_sel = m_anchor = a;
@@ -273,7 +294,9 @@ int MemView::handle(int event)
                 return 1;
             }
             m_sel = a;
-            if (!(Fl::event_state() & FL_SHIFT) || m_anchor < 0) m_anchor = a;
+            if (!(Fl::event_state() & FL_SHIFT) || m_anchor < 0) {
+                m_anchor = a;
+            }
             m_nibble = -1;
             m_dragging = Fl::event_button() == FL_LEFT_MOUSE;
             selection_changed();
@@ -281,7 +304,9 @@ int MemView::handle(int event)
             return 1;
         }
         case FL_DRAG: {
-            if (!m_dragging) return 1;
+            if (!m_dragging) {
+                return 1;
+            }
             /* Past the top/bottom edge: scroll one row and extend */
             if (Fl::event_y() < y() || Fl::event_y() >= y() + h()) {
                 scroll_to_row(m_top + (Fl::event_y() < y() ? -1 : 1));
@@ -336,7 +361,9 @@ void MemView::geometry(int cw)
 
 void MemView::selection_changed()
 {
-    if (on_selection) on_selection();
+    if (on_selection) {
+        on_selection();
+    }
 }
 
 void MemView::glyph(uint8_t b, char* ch) const
@@ -356,15 +383,21 @@ void MemView::mark_matches(int start, int len, bool* out)
     const int n = m_find.size();
     bool any = false;
     for (uint8_t m : m_find.mask) any = any || m;
-    if (n == 0 || !any) return;
+    if (n == 0 || !any) {
+        return;
+    }
     const int lo = start - (n - 1) < 0 ? 0 : start - (n - 1);
     const int hi = start + len + (n - 1) > 0x10000 ? 0x10000 : start + len + (n - 1);
     std::vector<uint8_t> buf((size_t) (hi - lo));
     debugger_read_memory(fz_debugger(), (hwaddr) lo, hi - lo, buf.data());
     for (int a = lo; a + n <= hi; a++) {
-        if (!m_find.matches(&buf[(size_t) (a - lo)])) continue;
+        if (!m_find.matches(&buf[(size_t) (a - lo)])) {
+            continue;
+        }
         for (int i = a; i < a + n; i++) {
-            if (i >= start && i < start + len) out[i - start] = true;
+            if (i >= start && i < start + len) {
+                out[i - start] = true;
+            }
         }
     }
 }
@@ -372,7 +405,9 @@ void MemView::mark_matches(int start, int len, bool* out)
 std::vector<uint8_t> MemView::selected_bytes() const
 {
     std::vector<uint8_t> data((size_t) sel_len());
-    if (!data.empty()) debugger_read_memory(fz_debugger(), (hwaddr) sel_lo(), (int) data.size(), data.data());
+    if (!data.empty()) {
+        debugger_read_memory(fz_debugger(), (hwaddr) sel_lo(), (int) data.size(), data.data());
+    }
     return data;
 }
 
@@ -387,7 +422,9 @@ void MemView::copy_hex() const
     char b[8];
     for (uint8_t v : selected_bytes()) {
         hex8(b, sizeof(b), v);
-        if (!text.empty()) text += ' ';
+        if (!text.empty()) {
+            text += ' ';
+        }
         text += b;
     }
     copy_text(text);
@@ -435,7 +472,9 @@ void MemView::context_menu()
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     const memtools::Writer writer = [this](unsigned addr, const std::vector<uint8_t>& data) {
         return write(addr, data);
     };
@@ -459,10 +498,14 @@ void MemView::context_menu()
             break;
         }
         case 3:
-            if (on_find) on_find();
+            if (on_find) {
+                on_find();
+            }
             break;
         case 4:
-            if (on_changes) on_changes();
+            if (on_changes) {
+                on_changes();
+            }
             break;
         case 5:
             memtools::fill_dialog((unsigned) lo, (unsigned) hi, writer);
@@ -475,7 +518,9 @@ void MemView::context_menu()
             break;
         case 8: {
             unsigned addr;
-            if (memtools::address_dialog("GO TO ADDRESS", (unsigned) lo, &addr) && on_goto) on_goto((hwaddr) addr);
+            if (memtools::address_dialog("GO TO ADDRESS", (unsigned) lo, &addr) && on_goto) {
+                on_goto((hwaddr) addr);
+            }
             break;
         }
         case 9:
@@ -514,14 +559,22 @@ int MemView::addr_at(int ex, int ey)
     const int lh = data_line_height();
     geometry(char_width());
     const int r = (ey - y() - 2) / lh;
-    if (ey < y() + 2 || r >= visible_rows()) return -1;
+    if (ey < y() + 2 || r >= visible_rows()) {
+        return -1;
+    }
     int c = -1;
     for (int i = 0; i < COLS; i++) {
         const int hx = m_hex_x + hex_offset(i);
-        if (ex >= hx - 2 && ex < hx + m_cw * 2 + 2) c = i;
-        if (ex >= m_ascii_x + i * m_cw && ex < m_ascii_x + (i + 1) * m_cw) c = i;
+        if (ex >= hx - 2 && ex < hx + m_cw * 2 + 2) {
+            c = i;
+        }
+        if (ex >= m_ascii_x + i * m_cw && ex < m_ascii_x + (i + 1) * m_cw) {
+            c = i;
+        }
     }
-    if (c < 0) return -1;
+    if (c < 0) {
+        return -1;
+    }
     const int a = (m_top + r) * COLS + c;
     return a < 0x10000 ? a : -1;
 }
@@ -531,7 +584,9 @@ int MemView::key(int k, const char* text)
     const int state = Fl::event_state();
     if (state & FL_COMMAND) {
         if (k == 'f') {
-            if (on_find) on_find();
+            if (on_find) {
+                on_find();
+            }
             return 1;
         }
         if (k == 'c' && m_sel >= 0) {
@@ -540,7 +595,9 @@ int MemView::key(int k, const char* text)
         }
         return 0;
     }
-    if (m_sel < 0) return 0;
+    if (m_sel < 0) {
+        return 0;
+    }
     int move = 0;
     switch (k) {
         case FL_Left:  move = -1; break;
@@ -561,12 +618,18 @@ int MemView::key(int k, const char* text)
     }
     if (move) {
         int a = m_sel + move;
-        if (a < 0) a = 0;
-        if (a > 0xFFFF) a = 0xFFFF;
+        if (a < 0) {
+            a = 0;
+        }
+        if (a > 0xFFFF) {
+            a = 0xFFFF;
+        }
         go((hwaddr) a, true, (state & FL_SHIFT) != 0);
         return 1;
     }
-    if (state & (FL_CTRL | FL_ALT | FL_META)) return 0;
+    if (state & (FL_CTRL | FL_ALT | FL_META)) {
+        return 0;
+    }
     if (text && isxdigit((unsigned char) text[0]) && text[1] == '\0') {
         const int d = isdigit((unsigned char) text[0]) ? text[0] - '0' : (tolower(text[0]) - 'a' + 10);
         if (m_nibble < 0) {
@@ -576,7 +639,9 @@ int MemView::key(int k, const char* text)
             debugger_write_memory(fz_debugger(), (hwaddr) m_sel, 1, &value);
             m_snapshot[m_sel] = value;
             m_nibble = -1;
-            if (m_sel < 0xFFFF) go((hwaddr) (m_sel + 1));
+            if (m_sel < 0xFFFF) {
+                go((hwaddr) (m_sel + 1));
+            }
             request_refresh();
         }
         redraw();
@@ -588,8 +653,12 @@ int MemView::key(int k, const char* text)
 void MemView::clamp_top()
 {
     const int rows = visible_rows();
-    if (m_top > ROWS_TOTAL - rows) m_top = ROWS_TOTAL - rows;
-    if (m_top < 0) m_top = 0;
+    if (m_top > ROWS_TOTAL - rows) {
+        m_top = ROWS_TOTAL - rows;
+    }
+    if (m_top < 0) {
+        m_top = 0;
+    }
 }
 
 } // namespace zui::debugger

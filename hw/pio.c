@@ -88,7 +88,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
             }
             if (listener_change->callback != NULL && formerBit != bit && listener_change->state == bit) {
                 /* Parameters(pin, value) */
-                listener_change->callback(pio, pin, bit);
+                listener_change->callback(listener_change->arg, pio, pin, bit);
             }
         }
     }
@@ -218,13 +218,14 @@ static void pio_listen_pin(port_t* port, uint8_t pin, pio_listener_callback cb, 
     };
 }
 
-void pio_listen_pin_change(port_t* port, uint8_t pin, uint8_t state, pio_listener_change_callback cb)
+void pio_listen_pin_change(port_t* port, uint8_t pin, uint8_t state, pio_listener_change_callback cb, void* arg)
 {
     if (/*pin < 0 || */ pin > 7 || (cb != NULL && port->listeners_change[pin].callback)) {
         return;
     }
     port->listeners_change[pin].callback = cb;
     port->listeners_change[pin].state    = state;
+    port->listeners_change[pin].arg      = cb ? arg : NULL;
 }
 
 void pio_listen_a_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb, void* arg)
@@ -237,14 +238,14 @@ void pio_listen_b_pin(pio_t *pio, uint8_t pin, pio_listener_callback cb, void* a
     pio_listen_pin(&pio->port_b, pin, cb, arg);
 }
 
-void pio_listen_a_pin_change(pio_t *pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb)
+void pio_listen_a_pin_change(pio_t *pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb, void* arg)
 {
-    pio_listen_pin_change(&pio->port_a, pin, state, cb);
+    pio_listen_pin_change(&pio->port_a, pin, state, cb, arg);
 }
 
-void pio_listen_b_pin_change(pio_t *pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb)
+void pio_listen_b_pin_change(pio_t *pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb, void* arg)
 {
-    pio_listen_pin_change(&pio->port_b, pin, state, cb);
+    pio_listen_pin_change(&pio->port_b, pin, state, cb, arg);
 }
 
 void pio_unlisten_pin(port_t* port, uint8_t pin)
@@ -265,10 +266,10 @@ void pio_unlisten_b_pin(pio_t *pio, uint8_t pin)
 
 void pio_unlisten_a_pin_change(pio_t *pio, uint8_t pin)
 {
-    pio_listen_pin_change(&pio->port_a, pin, 0, NULL);
+    pio_listen_pin_change(&pio->port_a, pin, 0, NULL, NULL);
 }
 
 void pio_unlisten_b_pin_change(pio_t *pio, uint8_t pin)
 {
-    pio_listen_pin_change(&pio->port_b, pin, 0, NULL);
+    pio_listen_pin_change(&pio->port_b, pin, 0, NULL, NULL);
 }

@@ -1,17 +1,20 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "hw/userport/snes_adapter.h"
-#include "hw/zeal.h"
 
 static uint8_t snes_adapter_data_pin(uint8_t port)
 {
     return port == 0 ? SNES_IO_DATA_1 : SNES_IO_DATA_2;
 }
 
-static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
+static void snes_adapter_clock(void* userdata, pio_t* pio, uint8_t pin, uint8_t bit)
 {
     (void)pin;
     (void)bit;
-    snes_adapter_t* adapter = &((zeal_t*) pio->machine)->snes_adapter;
+    snes_adapter_t* adapter = userdata;
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (!adapter->attached[port]) {
             /* Simulate a pull-up resistor on a detached port. */
@@ -22,21 +25,27 @@ static void snes_adapter_clock(pio_t* pio, uint8_t pin, uint8_t bit)
         adapter->port_bits[port] |= 0x80000000;
         pio_set_a_pin(pio, snes_adapter_data_pin(port), adapter->port_bits[port] & 1);
     }
-    if (adapter->trace) adapter->trace(adapter->userdata, false, adapter->port_bits);
+    if (adapter->trace) {
+        adapter->trace(adapter->userdata, false, adapter->port_bits);
+    }
 }
 
-static void snes_adapter_latch(pio_t* pio, uint8_t pin, uint8_t bit)
+static void snes_adapter_latch(void* userdata, pio_t* pio, uint8_t pin, uint8_t bit)
 {
     (void)pin;
     (void)bit;
-    snes_adapter_t* adapter = &((zeal_t*) pio->machine)->snes_adapter;
-    if (adapter->sample) adapter->sample(adapter->userdata, adapter->port_bits, adapter->attached);
+    snes_adapter_t* adapter = userdata;
+    if (adapter->sample) {
+        adapter->sample(adapter->userdata, adapter->port_bits, adapter->attached);
+    }
     for (uint8_t port = 0; port < SNES_CONTROLLER_COUNT; port++) {
         if (adapter->attached[port]) {
             pio_set_a_pin(pio, snes_adapter_data_pin(port), adapter->port_bits[port] & 1);
         }
     }
-    if (adapter->trace) adapter->trace(adapter->userdata, true, adapter->port_bits);
+    if (adapter->trace) {
+        adapter->trace(adapter->userdata, true, adapter->port_bits);
+    }
 }
 
 int snes_adapter_init(snes_adapter_t* adapter, pio_t* pio)
@@ -46,8 +55,8 @@ int snes_adapter_init(snes_adapter_t* adapter, pio_t* pio)
         adapter->port_bits[i] = 0xffff;
     }
     /* Listeners are shared for both ports; registering again is safe. */
-    pio_listen_a_pin_change(pio, SNES_IO_LATCH, 1, snes_adapter_latch);
-    pio_listen_a_pin_change(pio, SNES_IO_CLOCK, 1, snes_adapter_clock);
+    pio_listen_a_pin_change(pio, SNES_IO_LATCH, 1, snes_adapter_latch, adapter);
+    pio_listen_a_pin_change(pio, SNES_IO_CLOCK, 1, snes_adapter_clock, adapter);
     return 0;
 }
 

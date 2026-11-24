@@ -19,7 +19,9 @@ unsigned fz_trace_capacity(void)
 
 unsigned fz_trace_snapshot(zeal_trace_entry_t* out, unsigned max)
 {
-    if (fltk_machine == NULL || out == NULL) return 0;
+    if (fltk_machine == NULL || out == NULL) {
+        return 0;
+    }
     unsigned n = 0;
     while (n < max && zeal_trace_get(fltk_machine, n, &out[n])) n++;
     return n;
@@ -47,7 +49,9 @@ void fz_trace_set_enabled(bool enabled)
 
 int fz_trace_disassemble(const zeal_trace_entry_t* entry, dbg_instr_t* instr)
 {
-    if (fltk_machine == NULL || entry == NULL || instr == NULL) return -1;
+    if (fltk_machine == NULL || entry == NULL || instr == NULL) {
+        return -1;
+    }
     memset(instr, 0, sizeof(*instr));
     dbg_t* dbg = &fltk_machine->dbg;
     const int size = zeal_debugger_disassemble_bytes(dbg, (uint16_t) (entry->pc + entry->skipped_prefixes), entry->bytes, instr);

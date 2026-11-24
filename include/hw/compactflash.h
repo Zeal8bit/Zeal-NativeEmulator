@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,6 +11,11 @@
 #include <stddef.h>
 #include <hw/device.h>
 
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
      IDE_STAT_BUSY = 7,
@@ -78,8 +83,9 @@ typedef struct {
     size_t      size; // in bytes
 
     // CompactFlash specific
-    /* Borrowed synchronous backend. Each transfer spans 512 bytes at a byte
-     * offset; false sets failed and terminates execution at this instruction. */
+    /* Sector backend supplied by the frontend and called synchronously. Each
+     * transfer spans 512 bytes at a byte offset; returning false marks the
+     * device failed, which stops the machine after the current instruction. */
     void* userdata;
     bool (*read_sector)(void*, uint64_t offset, uint8_t* data);
     bool (*write_sector)(void*, uint64_t offset, const uint8_t* data);
@@ -96,3 +102,7 @@ typedef struct {
 } compactflash_t;
 
 int compactflash_init(compactflash_t* compactflash, size_t total_sectors);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

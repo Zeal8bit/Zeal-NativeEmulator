@@ -29,11 +29,7 @@ using namespace zui::common;
 using namespace zui::theme;
 using namespace zui::widgets;
 
-namespace {
-
 constexpr int TOOL_BAR_H = 38;
-
-} // namespace
 
 ToolWindow::ToolWindow(const WindowDef& def)
     : Fl_Double_Window(900, 600, def.title), m_def(def)
@@ -56,7 +52,9 @@ ToolWindow::ToolWindow(const WindowDef& def)
     }
     for (const ViewInfo& info : infos) {
         Panel* view = info.factory(0, TOOL_BAR_H, w(), h() - TOOL_BAR_H);
-        if (view->parent() != this) add(view);
+        if (view->parent() != this) {
+            add(view);
+        }
         view->hide();
         m_views.push_back(view);
     }
@@ -87,11 +85,19 @@ void ToolWindow::draw()
 
 void ToolWindow::select(int index)
 {
-    if (m_views.empty()) return;
-    if (index < 0 || index >= (int) m_views.size()) index = 0;
+    if (m_views.empty()) {
+        return;
+    }
+    if (index < 0 || index >= (int) m_views.size()) {
+        index = 0;
+    }
     m_current = index;
     for (size_t i = 0; i < m_views.size(); i++) {
-        if ((int) i == index) m_views[i]->show(); else m_views[i]->hide();
+        if ((int) i == index) {
+            m_views[i]->show();
+        } else {
+            m_views[i]->hide();
+        }
     }
     m_tabs[index]->setonly();
     refresh(fz_paused(), true);
@@ -100,9 +106,13 @@ void ToolWindow::select(int index)
 
 void ToolWindow::refresh(bool paused, bool force)
 {
-    if (!shown() || m_views.empty()) return;
+    if (!shown() || m_views.empty()) {
+        return;
+    }
     const double now = now_seconds();
-    if (!force && (paused || now - m_last < 0.25)) return;
+    if (!force && (paused || now - m_last < 0.25)) {
+        return;
+    }
     m_last = now;
     m_views[m_current]->refresh(paused, force);
 }
@@ -129,7 +139,9 @@ void ToolWindow::suspend()
 
 void ToolWindow::capture()
 {
-    if (!shown()) return;
+    if (!shown()) {
+        return;
+    }
     m_x = x();
     m_y = y();
     m_w = w();
@@ -174,7 +186,9 @@ void ToolWindow::cb_tab(Fl_Widget* w, void* data)
 void ToolWindow::cb_close(Fl_Widget*, void* data)
 {
     static_cast<ToolWindow*>(data)->close();
-    if (main_window()) main_window()->update_menus();
+    if (main_window()) {
+        main_window()->update_menus();
+    }
 }
 
 } // namespace zui::tools

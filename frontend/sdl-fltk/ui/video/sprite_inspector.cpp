@@ -28,7 +28,7 @@ void SpriteInspector::draw()
     const int cur = m_data->current();
     char extra[40] = "";
     if (cur >= 0) {
-        snprintf(extra, sizeof(extra), "#%d  16x%d", cur, m_data->info[cur].height);
+        snprintf(extra, sizeof(extra), "#%d  16x%d", cur, m_data->height(cur));
     }
     draw_header(x(), y(), w(), "SPRITE", extra);
 
@@ -47,14 +47,21 @@ void SpriteInspector::draw()
     fl_push_clip(m_mx, m_my, m_mw, m_mh);
     for (int pass = 0; pass < 2; pass++) {
         for (int i = FZ_SPRITE_COUNT - 1; i >= 0; i--) {
-            const fz_sprite_t& sp = m_data->info[i];
-            if (!sp.on_screen) continue;
+            if (!m_data->on_screen(i)) {
+                continue;
+            }
             const bool is_cur = i == cur;
-            if ((pass == 1) != is_cur) continue;
+            if ((pass == 1) != is_cur) {
+                continue;
+            }
             int rx, ry, rw, rh;
-            sprite_rect(sp, rx, ry, rw, rh);
+            sprite_rect(i, rx, ry, rw, rh);
             fl_color(is_cur ? COLOR_AMBER : COLOR_CYAN);
-            if (is_cur) fl_rectf(rx, ry, rw, rh); else fl_rect(rx, ry, rw, rh);
+            if (is_cur) {
+                fl_rectf(rx, ry, rw, rh);
+            } else {
+                fl_rect(rx, ry, rw, rh);
+            }
         }
     }
     fl_pop_clip();
@@ -69,7 +76,6 @@ void SpriteInspector::draw()
     }
 
     /* Magnified sprite with its state flags beside it */
-    const fz_sprite_t& sp = m_data->info[cur];
     const int scale = 4;
     compose_sprite(*m_data, cur, scale, false, m_buf);
     fl_draw_image(m_buf.data(), x() + 12, ty, FZ_SPRITE_W * scale, FZ_SPRITE_MAX_H * scale, 3);
@@ -88,12 +94,15 @@ void SpriteInspector::draw()
         fl_draw(value, ax + 48, ay);
         ay += lh + 2;
     };
-    info("STATE", sp.on_screen ? "on screen" : "off screen", sp.on_screen ? COLOR_GREEN : COLOR_AMBER);
+    info("STATE", m_data->on_screen(cur) ? "on screen" : "off screen",
+         m_data->on_screen(cur) ? COLOR_GREEN : COLOR_AMBER);
     char v[48];
-    snprintf(v, sizeof(v), "%s%s", sp.flip_x ? "X " : "", sp.flip_y ? "Y" : (sp.flip_x ? "" : "-"));
+    snprintf(v, sizeof(v), "%s%s", m_data->flip_x(cur) ? "X " : "",
+                 m_data->flip_y(cur) ? "Y" : (m_data->flip_x(cur) ? "" : "-"));
     info("FLIP", v, COLOR_TEXT);
-    info("PRIO", sp.behind_fg ? "behind" : "front", sp.behind_fg ? COLOR_DIM : COLOR_TEXT);
-    info("BANK", sp.bank ? "1" : "0", COLOR_TEXT);
+    info("PRIO", m_data->behind_fg(cur) ? "behind" : "front",
+         m_data->behind_fg(cur) ? COLOR_DIM : COLOR_TEXT);
+    info("BANK", m_data->info[cur].flags.bitmap.tileset_idx ? "1" : "0", COLOR_TEXT);
 
     /* Numbers: explicit HEX and DEC columns */
     const bool up = config.debugger.hex_upper;
@@ -115,53 +124,64 @@ void SpriteInspector::draw()
         fl_draw(label, col_label, ry);
         fl_font(DATA_FONT, DATA_SIZE);
         fl_color(c);
-        if (h) fl_draw(h, col_hex, ry);
-        if (d) fl_draw(d, col_dec, ry);
+        if (h) {
+            fl_draw(h, col_hex, ry);
+        }
+        if (d) {
+            fl_draw(d, col_dec, ry);
+        }
         ry += lh + 2;
     };
-    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.x);
-    snprintf(dec, sizeof(dec), "%u", sp.x);
+    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", m_data->info[cur].x);
+    snprintf(dec, sizeof(dec), "%u", m_data->info[cur].x);
     num("X", hex, dec, COLOR_TEXT);
-    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.y);
-    snprintf(dec, sizeof(dec), "%u", sp.y);
+    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", m_data->info[cur].y);
+    snprintf(dec, sizeof(dec), "%u", m_data->info[cur].y);
     num("Y", hex, dec, COLOR_TEXT);
-    snprintf(dec, sizeof(dec), "%d, %d", sp.screen_x, sp.screen_y);
-    num("SCREEN", nullptr, dec, sp.on_screen ? COLOR_GREEN : COLOR_AMBER);
-    snprintf(hex, sizeof(hex), up ? "$%03X" : "$%03x", sp.tile);
-    snprintf(dec, sizeof(dec), "%u", sp.tile);
+    snprintf(dec, sizeof(dec), "%d, %d", m_data->screen_x(cur), m_data->screen_y(cur));
+    num("SCREEN", nullptr, dec, m_data->on_screen(cur) ? COLOR_GREEN : COLOR_AMBER);
+    snprintf(hex, sizeof(hex), up ? "$%03X" : "$%03x", m_data->tile(cur));
+    snprintf(dec, sizeof(dec), "%u", m_data->tile(cur));
     num("TILE", hex, dec, COLOR_CYAN);
-    snprintf(hex, sizeof(hex), up ? "$%X" : "$%x", sp.palette);
-    snprintf(dec, sizeof(dec), "%u", sp.palette);
+    snprintf(hex, sizeof(hex), up ? "$%X" : "$%x", m_data->palette(cur));
+    snprintf(dec, sizeof(dec), "%u", m_data->palette(cur));
     num("PALETTE", hex, dec, COLOR_TEXT);
-    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.raw_flags);
+    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", m_data->raw_flags(cur));
     num("FLAGS", hex, nullptr, COLOR_DIM);
-    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", sp.raw_extra);
+    snprintf(hex, sizeof(hex), up ? "$%04X" : "$%04x", m_data->raw_extra(cur));
     num("EXTRA", hex, nullptr, COLOR_DIM);
 }
 
 int SpriteInspector::handle(int event)
 {
-    if (event == FL_MOUSEWHEEL) return 1;
+    if (event == FL_MOUSEWHEEL) {
+        return 1;
+    }
     if (event == FL_PUSH) {
         map_rect(m_mx, m_my, m_mw, m_mh);
         const int ex = Fl::event_x(), ey = Fl::event_y();
         if (ex >= m_mx && ey >= m_my && ex < m_mx + m_mw && ey < m_my + m_mh) {
             /* Lowest index wins, as in the hardware priority order */
             for (int i = 0; i < FZ_SPRITE_COUNT; i++) {
-                const fz_sprite_t& sp = m_data->info[i];
-                if (!sp.on_screen) continue;
+                if (!m_data->on_screen(i)) {
+                    continue;
+                }
                 int rx, ry, rw, rh;
-                sprite_rect(sp, rx, ry, rw, rh);
+                sprite_rect(i, rx, ry, rw, rh);
                 if (ex >= rx && ey >= ry && ex < rx + rw && ey < ry + rh) {
                     m_data->selected = i;
                     redraw();
-                    if (sheet) sheet->redraw();
+                    if (sheet) {
+                        sheet->redraw();
+                    }
                     return 1;
                 }
             }
             m_data->selected = -1;
             redraw();
-            if (sheet) sheet->redraw();
+            if (sheet) {
+                sheet->redraw();
+            }
         }
         return 1;
     }
@@ -176,14 +196,15 @@ void SpriteInspector::map_rect(int& mx, int& my, int& mw, int& mh) const
     mh = mw * 3 / 4;
 }
 
-void SpriteInspector::sprite_rect(const fz_sprite_t& sp, int& rx, int& ry, int& rw, int& rh) const
+void SpriteInspector::sprite_rect(int index, int& rx, int& ry, int& rw, int& rh) const
 {
     const double sx = (double) m_mw / m_data->screen_w;
     const double sy = (double) m_mh / m_data->screen_h;
-    rx = m_mx + (int) (sp.screen_x * sx);
-    ry = m_my + (int) (sp.screen_y * sy);
+    rx = m_mx + (int) (m_data->screen_x(index) * sx);
+    ry = m_my + (int) (m_data->screen_y(index) * sy);
     rw = (int) (FZ_SPRITE_W * sx) > 2 ? (int) (FZ_SPRITE_W * sx) : 2;
-    rh = (int) (sp.height * sy) > 2 ? (int) (sp.height * sy) : 2;
+    const int h = m_data->height(index);
+    rh = (int) (h * sy) > 2 ? (int) (h * sy) : 2;
 }
 
 } // namespace zui::video

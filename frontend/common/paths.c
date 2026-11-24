@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,7 +18,7 @@ int path_exists(const char *path) {
 
 const char* get_home_dir(void) {
     const char* home = getenv(HOME_VAR);
-    if (!home) {
+    if (home == NULL) {
         fprintf(stderr, HOME_VAR " environment variable not set\n");
         return NULL;
     }
@@ -29,7 +29,9 @@ const char* get_home_dir(void) {
 const char *get_config_dir(void) {
     static char path[PATH_MAX];
     const char* home = get_home_dir();
-    if (!home || snprintf(path, sizeof(path), "%s/.zeal8bit", home) >= (int)sizeof(path)) return NULL;
+    if (home == NULL || snprintf(path, sizeof(path), "%s/.zeal8bit", home) >= (int)sizeof(path)) {
+        return NULL;
+    }
     return path;
 }
 

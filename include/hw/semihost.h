@@ -12,6 +12,11 @@
 
 #define SEMIHOST_MAX_COUNTERS 8
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint64_t start_cyc;  /* t-states value when counter was started */
     uint64_t last_split_cyc; /* t-states value at last split/start */
@@ -58,3 +63,7 @@ typedef struct {
  * @return 0 on success, negative on failure
  */
 int semihost_init(semihost_t* dev, z80* cpu);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

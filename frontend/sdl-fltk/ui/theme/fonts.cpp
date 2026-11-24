@@ -46,7 +46,9 @@ static bool register_font_file(const char* path)
 {
 #if defined(__APPLE__)
     CFURLRef url = CFURLCreateFromFileSystemRepresentation(nullptr, (const UInt8*) path, (CFIndex) strlen(path), false);
-    if (url == nullptr) return false;
+    if (url == nullptr) {
+        return false;
+    }
     const bool ok = CTFontManagerRegisterFontsForURL(url, kCTFontManagerScopeProcess, nullptr);
     CFRelease(url);
     return ok;
@@ -66,11 +68,15 @@ void load_fonts()
 
     char dev[PATH_MAX + 64];
     char inst[PATH_MAX + 64];
-    if (exe_dir) snprintf(dev, sizeof(dev), "%s/assets/fonts/%s", exe_dir, FONT_FILE);
+    if (exe_dir) {
+        snprintf(dev, sizeof(dev), "%s/assets/fonts/%s", exe_dir, FONT_FILE);
+    }
     snprintf(inst, sizeof(inst), "%s/fonts/%s", ZEAL_ASSETS_DIR, FONT_FILE);
     const char* candidates[] = {exe_dir ? dev : nullptr, inst};
     for (const char* path : candidates) {
-        if (!path || !path_exists(path)) continue;
+        if (path == nullptr || !path_exists(path)) {
+            continue;
+        }
         if (register_font_file(path)) {
             Fl::set_font(FL_FREE_FONT, FONT_FAMILY);
             DATA_FONT = FL_FREE_FONT;

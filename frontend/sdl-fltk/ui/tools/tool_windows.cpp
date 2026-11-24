@@ -17,7 +17,6 @@
 
 namespace zui::tools {
 
-using namespace zui::memtools;
 using namespace zui::common;
 
 static const WindowDef s_defs[] = {
@@ -36,7 +35,9 @@ static bool s_persist_registered;
 static const WindowDef* find_def(const char* id)
 {
     for (const WindowDef& d : s_defs) {
-        if (strcmp(d.id, id) == 0) return &d;
+        if (strcmp(d.id, id) == 0) {
+            return &d;
+        }
     }
     return nullptr;
 }
@@ -44,10 +45,16 @@ static const WindowDef* find_def(const char* id)
 static ToolWindow* get(const char* id, bool create)
 {
     auto it = windows().find(id);
-    if (it != windows().end()) return it->second;
-    if (!create) return nullptr;
+    if (it != windows().end()) {
+        return it->second;
+    }
+    if (!create) {
+        return nullptr;
+    }
     const WindowDef* def = find_def(id);
-    if (def == nullptr) return nullptr;
+    if (def == nullptr) {
+        return nullptr;
+    }
     ToolWindow* w = new ToolWindow(*def);
     windows()[id] = w;
     return w;
@@ -55,12 +62,16 @@ static ToolWindow* get(const char* id, bool create)
 
 static void persist_once()
 {
-    if (s_persist_registered) return;
+    if (s_persist_registered) {
+        return;
+    }
     s_persist_registered = true;
     persist_register([]() {
         for (const WindowDef& d : s_defs) {
             ToolWindow* w = get(d.id, false);
-            if (w) w->save();
+            if (w) {
+                w->save();
+            }
         }
     });
 }
@@ -69,8 +80,14 @@ void tool_window_show(const char* id, bool show)
 {
     persist_once();
     ToolWindow* w = get(id, show);
-    if (w == nullptr) return;
-    if (show) w->open(); else w->close();
+    if (w == nullptr) {
+        return;
+    }
+    if (show) {
+        w->open();
+    } else {
+        w->close();
+    }
 }
 
 bool tool_window_shown(const char* id)
@@ -95,7 +112,9 @@ void tool_windows_resume()
     for (const WindowDef& d : s_defs) {
         ToolWindow* w = get(d.id, false);
         const bool wanted = w ? w->wanted() : preference(d.key, "shown", false);
-        if (wanted) tool_window_show(d.id, true);
+        if (wanted) {
+            tool_window_show(d.id, true);
+        }
     }
 }
 

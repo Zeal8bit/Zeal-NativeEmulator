@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -118,15 +118,14 @@ static uint16_t noise_advance(zvb_sound_t* sound, uint16_t state, uint32_t clock
 }
 
 
-void zvb_sound_init(zvb_sound_t* sound, bool enabled)
+void zvb_sound_init(zvb_sound_t* sound)
 {
     assert(sound);
     memset(sound, 0, sizeof(*sound));
-    (void) enabled;
     sound->sample_table.baud_count = 0;
-    atomic_init(&sound->sample_table.output, 0);
+    __atomic_store_n(&sound->sample_table.output, 0, __ATOMIC_RELAXED);
     for (int i = 0; i < VOICE_COUNT; i++) {
-        atomic_init(&sound->voices[i].output, 0);
+        __atomic_store_n(&sound->voices[i].output, 0, __ATOMIC_RELAXED);
     }
     sound->lfsr = SOUND_NOISE_SEED;
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
@@ -157,7 +156,7 @@ void zvb_sound_reset(zvb_sound_t* sound)
         voice->need_reload = false;
         voice->hold = false;
         /* Reset retains the frequency/waveform write latches. */
-        atomic_store_explicit(&voice->output, 0, memory_order_relaxed);
+        __atomic_store_n(&voice->output, 0, __ATOMIC_RELAXED);
     }
     /* Reset starts with equal FIFO pointers and a full FIFO. */
     sound->sample_table.fifo_empty = false;
@@ -174,19 +173,32 @@ void zvb_sound_reset(zvb_sound_t* sound)
     sound->sample_clock_counter = 0;
     sound->lfsr = SOUND_NOISE_SEED;
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;
-    atomic_store(&sound->sample_table.output, 0);
+    __atomic_store_n(&sound->sample_table.output, 0, __ATOMIC_SEQ_CST);
     sound->output_last = (zvb_pcm_frame_t){0};
     sound->mix_state = 0;
-    if (sound->output_reset) sound->output_reset(sound->output_userdata);
+    if (sound->output_reset) {
+        sound->output_reset(sound->output_userdata);
+    }
 
+}
+
+void zvb_sound_bind_output(zvb_sound_t* sound, void (*output)(void*, zvb_pcm_frame_t),
+                           void (*output_reset)(void*), void* userdata)
+{
+    if (sound == NULL) {
+        return;
+    }
+    sound->output = output;
+    sound->output_reset = output_reset;
+    sound->output_userdata = (output != NULL || output_reset != NULL) ? userdata : NULL;
 }
 
 void zvb_sound_deinit(zvb_sound_t* sound)
 {
-    if (!sound) return;
-    sound->output = NULL;
-    sound->output_reset = NULL;
-    sound->output_userdata = NULL;
+    if (sound == NULL) {
+        return;
+    }
+    zvb_sound_bind_output(sound, NULL, NULL, NULL);
 }
 
 /* Apply each truncating shift before summing the scaled values. */
@@ -202,8 +214,8 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
 {
     const uint16_t output = (voice->voice_volume & SOUND_VOICE_MUTE) ? 0 :
                             scale_volume(voice->max_state, voice->voice_volume);
-    if (output != atomic_load_explicit(&voice->output, memory_order_relaxed)) {
-        atomic_store_explicit(&voice->output, output, memory_order_relaxed);
+    if (output != __atomic_load_n(&voice->output, __ATOMIC_RELAXED)) {
+        __atomic_store_n(&voice->output, output, __ATOMIC_RELAXED);
     }
     /* Update both voice output pipeline stages each clock. */
     voice->max_state = voice->wave == WAVE_SQUARE ?
@@ -252,10 +264,10 @@ static void voice_clock(zvb_voice_t* voice, bool sample_clock, uint16_t lfsr)
 
 static uint16_t mix_mean(const zvb_sound_t* sound, uint32_t routes)
 {
-    uint32_t sum = routes & SOUND_SAMPLE_ROUTE ? atomic_load_explicit(&sound->sample_table.output, memory_order_relaxed) : 0;
+    uint32_t sum = routes & SOUND_SAMPLE_ROUTE ? __atomic_load_n(&sound->sample_table.output, __ATOMIC_RELAXED) : 0;
     for (int i = 0; i < VOICE_COUNT; i++) {
         if (routes & (1u << i)) {
-            sum += atomic_load_explicit(&sound->voices[i].output, memory_order_relaxed);
+            sum += __atomic_load_n(&sound->voices[i].output, __ATOMIC_RELAXED);
         }
     }
     return sum & (1u << 18) ? SOUND_PCM_MAX : sum >> 2;
@@ -275,7 +287,9 @@ static void mixer_clock(zvb_sound_t* sound)
         const uint16_t right = volume & SOUND_CHANNEL_MUTE_RIGHT ? 0 : scale_volume(sound->mean_right, volume >> 2);
         const zvb_pcm_frame_t frame = { .left = (int)left - SOUND_PCM_ZERO, .right = (int)right - SOUND_PCM_ZERO };
         sound->output_last = frame;
-        if (sound->output) sound->output(sound->output_userdata, frame);
+        if (sound->output) {
+            sound->output(sound->output_userdata, frame);
+        }
         sound->mix_state = 0;
     }
     if (sound->sample_clock_counter == SOUND_MIX_CAPTURE_CLOCK) {
@@ -308,7 +322,7 @@ void zvb_sound_clock(zvb_sound_t* sound)
         if (tbl->baud_count >= tbl->divider) {
             tbl->baud_count = 0;
             if (tbl->fifo_empty) {
-                atomic_store(&tbl->output, 0);
+                __atomic_store_n(&tbl->output, 0, __ATOMIC_SEQ_CST);
             } else {
                 tbl->state = 1;
                 tbl->fifo_tail = (tbl->fifo_tail + 1) % SAMPLE_FIFO_SIZE;
@@ -337,7 +351,7 @@ void zvb_sound_clock(zvb_sound_t* sound)
             }
             const uint16_t sample = tbl->sample_output +
                 (tbl->is_signed && !tbl->is_u8 ? 0x8000 : 0);
-            atomic_store(&tbl->output, sample);
+            __atomic_store_n(&tbl->output, sample, __ATOMIC_SEQ_CST);
             tbl->state = 0;
             break;
         }
@@ -388,7 +402,7 @@ uint32_t zvb_sound_clocks_until_interrupt(const zvb_sound_t* sound)
 
 
 uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port) {
-    if (!sound) {
+    if (sound == NULL) {
         return 0;
     }
     zvb_sample_table_t* tbl = &sound->sample_table;
@@ -427,7 +441,7 @@ uint8_t zvb_sound_read(zvb_sound_t* sound, uint32_t port) {
 
 void zvb_sound_write(zvb_sound_t* sound, uint32_t port, uint8_t value)
 {
-    if (!sound) {
+    if (sound == NULL) {
         return;
     }
     sound->settle_clocks = SOUND_VOICE_PIPELINE_CLOCKS;

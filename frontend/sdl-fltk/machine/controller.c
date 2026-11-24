@@ -28,14 +28,18 @@ static SDL_Gamepad* s_slots[SNES_GAMEPAD_COUNT];
 static int slot_of(SDL_JoystickID id)
 {
     for (int i = 0; i < SNES_GAMEPAD_COUNT; i++) {
-        if (s_slots[i] && SDL_GetGamepadID(s_slots[i]) == id) return i;
+        if (s_slots[i] && SDL_GetGamepadID(s_slots[i]) == id) {
+            return i;
+        }
     }
     return -1;
 }
 
 static bool slot_open(SDL_JoystickID id)
 {
-    if (slot_of(id) >= 0) return false;
+    if (slot_of(id) >= 0) {
+        return false;
+    }
     for (int i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         if (s_slots[i] == NULL) {
             s_slots[i] = SDL_OpenGamepad(id);
@@ -54,7 +58,9 @@ void snes_controller_init(snes_controller_t* ctrl, uint8_t index)
 
 void snes_controller_load_mappings(void)
 {
-    if (!SDL_WasInit(SDL_INIT_GAMEPAD)) return;
+    if (!SDL_WasInit(SDL_INIT_GAMEPAD)) {
+        return;
+    }
 
     /* Search order: user config dir (~/.zeal8bit/) -> dev path -> installed path */
     /* Room for a PATH_MAX directory plus the relative database path */
@@ -65,13 +71,17 @@ void snes_controller_load_mappings(void)
 
     if (config_dir) {
         snprintf(path, sizeof(path), "%s/gamecontrollerdb.txt", config_dir);
-        if (path_exists(path)) found = path;
+        if (path_exists(path)) {
+            found = path;
+        }
     }
-    if (!found && exe_dir) {
+    if (found == NULL && exe_dir) {
         snprintf(path, sizeof(path), "%s/" GAMECONTROLLERDB_DEV_PATH, exe_dir);
-        if (path_exists(path)) found = path;
+        if (path_exists(path)) {
+            found = path;
+        }
     }
-    if (!found && path_exists(GAMECONTROLLERDB_INSTALL_PATH)) {
+    if (found == NULL && path_exists(GAMECONTROLLERDB_INSTALL_PATH)) {
         found = GAMECONTROLLERDB_INSTALL_PATH;
     }
 
@@ -96,7 +106,9 @@ void snes_controller_load_mappings(void)
 
 void snes_controller_poll(void)
 {
-    if (!SDL_WasInit(SDL_INIT_GAMEPAD)) return;
+    if (!SDL_WasInit(SDL_INIT_GAMEPAD)) {
+        return;
+    }
 
     bool changed = false;
     SDL_Event event;
@@ -113,7 +125,9 @@ void snes_controller_poll(void)
             }
         }
     }
-    if (changed) ui_gamepads_changed();
+    if (changed) {
+        ui_gamepads_changed();
+    }
 }
 
 void snes_controller_shutdown(void)
@@ -133,13 +147,17 @@ bool snes_controller_available(uint8_t index)
 
 uint32_t snes_controller_id(uint8_t index)
 {
-    if (!snes_controller_available(index)) return 0;
+    if (!snes_controller_available(index)) {
+        return 0;
+    }
     return (uint32_t) SDL_GetGamepadID(s_slots[index]);
 }
 
 const char* snes_controller_name(uint8_t index)
 {
-    if (index >= SNES_GAMEPAD_COUNT || s_slots[index] == NULL) return NULL;
+    if (index >= SNES_GAMEPAD_COUNT || s_slots[index] == NULL) {
+        return NULL;
+    }
     const char* name = SDL_GetGamepadName(s_slots[index]);
     return name ? name : "Gamepad";
 }
@@ -175,33 +193,63 @@ uint16_t snes_controller_latch(snes_controller_t* ctrl)
 uint16_t snes_controller_bits(uint8_t index)
 {
     uint16_t bits = 0xFFFF;  /* no buttons pressed (active low) */
-    if (!snes_controller_available(index)) return bits;
+    if (!snes_controller_available(index)) {
+        return bits;
+    }
 
     SDL_Gamepad* pad = s_slots[index];
 
     /* Positional face buttons, matching the SNES layout */
-    if (button(pad, SDL_GAMEPAD_BUTTON_SOUTH)) bits &= ~(1 << SNES_BTN_B);
-    if (button(pad, SDL_GAMEPAD_BUTTON_WEST))  bits &= ~(1 << SNES_BTN_Y);
-    if (button(pad, SDL_GAMEPAD_BUTTON_EAST))  bits &= ~(1 << SNES_BTN_A);
-    if (button(pad, SDL_GAMEPAD_BUTTON_NORTH)) bits &= ~(1 << SNES_BTN_X);
+    if (button(pad, SDL_GAMEPAD_BUTTON_SOUTH)) {
+        bits &= ~(1 << SNES_BTN_B);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_WEST)) {
+        bits &= ~(1 << SNES_BTN_Y);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_EAST)) {
+        bits &= ~(1 << SNES_BTN_A);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_NORTH)) {
+        bits &= ~(1 << SNES_BTN_X);
+    }
 
     /* D-Pad */
-    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_UP))    bits &= ~(1 << SNES_BTN_UP);
-    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN))  bits &= ~(1 << SNES_BTN_DOWN);
-    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT))  bits &= ~(1 << SNES_BTN_LEFT);
-    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) bits &= ~(1 << SNES_BTN_RIGHT);
+    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_UP)) {
+        bits &= ~(1 << SNES_BTN_UP);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN)) {
+        bits &= ~(1 << SNES_BTN_DOWN);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) {
+        bits &= ~(1 << SNES_BTN_LEFT);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) {
+        bits &= ~(1 << SNES_BTN_RIGHT);
+    }
 
     /* Left thumbstick as D-Pad */
     const float stick_x = axis(pad, SDL_GAMEPAD_AXIS_LEFTX);
     const float stick_y = axis(pad, SDL_GAMEPAD_AXIS_LEFTY);
-    if (stick_y < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_UP);
-    if (stick_y >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_DOWN);
-    if (stick_x < -SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_LEFT);
-    if (stick_x >  SNES_STICK_DEADZONE) bits &= ~(1 << SNES_BTN_RIGHT);
+    if (stick_y < -SNES_STICK_DEADZONE) {
+        bits &= ~(1 << SNES_BTN_UP);
+    }
+    if (stick_y >  SNES_STICK_DEADZONE) {
+        bits &= ~(1 << SNES_BTN_DOWN);
+    }
+    if (stick_x < -SNES_STICK_DEADZONE) {
+        bits &= ~(1 << SNES_BTN_LEFT);
+    }
+    if (stick_x >  SNES_STICK_DEADZONE) {
+        bits &= ~(1 << SNES_BTN_RIGHT);
+    }
 
     /* Select/Start */
-    if (button(pad, SDL_GAMEPAD_BUTTON_BACK))  bits &= ~(1 << SNES_BTN_SELECT);
-    if (button(pad, SDL_GAMEPAD_BUTTON_START)) bits &= ~(1 << SNES_BTN_START);
+    if (button(pad, SDL_GAMEPAD_BUTTON_BACK)) {
+        bits &= ~(1 << SNES_BTN_SELECT);
+    }
+    if (button(pad, SDL_GAMEPAD_BUTTON_START)) {
+        bits &= ~(1 << SNES_BTN_START);
+    }
 
     /* L/R: shoulders or triggers */
     if (button(pad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) ||

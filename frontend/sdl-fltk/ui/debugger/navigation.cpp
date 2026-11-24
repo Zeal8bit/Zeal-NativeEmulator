@@ -13,19 +13,23 @@
 
 namespace zui::debugger {
 
-using namespace zui::app;
-using namespace zui::widgets;
 
 void request_refresh()
 {
-    if (DebuggerView* debugger = DebuggerView::instance()) debugger->refresh(true);
-    if (app::MainWindow* window = app::main_window()) window->update_status();
+    if (DebuggerView* debugger = DebuggerView::instance()) {
+        debugger->refresh(true);
+    }
+    if (app::MainWindow* window = app::main_window()) {
+        window->update_status();
+    }
 }
 
 void run_to_address(hwaddr addr)
 {
     dbg_t* dbg = fz_debugger();
-    if (!dbg || !fz_paused()) return;
+    if (dbg == nullptr || !fz_paused()) {
+        return;
+    }
     if (!debugger_is_breakpoint_set(dbg, addr) && !debugger_set_temporary_breakpoint(dbg, addr)) {
         notif_show("Breakpoint table is full");
         return;
@@ -36,12 +40,16 @@ void run_to_address(hwaddr addr)
 
 void goto_memory(hwaddr addr)
 {
-    if (DebuggerView* debugger = DebuggerView::instance()) debugger->memory()->go(addr);
+    if (DebuggerView* debugger = DebuggerView::instance()) {
+        debugger->memory()->go(addr);
+    }
 }
 
 void goto_disassembly(hwaddr addr)
 {
-    if (DebuggerView* debugger = DebuggerView::instance()) debugger->disasm()->go(addr);
+    if (DebuggerView* debugger = DebuggerView::instance()) {
+        debugger->disasm()->go(addr);
+    }
 }
 
 } // namespace zui::debugger

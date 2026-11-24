@@ -71,6 +71,5 @@ static int64_t rtc_adjust_time(void* userdata, const uint8_t* ram)
 
 void frontend_rtc_bind(ds1307_t* rtc)
 {
-    rtc->read_time = rtc_read_time;
-    rtc->adjust_time = rtc_adjust_time;
+    ds1307_bind(rtc, rtc_read_time, rtc_adjust_time, NULL);
 }

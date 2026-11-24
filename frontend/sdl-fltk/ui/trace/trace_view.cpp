@@ -32,16 +32,12 @@ using namespace zui::debugger;
 using namespace zui::theme;
 using namespace zui::widgets;
 
-namespace {
-
-widgets::Panel* make_trace(int x, int y, int w, int h)
+static widgets::Panel* make_trace(int x, int y, int w, int h)
 {
     return new TraceView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 30, "Trace", make_trace);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 30, "Trace", make_trace);
 
 TraceView::TraceView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "TRACE")
@@ -96,8 +92,11 @@ void TraceView::refresh(bool paused, bool force)
     (void) paused;
     update_controls();
     /* ~4 Hz while running: copy the ring only when something was recorded */
-    if (force || fz_trace_serial() != m_serial) snapshot();
-    else if (m_list->symbols().update()) m_list->redraw();
+    if (force || fz_trace_serial() != m_serial) {
+        snapshot();
+    } else if (m_list->symbols().update()) {
+        m_list->redraw();
+    }
     update_status();
 }
 
@@ -142,7 +141,9 @@ void TraceView::cb_bar(Fl_Widget*, void* data)
 void TraceView::update_controls()
 {
     const bool on = fz_trace_enabled();
-    if ((int) on == m_shown_enabled) return;
+    if ((int) on == m_shown_enabled) {
+        return;
+    }
     m_shown_enabled = (int) on;
     m_record->icon(on ? Icon::Pause : Icon::Breakpoint);
     m_record->text(on ? "Stop" : "Record");

@@ -43,7 +43,9 @@ static void capture(zeal_t* machine, fz_cpu_state_t* out)
      * pixel position from the virtual clock. */
     const uint64_t now = vtimer_now_ns(&cpu->clock);
     uint64_t hpos = now > zvb->line_start_ns ? (now - zvb->line_start_ns) / ZVB_PIXEL_NS : 0;
-    if (hpos >= ZVB_TOTAL_PIXELS_PER_LINE) hpos = ZVB_TOTAL_PIXELS_PER_LINE - 1;
+    if (hpos >= ZVB_TOTAL_PIXELS_PER_LINE) {
+        hpos = ZVB_TOTAL_PIXELS_PER_LINE - 1;
+    }
     out->hpos = (int) hpos;
 
     out->frame = zvb->frame_count;
@@ -51,14 +53,18 @@ static void capture(zeal_t* machine, fz_cpu_state_t* out)
 
 bool fz_cpu_state(fz_cpu_state_t* out)
 {
-    if (fltk_machine == NULL || out == NULL) return false;
+    if (fltk_machine == NULL || out == NULL) {
+        return false;
+    }
     capture(fltk_machine, out);
     return true;
 }
 
 bool fz_cpu_state_sampled(fz_cpu_state_t* out)
 {
-    if (!s_sample_valid || out == NULL) return false;
+    if (!s_sample_valid || out == NULL) {
+        return false;
+    }
     *out = s_sample;
     return true;
 }

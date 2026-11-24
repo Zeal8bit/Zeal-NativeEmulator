@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "frontend/common/app.h"
 #include "frontend/common/host.h"
 #include "frontend/common/media.h"
@@ -38,12 +42,18 @@ int frontend_init(zeal_t* machine, bool frames, bool debug)
 #endif
     };
     int err = zeal_init(machine, &options);
-    if (err) return err;
+    if (err) {
+        return err;
+    }
     machine->reset_hook = frontend_reset;
 #if CONFIG_ENABLE_DEBUGGER
     /* Load symbols if provided. */
-    if (config.arguments.map_file) debugger_load_symbols(&machine->dbg, config.arguments.map_file, true);
-    if (config.arguments.breakpoints) debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+    if (config.arguments.map_file) {
+        debugger_load_symbols(&machine->dbg, config.arguments.map_file, true);
+    }
+    if (config.arguments.breakpoints) {
+        debugger_set_breakpoints_str(&machine->dbg, config.arguments.breakpoints);
+    }
 #endif
     frontend_bind_input(machine);
     frontend_rtc_bind(&machine->rtc);
@@ -52,9 +62,13 @@ int frontend_init(zeal_t* machine, bool frames, bool debug)
         mmu_register_io_device(&machine->cpu.mmu, 0x70, &machine->compactflash.parent);
     }
     err = frontend_eeprom_init(&frontend_media, &machine->eeprom, config.images.eeprom);
-    if (err) return err;
+    if (err) {
+        return err;
+    }
     frontend_hostfs_bind(&machine->hostfs);
-    if (options.frames) v_log_printf(1, "[RENDER] Blitter: software\n");
+    if (options.frames) {
+        v_log_printf(1, "[RENDER] Blitter: software\n");
+    }
     return frontend_bind_output(machine);
 }
 

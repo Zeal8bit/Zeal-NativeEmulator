@@ -33,16 +33,14 @@ using namespace zui::common;
 using namespace zui::theme;
 using namespace zui::widgets;
 
-namespace {
-
-const char* s_reg_names[R_COUNT] = {
+static const char* s_reg_names[R_COUNT] = {
     "AF", "BC", "DE", "HL", "IX", "SP", "I",
     "AF'", "BC'", "DE'", "HL'", "IY", "PC", "R",
 };
 
-bool reg_is_8bit(int id) { return id == R_I || id == R_R; }
+static bool reg_is_8bit(int id) { return id == R_I || id == R_R; }
 
-uint16_t reg_get(const regs_t& r, int id)
+static uint16_t reg_get(const regs_t& r, int id)
 {
     switch (id) {
         case R_AF: return r.af;   case R_BC: return r.bc;
@@ -56,7 +54,7 @@ uint16_t reg_get(const regs_t& r, int id)
     }
 }
 
-void reg_set(regs_t& r, int id, uint16_t v)
+static void reg_set(regs_t& r, int id, uint16_t v)
 {
     switch (id) {
         case R_AF: r.af = v;   break; case R_BC: r.bc = v;   break;
@@ -70,8 +68,6 @@ void reg_set(regs_t& r, int id, uint16_t v)
         default: break;
     }
 }
-
-} // namespace
 
 RegistersView::RegistersView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "CPU")
@@ -92,7 +88,9 @@ void RegistersView::set_more(bool more)
 {
     m_more = more;
     header_toggle("MORE", m_more, [this](bool on) { set_more(on); });
-    if (on_layout) on_layout();
+    if (on_layout) {
+        on_layout();
+    }
     redraw();
 }
 
@@ -101,7 +99,9 @@ int RegistersView::preferred_height() const
     const int lh = data_line_height();
     /* registers, flag chips; then interrupt chips, (HL)/(SP), timing */
     const int basic = HEADER_H + 8 + 7 * lh + 22 + (lh + 4) + 10;
-    if (!m_more) return basic;
+    if (!m_more) {
+        return basic;
+    }
     return basic - 10 + 18 + (lh + 4) + 12 + 2 * lh + TIMING_GAP + 2 * lh + 8;
 }
 
@@ -118,7 +118,9 @@ void RegistersView::refresh(bool paused, bool force)
             m_changed[id] = false;
         }
     }
-    if (paused && force) m_have_prev = true;
+    if (paused && force) {
+        m_have_prev = true;
+    }
     if (dbg_ready()) {
         display_memory(m_regs.hl, 8, m_peek_hl, false);
         display_memory(m_regs.sp, 2, m_peek_sp, true);
@@ -169,8 +171,11 @@ void RegistersView::draw_contents()
         cell(id, nx, vx, ry);
         fl_color(reg_is_8bit(id) ? COLOR_DIM : COLOR_CYAN);
         fl_draw(s_reg_names[id], nx, ry + asc);
-        if (reg_is_8bit(id)) hex8(text, sizeof(text), reg_get(m_regs, id));
-        else hex16(text, sizeof(text), reg_get(m_regs, id));
+        if (reg_is_8bit(id)) {
+            hex8(text, sizeof(text), reg_get(m_regs, id));
+        } else {
+            hex16(text, sizeof(text), reg_get(m_regs, id));
+        }
         if (id == m_hover && !reg_is_8bit(id)) {
             fl_color(COLOR_HOVER);
             fl_rectf(vx - 3, ry, cw * 4 + 6, lh);
@@ -205,7 +210,9 @@ void RegistersView::draw_contents()
     }
 
     if (!m_more) {
-        if (m_edit->visible()) draw_child(*m_edit);
+        if (m_edit->visible()) {
+            draw_child(*m_edit);
+        }
         return;
     }
 
@@ -255,7 +262,9 @@ void RegistersView::draw_contents()
     fl_draw("(HL)", x() + 10, py + asc);
     int n = 0;
     int fit = (w() - 20 - cw * 5) / (cw * 3);
-    if (fit > 8) fit = 8;
+    if (fit > 8) {
+        fit = 8;
+    }
     for (int i = 0; i < fit && n < (int) sizeof(text) - 4; i++) {
         n += snprintf(text + n, sizeof(text) - n, hex8_fmt(), m_peek_hl[i]);
         text[n++] = ' ';
@@ -268,7 +277,11 @@ void RegistersView::draw_contents()
     const bool sp_word = m_regs.sp <= 0xFFFE; /* no stack word above $FFFE */
     fl_color(COLOR_CYAN);
     fl_draw("(SP)", x() + 10, py + asc);
-    if (sp_word) hex16(text, sizeof(text), top_word); else snprintf(text, sizeof(text), "----");
+    if (sp_word) {
+        hex16(text, sizeof(text), top_word);
+    } else {
+        snprintf(text, sizeof(text), "----");
+    }
     fl_color(sp_word ? COLOR_TEXT : COLOR_DIM);
     fl_draw(text, x() + 10 + cw * 5, py + asc);
     const char* sym = (dbg_ready() && sp_word) ? debugger_get_symbol(fz_debugger(), top_word) : nullptr;
@@ -279,12 +292,16 @@ void RegistersView::draw_contents()
 
     draw_timing(lh, cw, asc);
 
-    if (m_edit->visible()) draw_child(*m_edit);
+    if (m_edit->visible()) {
+        draw_child(*m_edit);
+    }
 }
 
 int RegistersView::handle(int event)
 {
-    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
+    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) {
+        return Panel::handle(event);
+    }
     if (m_edit->visible() && (event == FL_KEYBOARD || event == FL_KEYUP || event == FL_SHORTCUT)) {
         return Fl_Group::handle(event);
     }
@@ -297,27 +314,39 @@ int RegistersView::handle(int event)
             return 1;
         case FL_MOVE: {
             int id = hit_value(Fl::event_x(), Fl::event_y());
-            if (id < 0) id = hit_name(Fl::event_x(), Fl::event_y());
+            if (id < 0) {
+                id = hit_name(Fl::event_x(), Fl::event_y());
+            }
             if (id < 0) {
                 const int c = hit_int_chip(Fl::event_x(), Fl::event_y());
-                if (c >= 0) id = HOVER_INT + c;
-                else if (hit_timing(Fl::event_y())) id = HOVER_TIMING;
+                if (c >= 0) {
+                    id = HOVER_INT + c;
+                } else if (hit_timing(Fl::event_y())) {
+                    id = HOVER_TIMING;
+                }
             }
             if (id != m_hover) {
                 m_hover = id;
                 redraw();
-                if (id >= HOVER_INT) tooltip_extra(id);
-                else tooltip_for(id);
+                if (id >= HOVER_INT) {
+                    tooltip_extra(id);
+                } else {
+                    tooltip_for(id);
+                }
             }
             return 1;
         }
         case FL_MOUSEWHEEL:
             return 1;
         case FL_PUSH: {
-            if (m_edit->visible() && Fl::event_inside(m_edit)) break;
+            if (m_edit->visible() && Fl::event_inside(m_edit)) {
+                break;
+            }
             const int ex = Fl::event_x(), ey = Fl::event_y();
             int id = hit_name(ex, ey);
-            if (id < 0) id = hit_value(ex, ey);
+            if (id < 0) {
+                id = hit_value(ex, ey);
+            }
             if (id >= 0) {
                 if (Fl::event_button() == FL_RIGHT_MOUSE) {
                     context_menu(id);
@@ -360,7 +389,9 @@ int RegistersView::flags_y() const
 void RegistersView::chip(int i, int& cx, int& cw) const
 {
     cw = (w() - 20) / 8 - 4;
-    if (cw > 30) cw = 30;
+    if (cw > 30) {
+        cw = 30;
+    }
     cx = x() + 10 + i * (cw + 4);
 }
 
@@ -380,8 +411,12 @@ void RegistersView::int_chip(int i, int& cx, int& cw) const
     int total = 0;
     for (int k = 0; k < INT_CHIPS; k++) total += chars[k] * c;
     int pad = (w() - 20 - total - gap * (INT_CHIPS - 1)) / INT_CHIPS;
-    if (pad > 10) pad = 10;
-    if (pad < 2) pad = 2;
+    if (pad > 10) {
+        pad = 10;
+    }
+    if (pad < 2) {
+        pad = 2;
+    }
     cx = x() + 10;
     for (int k = 0; k < i; k++) cx += chars[k] * c + pad + gap;
     cw = chars[i] * c + pad;
@@ -389,20 +424,28 @@ void RegistersView::int_chip(int i, int& cx, int& cw) const
 
 int RegistersView::hit_int_chip(int ex, int ey) const
 {
-    if (!m_more) return -1;
+    if (!m_more) {
+        return -1;
+    }
     const int iy = int_y();
-    if (ey < iy || ey >= iy + data_line_height() + 4) return -1;
+    if (ey < iy || ey >= iy + data_line_height() + 4) {
+        return -1;
+    }
     for (int i = 0; i < INT_CHIPS; i++) {
         int cx, cw;
         int_chip(i, cx, cw);
-        if (ex >= cx && ex < cx + cw) return i;
+        if (ex >= cx && ex < cx + cw) {
+            return i;
+        }
     }
     return -1;
 }
 
 bool RegistersView::hit_timing(int ey) const
 {
-    if (!m_more) return false;
+    if (!m_more) {
+        return false;
+    }
     const int ty = timing_y();
     return ey >= ty && ey < ty + 2 * data_line_height();
 }
@@ -414,7 +457,9 @@ void RegistersView::group_digits(char* out, size_t size, uint64_t value)
     const int len = (int) strlen(digits);
     size_t n = 0;
     for (int i = 0; i < len && n + 2 < size; i++) {
-        if (i > 0 && (len - i) % 3 == 0) out[n++] = ',';
+        if (i > 0 && (len - i) % 3 == 0) {
+            out[n++] = ',';
+        }
         out[n++] = digits[i];
     }
     out[n] = '\0';
@@ -425,7 +470,9 @@ void RegistersView::draw_timing(int lh, int cw, int asc)
     const int ty = timing_y();
     fl_color(COLOR_BORDER);
     fl_xyline(x() + 10, ty - TIMING_GAP / 2 - 1, x() + w() - 10);
-    if (!m_have_cpu) return;
+    if (!m_have_cpu) {
+        return;
+    }
     char text[40];
     const int lx = x() + 10;
     const int vx = lx + cw * 7;
@@ -505,7 +552,9 @@ int RegistersView::hit_value(int ex, int ey) const
     for (int id = 0; id < R_COUNT; id++) {
         int nx, vx, ry;
         cell(id, nx, vx, ry);
-        if (ex >= vx - 3 && ex < vx + cw * 4 + 3 && ey >= ry && ey < ry + lh) return id;
+        if (ex >= vx - 3 && ex < vx + cw * 4 + 3 && ey >= ry && ey < ry + lh) {
+            return id;
+        }
     }
     return -1;
 }
@@ -517,7 +566,9 @@ int RegistersView::hit_name(int ex, int ey) const
     for (int id = 0; id < R_COUNT; id++) {
         int nx, vx, ry;
         cell(id, nx, vx, ry);
-        if (ex >= nx && ex < nx + cw * 3 && ey >= ry && ey < ry + lh) return id;
+        if (ex >= nx && ex < nx + cw * 3 && ey >= ry && ey < ry + lh) {
+            return id;
+        }
     }
     return -1;
 }
@@ -525,11 +576,15 @@ int RegistersView::hit_name(int ex, int ey) const
 int RegistersView::hit_chip(int ex, int ey) const
 {
     const int fy = flags_y();
-    if (ey < fy || ey >= fy + data_line_height() + 4) return -1;
+    if (ey < fy || ey >= fy + data_line_height() + 4) {
+        return -1;
+    }
     for (int i = 0; i < 8; i++) {
         int cx, cw;
         chip(i, cx, cw);
-        if (ex >= cx && ex < cx + cw) return i;
+        if (ex >= cx && ex < cx + cw) {
+            return i;
+        }
     }
     return -1;
 }
@@ -537,7 +592,9 @@ int RegistersView::hit_chip(int ex, int ey) const
 void RegistersView::tooltip_for(int id)
 {
     static char tip[128];
-    if (id < 0) return;
+    if (id < 0) {
+        return;
+    }
     const unsigned v = reg_get(m_regs, id);
     if (reg_is_8bit(id)) {
         snprintf(tip, sizeof(tip), "%s = %u\nRight-click: edit", s_reg_names[id], v);
@@ -567,14 +624,20 @@ void RegistersView::context_menu(int id)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[8];
     switch ((int) (picked - items)) {
         case 0: goto_memory(value); break;
         case 1: goto_disassembly(value); break;
         case 2: begin_edit(id); break;
         case 3:
-            if (addr) hex16(text, sizeof(text), value); else hex8(text, sizeof(text), value);
+            if (addr) {
+                hex16(text, sizeof(text), value);
+            } else {
+                hex8(text, sizeof(text), value);
+            }
             Fl::copy(text, (int) strlen(text), 1);
             break;
         default: break;
@@ -586,8 +649,11 @@ void RegistersView::begin_edit(int id)
     int nx, vx, ry;
     cell(id, nx, vx, ry);
     char text[8];
-    if (reg_is_8bit(id)) hex8(text, sizeof(text), reg_get(m_regs, id));
-    else hex16(text, sizeof(text), reg_get(m_regs, id));
+    if (reg_is_8bit(id)) {
+        hex8(text, sizeof(text), reg_get(m_regs, id));
+    } else {
+        hex16(text, sizeof(text), reg_get(m_regs, id));
+    }
     m_edit_id = id;
     m_edit->resize(vx - 3, ry, char_width() * 4 + 8, data_line_height());
     /* Hex digits, plus room for an optional '$' */
@@ -609,9 +675,13 @@ bool parse_register_text(const char* text, bool eight_bit, uint16_t* value)
      * register's width: an empty or bare "$" input changes nothing */
     const char* digits = text[0] == '$' ? text + 1 : text;
     const size_t n = strlen(digits);
-    if (n < 1 || n > (eight_bit ? 2u : 4u)) return false;
+    if (n < 1 || n > (eight_bit ? 2u : 4u)) {
+        return false;
+    }
     for (size_t i = 0; i < n; i++) {
-        if (!isxdigit((unsigned char) digits[i])) return false;
+        if (!isxdigit((unsigned char) digits[i])) {
+            return false;
+        }
     }
     *value = (uint16_t) strtoul(digits, nullptr, 16);
     return true;

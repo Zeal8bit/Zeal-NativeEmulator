@@ -29,9 +29,14 @@ static void poll_input(zeal_t* machine)
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP: {
             zeal_key_t key = wasm_key(event.key.scancode);
-            if (key == ZEAL_KEY_NULL) break;
-            if (event.type == SDL_EVENT_KEY_DOWN) key_pressed(&machine->keyboard, key);
-            else key_released(&machine->keyboard, key);
+            if (key == ZEAL_KEY_NULL) {
+                break;
+            }
+            if (event.type == SDL_EVENT_KEY_DOWN) {
+                key_pressed(&machine->keyboard, key);
+            } else {
+                key_released(&machine->keyboard, key);
+            }
             break;
         }
         case SDL_EVENT_GAMEPAD_ADDED:
@@ -51,21 +56,29 @@ int frontend_run(zeal_t* machine)
     double deadline = emscripten_get_now();
     while (!machine->should_exit) {
         zeal_service_web();
-        if (machine->should_exit) break;
+        if (machine->should_exit) {
+            break;
+        }
         poll_input(machine);
         zeal_step_result_t result;
         do {
             result = zeal_step(machine, false);
         } while (!(result & (ZEAL_STEP_FRAME | ZEAL_STEP_FATAL | ZEAL_STEP_STOP)));
-        if (result & ZEAL_STEP_FATAL) return 1;
-        if (result & ZEAL_STEP_STOP) break;
+        if (result & ZEAL_STEP_FATAL) {
+            return 1;
+        }
+        if (result & ZEAL_STEP_STOP) {
+            break;
+        }
         if (!wasm_video_draw(&machine->zvb, show_fps)) {
             log_err_printf("[SDL] Render failed: %s\n", SDL_GetError());
             return 1;
         }
         double now = emscripten_get_now();
         deadline += 1000.0 / 60.0;
-        if (deadline < now) deadline = now;
+        if (deadline < now) {
+            deadline = now;
+        }
         emscripten_sleep((unsigned)(deadline - now));
     }
     return machine->compactflash.failed ? 1 : 0;
@@ -93,12 +106,14 @@ int frontend_bind_output(zeal_t* machine)
         log_err_printf("[SDL] Initialization failed: %s\n", SDL_GetError());
         return 1;
     }
-    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD))
+    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
         log_err_printf("[SNES] Gamepads unavailable: %s\n", SDL_GetError());
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO))
+    }
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         wasm_audio_init(&machine->zvb.sound);
-    else
+    } else {
         log_err_printf("[AUDIO] Playback unavailable: %s\n", SDL_GetError());
+    }
     return 0;
 }
 

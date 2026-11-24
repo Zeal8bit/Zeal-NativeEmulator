@@ -23,6 +23,11 @@
 #define ZVB_FONT_CHAR_PIXELS    (ZVB_FONT_CHAR_WIDTH * ZVB_FONT_CHAR_HEIGHT)
 
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     /* Raw data, as organized in the real hardware. Each character is a bitmap. */
     uint8_t raw_font[ZVB_FONT_SIZE];
@@ -48,3 +53,7 @@ void zvb_font_write(zvb_font_t* font, uint32_t addr, uint8_t data);
  * @brief Function to call when a read occurs on the Font memory area.
  */
 uint8_t zvb_font_read(zvb_font_t* font, uint32_t addr);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

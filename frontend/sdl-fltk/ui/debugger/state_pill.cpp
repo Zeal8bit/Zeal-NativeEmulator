@@ -35,13 +35,17 @@ void StatePill::set(bool paused, uint16_t pc, const char* reason)
         const int len = at ? (int) (at - reason) : (int) strlen(reason);
         m_text.assign(reason, len);
         for (char& c : m_text) {
-            if (c == ' ') break;
+            if (c == ' ') {
+                break;
+            }
             c = (char) toupper((unsigned char) c);
         }
     } else if (paused) {
         char addr[8];
         dbg_t* dbg = fz_debugger();
-        if (dbg && dbg->breakpoint_stopped) pc = dbg->breakpoint_hit_addr;
+        if (dbg && dbg->breakpoint_stopped) {
+            pc = dbg->breakpoint_hit_addr;
+        }
         hex16(addr, sizeof(addr), pc);
         m_text = dbg && dbg->breakpoint_stopped ? "BREAKPOINT $" : "PAUSED $";
         m_text += addr;

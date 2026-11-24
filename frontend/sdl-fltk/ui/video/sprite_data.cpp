@@ -7,9 +7,25 @@
 #include "video/sprite_data.h"
 #include <cstdint>
 #include <vector>
-#include "common/machine.h"
 
 namespace zui::video {
+
+void SpriteData::update()
+{
+    gfx = fz_gfx_screen(&screen_w, &screen_h);
+    if (fltk_machine == nullptr) {
+        memset(info, 0, sizeof(info));
+        return;
+    }
+    zvb_t* zvb = &fltk_machine->zvb;
+    color_4bit = zvb_is_4bit_mode(zvb);
+    for (int i = 0; i < FZ_SPRITE_COUNT; i++) {
+        info[i] = zvb->sprites.data[i];
+        if (!fltk_debug_sprite(zvb, i, rgb[i], mask[i])) {
+            memset(&info[i], 0, sizeof(info[i]));
+        }
+    }
+}
 
 /** Compose a sprite over a checkerboard, scaled, into an RGB buffer. */
 void compose_sprite(const SpriteData& d, int index, int zoom, bool dim, std::vector<uint8_t>& out)
@@ -18,7 +34,7 @@ void compose_sprite(const SpriteData& d, int index, int zoom, bool dim, std::vec
     const int H = FZ_SPRITE_MAX_H * zoom;
     out.resize((size_t) W * H * 3);
     const int check = zoom * 4;
-    const int height = d.info[index].height;
+    const int height = d.height(index);
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
             const int sx = x / zoom, sy = y / zoom;

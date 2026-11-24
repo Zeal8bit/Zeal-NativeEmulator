@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,9 @@ static void transfer_complete(uart_t* uart)
 
     if(c == 0) return; // can't print null, :shrug:
 
-    if (uart->host && uart->host->uart_byte) uart->host->uart_byte(uart->host->userdata, (uint8_t) c);
+    if (uart->host && uart->host->uart_byte) {
+        uart->host->uart_byte(uart->host->userdata, (uint8_t) c);
+    }
 }
 
 void write_tx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition)
@@ -30,10 +32,16 @@ void write_tx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transitio
     (void)transition;
     (void)pio;
 
-    if(read) return;
-    if(pin != IO_UART_TX_PIN) return;
+    if (read) {
+        return;
+    }
+    if (pin != IO_UART_TX_PIN) {
+        return;
+    }
 
-    if(bit == 1 && uart->tx_pos == 0) return;
+    if (bit == 1 && uart->tx_pos == 0) {
+        return;
+    }
 
     uart->tx_fifo[uart->tx_pos++] = bit;
     if(uart->tx_pos == 10) {
@@ -47,7 +55,7 @@ void read_rx(void* arg, pio_t* pio, bool read, int pin, int bit, bool transition
     // TODO: do nothing ... should we even define this?
     (void)pio;
     uart_t* uart = arg;
-    hw_log(uart->host, false, 0, "uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
+    hw_log_info(uart->host, "uart:read: %d, %d, %d, %d\n", read, pin, bit, transition);
 }
 
 int uart_init(uart_t* uart, pio_t* pio)

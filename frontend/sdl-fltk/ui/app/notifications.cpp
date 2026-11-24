@@ -15,13 +15,11 @@
 
 namespace zui::app {
 
-namespace {
-
 constexpr double NOTIF_LIFETIME = 1.5;
-char s_notif_text[96];
-bool s_notif_active;
+static char s_notif_text[96];
+static bool s_notif_active;
 
-void notif_expire(void*)
+static void notif_expire(void*)
 {
     s_notif_active = false;
     if (MainWindow* window = main_window()) {
@@ -29,8 +27,6 @@ void notif_expire(void*)
         window->screen()->redraw();
     }
 }
-
-} // namespace
 
 const char* notif_current_text()
 {
@@ -44,7 +40,6 @@ void notif_cancel()
 
 } // namespace zui::app
 
-using namespace zui::widgets;
 using namespace zui::app;
 
 extern "C" {
@@ -57,7 +52,9 @@ void notif_reset(void)
 
 void notif_show(const char* fmt, ...)
 {
-    if (fmt == nullptr) return;
+    if (fmt == nullptr) {
+        return;
+    }
     va_list args;
     va_start(args, fmt);
     vsnprintf(s_notif_text, sizeof(s_notif_text), fmt, args);

@@ -21,127 +21,149 @@
 
 namespace zui::app {
 
-using namespace zui::widgets;
 using namespace zui::common;
 
-namespace {
-
-void cb_save_config(Fl_Widget*, void*)
+static void cb_save_config(Fl_Widget*, void*)
 {
     MainWindow* window = main_window();
-    if (!window) return;
+    if (window == nullptr) {
+        return;
+    }
     window->capture_window_config(window->debug_layout());
-    if (window->debugger()) window->debugger()->capture_layout();
+    if (window->debugger()) {
+        window->debugger()->capture_layout();
+    }
     /* config_save() logs which file failed and leaves it unchanged */
-    if (config_save() == 0) notif_show("Configuration saved");
-    else notif_show("Configuration not saved: see the log");
+    if (config_save() == 0) {
+        notif_show("Configuration saved");
+    } else {
+        notif_show("Configuration not saved: see the log");
+    }
 }
 
-void cb_quit(Fl_Widget*, void*)
+static void cb_quit(Fl_Widget*, void*)
 {
     MainWindow::quit();
 }
 
-void cb_reset(Fl_Widget*, void*)
+static void cb_reset(Fl_Widget*, void*)
 {
     fz_reset();
     notif_show("Reset");
 }
 
-void cb_toggle_debugger(Fl_Widget*, void*)
+static void cb_toggle_debugger(Fl_Widget*, void*)
 {
     if (MainWindow* window = main_window()) {
         window->set_debug_layout(!window->debug_layout());
     }
 }
 
-DebuggerUi* debugger_ui()
+static DebuggerUi* debugger_ui()
 {
     return main_window() ? main_window()->debugger() : nullptr;
 }
 
 /* Reveal the debugger panels for commands issued from the screen layout. */
-void debug_command(DebugCommand command)
+static void debug_command(DebugCommand command)
 {
     DebuggerUi* debugger = debugger_ui();
-    if (debugger == nullptr) return;
+    if (debugger == nullptr) {
+        return;
+    }
     main_window()->set_debug_layout(true);
     debugger->command(command);
     main_window()->update_status();
 }
 
-void cb_continue(Fl_Widget*, void*)  { debug_command(DebugCommand::Continue); }
-void cb_pause(Fl_Widget*, void*)     { debug_command(DebugCommand::Pause); }
-void cb_step(Fl_Widget*, void*)      { debug_command(DebugCommand::Step); }
-void cb_step_over(Fl_Widget*, void*) { debug_command(DebugCommand::StepOver); }
-void cb_breakpoint(Fl_Widget*, void*) { debug_command(DebugCommand::ToggleBreakpointAtPc); }
+static void cb_continue(Fl_Widget*, void*)  { debug_command(DebugCommand::Continue); }
+static void cb_pause(Fl_Widget*, void*)     { debug_command(DebugCommand::Pause); }
+static void cb_step(Fl_Widget*, void*)      { debug_command(DebugCommand::Step); }
+static void cb_step_over(Fl_Widget*, void*) { debug_command(DebugCommand::StepOver); }
+static void cb_breakpoint(Fl_Widget*, void*) { debug_command(DebugCommand::ToggleBreakpointAtPc); }
 
-void cb_map_open(Fl_Widget*, void*)
+static void cb_map_open(Fl_Widget*, void*)
 {
-    if (DebuggerUi* debugger = debugger_ui()) debugger->open_map(false);
+    if (DebuggerUi* debugger = debugger_ui()) {
+        debugger->open_map(false);
+    }
 }
 
-void cb_map_add(Fl_Widget*, void*)
+static void cb_map_add(Fl_Widget*, void*)
 {
-    if (DebuggerUi* debugger = debugger_ui()) debugger->open_map(true);
+    if (DebuggerUi* debugger = debugger_ui()) {
+        debugger->open_map(true);
+    }
 }
 
-void cb_map_reload(Fl_Widget*, void*)
+static void cb_map_reload(Fl_Widget*, void*)
 {
-    if (DebuggerUi* debugger = debugger_ui()) debugger->reload_maps();
+    if (DebuggerUi* debugger = debugger_ui()) {
+        debugger->reload_maps();
+    }
 }
 
-void cb_pause_on_reset(Fl_Widget* w, void*)
+static void cb_pause_on_reset(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     fz_pause_on_reset_set(item && item->value());
 }
 
-void cb_passthru(Fl_Widget* w, void*)
+static void cb_passthru(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     config.debugger.keyboard_passthru = item && item->value();
 }
 
-void cb_hex_upper(Fl_Widget* w, void*)
+static void cb_hex_upper(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     config.debugger.hex_upper = item && item->value();
-    if (main_window() && main_window()->debugger()) main_window()->debugger()->refresh(true);
+    if (main_window() && main_window()->debugger()) {
+        main_window()->debugger()->refresh(true);
+    }
 }
 
-void cb_scale_up(Fl_Widget*, void*)   { if (main_window()) main_window()->scale_screen(1.0f); }
-void cb_scale_down(Fl_Widget*, void*) { if (main_window()) main_window()->scale_screen(-1.0f); }
-void cb_scale_preset(Fl_Widget*, void* data)
+static void cb_scale_up(Fl_Widget*, void*)   { if (main_window()) main_window()->scale_screen(1.0f); }
+static void cb_scale_down(Fl_Widget*, void*) { if (main_window()) main_window()->scale_screen(-1.0f); }
+static void cb_scale_preset(Fl_Widget*, void* data)
 {
-    if (main_window()) main_window()->set_screen_scale((float) (intptr_t) data);
+    if (main_window()) {
+        main_window()->set_screen_scale((float) (intptr_t) data);
+    }
 }
 
-void cb_aspect(Fl_Widget* w, void*)
+static void cb_aspect(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     config.window.aspect_force = item && item->value();
-    if (main_window()) main_window()->apply_aspect();
+    if (main_window()) {
+        main_window()->apply_aspect();
+    }
 }
 
-void cb_theme(Fl_Widget*, void* data)
+static void cb_theme(Fl_Widget*, void* data)
 {
     config.window.theme = static_cast<config_theme_t>((intptr_t) data);
     theme::apply_theme_preference();
-    if (config_save_user() != 0) notif_show("Theme preference could not be saved");
+    if (config_save_user() != 0) {
+        notif_show("Theme preference could not be saved");
+    }
 }
 
-void cb_fullscreen(Fl_Widget*, void*) { if (main_window()) main_window()->toggle_fullscreen(); }
+static void cb_fullscreen(Fl_Widget*, void*) { if (main_window()) main_window()->toggle_fullscreen(); }
 
-void cb_show_fps(Fl_Widget* w, void*)
+static void cb_show_fps(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
-    if (!main_window()) return;
+    if (main_window() == nullptr) {
+        return;
+    }
     main_window()->show_fps = item && item->value();
     main_window()->update_status();
 }
 
-void cb_scanline(Fl_Widget* w, void*)
+static void cb_scanline(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     fz_scanline_set(item && item->value());
@@ -149,24 +171,30 @@ void cb_scanline(Fl_Widget* w, void*)
 }
 
 /* data: ToolId */
-void cb_tool(Fl_Widget*, void* data)
+static void cb_tool(Fl_Widget*, void* data)
 {
     DebuggerUi* debugger = debugger_ui();
-    if (debugger == nullptr) return;
+    if (debugger == nullptr) {
+        return;
+    }
     const ToolId tool = (ToolId) (intptr_t) data;
     debugger->show_tool(tool, !debugger->tool_shown(tool));
     main_window()->update_menus();
 }
 
-void cb_reset_layout(Fl_Widget*, void*)
+static void cb_reset_layout(Fl_Widget*, void*)
 {
-    if (main_window()) main_window()->reset_layout();
+    if (main_window()) {
+        main_window()->reset_layout();
+    }
 }
 
-void change_volume(int delta)
+static void change_volume(int delta)
 {
     fz_volume_set(fz_volume() + delta);
-    if (fz_muted()) fz_muted_set(false);
+    if (fz_muted()) {
+        fz_muted_set(false);
+    }
     notif_show("Volume: %d%%", fz_volume());
     if (main_window()) {
         main_window()->update_menus();
@@ -174,20 +202,22 @@ void change_volume(int delta)
     }
 }
 
-void cb_volume_up(Fl_Widget*, void*)   { change_volume(10); }
-void cb_volume_down(Fl_Widget*, void*) { change_volume(-10); }
+static void cb_volume_up(Fl_Widget*, void*)   { change_volume(10); }
+static void cb_volume_down(Fl_Widget*, void*) { change_volume(-10); }
 
-void cb_mute(Fl_Widget* w, void*)
+static void cb_mute(Fl_Widget* w, void*)
 {
     const Fl_Menu_Item* item = static_cast<Fl_Menu_*>(w)->mvalue();
     fz_muted_set(item && item->value());
     notif_show(fz_muted() ? "Muted" : "Volume: %d%%", fz_volume());
-    if (main_window()) main_window()->update_status();
+    if (main_window()) {
+        main_window()->update_status();
+    }
 }
 
 /* SNES port selection: data = (device << 8) | (port + 1); device 0..3 =
  * gamepad index, 0xFF = mouse. */
-void cb_snes_port(Fl_Widget*, void* data)
+static void cb_snes_port(Fl_Widget*, void* data)
 {
     const int value = (int) (intptr_t) data;
     const int device = (value >> 8) & 0xFF;
@@ -200,20 +230,30 @@ void cb_snes_port(Fl_Widget*, void* data)
     AppMenus::mark_snes_dirty();
 }
 
-void cb_snes_mouse_scale(Fl_Widget*, void*)
+static void cb_snes_mouse_scale(Fl_Widget*, void*)
 {
     fz_snes_mouse_reset_scale();
 }
 
-void set_toggle(Fl_Menu_Bar* mb, const char* path, bool on, bool active = true)
+static void set_toggle(Fl_Menu_Bar* mb, const char* path, bool on, bool active = true)
 {
     Fl_Menu_Item* item = const_cast<Fl_Menu_Item*>(mb->find_item(path));
-    if (item == nullptr) return;
-    if (on) item->set(); else item->clear();
-    if (active) item->activate(); else item->deactivate();
+    if (item == nullptr) {
+        return;
+    }
+    if (on) {
+        item->set();
+    } else {
+        item->clear();
+    }
+    if (active) {
+        item->activate();
+    } else {
+        item->deactivate();
+    }
 }
 
-void menu_safe_name(char* out, size_t size, const char* name)
+static void menu_safe_name(char* out, size_t size, const char* name)
 {
     size_t j = 0;
     for (size_t i = 0; name && name[i] && j + 1 < size; i++) {
@@ -223,9 +263,7 @@ void menu_safe_name(char* out, size_t size, const char* name)
     out[j] = '\0';
 }
 
-bool s_snes_dirty;
-
-} // namespace
+static bool s_snes_dirty;
 
 AppMenus::AppMenus(Fl_Menu_Bar* bar, MainWindow* window) : m_bar(bar), m_window(window)
 {
@@ -327,14 +365,18 @@ void AppMenus::rebuild_snes()
 {
     Fl_Menu_Bar* mb = m_bar;
     const int root = mb->find_index("&SNES");
-    if (root >= 0) mb->clear_submenu(root);
+    if (root >= 0) {
+        mb->clear_submenu(root);
+    }
 
     char path[160];
     char name[64];
     const char* port_names[] = { "Detached", "Port 1", "Port 2" };
     bool any = false;
     for (int i = 0; i < fz_snes_gamepad_count(); i++) {
-        if (!fz_snes_gamepad_available(i)) continue;
+        if (!fz_snes_gamepad_available(i)) {
+            continue;
+        }
         any = true;
         menu_safe_name(name, sizeof(name), fz_snes_gamepad_name(i));
         const int current = fz_snes_gamepad_port(i);
@@ -342,7 +384,11 @@ void AppMenus::rebuild_snes()
             snprintf(path, sizeof(path), "&SNES/%d: %s/%s", i + 1, name, port_names[p + 1]);
             const int idx = mb->add(path, 0, cb_snes_port, (void*) (intptr_t) ((i << 8) | (p + 1)), FL_MENU_RADIO);
             Fl_Menu_Item* item = const_cast<Fl_Menu_Item*>(&mb->menu()[idx]);
-            if (p == current) item->set(); else item->clear();
+            if (p == current) {
+                item->set();
+            } else {
+                item->clear();
+            }
         }
     }
     if (!any) {
@@ -353,7 +399,11 @@ void AppMenus::rebuild_snes()
         snprintf(path, sizeof(path), "&SNES/Mouse/%s", port_names[p + 1]);
         const int idx = mb->add(path, 0, cb_snes_port, (void*) (intptr_t) ((0xFF << 8) | (p + 1)), FL_MENU_RADIO);
         Fl_Menu_Item* item = const_cast<Fl_Menu_Item*>(&mb->menu()[idx]);
-        if (p == current) item->set(); else item->clear();
+        if (p == current) {
+            item->set();
+        } else {
+            item->clear();
+        }
     }
     mb->add("&SNES/Mouse/Reset Speed", 0, cb_snes_mouse_scale, nullptr, 0);
     s_snes_dirty = false;

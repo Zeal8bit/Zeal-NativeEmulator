@@ -1,7 +1,16 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #pragma once
 /* Stable logical key IDs accepted by the PS/2 encoder. Host key translation
  * belongs to the frontend; these values preserve the existing input API. */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     ZEAL_KEY_NULL            = 0,        // Key: NULL, used for no key pressed
     // Alphanumeric keys
@@ -113,3 +122,7 @@ typedef enum {
     ZEAL_KEY_KP_ENTER        = 335,      // Key: Keypad Enter
     ZEAL_KEY_KP_EQUAL        = 336,      // Key: Keypad =
 } zeal_key_t;
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

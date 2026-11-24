@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,6 +30,11 @@
  * @brief Each device needs to be associated to the physical page where its mapping starts.
  * Since we have at most 256 pages, we can use a single byte for that
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     device_t* dev;
     int page_from;
@@ -80,7 +85,9 @@ static inline uint8_t mmu_virt_read_byte(const mmu_t* mmu, uint16_t virt_addr)
 {
     const int idx = (virt_addr >> 14) & 0x3;
     const mmu_cached_page_t* vp = &mmu->vpages[idx];
-    if (!vp->dev) return 0;
+    if (vp->dev == NULL) {
+        return 0;
+    }
     const uint32_t phys = ((uint32_t)mmu->pages[idx] << 14) | (virt_addr & (MMU_PAGE_SIZE - 1));
     return vp->dev->mem_region.read(vp->dev, phys - vp->base_phys);
 }
@@ -93,7 +100,9 @@ static inline void mmu_virt_write_byte(mmu_t* mmu, uint16_t virt_addr, uint8_t d
 {
     const int idx = (virt_addr >> 14) & 0x3;
     const mmu_cached_page_t* vp = &mmu->vpages[idx];
-    if (!vp->dev) return;
+    if (vp->dev == NULL) {
+        return;
+    }
     const uint32_t phys = ((uint32_t)mmu->pages[idx] << 14) | (virt_addr & (MMU_PAGE_SIZE - 1));
     vp->dev->mem_region.write(vp->dev, phys - vp->base_phys, data);
 }
@@ -105,9 +114,11 @@ static inline void mmu_virt_write_byte(mmu_t* mmu, uint16_t virt_addr, uint8_t d
  */
 static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
 {
-    if (phys_addr >= MEM_SPACE_SIZE) return 0;
+    if (phys_addr >= MEM_SPACE_SIZE) {
+        return 0;
+    }
     const map_entry_t* entry = &mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
-    if (!entry->dev) {
+    if (entry->dev == NULL) {
         return 0;
     }
     return entry->dev->mem_region.read(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN);
@@ -119,9 +130,11 @@ static inline uint8_t mmu_phys_read_byte(const mmu_t* mmu, uint32_t phys_addr)
  */
 static inline void mmu_phys_write_byte(mmu_t* mmu, uint32_t phys_addr, uint8_t data)
 {
-    if (phys_addr >= MEM_SPACE_SIZE) return;
+    if (phys_addr >= MEM_SPACE_SIZE) {
+        return;
+    }
     const map_entry_t* entry = &mmu->mem_mapping[phys_addr / MEM_SPACE_ALIGN];
-    if (!entry->dev) {
+    if (entry->dev == NULL) {
         return;
     }
     entry->dev->mem_region.write(entry->dev, phys_addr - (uint32_t)entry->page_from * MEM_SPACE_ALIGN, data);
@@ -135,7 +148,9 @@ static inline uint8_t mmu_io_read_byte(mmu_t* mmu, uint16_t addr)
 {
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
-    if (!entry->dev || !entry->dev->io_region.read) return 0;
+    if (entry->dev == NULL || entry->dev->io_region.read == NULL) {
+        return 0;
+    }
     entry->dev->io_region.upper_addr = addr >> 8;
     return entry->dev->io_region.read(entry->dev, low - entry->page_from);
 }
@@ -148,7 +163,9 @@ static inline void mmu_io_write_byte(mmu_t* mmu, uint16_t addr, uint8_t data)
 {
     const int low = addr & 0xff;
     const map_entry_t* entry = &mmu->io_mapping[low];
-    if (!entry->dev || !entry->dev->io_region.write) return;
+    if (entry->dev == NULL || entry->dev->io_region.write == NULL) {
+        return;
+    }
     entry->dev->io_region.upper_addr = addr >> 8;
     entry->dev->io_region.write(entry->dev, low - entry->page_from, data);
 }
@@ -183,3 +200,7 @@ void mmu_phys_read_array(const mmu_t* mmu, uint32_t phys_addr, uint8_t* buf, uin
  * @brief Write len bytes from buf to consecutive physical addresses.
  */
 void mmu_phys_write_array(mmu_t* mmu, uint32_t phys_addr, const uint8_t* buf, uint16_t len);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -23,10 +23,15 @@
 #define DIR_OUTPUT 0
 #define DIR_INPUT  1
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct pio_t pio_t;
 
 typedef void (*pio_listener_callback)(void* arg, pio_t* pio, bool read, int pin, int value, bool transition);
-typedef void (*pio_listener_change_callback)(pio_t* pio, uint8_t, uint8_t);
+typedef void (*pio_listener_change_callback)(void* arg, pio_t* pio, uint8_t pin, uint8_t value);
 
 
 typedef struct {
@@ -37,6 +42,7 @@ typedef struct {
 typedef struct {
     uint8_t state;
     pio_listener_change_callback callback;
+    void* arg;
 } listener_change_t;
 
 typedef struct {
@@ -79,11 +85,15 @@ uint8_t pio_get_b_pin(pio_t* pio, uint8_t pin);
 void pio_listen_a_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb, void* arg);
 void pio_unlisten_a_pin(pio_t* pio, uint8_t pin);
 
-void pio_listen_a_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb);
+void pio_listen_a_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb, void* arg);
 void pio_unlisten_a_pin_change(pio_t* pio, uint8_t pin);
 
 void pio_listen_b_pin(pio_t* pio, uint8_t pin, pio_listener_callback cb, void* arg);
 void pio_unlisten_b_pin(pio_t* pio, uint8_t pin);
 
-void pio_listen_b_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb);
+void pio_listen_b_pin_change(pio_t* pio, uint8_t pin, uint8_t state, pio_listener_change_callback cb, void* arg);
 void pio_unlisten_b_pin_change(pio_t* pio, uint8_t pin);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

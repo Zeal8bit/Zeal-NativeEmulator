@@ -9,8 +9,17 @@
 
 #include <stdbool.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void notif_reset(void);
 void notif_show(const char* fmt, ...);
 int notif_estimate_width(void);
 void notif_render(int x, int y);
 bool notif_visible(void);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

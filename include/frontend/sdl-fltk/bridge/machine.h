@@ -114,31 +114,12 @@ typedef struct {
 } fz_image_t;
 bool fz_vram_render(dbg_vram_t view, fz_image_t* out);
 
-/* Hardware sprites (ZVB sprite attribute table) */
+/* Hardware sprite table sizes (ZVB sprite attribute table). The UI reads
+ * zvb_sprite_t entries directly and derives positions/pixels on demand. */
 #define FZ_SPRITE_COUNT     128
 #define FZ_SPRITE_W         16
 #define FZ_SPRITE_MAX_H     32
-typedef struct {
-    uint16_t x;           /* raw attribute values (screen = value - 16) */
-    uint16_t y;
-    int      screen_x;
-    int      screen_y;
-    uint16_t tile;        /* including the high tileset bank (4-bit modes) */
-    uint8_t  palette;     /* 4-bit modes: palette group */
-    uint8_t  height;      /* 16 or 32 */
-    bool     bank;
-    bool     flip_x;
-    bool     flip_y;
-    bool     behind_fg;
-    bool     on_screen;   /* intersects the visible screen */
-    uint16_t raw_flags;
-    uint16_t raw_extra;
-} fz_sprite_t;
-/** Visible screen size in graphics modes (640x480 or 320x240); false otherwise. */
 bool fz_gfx_screen(int* width, int* height);
-/** Sprite attributes and, optionally, its pixels as RGB (16 x height) with an
- *  opacity mask (0 = transparent). Buffers must hold 16 x 32 pixels. */
-bool fz_sprite(int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask);
 
 /* ------------------------------------------------------------------ */
 /*  Implemented by the C++ UI, used by the C machine layer             */

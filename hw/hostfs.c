@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,20 +45,23 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
     if (addr == OPERATION_REG) {
         if (value <= OP_LAST) {
             if (hostfs->guard_pending && hostfs->registers[OPERATION_REG] == ZOS_PENDING) {
-                hw_log(hostfs->parent.host, true, 0, "[HostFS] Operation already pending\n");
+                hw_log_error(hostfs->parent.host, "[HostFS] Operation already pending\n");
                 return;
             }
             set_status(hostfs, ZOS_PENDING);
-            if (hostfs->dispatch) hostfs->dispatch(hostfs->userdata, value);
-            else set_status(hostfs, ZOS_FAILURE);
+            if (hostfs->dispatch) {
+                hostfs->dispatch(hostfs->userdata, value);
+            } else {
+                set_status(hostfs, ZOS_FAILURE);
+            }
         } else {
-            hw_log(hostfs->parent.host, true, 0, "[HostFS] Invalid operation %x\n", value);
+            hw_log_error(hostfs->parent.host, "[HostFS] Invalid operation %x\n", value);
             set_status(hostfs, ZOS_FAILURE);
         }
     } else if (addr <= 7) {
         hostfs->registers[addr] = value;
     } else {
-        hw_log(hostfs->parent.host, true, 0, "[HostFS] Unknown register 0x%x write\n", addr);
+        hw_log_error(hostfs->parent.host, "[HostFS] Unknown register 0x%x write\n", addr);
     }
 }
 

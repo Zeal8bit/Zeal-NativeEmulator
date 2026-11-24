@@ -18,7 +18,7 @@
 #include "common/format.h"
 #include "common/machine.h"
 #include "debugger/navigation.h"
-#include "frontend/sdl-fltk/bridge/hw.h"
+#include "frontend/sdl-fltk/frontend.h"
 #include "memtools/pattern.h"
 #include "theme/theme.h"
 #include "widgets/panel.h"
@@ -27,9 +27,22 @@ namespace zui::hardware {
 
 using namespace zui::common;
 using namespace zui::debugger;
-using namespace zui::memtools;
 using namespace zui::theme;
-using namespace zui::widgets;
+
+/* Physical -> virtual address through the current MMU mapping. */
+static int32_t phys_to_virt(uint32_t phys)
+{
+    if (fltk_machine == nullptr) {
+        return -1;
+    }
+    const mmu_t* mmu = &fltk_machine->cpu.mmu;
+    for (int i = 0; i < MMU_PAGES_COUNT; i++) {
+        if (mmu->pages[i] == (phys >> 14)) {
+            return (int32_t) ((i << 14) | (phys & 0x3FFF));
+        }
+    }
+    return -1;
+}
 
 HwRegisterView::HwRegisterView(int X, int Y, int W, int H, const char* title)
     : Panel(X, Y, W, H, title), m_title(title)
@@ -65,8 +78,11 @@ void HwRegisterView::refresh(bool paused, bool force)
         m_changed_keys.clear();
         section.clear();
         for (const Item& it : m_items) {
-            if (it.kind == Item::Section) section = it.label;
-            else if (it.changed) m_changed_keys.insert(section + "/" + it.label);
+            if (it.kind == Item::Section) {
+                section = it.label;
+            } else if (it.changed) {
+                m_changed_keys.insert(section + "/" + it.label);
+            }
         }
     }
     extra(paused ? "PAUSED" : "LIVE");
@@ -98,7 +114,9 @@ void HwRegisterView::draw()
         const Item& it = m_items[i];
         const int cx = col_x(it.col);
         const int ry = oy + it.ry;
-        if (ry > body_y + body_h || ry + lh * 2 < body_y) continue;
+        if (ry > body_y + body_h || ry + lh * 2 < body_y) {
+            continue;
+        }
         if (it.kind == Item::Section) {
             fl_font(FL_HELVETICA_BOLD, 10);
             fl_color(COLOR_AMBER);
@@ -152,10 +170,16 @@ void HwRegisterView::draw()
         }
         const Fl_Color value_color = it.changed ? COLOR_CHANGED : it.has_addr ? COLOR_CYAN : COLOR_TEXT;
         fl_color(value_color);
-        if (!it.hex.empty()) fl_draw(it.hex.c_str(), cx + cw * HEX_COL, ry + asc);
-        if (!it.dec.empty()) fl_draw(it.dec.c_str(), cx + cw * DEC_COL, ry + asc);
+        if (!it.hex.empty()) {
+            fl_draw(it.hex.c_str(), cx + cw * HEX_COL, ry + asc);
+        }
+        if (!it.dec.empty()) {
+            fl_draw(it.dec.c_str(), cx + cw * DEC_COL, ry + asc);
+        }
         int ix = cx + cw * INFO_COL;
-        if (it.hex.empty() && it.dec.empty()) ix = cx + cw * HEX_COL;
+        if (it.hex.empty() && it.dec.empty()) {
+            ix = cx + cw * HEX_COL;
+        }
         if (!it.info.empty()) {
             fl_color(it.changed ? COLOR_CHANGED : (it.hex.empty() && it.dec.empty()) ? COLOR_TEXT : COLOR_AMBER);
             fl_push_clip(ix, ry, cx + m_col_w - ix, lh);
@@ -204,8 +228,12 @@ int HwRegisterView::handle(int event)
             const int body_h = h() - HEADER_H;
             int s = m_scroll + Fl::event_dy() * data_line_height() * 3;
             const int max = m_content_h > body_h ? m_content_h - body_h : 0;
-            if (s > max) s = max;
-            if (s < 0) s = 0;
+            if (s > max) {
+                s = max;
+            }
+            if (s < 0) {
+                s = 0;
+            }
             if (s != m_scroll) {
                 m_scroll = s;
                 m_hover = -1;
@@ -215,7 +243,9 @@ int HwRegisterView::handle(int event)
         }
         case FL_PUSH: {
             const int i = item_at(Fl::event_x(), Fl::event_y());
-            if (i < 0) return 1;
+            if (i < 0) {
+                return 1;
+            }
             const Item& it = m_items[(size_t) i];
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 context_menu(it);
@@ -276,11 +306,13 @@ HwRegisterView::Item& HwRegisterView::addr16(const char* label, unsigned v, cons
 HwRegisterView::Item& HwRegisterView::phys(const char* label, uint32_t v, const std::string& info)
 {
     Item& it = row(label, hexn(v, 6), "", info);
-    const int32_t virt = fz_hw_phys_to_virt(v);
+    const int32_t virt = phys_to_virt(v);
     if (virt >= 0) {
         it.has_addr = true;
         it.addr = (hwaddr) virt;
-        if (it.info.empty()) it.info = "virt " + h16((unsigned) virt);
+        if (it.info.empty()) {
+            it.info = "virt " + h16((unsigned) virt);
+        }
     }
     return it;
 }
@@ -371,10 +403,16 @@ void HwRegisterView::layout()
     const int avail = w() - 24;
     const int min_w = cw * MIN_COL_CHARS;
     m_cols = (avail + GAP) / (min_w + GAP);
-    if (m_cols < 1) m_cols = 1;
-    if (m_cols > 3) m_cols = 3;
+    if (m_cols < 1) {
+        m_cols = 1;
+    }
+    if (m_cols > 3) {
+        m_cols = 3;
+    }
     m_col_w = (avail - (m_cols - 1) * GAP) / m_cols;
-    if (m_col_w < min_w && m_cols == 1) m_col_w = avail > 0 ? avail : min_w;
+    if (m_col_w < min_w && m_cols == 1) {
+        m_col_w = avail > 0 ? avail : min_w;
+    }
 
     /* Sections stay in reading order, filling columns top to bottom
      * and moving on once a column reaches its share of the total. */
@@ -391,7 +429,9 @@ void HwRegisterView::layout()
         int sh = 0;
         for (size_t k = i; k < end; k++) sh += item_h(m_items[k]);
         const int used = heights[col] - (PAD + 14);
-        if (col < m_cols - 1 && used > 0 && used + sh / 2 > share) col++;
+        if (col < m_cols - 1 && used > 0 && used + sh / 2 > share) {
+            col++;
+        }
         int yy = heights[col];
         for (size_t k = i; k < end; k++) {
             m_items[k].col = col;
@@ -403,7 +443,9 @@ void HwRegisterView::layout()
     }
     m_content_h = PAD;
     for (int hgt : heights) {
-        if (hgt > m_content_h) m_content_h = hgt;
+        if (hgt > m_content_h) {
+            m_content_h = hgt;
+        }
     }
     m_content_h += PAD;
     clamp_scroll();
@@ -413,35 +455,51 @@ void HwRegisterView::clamp_scroll()
 {
     const int body_h = h() - HEADER_H;
     const int max = m_content_h > body_h ? m_content_h - body_h : 0;
-    if (m_scroll > max) m_scroll = max;
-    if (m_scroll < 0) m_scroll = 0;
+    if (m_scroll > max) {
+        m_scroll = max;
+    }
+    if (m_scroll < 0) {
+        m_scroll = 0;
+    }
 }
 
 int HwRegisterView::item_at(int ex, int ey) const
 {
-    if (ey < top()) return -1;
+    if (ey < top()) {
+        return -1;
+    }
     const int lh = data_line_height();
     const int cy = ey - top() + m_scroll;
     for (size_t i = 0; i < m_items.size(); i++) {
         const Item& it = m_items[i];
-        if (it.kind == Item::Section) continue;
+        if (it.kind == Item::Section) {
+            continue;
+        }
         const int cx = col_x(it.col);
-        if (ex >= cx - 4 && ex < cx + m_col_w + 4 && cy >= it.ry && cy < it.ry + lh) return (int) i;
+        if (ex >= cx - 4 && ex < cx + m_col_w + 4 && cy >= it.ry && cy < it.ry + lh) {
+            return (int) i;
+        }
     }
     return -1;
 }
 
 void HwRegisterView::set_hover(int i)
 {
-    if (i == m_hover) return;
+    if (i == m_hover) {
+        return;
+    }
     m_hover = i;
     redraw();
-    if (i < 0) return;
+    if (i < 0) {
+        return;
+    }
     const Item& it = m_items[(size_t) i];
     if (it.has_addr || !it.tip.empty()) {
         static std::string tip;
         tip = it.tip;
-        if (it.has_addr) tip += (tip.empty() ? "" : "\n") + std::string("Click: show in memory");
+        if (it.has_addr) {
+            tip += (tip.empty() ? "" : "\n") + std::string("Click: show in memory");
+        }
         Fl_Tooltip::enter_area(this, col_x(it.col) - x(), top() + it.ry - m_scroll - y(), m_col_w,
                                data_line_height(), tip.c_str());
     }
@@ -456,7 +514,9 @@ void HwRegisterView::context_menu(const Item& it)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     if (picked == &items[1]) {
         goto_memory(it.addr);
         return;
@@ -464,7 +524,9 @@ void HwRegisterView::context_menu(const Item& it)
     std::string value = !it.hex.empty() ? it.hex : !it.dec.empty() ? it.dec : it.info;
     if (it.kind == Item::Chips) {
         for (const Chip& c : it.chips) {
-            if (c.on) value += (value.empty() ? "" : " ") + c.name;
+            if (c.on) {
+                value += (value.empty() ? "" : " ") + c.name;
+            }
         }
     } else if (it.kind == Item::Swatches) {
         for (uint16_t c : it.colors) value += (value.empty() ? "" : " ") + h16(c);

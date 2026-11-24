@@ -9,9 +9,7 @@
 #include <vector>
 
 namespace zui::common {
-namespace {
-std::vector<std::function<void()>> callbacks;
-}
+static std::vector<std::function<void()>> callbacks;
 
 void persist_register(std::function<void()> capture)
 {

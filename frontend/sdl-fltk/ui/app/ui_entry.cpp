@@ -28,19 +28,21 @@ using namespace zui::app;
 using namespace zui::common;
 using namespace zui::theme;
 
-namespace {
-
 /* Developer aid: ZEAL_FLTK_SCREENSHOT=<file.ppm> saves the main window after
  * ZEAL_FLTK_SCREENSHOT_DELAY seconds (default 3), to check the UI headlessly. */
-void maybe_screenshot()
+static void maybe_screenshot()
 {
 #if FL_API_VERSION >= 10400
     static bool done;
     const char* path = getenv("ZEAL_FLTK_SCREENSHOT");
     MainWindow* window = main_window();
-    if (done || path == nullptr || window == nullptr) return;
+    if (done || path == nullptr || window == nullptr) {
+        return;
+    }
     const char* delay = getenv("ZEAL_FLTK_SCREENSHOT_DELAY");
-    if (now_seconds() < (delay ? atof(delay) : 3.0)) return;
+    if (now_seconds() < (delay ? atof(delay) : 3.0)) {
+        return;
+    }
     done = true;
     Fl_Image_Surface surface(window->w(), window->h(), 1);
     Fl_Surface_Device::push_current(&surface);
@@ -67,14 +69,16 @@ void maybe_screenshot()
 #endif
 }
 
-} // namespace
-
 extern "C" {
 
 void config_window_update(void)
 {
-    if (main_window()) main_window()->capture_window_config(main_window()->debug_layout());
-    if (main_window() && main_window()->debugger()) main_window()->debugger()->capture_layout();
+    if (main_window()) {
+        main_window()->capture_window_config(main_window()->debug_layout());
+    }
+    if (main_window() && main_window()->debugger()) {
+        main_window()->debugger()->capture_layout();
+    }
 }
 
 int ui_open(void)
@@ -84,9 +88,6 @@ int ui_open(void)
     apply_ui_font();
     start_theme();
     load_fonts();
-#if FL_API_VERSION >= 10400
-    Fl::use_high_res_GL(1);
-#endif
     Fl::visible_focus(0);
 
     MainWindow::reset_quit();
@@ -103,7 +104,9 @@ void ui_close(void)
     stop_theme();
     notif_cancel();
     MainWindow* window = main_window();
-    if (window == nullptr) return;
+    if (window == nullptr) {
+        return;
+    }
     /* Settings owned by the widgets are taken now: the configuration is
      * saved after they are deleted */
     persist_finalize();
@@ -120,31 +123,43 @@ bool ui_closed(void)
 
 void ui_wait(double seconds)
 {
-    if (main_window() == nullptr) return;
+    if (main_window() == nullptr) {
+        return;
+    }
     maybe_screenshot();
     main_window()->poll_menus();
-    if (now_seconds() - main_window()->status_at() > 0.25) main_window()->update_status();
+    if (now_seconds() - main_window()->status_at() > 0.25) {
+        main_window()->update_status();
+    }
     Fl::wait(seconds);
 }
 
 void ui_present(const uint16_t* pixels, int width, int height)
 {
-    if (main_window() == nullptr) return;
+    if (main_window() == nullptr) {
+        return;
+    }
     main_window()->screen()->present(pixels, width, height);
     main_window()->frame_presented();
 }
 
 void ui_machine_bound(void)
 {
-    if (main_window() && main_window()->debugger()) main_window()->debugger()->machine_bound();
+    if (main_window() && main_window()->debugger()) {
+        main_window()->debugger()->machine_bound();
+    }
 }
 
 void ui_debug_refresh(bool force)
 {
-    if (force && fz_paused() && main_window()) main_window()->set_debug_layout(true);
+    if (force && fz_paused() && main_window()) {
+        main_window()->set_debug_layout(true);
+    }
     if (main_window() && main_window()->debugger() && main_window()->debug_layout()) {
         main_window()->debugger()->refresh(force);
-        if (force) main_window()->update_status();
+        if (force) {
+            main_window()->update_status();
+        }
     }
 }
 
@@ -160,16 +175,26 @@ void ui_screen_scale(float* sx, float* sy)
     if (main_window()) {
         int px, py, pw, ph;
         main_window()->screen()->picture_rect(px, py, pw, ph);
-        if (pw > 0) x = (float) FZ_SCREEN_WIDTH / pw;
-        if (ph > 0) y = (float) FZ_SCREEN_HEIGHT / ph;
+        if (pw > 0) {
+            x = (float) FZ_SCREEN_WIDTH / pw;
+        }
+        if (ph > 0) {
+            y = (float) FZ_SCREEN_HEIGHT / ph;
+        }
     }
-    if (sx) *sx = x;
-    if (sy) *sy = y;
+    if (sx) {
+        *sx = x;
+    }
+    if (sy) {
+        *sy = y;
+    }
 }
 
 void ui_pointer_lock(bool locked)
 {
-    if (main_window()) main_window()->screen()->lock_pointer(locked);
+    if (main_window()) {
+        main_window()->screen()->lock_pointer(locked);
+    }
 }
 
 void ui_gamepads_changed(void)

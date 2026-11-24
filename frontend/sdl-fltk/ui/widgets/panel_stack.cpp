@@ -15,15 +15,11 @@ namespace zui::widgets {
 
 using namespace zui::theme;
 
-namespace {
-
 /** Smallest height of an expanded panel that shares space. */
-int min_height()
+static int min_height()
 {
     return HEADER_H + 2 * data_line_height() + 8;
 }
-
-} // namespace
 
 PanelStack::PanelStack(int X, int Y, int W, int H)
     : Fl_Group(X, Y, W, H)
@@ -35,7 +31,9 @@ PanelStack::PanelStack(int X, int Y, int W, int H)
 
 void PanelStack::add_panel(Panel* panel, int size, bool fill)
 {
-    if (panel->parent() != this) add(panel);
+    if (panel->parent() != this) {
+        add(panel);
+    }
     m_items.push_back({ panel, size, fill });
     panel->collapsible(true);
     panel->on_collapse = [this](Panel* p) { toggle_collapse(p); };
@@ -50,14 +48,18 @@ int PanelStack::size_of(int index) const
 
 void PanelStack::set_size(int index, int size)
 {
-    if (index < 0 || index >= (int) m_items.size() || size <= 0) return;
+    if (index < 0 || index >= (int) m_items.size() || size <= 0) {
+        return;
+    }
     m_items[(size_t) index].size = std::max(size, min_height());
     layout();
 }
 
 bool PanelStack::shown_collapsed(int index) const
 {
-    if (m_maximized >= 0) return index != m_maximized;
+    if (m_maximized >= 0) {
+        return index != m_maximized;
+    }
     return m_items[(size_t) index].panel->collapsed();
 }
 
@@ -69,7 +71,9 @@ bool PanelStack::flexible(int index) const
 void PanelStack::toggle_collapse(Panel* panel)
 {
     for (size_t i = 0; i < m_items.size(); i++) {
-        if (m_items[i].panel != panel) continue;
+        if (m_items[i].panel != panel) {
+            continue;
+        }
         if (m_maximized >= 0) {
             /* Leaving the maximised view: the clicked panel opens */
             clear_maximize();
@@ -79,7 +83,9 @@ void PanelStack::toggle_collapse(Panel* panel)
         }
     }
     layout();
-    if (on_change) on_change();
+    if (on_change) {
+        on_change();
+    }
 }
 
 void PanelStack::clear_maximize()
@@ -95,7 +101,9 @@ void PanelStack::toggle_maximize(Panel* panel)
 {
     int index = -1;
     for (size_t i = 0; i < m_items.size(); i++) {
-        if (m_items[i].panel == panel) index = (int) i;
+        if (m_items[i].panel == panel) {
+            index = (int) i;
+        }
     }
     m_maximized = m_maximized == index ? -1 : index;
     for (size_t i = 0; i < m_items.size(); i++) {
@@ -103,16 +111,22 @@ void PanelStack::toggle_maximize(Panel* panel)
         p->maximized((int) i == m_maximized);
         /* Others show their title only; their collapse state is kept */
         p->set_stack_hidden(m_maximized >= 0 && (int) i != m_maximized);
-        if ((int) i == m_maximized) p->set_collapsed(false);
+        if ((int) i == m_maximized) {
+            p->set_collapsed(false);
+        }
     }
     layout();
-    if (on_change) on_change();
+    if (on_change) {
+        on_change();
+    }
 }
 
 void PanelStack::layout()
 {
     const int n = (int) m_items.size();
-    if (n == 0) return;
+    if (n == 0) {
+        return;
+    }
     std::vector<int> hs((size_t) n);
     int total = 0;
     int fill = -1;
@@ -124,7 +138,9 @@ void PanelStack::layout()
         } else {
             const int pref = it.panel->preferred_height();
             hs[(size_t) i] = pref > 0 ? pref : std::max(it.size, min_height());
-            if (pref <= 0 && (it.fill || fill < 0)) fill = i;
+            if (pref <= 0 && (it.fill || fill < 0)) {
+                fill = i;
+            }
             last_open = i;
         }
         total += hs[(size_t) i];
@@ -146,9 +162,13 @@ void PanelStack::layout()
     /* Still too tall: shrink the other sharing panels, then fixed ones */
     for (int pass = 0; pass < 2 && diff < 0; pass++) {
         for (int i = n - 1; i >= 0 && diff < 0; i--) {
-            if (shown_collapsed(i)) continue;
+            if (shown_collapsed(i)) {
+                continue;
+            }
             const bool fixed = m_items[(size_t) i].panel->preferred_height() > 0;
-            if ((pass == 0) == fixed) continue;
+            if ((pass == 0) == fixed) {
+                continue;
+            }
             const int floor = pass == 0 ? min_height() : HEADER_H;
             const int take = std::min(-diff, hs[(size_t) i] - floor);
             if (take > 0) {
@@ -176,7 +196,9 @@ int PanelStack::divider_at(int ey) const
     for (int i = 0; i + 1 < (int) m_items.size(); i++) {
         const Panel* p = m_items[(size_t) i].panel;
         const int dy = p->y() + p->h();
-        if (ey < dy - 2 || ey >= dy + GAP + 2) continue;
+        if (ey < dy - 2 || ey >= dy + GAP + 2) {
+            continue;
+        }
         return flexible(i) && flexible(i + 1) ? i : -1;
     }
     return -1;
@@ -187,7 +209,9 @@ void PanelStack::draw()
     Fl_Group::draw();
     /* Grip on draggable dividers */
     for (int i = 0; i + 1 < (int) m_items.size(); i++) {
-        if (!flexible(i) || !flexible(i + 1)) continue;
+        if (!flexible(i) || !flexible(i + 1)) {
+            continue;
+        }
         const Panel* p = m_items[(size_t) i].panel;
         const int gy = p->y() + p->h() + GAP / 2;
         const int cx = x() + w() / 2;
@@ -209,7 +233,9 @@ int PanelStack::handle(int event)
             break;
         }
         case FL_LEAVE:
-            if (m_cursor_set && window()) window()->cursor(FL_CURSOR_DEFAULT);
+            if (m_cursor_set && window()) {
+                window()->cursor(FL_CURSOR_DEFAULT);
+            }
             m_cursor_set = false;
             break;
         case FL_PUSH: {
@@ -237,7 +263,9 @@ int PanelStack::handle(int event)
         case FL_RELEASE:
             if (m_drag >= 0) {
                 m_drag = -1;
-                if (on_change) on_change();
+                if (on_change) {
+                    on_change();
+                }
                 return 1;
             }
             break;

@@ -10,6 +10,11 @@
 #include <stdint.h>
 
 /* Debugger context, need to be defined in an implementation */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct dbg_t dbg_t;
 typedef struct regs_t regs_t;
 
@@ -75,3 +80,7 @@ typedef struct {
     uint32_t    size : 3;
     uint32_t    label : 1;
 } instr_data_t;
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

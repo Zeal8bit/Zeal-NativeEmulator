@@ -71,7 +71,7 @@ static uint8_t semihost_io_read(device_t* dev, uint32_t addr)
     (void)addr;
     semihost_t* semihost = (semihost_t*)dev;
 
-    if (!semihost->cpu) {
+    if (semihost->cpu == NULL) {
         return 0x00;
     }
 

@@ -17,6 +17,11 @@
 #define TIMER_REG_COUNTER_HIGH           (6)
 #define TIMER_REG_INT_STATUS             (7)
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint16_t divider;
     uint16_t clock_counter;
@@ -35,7 +40,7 @@ typedef struct {
     void* userdata;
 } zvb_timer_t;
 
-void               zvb_timer_init(zvb_timer_t* timer, vtimer_t* clock, void (*irq_changed)(void*), void* userdata);
+void zvb_timer_init(zvb_timer_t* timer, vtimer_t* clock, void (*irq_changed)(void*), void* userdata);
 void zvb_timer_reset(zvb_timer_t* timer);
 uint8_t zvb_timer_read(zvb_timer_t* timer, uint32_t address);
 /* Same as zvb_timer_read without side effects (debugger inspection): no
@@ -46,3 +51,7 @@ static inline bool zvb_timer_interrupt(const zvb_timer_t* timer)
 {
     return timer->int_enabled && timer->int_pending;
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

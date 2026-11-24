@@ -28,21 +28,16 @@ namespace zui::symbols {
 
 using namespace zui::debugger;
 using namespace zui::theme;
-using namespace zui::tools;
 using namespace zui::widgets;
-
-namespace {
 
 constexpr int SCROLL_W = 14;
 
-widgets::Panel* make_symbols(int x, int y, int w, int h)
+static widgets::Panel* make_symbols(int x, int y, int w, int h)
 {
     return new SymbolsView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 10, "Symbols", make_symbols);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 10, "Symbols", make_symbols);
 
 SymbolsView::SymbolsView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "SYMBOLS")
@@ -106,7 +101,9 @@ void SymbolsView::refresh(bool paused, bool force)
 {
     (void) paused;
     (void) force;
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     m_list->sync();
     update_extra();
     m_list->redraw();
@@ -124,8 +121,11 @@ void SymbolsView::update_extra()
 {
     const auto total = m_list->total();
     std::string text = std::to_string(total);
-    if (m_list->filtered()) text = std::to_string(m_list->shown()) + " of " + text;
-    else text += total == 1 ? " symbol" : " symbols";
+    if (m_list->filtered()) {
+        text = std::to_string(m_list->shown()) + " of " + text;
+    } else {
+        text += total == 1 ? " symbol" : " symbols";
+    }
     /* Which map files they came from */
     const int maps = fz_map_count();
     /* Saved project maps that could not be loaded: Reload retries them */
@@ -146,21 +146,33 @@ void SymbolsView::update_extra()
     for (int i = 0; i < maps; i++) {
         tip += "\n";
         tip += fz_map_path(i);
-        if (!fz_map_loaded(i)) tip += " (not loaded)";
+        if (!fz_map_loaded(i)) {
+            tip += " (not loaded)";
+        }
     }
     if (tip != m_reload_tip) {
         m_reload_tip = tip;
         m_reload->tooltip(m_reload_tip.c_str());
     }
-    if (maps > 0) m_reload->activate(); else m_reload->deactivate();
-    if (m_list->total() > 0 || maps > 0) m_clear->activate(); else m_clear->deactivate();
+    if (maps > 0) {
+        m_reload->activate();
+    } else {
+        m_reload->deactivate();
+    }
+    if (m_list->total() > 0 || maps > 0) {
+        m_clear->activate();
+    } else {
+        m_clear->deactivate();
+    }
 }
 
 const char* SymbolsView::base_name(const char* path)
 {
     const char* name = path;
     for (const char* p = path; *p; p++) {
-        if (*p == '/' || *p == '\\') name = p + 1;
+        if (*p == '/' || *p == '\\') {
+            name = p + 1;
+        }
     }
     return name;
 }
@@ -181,12 +193,16 @@ void SymbolsView::after_change()
 
 void SymbolsView::cb_open(Fl_Widget*, void* data)
 {
-    if (map_open_dialog(false)) static_cast<SymbolsView*>(data)->after_change();
+    if (map_open_dialog(false)) {
+        static_cast<SymbolsView*>(data)->after_change();
+    }
 }
 
 void SymbolsView::cb_add(Fl_Widget*, void* data)
 {
-    if (map_open_dialog(true)) static_cast<SymbolsView*>(data)->after_change();
+    if (map_open_dialog(true)) {
+        static_cast<SymbolsView*>(data)->after_change();
+    }
 }
 
 void SymbolsView::cb_reload(Fl_Widget*, void* data)

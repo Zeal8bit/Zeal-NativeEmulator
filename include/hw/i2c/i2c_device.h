@@ -10,6 +10,11 @@
 #include <stdint.h>
 #include <stddef.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct i2c_device_t i2c_device_t;
 
 struct i2c_device_t {
@@ -20,3 +25,7 @@ struct i2c_device_t {
     void    (*write)(i2c_device_t* dev, uint8_t data);
     void    (*stop)(i2c_device_t* dev);
 };
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

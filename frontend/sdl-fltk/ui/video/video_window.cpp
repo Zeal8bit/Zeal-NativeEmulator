@@ -29,15 +29,11 @@ using namespace zui::common;
 using namespace zui::theme;
 using namespace zui::widgets;
 
-namespace {
-
 enum { VIEW_SPRITES = DBG_VIEW_TOTAL, VIEW_COUNT };
 constexpr int TOP_H = 38;
 constexpr int INSPECTOR_W = 270;
 
 static const char* s_view_names[] = { "Layer 0", "Layer 1", "Tileset", "Palette", "Font", "Sprites" };
-
-} // namespace
 
 VideoWindow::VideoWindow()
     : Fl_Double_Window(980, 660, FZ_WIN_NAME " - Video")
@@ -48,7 +44,9 @@ VideoWindow::VideoWindow()
         const int sw = 76;
         Segment* s = new Segment(sx, 6, sw, TOP_H - 10, s_view_names[i]);
         s->callback(cb_view, (void*) (intptr_t) i);
-        if (i == 0) s->setonly();
+        if (i == 0) {
+            s->setonly();
+        }
         sx += sw + (i == DBG_FONT ? 14 : 2);
     }
     m_zoom = new Fl_Choice(w() - 90, 8, 80, TOP_H - 14);
@@ -98,9 +96,13 @@ void VideoWindow::draw()
 
 void VideoWindow::refresh(bool paused, bool force)
 {
-    if (!shown()) return;
+    if (!shown()) {
+        return;
+    }
     const double now = now_seconds();
-    if (!force && (paused || now - m_last < 0.25)) return;
+    if (!force && (paused || now - m_last < 0.25)) {
+        return;
+    }
     m_last = now;
     if (m_view == VIEW_SPRITES) {
         m_sprites.update();
@@ -152,7 +154,9 @@ void VideoWindow::cb_zoom(Fl_Widget*, void* data)
 void VideoWindow::cb_close(Fl_Widget*, void*)
 {
     video_window_show(false);
-    if (main_window()) main_window()->update_menus();
+    if (main_window()) {
+        main_window()->update_menus();
+    }
 }
 
 } // namespace zui::video

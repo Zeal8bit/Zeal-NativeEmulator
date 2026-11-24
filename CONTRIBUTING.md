@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLTK 1.4+, SDL3 and OpenGL. Browser builds use the Emscripten SDL3 port and WebGL2. Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
+Use GCC or Clang, Meson, and Ninja. Desktop builds require a C++17 compiler, FLTK 1.4+ and SDL3. Browser builds use the Emscripten SDL3 port and WebGL2. Core-only/headless builds need no graphical dependencies. See [README.md](README.md) for platform and runtime details.
 
 Run commands from the repository root. For development:
 

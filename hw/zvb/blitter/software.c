@@ -100,7 +100,7 @@ void zvb_blitter_init(zvb_t* zvb)
 
     bl->framebuffer = (uint16_t*)malloc(FB_BYTES);
     if (!bl->framebuffer) {
-        hw_log(zvb->parent.host, true, 0, "Software blitter: framebuffer allocation failed\n");
+        hw_log_error(zvb->parent.host, "Software blitter: framebuffer allocation failed\n");
         return;
     }
     memset(bl->framebuffer, 0, FB_BYTES);
@@ -113,6 +113,14 @@ void zvb_blitter_deinit(zvb_t* zvb)
 {
     free(zvb->blitter.framebuffer);
     zvb->blitter.framebuffer = NULL;
+}
+
+void zvb_blitter_fill_black(zvb_t* zvb)
+{
+    memset(zvb->blitter.framebuffer, 0, ZVB_MAX_RES_WIDTH * ZVB_MAX_RES_HEIGHT * sizeof(uint16_t));
+    zvb->blitter.width = ZVB_MAX_RES_WIDTH;
+    zvb->blitter.height = ZVB_MAX_RES_HEIGHT;
+    zvb->blitter.sequence++;
 }
 
 /* ================================================================== */
@@ -225,11 +233,8 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
 {
     const zvb_sprite_t* sprites = zvb->sprites.data;
     const uint8_t* tileset = zvb->tileset.raw;
-    bool color_4bit = (zvb->mode == MODE_GFX_640_4BIT ||
-                       zvb->mode == MODE_GFX_320_4BIT);
-    bool mode_320   = (zvb->mode == MODE_GFX_320_8BIT ||
-                       zvb->mode == MODE_GFX_320_4BIT);
-    int scr_w = mode_320 ? 320 : 640;
+    const bool color_4bit = zvb_is_4bit_mode(zvb);
+    const int scr_w = zvb_screen_width(zvb);
 
     memset(sprites_scanline, 0, scr_w * sizeof(uint16_t));
     memset(sprites_flags, 0, scr_w);
@@ -243,22 +248,12 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
         const zvb_sprite_t* sp = &sprites[sprite_idx];
 
         int sy = (int)sp->y - TILE_H;
-        int sh = sp->extra_flags.bitmap.height_32 ? 32 : 16;
+        const int sh = zvb_sprite_height(sp);
         if (scanline >= sy + sh) {
             continue;
         }
 
         int sx = (int)sp->x - TILE_W;
-        int sp_oy = scanline - sy;
-        if (sp->flags.bitmap.flip_y) {
-            sp_oy = sh - 1 - sp_oy;
-        }
-
-        int tile_num = sp->flags.bitmap.tile_number;
-        if (sp->flags.bitmap.tileset_idx && color_4bit) {
-            tile_num += TILE_HIGH_BANK;
-        }
-
         int start_x = sx;
         int end_x = sx + TILE_W;
         if (start_x < 0) {
@@ -269,19 +264,7 @@ static void zvb_blitter_sprites_scanline(zvb_t* zvb, int scanline,
         }
 
         for (int px = start_x; px < end_x; px++) {
-            int sp_ox = px - sx;
-            if (sp->flags.bitmap.flip_x) {
-                sp_ox = (TILE_W - 1) - sp_ox;
-            }
-
-            int byte_idx = tile_num * TILESET_BYTES_PER_TILE + sp_oy * TILE_W + sp_ox;
-            uint8_t color_idx;
-            if (color_4bit) {
-                color_idx = tileset_4bit(tileset, byte_idx);
-            } else {
-                color_idx = tileset_8bit(tileset, tile_num, sp_oy * TILE_W + sp_ox);
-            }
-
+            const uint8_t color_idx = zvb_sprite_pixel(sp, color_4bit, tileset, px - sx, scanline - sy);
             if (color_idx == 0) {
                 continue;
             }
@@ -461,7 +444,7 @@ static void render_scanline(zvb_t* zvb, int y)
             .sprite_flags = flags,
             .palette = pal,
         };
-        if (zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT) {
+        if (zvb_is_4bit_mode(zvb)) {
             render_gfx_4bit_scanline(zvb, &params);
         } else {
             render_gfx_8bit_scanline(zvb, &params);
@@ -472,7 +455,7 @@ static void render_scanline(zvb_t* zvb, int y)
 #if ZVB_SCANLINE_RENDERING
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
-    if (!zvb->scanline_rendering || !zvb->blitter.framebuffer ||
+    if (!zvb->scanline_rendering || zvb->blitter.framebuffer == NULL ||
         scanline < 0 || scanline >= FB_HEIGHT) {
         return;
     }

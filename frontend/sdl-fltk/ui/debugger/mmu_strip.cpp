@@ -36,7 +36,9 @@ void MmuStrip::draw()
 {
     fl_color(COLOR_SURFACE);
     fl_rectf(x(), y(), w(), h());
-    if (!m_valid) return;
+    if (!m_valid) {
+        return;
+    }
     const int seg_w = (w() - 8) / ZEAL_DBG_MMU_PAGES;
     char text[64], v[8];
     for (int i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
@@ -57,11 +59,15 @@ void MmuStrip::draw()
 
 int MmuStrip::handle(int event)
 {
-    if (event == FL_MOUSEWHEEL) return 1;
+    if (event == FL_MOUSEWHEEL) {
+        return 1;
+    }
     if (event == FL_PUSH && m_valid) {
         const int seg_w = (w() - 8) / ZEAL_DBG_MMU_PAGES;
         const int i = (Fl::event_x() - x() - 4) / seg_w;
-        if (i >= 0 && i < ZEAL_DBG_MMU_PAGES) goto_memory(m_info.entries[i].virt_addr);
+        if (i >= 0 && i < ZEAL_DBG_MMU_PAGES) {
+            goto_memory(m_info.entries[i].virt_addr);
+        }
         return 1;
     }
     return Fl_Widget::handle(event);
@@ -69,7 +75,9 @@ int MmuStrip::handle(int event)
 
 Fl_Color MmuStrip::device_color(const char* name)
 {
-    if (name == nullptr) return COLOR_BORDER;
+    if (name == nullptr) {
+        return COLOR_BORDER;
+    }
     unsigned hsh = 0;
     for (const char* p = name; *p; p++) hsh = hsh * 31 + (unsigned char) *p;
     static const Fl_Color palette[] = { COLOR_AMBER, COLOR_CYAN, COLOR_GREEN, COLOR_CHANGED };

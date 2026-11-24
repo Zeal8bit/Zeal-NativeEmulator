@@ -21,75 +21,75 @@ typedef struct {
 } console_key_t;
 
 /* Named keys. Single letters (A-Z) and digits (0-9) are handled directly. */
-// clang-format off
+// clang-format off  (keep the table columns aligned below)
 static const console_key_t CONSOLE_KEYS[] = {
     /* Cursor / navigation */
-    { "UP",          ZEAL_KEY_UP          },
-    { "DOWN",        ZEAL_KEY_DOWN        },
-    { "LEFT",        ZEAL_KEY_LEFT        },
-    { "RIGHT",       ZEAL_KEY_RIGHT       },
-    { "HOME",        ZEAL_KEY_HOME        },
-    { "END",         ZEAL_KEY_END         },
-    { "PAGE_UP",     ZEAL_KEY_PAGE_UP     },
-    { "PAGE_DOWN",   ZEAL_KEY_PAGE_DOWN   },
-    { "INSERT",      ZEAL_KEY_INSERT      },
-    { "DELETE",      ZEAL_KEY_DELETE      },
+    { "UP",           ZEAL_KEY_UP             },
+    { "DOWN",         ZEAL_KEY_DOWN           },
+    { "LEFT",         ZEAL_KEY_LEFT           },
+    { "RIGHT",        ZEAL_KEY_RIGHT          },
+    { "HOME",         ZEAL_KEY_HOME           },
+    { "END",          ZEAL_KEY_END            },
+    { "PAGE_UP",      ZEAL_KEY_PAGE_UP        },
+    { "PAGE_DOWN",    ZEAL_KEY_PAGE_DOWN      },
+    { "INSERT",       ZEAL_KEY_INSERT         },
+    { "DELETE",       ZEAL_KEY_DELETE         },
     /* Editing / control */
-    { "ENTER",       ZEAL_KEY_ENTER       },
-    { "ESC",         ZEAL_KEY_ESCAPE      },
-    { "ESCAPE",      ZEAL_KEY_ESCAPE      },
-    { "SPACE",       ZEAL_KEY_SPACE       },
-    { "BACKSPACE",   ZEAL_KEY_BACKSPACE   },
-    { "TAB",         ZEAL_KEY_TAB         },
-    { "CAPS_LOCK",   ZEAL_KEY_CAPS_LOCK   },
+    { "ENTER",        ZEAL_KEY_ENTER          },
+    { "ESC",          ZEAL_KEY_ESCAPE         },
+    { "ESCAPE",       ZEAL_KEY_ESCAPE         },
+    { "SPACE",        ZEAL_KEY_SPACE          },
+    { "BACKSPACE",    ZEAL_KEY_BACKSPACE      },
+    { "TAB",          ZEAL_KEY_TAB            },
+    { "CAPS_LOCK",    ZEAL_KEY_CAPS_LOCK      },
     /* Modifiers */
-    { "SHIFT",       ZEAL_KEY_LEFT_SHIFT    },
-    { "CTRL",        ZEAL_KEY_LEFT_CONTROL  },
-    { "ALT",         ZEAL_KEY_LEFT_ALT      },
-    { "RIGHT_SHIFT", ZEAL_KEY_RIGHT_SHIFT   },
-    { "RIGHT_CTRL",  ZEAL_KEY_RIGHT_CONTROL },
-    { "RIGHT_ALT",   ZEAL_KEY_RIGHT_ALT     },
+    { "SHIFT",        ZEAL_KEY_LEFT_SHIFT     },
+    { "CTRL",         ZEAL_KEY_LEFT_CONTROL   },
+    { "ALT",          ZEAL_KEY_LEFT_ALT       },
+    { "RIGHT_SHIFT",  ZEAL_KEY_RIGHT_SHIFT    },
+    { "RIGHT_CTRL",   ZEAL_KEY_RIGHT_CONTROL  },
+    { "RIGHT_ALT",    ZEAL_KEY_RIGHT_ALT      },
     /* Function keys */
-    { "F1",  ZEAL_KEY_F1  },
-    { "F2",  ZEAL_KEY_F2  },
-    { "F3",  ZEAL_KEY_F3  },
-    { "F4",  ZEAL_KEY_F4  },
-    { "F5",  ZEAL_KEY_F5  },
-    { "F6",  ZEAL_KEY_F6  },
-    { "F7",  ZEAL_KEY_F7  },
-    { "F8",  ZEAL_KEY_F8  },
-    { "F9",  ZEAL_KEY_F9  },
-    { "F10", ZEAL_KEY_F10 },
-    { "F11", ZEAL_KEY_F11 },
-    { "F12", ZEAL_KEY_F12 },
+    { "F1",           ZEAL_KEY_F1             },
+    { "F2",           ZEAL_KEY_F2             },
+    { "F3",           ZEAL_KEY_F3             },
+    { "F4",           ZEAL_KEY_F4             },
+    { "F5",           ZEAL_KEY_F5             },
+    { "F6",           ZEAL_KEY_F6             },
+    { "F7",           ZEAL_KEY_F7             },
+    { "F8",           ZEAL_KEY_F8             },
+    { "F9",           ZEAL_KEY_F9             },
+    { "F10",          ZEAL_KEY_F10            },
+    { "F11",          ZEAL_KEY_F11            },
+    { "F12",          ZEAL_KEY_F12            },
     /* Punctuation */
-    { "MINUS",         ZEAL_KEY_MINUS         },
-    { "EQUAL",         ZEAL_KEY_EQUAL         },
-    { "COMMA",         ZEAL_KEY_COMMA         },
-    { "PERIOD",        ZEAL_KEY_PERIOD        },
-    { "SLASH",         ZEAL_KEY_SLASH         },
-    { "SEMICOLON",     ZEAL_KEY_SEMICOLON     },
-    { "APOSTROPHE",    ZEAL_KEY_APOSTROPHE    },
-    { "GRAVE",         ZEAL_KEY_GRAVE         },
-    { "LEFT_BRACKET",  ZEAL_KEY_LEFT_BRACKET  },
-    { "RIGHT_BRACKET", ZEAL_KEY_RIGHT_BRACKET },
-    { "BACKSLASH",     ZEAL_KEY_BACKSLASH     },
+    { "MINUS",        ZEAL_KEY_MINUS          },
+    { "EQUAL",        ZEAL_KEY_EQUAL          },
+    { "COMMA",        ZEAL_KEY_COMMA          },
+    { "PERIOD",       ZEAL_KEY_PERIOD         },
+    { "SLASH",        ZEAL_KEY_SLASH          },
+    { "SEMICOLON",    ZEAL_KEY_SEMICOLON      },
+    { "APOSTROPHE",   ZEAL_KEY_APOSTROPHE     },
+    { "GRAVE",        ZEAL_KEY_GRAVE          },
+    { "LEFT_BRACKET", ZEAL_KEY_LEFT_BRACKET   },
+    { "RIGHT_BRACKET",ZEAL_KEY_RIGHT_BRACKET  },
+    { "BACKSLASH",    ZEAL_KEY_BACKSLASH      },
     /* Keypad */
-    { "KP_0", ZEAL_KEY_KP_0 },
-    { "KP_1", ZEAL_KEY_KP_1 },
-    { "KP_2", ZEAL_KEY_KP_2 },
-    { "KP_3", ZEAL_KEY_KP_3 },
-    { "KP_4", ZEAL_KEY_KP_4 },
-    { "KP_5", ZEAL_KEY_KP_5 },
-    { "KP_6", ZEAL_KEY_KP_6 },
-    { "KP_7", ZEAL_KEY_KP_7 },
-    { "KP_8", ZEAL_KEY_KP_8 },
-    { "KP_9", ZEAL_KEY_KP_9 },
-    { "KP_ADD",      ZEAL_KEY_KP_ADD      },
-    { "KP_SUBTRACT", ZEAL_KEY_KP_SUBTRACT },
-    { "KP_MULTIPLY", ZEAL_KEY_KP_MULTIPLY },
-    { "KP_DIVIDE",   ZEAL_KEY_KP_DIVIDE   },
-    { "KP_DECIMAL",  ZEAL_KEY_KP_DECIMAL  },
+    { "KP_0",         ZEAL_KEY_KP_0           },
+    { "KP_1",         ZEAL_KEY_KP_1           },
+    { "KP_2",         ZEAL_KEY_KP_2           },
+    { "KP_3",         ZEAL_KEY_KP_3           },
+    { "KP_4",         ZEAL_KEY_KP_4           },
+    { "KP_5",         ZEAL_KEY_KP_5           },
+    { "KP_6",         ZEAL_KEY_KP_6           },
+    { "KP_7",         ZEAL_KEY_KP_7           },
+    { "KP_8",         ZEAL_KEY_KP_8           },
+    { "KP_9",         ZEAL_KEY_KP_9           },
+    { "KP_ADD",       ZEAL_KEY_KP_ADD         },
+    { "KP_SUBTRACT",  ZEAL_KEY_KP_SUBTRACT    },
+    { "KP_MULTIPLY",  ZEAL_KEY_KP_MULTIPLY    },
+    { "KP_DIVIDE",    ZEAL_KEY_KP_DIVIDE      },
+    { "KP_DECIMAL",   ZEAL_KEY_KP_DECIMAL     },
 };
 // clang-format on
 
@@ -130,6 +130,7 @@ static int console_parse_key(const char* name)
 }
 
 
+/* "press <key>" / "release <key>": hold or release one emulated key. */
 void console_key(zeal_t* machine, int argc, char** argv)
 {
     const bool release = (strcmp(argv[0], "release") == 0);
@@ -150,6 +151,7 @@ void console_key(zeal_t* machine, int argc, char** argv)
 }
 
 
+/* "tap <key>": press and release the key in one command. */
 void console_tap(zeal_t* machine, int argc, char** argv)
 {
     if (argc < 2) {

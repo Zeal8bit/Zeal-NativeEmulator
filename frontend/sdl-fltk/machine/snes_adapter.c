@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* SNES adapter port assignment, ported from the Nuklear frontend. */
+/* SNES adapter port assignment, ported from the previous frontend. */
 #include <stdint.h>
 #include <stdio.h>
 
@@ -91,7 +91,9 @@ static void fltk_snes_sample(void* userdata, uint32_t* bits, bool* attached)
         snes_adapter->last_packets[port] = attached[port] ? bits[port] : 0xFFFFFFFF;
     }
     snes_adapter->latch_count++;
-    if (fltk_machine) snes_adapter->last_latch_ns = vtimer_now_ns(&fltk_machine->cpu.clock);
+    if (fltk_machine) {
+        snes_adapter->last_latch_ns = vtimer_now_ns(&fltk_machine->cpu.clock);
+    }
 
 }
 
@@ -249,21 +251,27 @@ void snes_adapter_update(fltk_snes_t* snes_adapter)
         /* Only a device that just appeared is assigned automatically; one
          * the user detached or moved keeps that choice */
         const uint32_t id = snes_controller_id(i);
-        if (id != 0 && id != snes_adapter->seen[i]) changed |= snes_adapter_auto_attach(snes_adapter, i);
+        if (id != 0 && id != snes_adapter->seen[i]) {
+            changed |= snes_adapter_auto_attach(snes_adapter, i);
+        }
         snes_adapter->seen[i] = id;
         snes_adapter->controllers[i].attached = available;
     }
 
     snes_adapter->mouse.attached = snes_adapter_get_mouse_port(snes_adapter) != SNES_PORT_DETACHED;
     snes_mouse_update(&snes_adapter->mouse);
-    if (changed) ui_gamepads_changed();
+    if (changed) {
+        ui_gamepads_changed();
+    }
 }
 
 /* Give gamepad `i` a free port (pad 0 takes port 0, the others a free
  * port, or port 1 from the default mouse). True when it was attached. */
 static bool snes_adapter_auto_attach(fltk_snes_t* snes_adapter, uint8_t i)
 {
-    if (snes_adapter_get_controller_port(snes_adapter, i) != SNES_PORT_DETACHED) return false;
+    if (snes_adapter_get_controller_port(snes_adapter, i) != SNES_PORT_DETACHED) {
+        return false;
+    }
     int port = SNES_PORT_DETACHED;
     if (i == 0) {
         port = 0;
@@ -279,7 +287,9 @@ static bool snes_adapter_auto_attach(fltk_snes_t* snes_adapter, uint8_t i)
             port = 1;
         }
     }
-    if (port == SNES_PORT_DETACHED) return false;
+    if (port == SNES_PORT_DETACHED) {
+        return false;
+    }
     if (snes_controller_available(i)) {
         printf("[SNES] Found \"%s\"\n", snes_adapter_controller_name(snes_adapter, i));
     }
@@ -292,7 +302,9 @@ static void snes_adapter_attach_available_controllers(fltk_snes_t* snes_adapter)
 {
     for (uint8_t i = 0; i < SNES_GAMEPAD_COUNT; i++) {
         snes_adapter->seen[i] = snes_controller_id(i);
-        if (snes_adapter->seen[i] != 0) snes_adapter_auto_attach(snes_adapter, i);
+        if (snes_adapter->seen[i] != 0) {
+            snes_adapter_auto_attach(snes_adapter, i);
+        }
     }
 }
 
@@ -309,7 +321,9 @@ void snes_adapter_set_virtual_button(fltk_snes_t* snes_adapter, uint8_t button, 
     } else {
         snes_adapter->virtual_controller_bits |= (uint16_t) (1u << button);
     }
-    if (enabling && snes_adapter_auto_attach(snes_adapter, 0)) ui_gamepads_changed();
+    if (enabling && snes_adapter_auto_attach(snes_adapter, 0)) {
+        ui_gamepads_changed();
+    }
 }
 
 void snes_adapter_clear_virtual_buttons(fltk_snes_t* snes_adapter)
@@ -317,7 +331,9 @@ void snes_adapter_clear_virtual_buttons(fltk_snes_t* snes_adapter)
     const bool enabling = !snes_adapter->virtual_controller_enabled;
     snes_adapter->virtual_controller_enabled = true;
     snes_adapter->virtual_controller_bits = 0xFFFF;
-    if (enabling && snes_adapter_auto_attach(snes_adapter, 0)) ui_gamepads_changed();
+    if (enabling && snes_adapter_auto_attach(snes_adapter, 0)) {
+        ui_gamepads_changed();
+    }
 }
 
 void snes_adapter_reset_mouse_scale(fltk_snes_t* snes_adapter)

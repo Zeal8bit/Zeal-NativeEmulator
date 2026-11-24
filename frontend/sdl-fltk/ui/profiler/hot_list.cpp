@@ -24,18 +24,14 @@ using namespace zui::common;
 using namespace zui::debugger;
 using namespace zui::theme;
 
-namespace {
-
 /** "12,345" */
 /** "$1234" honouring hex_upper */
-void addr_text(char* out, size_t size, hwaddr addr)
+static void addr_text(char* out, size_t size, hwaddr addr)
 {
     char h[8];
     hex16(h, sizeof(h), addr);
     snprintf(out, size, "$%s", h);
 }
-
-} // namespace
 
 HotList::HotList(int X, int Y, int W, int H, Fl_Scrollbar* bar)
     : Fl_Widget(X, Y, W, H), m_bar(bar)
@@ -190,12 +186,17 @@ int HotList::handle(int event)
             return 1;
         case FL_PUSH: {
             const int idx = row_at(Fl::event_y());
-            if (idx < 0) return 1;
+            if (idx < 0) {
+                return 1;
+            }
             const HotRow row = rows[(size_t) idx];
             m_selected = (int) row.addr;
             redraw();
-            if (Fl::event_button() == FL_RIGHT_MOUSE) context_menu(row);
-            else goto_disassembly(row.addr);
+            if (Fl::event_button() == FL_RIGHT_MOUSE) {
+                context_menu(row);
+            } else {
+                goto_disassembly(row.addr);
+            }
             return 1;
         }
         default:
@@ -240,7 +241,9 @@ void HotList::draw_empty()
 
 void HotList::set_hover(int idx)
 {
-    if (idx == m_hover) return;
+    if (idx == m_hover) {
+        return;
+    }
     m_hover = idx;
     redraw();
 }
@@ -248,7 +251,9 @@ void HotList::set_hover(int idx)
 int HotList::row_at(int ey) const
 {
     const int ry0 = y() + head_h();
-    if (ey < ry0) return -1;
+    if (ey < ry0) {
+        return -1;
+    }
     const int idx = m_top + (ey - ry0) / line_h();
     return idx < (int) rows.size() ? idx : -1;
 }
@@ -266,7 +271,9 @@ void HotList::context_menu(const HotRow& row)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[8];
     switch ((int) (picked - items)) {
         case 0:

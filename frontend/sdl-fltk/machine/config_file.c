@@ -31,20 +31,26 @@ static FILE* path_create_temp(const char* target, char* tmp, size_t tmp_size)
             }
             return f;
         }
-        if (errno != EEXIST) return NULL;
+        if (errno != EEXIST) {
+            return NULL;
+        }
     }
     return NULL;
 }
 
 static int path_commit(FILE* file)
 {
-    if (fflush(file) != 0) return -1;
+    if (fflush(file) != 0) {
+        return -1;
+    }
     return _commit(_fileno(file));
 }
 
 static int path_replace(const char* tmp, const char* target)
 {
-    if (MoveFileExA(tmp, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return 0;
+    if (MoveFileExA(tmp, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        return 0;
+    }
     errno = EACCES;
     return -1;
 }
@@ -58,7 +64,9 @@ static FILE* path_create_temp(const char* target, char* tmp, size_t tmp_size)
         return NULL;
     }
     const int fd = mkstemp(tmp);
-    if (fd < 0) return NULL;
+    if (fd < 0) {
+        return NULL;
+    }
     /* Keep the permissions of the file being replaced; a new file gets the
      * usual ones (mkstemp creates it private) */
     struct stat st;
@@ -82,7 +90,9 @@ static FILE* path_create_temp(const char* target, char* tmp, size_t tmp_size)
 
 static int path_commit(FILE* file)
 {
-    if (fflush(file) != 0) return -1;
+    if (fflush(file) != 0) {
+        return -1;
+    }
     return fsync(fileno(file));
 }
 
@@ -104,7 +114,9 @@ bool config_write_file(const char* path, bool (*write_contents)(FILE*, const voi
     bool ok = true;
 
     if (realpath(path, target) == NULL) {
-        if (errno != ENOENT || strlen(path) >= sizeof(target)) goto fail;
+        if (errno != ENOENT || strlen(path) >= sizeof(target)) {
+            goto fail;
+        }
 #ifndef _WIN32
         /* A symbolic link to a missing file: replacing the link itself
          * would silently detach it */
@@ -129,15 +141,24 @@ bool config_write_file(const char* path, bool (*write_contents)(FILE*, const voi
         }
     }
     f = path_create_temp(target, tmp, sizeof(tmp));
-    if (f == NULL) goto fail;
+    if (f == NULL) {
+        goto fail;
+    }
     ok = write_contents(f, data);
-    if (ok) ok = path_commit(f) == 0;
+    if (ok) {
+        ok = path_commit(f) == 0;
+    }
     {
         const int err = errno;
-        if (fclose(f) != 0) ok = false;
-        else errno = err;
+        if (fclose(f) != 0) {
+            ok = false;
+        } else {
+            errno = err;
+        }
     }
-    if (ok && path_replace(tmp, target) == 0) return true;
+    if (ok && path_replace(tmp, target) == 0) {
+        return true;
+    }
     {
         const int err = errno;
         remove(tmp);

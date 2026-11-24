@@ -19,13 +19,17 @@ int InlineEdit::handle(int event)
 {
     if (event == FL_KEYBOARD && Fl::event_key() == FL_Escape) {
         hide();
-        if (parent()) parent()->redraw();
+        if (parent()) {
+            parent()->redraw();
+        }
         return 1;
     }
     if (event == FL_UNFOCUS) {
         const int r = Fl_Input::handle(event);
         hide();
-        if (parent()) parent()->redraw();
+        if (parent()) {
+            parent()->redraw();
+        }
         return r;
     }
     return Fl_Input::handle(event);

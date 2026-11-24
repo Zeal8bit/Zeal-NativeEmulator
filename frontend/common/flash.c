@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -235,7 +235,9 @@ int flash_load_from_file(flash_t* flash, const char* rom_filename, const char* u
     /* Try to load the user program, if any */
     if (userprog_filename != NULL) {
         int error = flash_override_romdisk(flash, userprog_filename);
-        if (error != 0) return error;
+        if (error != 0) {
+            return error;
+        }
     }
 
     flash_loaded(flash);

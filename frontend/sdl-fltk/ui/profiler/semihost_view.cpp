@@ -16,19 +16,13 @@
 namespace zui::profiler {
 
 using namespace zui::theme;
-using namespace zui::tools;
-using namespace zui::widgets;
 
-namespace {
-
-widgets::Panel* make_semihost(int x, int y, int w, int h)
+static widgets::Panel* make_semihost(int x, int y, int w, int h)
 {
     return new SemihostView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 90, "Semihost", make_semihost);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_CODE, 90, "Semihost", make_semihost);
 
 SemihostView::SemihostView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "SEMIHOST COUNTERS")
@@ -67,7 +61,9 @@ void SemihostView::draw()
     m_row_h = lh;
     for (int i = 0; i < fz_semihost_counter_count(); i++) {
         fz_counter_t c;
-        if (!fz_semihost_counter(i, &c)) continue;
+        if (!fz_semihost_counter(i, &c)) {
+            continue;
+        }
         const int ry = yy + i * lh;
         if (i == m_hover) {
             fl_color(COLOR_HOVER);
@@ -129,7 +125,9 @@ int SemihostView::handle(int event)
 
 int SemihostView::row_at(int ey) const
 {
-    if (m_row_h <= 0 || ey < m_rows_y) return -1;
+    if (m_row_h <= 0 || ey < m_rows_y) {
+        return -1;
+    }
     const int r = (ey - m_rows_y) / m_row_h;
     return r < fz_semihost_counter_count() ? r : -1;
 }

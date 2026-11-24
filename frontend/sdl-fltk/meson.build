@@ -1,7 +1,6 @@
 # SDL3 (audio, gamepads) + FLTK (windows, menus, input, debugger UI).
 sdlfltk_sources = files(
     'bridge/cpu.c',
-    'bridge/hw.c',
     'bridge/input.c',
     'bridge/machine.c',
     'machine/audio.c',
@@ -21,6 +20,8 @@ sdlfltk_sources = files(
     'debug/trace.c',
     'debug/vram.c',
 )
+sdlfltk_sources += common_audio_sources
+
 if get_option('profile_render')
     sdlfltk_sources += files('profile/render_profile.c')
 else
@@ -38,6 +39,7 @@ sdlfltk_cpp_sources = files(
     'ui/common/clock.cpp',
     'ui/common/cp437.cpp',
     'ui/common/format.cpp',
+    'ui/common/frame_convert.cpp',
     'ui/common/persist.cpp',
     'ui/common/toml_config.cpp',
     'ui/theme/fonts.cpp',

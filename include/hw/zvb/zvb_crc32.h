@@ -11,6 +11,11 @@
 #include "hw/device.h"
 #include "hw/pio.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint32_t sum;
 } zvb_crc32_t;
@@ -22,3 +27,7 @@ void zvb_crc32_reset(zvb_crc32_t* crc32);
 void zvb_crc32_write(zvb_crc32_t* crc32, uint16_t subaddr, uint8_t data);
 
 uint8_t zvb_crc32_read(zvb_crc32_t* crc32, uint16_t subaddr);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -6,17 +6,13 @@
 
 #include "hardware/video_registers_view.h"
 #include "common/machine.h"
-#include "frontend/sdl-fltk/bridge/hw.h"
+#include "frontend/sdl-fltk/frontend.h"
 #include "hardware/hw_register_view.h"
 #include "tools/tool_registry.h"
 #include "widgets/panel.h"
 
 namespace zui::hardware {
 
-using namespace zui::tools;
-using namespace zui::widgets;
-
-namespace {
 
 struct ModeInfo {
     const char* name;
@@ -41,14 +37,12 @@ const char* const s_rpu_states[] = { "IDLE", "FETCH", "EXECUTE" };
 const char* const s_tf_states[] = { "WAIT IDLE", "IDLE", "CMD55", "READ BLOCK", "WRITE WAIT TOKEN",
                                     "WRITE BLOCK", "WRITE RESPONSE" };
 
-widgets::Panel* make_hw_video(int x, int y, int w, int h)
+static widgets::Panel* make_hw_video(int x, int y, int w, int h)
 {
     return new VideoRegistersView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 10, "Video", make_hw_video);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 10, "Video", make_hw_video);
 
 VideoRegistersView::VideoRegistersView(int X, int Y, int W, int H)
     : HwRegisterView(X, Y, W, H, "VIDEO BOARD")
@@ -56,109 +50,133 @@ VideoRegistersView::VideoRegistersView(int X, int Y, int W, int H)
 
 void VideoRegistersView::build()
 {
-    fz_hw_video_t v;
-    if (!fz_hw_video(&v)) {
+    if (fltk_machine == nullptr) {
         section("NO MACHINE");
         return;
     }
-    const ModeInfo* mode = v.mode < 8 ? &s_modes[v.mode] : nullptr;
+    const zvb_t& v = fltk_machine->zvb;
+    const ModeInfo* mode = (int) v.mode < 8 ? &s_modes[(int) v.mode] : nullptr;
 
     section("VIDEO MODE");
-    text("VERSION", fmt("v%u.%u.%u", v.major, v.minor, v.rev));
-    u8("MODE", v.mode, mode ? mode->name : "?");
+    text("VERSION", fmt("v%u.%u.%u", ZVB_EMULATED_MAJOR, ZVB_EMULATED_MINOR, ZVB_EMULATED_REV));
+    u8("MODE", (unsigned) v.mode, mode ? mode->name : "?");
     text("RESOLUTION", mode ? mode->resolution : "?");
     text("COLORS", mode ? mode->colors : "?");
-    u8("STATUS", v.status);
-    chips("CONTROL", { { "VID", v.vid_ena }, { "HINT", v.h_int_ena }, { "VINT", v.v_int_ena },
-                       { "OUT", v.screen_enabled } }).tip = "Video enable, h/v-blank interrupt enables, "
-                                                           "output latched at vblank";
+    u8("STATUS", v.status.raw);
+    chips("CONTROL", { { "VID", v.status.vid_ena != 0 }, { "HINT", v.status.h_int_ena != 0 },
+                       { "VINT", v.status.v_int_ena != 0 }, { "OUT", v.screen_enabled } })
+        .tip = "Video enable, h/v-blank interrupt enables, output latched at vblank";
     u8("IO BANK", v.io_bank, name_of(s_banks, 7, v.io_bank));
     text("SCRATCH", h8(v.scratch[0]) + " " + h8(v.scratch[1]) + " " + h8(v.scratch[2]) + " " + h8(v.scratch[3]));
 
+    const uint8_t ext_irq = (uint8_t) ((zvb_sound_interrupt(&v.sound) ? 1 : 0) |
+                                       (zvb_rpu_interrupt(&v.rpu) ? 2 : 0) |
+                                       (zvb_timer_interrupt(&v.peri_timer) ? 4 : 0));
+    const bool gp_irq = ext_irq != 0 || (v.status.h_int_ena && (v.blank_latches & 1) != 0);
+
     section("RASTER");
-    u16("SCANLINE", (unsigned) v.scanline);
-    u16("HPOS", (unsigned) v.hpos);
-    text("STATE", v.raster_state ? "HBLANK" : "RENDERING");
-    chips("BLANK", { { "HBL", v.h_blank }, { "VBL", v.v_blank } });
+    u16("SCANLINE", (unsigned) v.current_scanline);
+    u16("HPOS", (unsigned) v.current_hpos);
+    text("STATE", v.state ? "HBLANK" : "RENDERING");
+    chips("BLANK", { { "HBL", v.status.h_blank != 0 }, { "VBL", v.status.v_blank != 0 } });
     chips("LATCHED", { { "HBL", (v.blank_latches & 1) != 0 }, { "VBL", (v.blank_latches & 2) != 0 } });
-    chips("IRQ", { { "GP", v.gp_irq }, { "SND", (v.ext_irq & 1) != 0 }, { "RPU", (v.ext_irq & 2) != 0 },
-                   { "TMR", (v.ext_irq & 4) != 0 } });
+    chips("IRQ", { { "GP", gp_irq }, { "SND", (ext_irq & 1) != 0 }, { "RPU", (ext_irq & 2) != 0 },
+                   { "TMR", (ext_irq & 4) != 0 } });
     chips("RENDERER", { { "SCANLINE", v.scanline_rendering } });
 
     section("LAYERS");
-    u16("L0 SCROLL X", v.l0_scroll_x);
-    u16("L0 SCROLL Y", v.l0_scroll_y);
-    u16("L1 SCROLL X", v.l1_scroll_x);
-    u16("L1 SCROLL Y", v.l1_scroll_y);
+    u16("L0 SCROLL X", v.ctrl.l0_scroll_x);
+    u16("L0 SCROLL Y", v.ctrl.l0_scroll_y);
+    u16("L1 SCROLL X", v.ctrl.l1_scroll_x);
+    u16("L1 SCROLL Y", v.ctrl.l1_scroll_y);
 
+    const zvb_text_t& t = v.text;
     section("TEXT CONTROLLER");
-    u8("CURSOR X", v.text.cursor_x);
-    u8("CURSOR Y", v.text.cursor_y);
-    text("SAVED", fmt("%u, %u", v.text.save_x, v.text.save_y));
-    u8("SCROLL X", v.text.scroll_x);
-    u8("SCROLL Y", v.text.scroll_y);
-    u8("COLOR", v.text.color, fmt("fg %u bg %u", v.text.color & 0xF, v.text.color >> 4));
-    u8("CURSOR COLOR", v.text.cursor_color,
-       fmt("fg %u bg %u", v.text.cursor_color & 0xF, v.text.cursor_color >> 4));
-    const unsigned ch = v.text.cursor_char;
+    u8("CURSOR X", t.cursor_pos.x);
+    u8("CURSOR Y", t.cursor_pos.y);
+    text("SAVED", fmt("%u, %u", t.cursor_save.x, t.cursor_save.y));
+    u8("SCROLL X", t.scroll.x);
+    u8("SCROLL Y", t.scroll.y);
+    u8("COLOR", t.color, fmt("fg %u bg %u", t.color & 0xF, t.color >> 4));
+    u8("CURSOR COLOR", t.cursor_color, fmt("fg %u bg %u", t.cursor_color & 0xF, t.cursor_color >> 4));
+    const unsigned ch = t.cursor_char;
     u8("CURSOR CHAR", ch, ch >= 32 && ch < 127 ? fmt("'%c'", (char) ch) : "");
-    u8("BLINK TIME", v.text.cursor_time, "frames");
-    u16("CURSOR OFS", v.text.cursor_addr, "tilemap");
-    text("GRID", fmt("%ux%u", v.text.columns, v.text.lines));
-    chips("FLAGS", { { "SCRX", v.text.auto_scroll_x }, { "SCRY", v.text.auto_scroll_y },
-                     { "WRAP", v.text.wait_on_wrap }, { "SCROLLED", v.text.scroll_y_occurred } })
+    u8("BLINK TIME", t.cursor_time, "frames");
+    u16("CURSOR OFS", zvb_text_cursor_address(&t), "tilemap");
+    text("GRID", fmt("%ux%u", t.visible_columns, t.visible_lines));
+    chips("FLAGS", { { "SCRX", t.flags.auto_scroll_x != 0 }, { "SCRY", t.flags.auto_scroll_y != 0 },
+                     { "WRAP", t.flags.wait_on_wrap != 0 }, { "SCROLLED", t.flags.scroll_y_occurred != 0 } })
         .tip = "Auto scroll X/Y, wait on wrap, Y scroll occurred";
-    chips("CURSOR", { { "SHOWN", v.text.cursor_shown }, { "PENDING", v.text.wait_next_char } });
+    chips("CURSOR", { { "SHOWN", t.cursor_shown }, { "PENDING", t.wait_for_next_char } });
 
+    uint16_t palette[16];
+    for (int i = 0; i < 16; i++) {
+        palette[i] = (uint16_t) (v.palette.raw_palette[i * 2] | (v.palette.raw_palette[i * 2 + 1] << 8));
+    }
     section("PALETTE");
-    swatches("COLORS 0-15", v.palette, FZ_HW_PALETTE_SHOWN);
-    u8("WR LATCH", (unsigned) v.palette_latch);
+    swatches("COLORS 0-15", palette, 16);
+    u8("WR LATCH", (unsigned) v.palette.wr_latch);
 
+    const bool small = v.mode == MODE_GFX_320_8BIT || v.mode == MODE_GFX_320_4BIT;
+    const int sw = small ? 320 : 640, sh = small ? 240 : 480;
+    int sprites_on_screen = 0;
+    for (int i = 0; i < ZVB_SPRITES_COUNT; i++) {
+        const zvb_sprite_t* sp = &v.sprites.data[i];
+        const int h = sp->extra_flags.bitmap.height_32 ? 32 : 16;
+        const int x = (int) sp->x - 16, y = (int) sp->y - 16;
+        if (x > -16 && x < sw && y > -h && y < sh) {
+            sprites_on_screen++;
+        }
+    }
     section("SPRITES");
-    u8("ON SCREEN", (unsigned) v.sprites_on_screen, "of 128");
-    u8("WR LATCH", (unsigned) v.sprites_latch);
+    u8("ON SCREEN", (unsigned) sprites_on_screen, "of 128");
+    u8("WR LATCH", (unsigned) v.sprites.wr_latch);
 
+    const zvb_dma_t& dma = v.dma;
     section("DMA CONTROLLER");
-    phys("DESCRIPTOR", v.dma.desc_addr);
-    text("STATE", name_of(s_dma_states, 6, v.dma.state));
-    text("CLOCK", fmt("rd %u / wr %u cycles", v.dma.rd_cycles, v.dma.wr_cycles));
-    phys("READ PTR", v.dma.rd_addr);
-    phys("WRITE PTR", v.dma.wr_addr);
-    u16("REMAINING", v.dma.remaining, "bytes");
-    u8("FLAGS", v.dma.flags);
-    chips("BUS", { { "WIRED", v.dma.bus_connected } });
+    phys("DESCRIPTOR", dma.desc_addr & 0xFFFFFF);
+    text("STATE", name_of(s_dma_states, 6, (int) dma.state));
+    text("CLOCK", fmt("rd %u / wr %u cycles", (unsigned) dma.clk.rd_cycle, (unsigned) dma.clk.wr_cycle));
+    phys("READ PTR", dma.rd_addr);
+    phys("WRITE PTR", dma.wr_addr);
+    u16("REMAINING", dma.remaining, "bytes");
+    u8("FLAGS", dma.flags);
+    chips("BUS", { { "WIRED", dma.bus_connected } });
 
+    const zvb_rpu_t& rpu = v.rpu;
     section("RASTER PROCESSOR");
-    u8("PC", v.rpu.pc);
-    text("STATE", name_of(s_rpu_states, 3, v.rpu.state));
-    row("INSTRUCTION", hexn(v.rpu.instruction, 8), "");
-    u16("HMASK", v.rpu.hmask);
-    u16("VMASK", v.rpu.vmask);
-    u8("UPLOAD ADDR", v.rpu.upload_addr);
-    chips("IRQ", { { "ENABLE", v.rpu.int_enabled }, { "RAISED", v.rpu.int_raw } });
+    u8("PC", rpu.pc);
+    text("STATE", name_of(s_rpu_states, 3, rpu.state));
+    row("INSTRUCTION", hexn(rpu.instruction, 8), "");
+    u16("HMASK", rpu.hmask);
+    u16("VMASK", rpu.vmask);
+    u8("UPLOAD ADDR", rpu.upload_addr);
+    chips("IRQ", { { "ENABLE", rpu.int_enabled }, { "RAISED", rpu.int_raw } });
 
+    const zvb_timer_t& tm = v.peri_timer;
     section("TIMER");
-    chips("CONTROL", { { "EN", v.timer.enabled }, { "RELOAD", v.timer.auto_reload },
-                       { "DEC", v.timer.decrement }, { "IRQ", v.timer.int_enabled } });
-    u16("DIVIDER", v.timer.divider);
-    u16("RELOAD", v.timer.reload);
-    u16("COUNTER", v.timer.counter);
-    chips("STATUS", { { "PENDING", v.timer.int_pending } });
+    chips("CONTROL", { { "EN", tm.enabled }, { "RELOAD", tm.auto_reload },
+                       { "DEC", tm.decrement }, { "IRQ", tm.int_enabled } });
+    u16("DIVIDER", tm.divider);
+    u16("RELOAD", tm.reload);
+    u16("COUNTER", tm.counter);
+    chips("STATUS", { { "PENDING", tm.int_pending } });
 
     section("CRC32");
-    row("SUM", hexn(v.crc32, 8), "");
+    row("SUM", hexn(v.peri_crc32.sum, 8), "");
 
+    const zvb_spi_t& spi = v.spi;
     section("SPI / TF CARD");
-    u8("CLK DIV", v.spi.clk_div);
-    u8("RAM LEN", v.spi.ram_len);
-    u8("OPERAND", v.spi.operand);
-    chips("STATE", { { "BUSY", v.spi.busy }, { "TF CS", v.spi.tf_cs } });
-    text("TRANSFER", fmt("%u / %u", v.spi.transfer_index, v.spi.transfer_len));
-    text("RAM IDX", fmt("rd %u  wr %u", v.spi.ram_rd_idx, v.spi.ram_wr_idx));
-    text("TF STATE", name_of(s_tf_states, 7, v.spi.tf_state));
-    u8("TF COMMAND", v.spi.tf_command, fmt("CMD%u", v.spi.tf_command & 0x3F));
-    row("TF ARGUMENT", hexn(v.spi.tf_argument, 8), dec(v.spi.tf_argument));
-    text("TF CARD", v.spi.tf_size ? fmt("%llu KB", (unsigned long long) (v.spi.tf_size / 1024)) : "none");
+    u8("CLK DIV", spi.clk_div);
+    u8("RAM LEN", spi.ram_len);
+    u8("OPERAND", spi.operand);
+    chips("STATE", { { "BUSY", spi.busy }, { "TF CS", spi.tf_cs != 0 } });
+    text("TRANSFER", fmt("%u / %u", (unsigned) spi.transfer_index, (unsigned) spi.transfer_len));
+    text("RAM IDX", fmt("rd %u  wr %u", (unsigned) spi.ram_rd.idx, (unsigned) spi.ram_wr.idx));
+    text("TF STATE", name_of(s_tf_states, 7, (int) spi.tf.state));
+    u8("TF COMMAND", (unsigned) spi.tf.debug_command, fmt("CMD%u", (unsigned) (spi.tf.debug_command & 0x3F)));
+    row("TF ARGUMENT", hexn(spi.tf.debug_parameter, 8), dec(spi.tf.debug_parameter));
+    text("TF CARD", spi.tf.backend.size ? fmt("%llu KB", (unsigned long long) (spi.tf.backend.size / 1024)) : "none");
 }
 
 } // namespace zui::hardware

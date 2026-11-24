@@ -28,19 +28,13 @@ namespace zui::console {
 
 using namespace zui::common;
 using namespace zui::theme;
-using namespace zui::tools;
-using namespace zui::widgets;
 
-namespace {
-
-widgets::Panel* make_console(int x, int y, int w, int h)
+static widgets::Panel* make_console(int x, int y, int w, int h)
 {
     return new ConsoleView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 50, "Console", make_console);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 50, "Console", make_console);
 
 ConsoleView::ConsoleView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "UART CONSOLE")
@@ -110,7 +104,9 @@ void ConsoleView::resize(int X, int Y, int W, int H)
 void ConsoleView::refresh(bool paused, bool force)
 {
     (void) paused;
-    if (force || fz_console_serial() != m_serial) update();
+    if (force || fz_console_serial() != m_serial) {
+        update();
+    }
 }
 
 void ConsoleView::update()
@@ -146,7 +142,9 @@ void ConsoleView::save()
     chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM);
     chooser.filter("Text\t*.{txt,log}");
     chooser.preset_file("uart.log");
-    if (chooser.show() != 0 || chooser.filename() == nullptr) return;
+    if (chooser.show() != 0 || chooser.filename() == nullptr) {
+        return;
+    }
     FILE* f = fl_fopen(chooser.filename(), "wb");
     if (f == nullptr) {
         notif_show("Could not write %s", chooser.filename());
@@ -172,7 +170,9 @@ void ConsoleView::context_menu()
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     switch ((int) (picked - items)) {
         case 0: {
             const std::string s = line_text(line, m_text->time);
@@ -206,7 +206,9 @@ void ConsoleView::cb_tick(void* data)
 {
     ConsoleView* self = (ConsoleView*) data;
     /* Faster than the tool window refresh so output appears promptly */
-    if (self->visible_r() && fz_console_serial() != self->m_serial) self->update();
+    if (self->visible_r() && fz_console_serial() != self->m_serial) {
+        self->update();
+    }
     Fl::repeat_timeout(0.1, cb_tick, data);
 }
 

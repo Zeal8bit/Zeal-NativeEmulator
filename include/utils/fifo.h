@@ -11,6 +11,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint8_t *array;
     int rd;
@@ -31,3 +36,7 @@ bool fifo_push(fifo_t *fifo, uint8_t value);
 bool fifo_pop(fifo_t *fifo, uint8_t *value);
 
 size_t fifo_size(fifo_t *fifo);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

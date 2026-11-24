@@ -51,7 +51,9 @@ config_t config ={
 
 void config_debug(void)
 {
-    if(config.arguments.verbose < 2) return;
+    if (config.arguments.verbose < 2) {
+        return;
+    }
 
     log_printf("%s == CONFIG ==\n", module);
 
@@ -232,8 +234,12 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
                           (option->number || option->optional_bool) ? optional_argument : no_argument, NULL, option->key
         };
         short_options[pos++] = option->key;
-        if (option->argument || option->number) short_options[pos++] = ':';
-        if (option->number) short_options[pos++] = ':';
+        if (option->argument || option->number) {
+            short_options[pos++] = ':';
+        }
+        if (option->number) {
+            short_options[pos++] = ':';
+        }
     }
     short_options[pos] = '\0';
     long_options[common_count + count] = (struct option){0};
@@ -293,10 +299,18 @@ int frontend_configure(int argc, char* argv[], const frontend_cli_option_t* opti
                 return 1;
             default:
                 for (size_t i = 0; i < count; i++) {
-                    if (options[i].key != opt) continue;
-                    if (options[i].argument) *options[i].argument = optarg;
-                    if (options[i].flag) *options[i].flag = !optarg || !options[i].optional_bool || strcmp(optarg, "0") != 0;
-                    if (options[i].number) read_optional_number(options[i].number, argc, argv);
+                    if (options[i].key != opt) {
+                        continue;
+                    }
+                    if (options[i].argument) {
+                        *options[i].argument = optarg;
+                    }
+                    if (options[i].flag) {
+                        *options[i].flag = optarg == NULL || !options[i].optional_bool || strcmp(optarg, "0") != 0;
+                    }
+                    if (options[i].number) {
+                        read_optional_number(options[i].number, argc, argv);
+                    }
                     break;
                 }
         }

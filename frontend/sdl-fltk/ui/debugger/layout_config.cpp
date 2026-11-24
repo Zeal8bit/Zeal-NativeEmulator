@@ -14,9 +14,7 @@ using namespace zui::common;
 
 LayoutConfig g_layout;
 
-namespace {
-
-void layout_save()
+static void layout_save()
 {
     const LayoutConfig& c = g_layout;
     set_preference("debugger", "left_width", c.left_w);
@@ -35,8 +33,6 @@ void layout_save()
     set_preference("video_window", "height", c.video_h);
     set_preference("video_window", "shown", c.video_shown);
 }
-
-} // namespace
 
 void layout_config_load()
 {

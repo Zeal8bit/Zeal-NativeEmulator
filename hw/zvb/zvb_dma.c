@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,10 @@
 #include <stdint.h>
 #include "hw/mmu.h"
 #include "hw/zvb/zvb_dma.h"
+
+/* Compile-time layout checks */
+_Static_assert(sizeof(dma_flags_t) == 1, "DMA flags must be 1 byte big");
+_Static_assert(sizeof(zvb_dma_descriptor_t) == 12, "DMA descriptors must be 12 bytes big");
 
 #define DMA_DESC_SRC_LOW                 (0)
 #define DMA_DESC_SRC_MID                 (1)
@@ -157,7 +161,9 @@ static void dma_advance(void* userdata)
 
         case DMA_RELEASE:
             dma->state = DMA_IDLE;
-            if (dma->bus_requested) *dma->bus_requested = false;
+            if (dma->bus_requested) {
+                *dma->bus_requested = false;
+            }
             break;
 
         case DMA_IDLE:
@@ -182,7 +188,9 @@ void zvb_dma_reset(zvb_dma_t* dma)
 {
     vtimer_cancel(&dma->timer);
     dma->state = DMA_IDLE;
-    if (dma->bus_requested) *dma->bus_requested = false;
+    if (dma->bus_requested) {
+        *dma->bus_requested = false;
+    }
     dma->remaining = 0;
     dma->batch_remaining = 0;
     dma->wr_addr = 0;

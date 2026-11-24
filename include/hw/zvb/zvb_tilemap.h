@@ -16,6 +16,11 @@
 #define ZVB_TILEMAP_SIZE        (3200)
 
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     /* Raw arrays representing the tilemaps in VRAM */
     uint8_t raw_layer0[ZVB_TILEMAP_SIZE];
@@ -45,3 +50,7 @@ void zvb_tilemap_write(zvb_tilemap_t* tilemap, int layer, uint32_t addr, uint8_t
  * @param layer Layer to read from (0 or 1)
  */
 uint8_t zvb_tilemap_read(zvb_tilemap_t* tilemap, int layer, uint32_t addr);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -19,16 +19,12 @@ namespace zui::symbols {
 using namespace zui::debugger;
 using namespace zui::tools;
 
-namespace {
-
 /* Every view reads the symbol table live; just redraw everything */
-void symbols_changed()
+static void symbols_changed()
 {
     request_refresh();
     tool_windows_refresh(fz_paused(), true);
 }
-
-} // namespace
 
 bool map_open_dialog(bool append)
 {
@@ -45,11 +41,17 @@ bool map_open_dialog(bool append)
         fl_filename_absolute(abs, sizeof(abs), config.arguments.hostfs_path);
         start = abs;
     }
-    if (!start.empty()) chooser.directory(start.c_str());
-    if (chooser.show() != 0 || chooser.filename() == nullptr) return false;
+    if (!start.empty()) {
+        chooser.directory(start.c_str());
+    }
+    if (chooser.show() != 0 || chooser.filename() == nullptr) {
+        return false;
+    }
     const std::string path = chooser.filename();
     const size_t slash = path.find_last_of("/\\");
-    if (slash != std::string::npos) s_dir = path.substr(0, slash);
+    if (slash != std::string::npos) {
+        s_dir = path.substr(0, slash);
+    }
 
     const int before = fz_symbol_count();
     if (!fz_map_open(path.c_str(), append)) {
@@ -66,10 +68,15 @@ bool map_open_dialog(bool append)
 void map_reload()
 {
     const int files = fz_map_count();
-    if (!files) return;
+    if (!files) {
+        return;
+    }
     const int ok = fz_map_reload();
-    if (ok == files) notif_show("Reloaded %d symbols", fz_symbol_count());
-    else notif_show("Reloaded %d of %d map files", ok, files);
+    if (ok == files) {
+        notif_show("Reloaded %d symbols", fz_symbol_count());
+    } else {
+        notif_show("Reloaded %d of %d map files", ok, files);
+    }
     symbols_changed();
 }
 

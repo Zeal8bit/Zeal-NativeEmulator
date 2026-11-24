@@ -38,7 +38,9 @@ void DisasmView::go(hwaddr addr)
 void DisasmView::follow(hwaddr pc)
 {
     for (size_t i = 0; i + 3 < m_rows.size(); i++) {
-        if (m_rows[i].addr == pc) return;
+        if (m_rows[i].addr == pc) {
+            return;
+        }
     }
     go(pc);
 }
@@ -74,12 +76,16 @@ void DisasmView::draw()
         memset(&instr, 0, sizeof(instr));
         const int size = debugger_disassemble_address(dbg, addr, &instr);
         if (instr.label[0]) {
-            if (yy > y() + 4) yy += 4;
+            if (yy > y() + 4) {
+                yy += 4;
+            }
             fl_color(COLOR_AMBER);
             snprintf(buf, sizeof(buf), "%s:", instr.label);
             fl_draw(buf, x_addr, yy + asc);
             yy += lh;
-            if (yy + lh > y() + h()) break;
+            if (yy + lh > y() + h()) {
+                break;
+            }
         }
 
         const bool is_pc = paused && addr == regs.pc;
@@ -128,7 +134,9 @@ void DisasmView::draw()
 
         m_rows.push_back({ yy, lh, addr });
         yy += lh;
-        if (size <= 0) break;
+        if (size <= 0) {
+            break;
+        }
         addr += size;
     }
     fl_pop_clip();
@@ -153,7 +161,9 @@ int DisasmView::handle(int event)
         }
         case FL_PUSH: {
             const int addr = row_at(Fl::event_y());
-            if (addr < 0) return 1;
+            if (addr < 0) {
+                return 1;
+            }
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 selected = addr;
                 redraw();
@@ -179,7 +189,9 @@ int DisasmView::handle(int event)
                     dbg_instr_t instr;
                     const int size = debugger_disassemble_address(fz_debugger(), m_base, &instr);
                     const hwaddr next = (hwaddr) (m_base + (size > 0 ? size : 1));
-                    if (next > 0xFFFF) break;
+                    if (next > 0xFFFF) {
+                        break;
+                    }
                     m_history.push_back(m_base);
                     m_base = next;
                 } else if (!m_history.empty()) {
@@ -201,7 +213,9 @@ int DisasmView::handle(int event)
 int DisasmView::row_at(int ey) const
 {
     for (const Row& r : m_rows) {
-        if (ey >= r.y && ey < r.y + r.h) return (int) r.addr;
+        if (ey >= r.y && ey < r.y + r.h) {
+            return (int) r.addr;
+        }
     }
     return -1;
 }
@@ -223,7 +237,9 @@ void DisasmView::context_menu(hwaddr addr)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     dbg_t* dbg = fz_debugger();
     char text[8];
     switch ((int) (picked - items)) {

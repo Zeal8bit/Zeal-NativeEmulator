@@ -29,18 +29,16 @@ using namespace zui::common;
 using namespace zui::debugger;
 using namespace zui::theme;
 
-namespace {
-
 /* Most useful first: columns are dropped from the right when narrow */
 constexpr const char* REG_NAMES[7] = { "AF", "BC", "DE", "HL", "SP", "IX", "IY" };
 
-uint16_t reg_value(const zeal_trace_entry_t& e, int i)
+static uint16_t reg_value(const zeal_trace_entry_t& e, int i)
 {
     const uint16_t regs[7] = { e.af, e.bc, e.de, e.hl, e.sp, e.ix, e.iy };
     return regs[i];
 }
 
-Fl_Color event_color(uint8_t kind)
+static Fl_Color event_color(uint8_t kind)
 {
     switch (kind) {
         case ZEAL_TRACE_RESET: return COLOR_BREAK;
@@ -48,8 +46,6 @@ Fl_Color event_color(uint8_t kind)
         default: return COLOR_GREEN;
     }
 }
-
-} // namespace
 
 TraceList::TraceList(int X, int Y, int W, int H, Fl_Scrollbar* bar)
     : Fl_Widget(X, Y, W, H), m_bar(bar)
@@ -107,7 +103,9 @@ TraceList::Columns TraceList::layout(int cw) const
     c.reg_count = std::min(7, spare / 5);
     spare -= c.reg_count * 5;
     const bool bytes = c.reg_count == 7 && spare >= 12;
-    if (bytes) spare -= 12;
+    if (bytes) {
+        spare -= 12;
+    }
     const int sym_chars = 14 + std::min(14, spare);
     c.cycle_r = left + cw * 10;
     c.pc = c.cycle_r + cw * 2;
@@ -145,7 +143,9 @@ void TraceList::draw()
     fl_draw("T-STATE", c.cycle_r - (int) fl_width("T-STATE"), hy);
     fl_draw("PC", c.pc, hy);
     fl_draw("SYMBOL", c.sym, hy);
-    if (c.bytes >= 0) fl_draw("BYTES", c.bytes, hy);
+    if (c.bytes >= 0) {
+        fl_draw("BYTES", c.bytes, hy);
+    }
     fl_draw("INSTRUCTION", c.instr, hy);
     for (int r = 0; r < c.reg_count; r++) fl_draw(REG_NAMES[r], c.regs + r * 5 * cw, hy);
     fl_color(COLOR_BORDER);
@@ -242,14 +242,18 @@ int TraceList::handle(int event)
             return 1;
         case FL_PUSH: {
             const int idx = row_at(Fl::event_y());
-            if (idx < 0) return 1;
+            if (idx < 0) {
+                return 1;
+            }
             m_selected = seq_of(idx);
             redraw();
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 context_menu(idx);
             } else {
                 const zeal_trace_entry_t& e = m_rows[(size_t) idx];
-                if (e.kind != ZEAL_TRACE_RESET && e.kind != ZEAL_TRACE_GAP) goto_disassembly(primary_address(e));
+                if (e.kind != ZEAL_TRACE_RESET && e.kind != ZEAL_TRACE_GAP) {
+                    goto_disassembly(primary_address(e));
+                }
             }
             return 1;
         }
@@ -278,7 +282,9 @@ void TraceList::draw_empty()
 
 void TraceList::set_hover(int idx)
 {
-    if (idx == m_hover) return;
+    if (idx == m_hover) {
+        return;
+    }
     m_hover = idx;
     redraw();
 }
@@ -286,7 +292,9 @@ void TraceList::set_hover(int idx)
 int TraceList::row_at(int ey) const
 {
     const int ry0 = y() + head_h();
-    if (ey < ry0) return -1;
+    if (ey < ry0) {
+        return -1;
+    }
     const int idx = m_top + (ey - ry0) / line_h();
     return idx < (int) m_rows.size() ? idx : -1;
 }
@@ -317,7 +325,9 @@ void TraceList::context_menu(int idx)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[8];
     std::string s;
     switch ((int) (picked - items)) {

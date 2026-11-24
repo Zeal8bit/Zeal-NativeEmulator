@@ -9,35 +9,29 @@
 #include <string>
 #include <vector>
 #include "common/machine.h"
-#include "frontend/sdl-fltk/bridge/hw.h"
+#include "frontend/sdl-fltk/frontend.h"
 #include "hardware/hw_register_view.h"
 #include "tools/tool_registry.h"
 #include "widgets/panel.h"
 
 namespace zui::hardware {
 
-using namespace zui::tools;
-using namespace zui::widgets;
-
-namespace {
 
 const char* const s_waves[] = { "SQUARE", "TRIANGLE", "SAWTOOTH", "NOISE" };
 const char* const s_voice_sections[] = { "VOICE 0", "VOICE 1", "VOICE 2", "VOICE 3" };
 
-std::vector<HwRegisterView::Chip> voice_bits(uint8_t reg)
+static std::vector<HwRegisterView::Chip> voice_bits(uint8_t reg)
 {
     return { { "V0", (reg & 1) != 0 }, { "V1", (reg & 2) != 0 }, { "V2", (reg & 4) != 0 },
              { "V3", (reg & 8) != 0 }, { "SMP", (reg & 0x80) != 0 } };
 }
 
-widgets::Panel* make_hw_sound(int x, int y, int w, int h)
+static widgets::Panel* make_hw_sound(int x, int y, int w, int h)
 {
     return new SoundRegistersView(x, y, w, h);
 }
 
-tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 20, "Sound", make_hw_sound);
-
-} // namespace
+static tools::ToolViewRegistrar s_reg(tools::TOOL_HARDWARE, 20, "Sound", make_hw_sound);
 
 SoundRegistersView::SoundRegistersView(int X, int Y, int W, int H)
     : HwRegisterView(X, Y, W, H, "SOUND")
@@ -45,54 +39,65 @@ SoundRegistersView::SoundRegistersView(int X, int Y, int W, int H)
 
 void SoundRegistersView::build()
 {
-    fz_hw_sound_t s;
-    if (!fz_hw_sound(&s)) {
+    if (fltk_machine == nullptr) {
         section("NO MACHINE");
         return;
     }
+    const zvb_sound_t& s = fltk_machine->zvb.sound;
 
     section("MASTER");
-    u8("SELECT", s.enabled_reg).tip = "Voices receiving register writes";
-    chips("SELECTED", voice_bits(s.enabled_reg));
-    u8("LEFT", s.left_reg);
-    chips("ROUTED L", voice_bits(s.left_reg));
-    u8("RIGHT", s.right_reg);
-    chips("ROUTED R", voice_bits(s.right_reg));
-    u8("HOLD", s.hold_reg);
-    chips("HELD", voice_bits(s.hold_reg));
+    u8("SELECT", s.enabled_voices).tip = "Voices receiving register writes";
+    chips("SELECTED", voice_bits((uint8_t) s.enabled_voices));
+    u8("LEFT", s.left_voices);
+    chips("ROUTED L", voice_bits((uint8_t) s.left_voices));
+    u8("RIGHT", s.right_voices);
+    chips("ROUTED R", voice_bits((uint8_t) s.right_voices));
+    u8("HOLD", s.hold_voices);
+    chips("HELD", voice_bits((uint8_t) s.hold_voices));
     const unsigned mv = s.master_volume;
     u8("VOLUME", mv, fmt("L %u%%  R %u%%", ((mv & 3) + 1) * 25, (((mv >> 2) & 3) + 1) * 25));
     chips("MUTE", { { "LEFT", (mv & 0x40) != 0 }, { "RIGHT", (mv & 0x80) != 0 } });
-    text("OUTPUT", fmt("L %d  R %d", s.last_left, s.last_right));
+    text("OUTPUT", fmt("L %d  R %d", s.output_last.left, s.output_last.right));
 
-    for (int i = 0; i < FZ_HW_VOICES; i++) {
-        const auto& v = s.voice[i];
+    for (int i = 0; i < VOICE_COUNT; i++) {
+        const zvb_voice_t& v = s.voices[i];
+        const double freq_hz = (double) v.frequency * SAMPLE_RATE / 65536.0;
+        const uint16_t freq_reg = (uint16_t) ((v.freq_high << 8) | v.freq_low);
         section(s_voice_sections[i]);
-        u16("FREQUENCY", v.freq_active, v.wave == 3 ? std::string("noise") : fmt("%.1f Hz", v.freq_hz));
-        Item& reg = u16("FREQ REG", v.freq_reg, v.pending_reload ? "pending" : "");
+        u16("FREQUENCY", v.frequency, v.wave == 3 ? std::string("noise") : fmt("%.1f Hz", freq_hz));
+        Item& reg = u16("FREQ REG", freq_reg, v.need_reload ? "pending" : "");
         reg.tip = "Written value, applied at the next waveform restart";
         Item& wave = u8("WAVEFORM", v.wave, name_of(s_waves, 4, v.wave));
         wave.glyph = v.wave;
         wave.duty = 8 - (v.duty & 7);
         u8("DUTY", v.duty, v.wave == 0 ? fmt("high %u/8", 8u - (v.duty & 7)) : "n/a");
-        u8("VOLUME", v.volume, (v.volume & 0x80) ? std::string("MUTED") : fmt("%u%%", ((v.volume & 3) + 1) * 25));
-        chips("STATE", { { "L", v.left }, { "R", v.right }, { "HOLD", v.hold }, { "SEL", v.selected } });
-        Item& out = u16("LEVEL", v.output);
-        out.level = v.output / 65535.0f;
+        u8("VOLUME", v.voice_volume,
+           (v.voice_volume & 0x80) ? std::string("MUTED") : fmt("%u%%", ((v.voice_volume & 3) + 1) * 25));
+        chips("STATE", { { "L", ((s.left_voices >> i) & 1) != 0 }, { "R", ((s.right_voices >> i) & 1) != 0 },
+                         { "HOLD", v.hold }, { "SEL", ((s.enabled_voices >> i) & 1) != 0 } });
+        const uint16_t level = (uint16_t) __atomic_load_n((int*) (void*) &v.output, __ATOMIC_RELAXED);
+        Item& out = u16("LEVEL", level);
+        out.level = level / 65535.0f;
     }
 
     section("SAMPLE TABLE");
-    u8("CONFIG", s.sample.config,
-       s.sample.is_u8 ? "8-bit unsigned" : s.sample.is_signed ? "16-bit signed" : "16-bit unsigned");
-    u8("DIVIDER", s.sample.divider, fmt("%.0f Hz", s.sample.rate_hz));
-    u16("FIFO", (unsigned) s.sample.fifo_count, "of 256");
-    text("HEAD / TAIL", fmt("%d / %d", s.sample.fifo_head, s.sample.fifo_tail));
-    chips("FLAGS", { { "EMPTY", s.sample.fifo_empty }, { "LOOP", s.sample.loop },
-                     { "IRQ EN", s.sample.irq_enable }, { "IRQ", s.sample.int_pending } });
-    chips("STATE", { { "L", s.sample.routed_left }, { "R", s.sample.routed_right },
-                     { "HOLD", s.sample.hold }, { "SEL", s.sample.selected } });
-    Item& out = u16("LEVEL", s.sample.output);
-    out.level = s.sample.output / 65535.0f;
+    const zvb_sample_table_t& t = s.sample_table;
+    u8("CONFIG", t.config,
+       t.is_u8 ? "8-bit unsigned" : t.is_signed ? "16-bit signed" : "16-bit unsigned");
+    u8("DIVIDER", t.divider, fmt("%.0f Hz", (double) SAMPLE_RATE / (t.divider + 1)));
+    int count = (t.fifo_head - t.fifo_tail + SAMPLE_FIFO_SIZE) % SAMPLE_FIFO_SIZE;
+    if (count == 0 && !t.fifo_empty) {
+        count = SAMPLE_FIFO_SIZE;
+    }
+    u16("FIFO", (unsigned) count, "of 256");
+    text("HEAD / TAIL", fmt("%d / %d", t.fifo_head, t.fifo_tail));
+    chips("FLAGS", { { "EMPTY", t.fifo_empty }, { "LOOP", (t.config & 2) != 0 },
+                     { "IRQ EN", (t.config & 8) != 0 }, { "IRQ", t.int_pending } });
+    chips("STATE", { { "L", (s.left_voices & 0x80) != 0 }, { "R", (s.right_voices & 0x80) != 0 },
+                     { "HOLD", t.hold }, { "SEL", (s.enabled_voices & 0x80) != 0 } });
+    const uint16_t sample_level = (uint16_t) __atomic_load_n(&t.output, __ATOMIC_RELAXED);
+    Item& out = u16("LEVEL", sample_level);
+    out.level = sample_level / 65535.0f;
 }
 
 } // namespace zui::hardware

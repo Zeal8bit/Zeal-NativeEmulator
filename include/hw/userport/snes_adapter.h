@@ -1,9 +1,20 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
 
 #include "hw/device.h"
 #include "hw/pio.h"
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct zeal_t;
 
@@ -90,3 +101,7 @@ int snes_adapter_init(snes_adapter_t*, pio_t*);
 
 uint32_t snes_mouse_packet(uint8_t x_mag, bool x_negative, uint8_t y_mag, bool y_negative,
     uint8_t speed, bool left, bool right);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

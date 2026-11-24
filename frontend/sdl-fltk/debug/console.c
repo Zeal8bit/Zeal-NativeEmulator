@@ -34,7 +34,9 @@ static console_line_t* cur_line(void)
 static void console_newline(void)
 {
     s_cur++;
-    if (s_cur - s_first >= FZ_CONSOLE_LINES) s_first = s_cur - FZ_CONSOLE_LINES + 1;
+    if (s_cur - s_first >= FZ_CONSOLE_LINES) {
+        s_first = s_cur - FZ_CONSOLE_LINES + 1;
+    }
     cur_line()->len = 0;
     s_started = false;
 }
@@ -56,7 +58,9 @@ static void console_tap(void* userdata, uint8_t byte)
     frontend_host.uart_byte(userdata, byte);
     s_bytes++;
     s_serial++;
-    if (byte == '\r') return;
+    if (byte == '\r') {
+        return;
+    }
     if (!s_started) {
         cur_line()->time_ns = fz_emulated_ns();
         s_started = true;
@@ -68,7 +72,9 @@ static void console_tap(void* userdata, uint8_t byte)
             break;
         case '\b':
         case 0x7F:
-            if (line->len > 0) line->len--;
+            if (line->len > 0) {
+                line->len--;
+            }
             break;
         case '\t':
             do console_put(' '); while (cur_line()->len % 8 != 0);
@@ -109,7 +115,9 @@ uint64_t fz_console_bytes(void)
 
 bool fz_console_line(uint64_t number, fz_console_line_t* out)
 {
-    if (number < s_first || number > s_cur) return false;
+    if (number < s_first || number > s_cur) {
+        return false;
+    }
     const console_line_t* line = &s_lines[number % FZ_CONSOLE_LINES];
     out->text = line->text;
     out->len = line->len;

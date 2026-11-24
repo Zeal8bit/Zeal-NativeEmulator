@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * SPDX-FileCopyrightText: 2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "frontend/common/app.h"
 #include "frontend/common/cli.h"
 #include "frontend/common/desktop.h"
@@ -33,8 +37,12 @@ int main(int argc, char* argv[])
          .flag = &console},
     };
     int code = frontend_configure(argc, argv, options, sizeof(options) / sizeof(options[0]));
-    if (code) return code;
-    if (debug_console) console = true;
+    if (code) {
+        return code;
+    }
+    if (debug_console) {
+        console = true;
+    }
     v_log_printf(2, "[CONFIG] headless_run_ticks: %lu\n", run_ticks);
     v_log_printf(2, "[CONFIG] console: %s\n", console ? "True" : "False");
     return desktop_run(false);

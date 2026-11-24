@@ -29,7 +29,6 @@
 namespace zui::debugger {
 
 using namespace zui::theme;
-using namespace zui::widgets;
 
 WatchPanel::WatchPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "WATCH")
@@ -62,7 +61,9 @@ WatchPanel::WatchPanel(int X, int Y, int W, int H)
 
 void WatchPanel::refresh(bool paused, bool force)
 {
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     /* Breaks follow the rows (and symbols reloaded from a map) */
     watch_breaks_sync();
     const regs_t regs = current_regs();
@@ -102,7 +103,9 @@ void WatchPanel::update()
             evaluate(w, regs);
             /* Entries without a reference value (new, retyped) take the
              * current one, so that they only light up on real changes. */
-            if (!w.has_prev) take_snapshot(w);
+            if (!w.has_prev) {
+                take_snapshot(w);
+            }
         }
     }
     update_extra();
@@ -113,8 +116,11 @@ void WatchPanel::update_extra()
 {
     char text[32];
     const int n = (int) watches().size();
-    if (m_list && m_list->first() > 0) snprintf(text, sizeof(text), "%d  +%d", n, m_list->first());
-    else snprintf(text, sizeof(text), "%d", n);
+    if (m_list && m_list->first() > 0) {
+        snprintf(text, sizeof(text), "%d  +%d", n, m_list->first());
+    } else {
+        snprintf(text, sizeof(text), "%d", n);
+    }
     extra(text);
 }
 
@@ -125,11 +131,15 @@ void WatchPanel::cb_add(Fl_Widget*, void* data)
     /* Spaces are never significant; '|' and '"' would break the saved line */
     std::string expr;
     for (const char* p = self->m_input->value(); *p; p++) {
-        if (!isspace((unsigned char) *p)) expr += *p;
+        if (!isspace((unsigned char) *p)) {
+            expr += *p;
+        }
     }
     Watch w;
     w.type = self->m_type->value();
-    if (w.type < 0 || w.type >= W_COUNT) w.type = W_U8;
+    if (w.type < 0 || w.type >= W_COUNT) {
+        w.type = W_U8;
+    }
     const size_t comma = expr.rfind(',');
     if (comma != std::string::npos) {
         const std::string n = expr.substr(comma + 1);

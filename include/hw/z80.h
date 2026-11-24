@@ -18,6 +18,11 @@
 #include "mmu.h"
 #include "utils/vtimer.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct z80 z80;
 struct z80 {
     /* MMU is embedded in the CPU for direct access from the emulation core,
@@ -90,4 +95,8 @@ void z80_gen_int(z80* const z, uint8_t data);
 uint8_t z80_get_f(z80* const z);
 void z80_set_f(z80* const z, uint8_t val);
 
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 #endif // Z80_Z80_H_

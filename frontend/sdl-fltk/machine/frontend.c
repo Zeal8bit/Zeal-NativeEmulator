@@ -24,7 +24,11 @@
 /* Rebase after a long host stall rather than rapidly replaying missed time. */
 #define NATIVE_PACING_MAX_LAG_NS    (100000000ULL)
 /* Redraw rate of a paused debugger */
-#define PAUSED_FRAME_SECONDS        (1.0 / 60.0)
+/* While the debugger is paused the screen only changes when the user edits
+ * memory/registers, so refresh at 20 Hz instead of re-rendering every wakeup.
+ * Events still wake ui_wait() immediately; this only caps idle redraws. */
+#define PAUSED_PRESENT_NS           (1000000000ULL / 20)
+#define PAUSED_WAIT_SECONDS         (1.0 / 20.0)
 
 zeal_t* fltk_machine;
 static bool s_sdl_ready;
@@ -57,7 +61,9 @@ int frontend_bind_output(zeal_t* machine)
 {
     fltk_audio_init(&machine->zvb.sound);
     fz_volume_set(config.audio.volume);
-    if (config.audio.volume != 100) notif_show("Volume: %d%%", config.audio.volume);
+    if (config.audio.volume != 100) {
+        notif_show("Volume: %d%%", config.audio.volume);
+    }
     fltk_profile_bind(&machine->zvb);
     /* Saved project stops must exist before the first guest instruction */
     ui_machine_bound();
@@ -79,8 +85,12 @@ static bool run_frame(zeal_t* machine)
 {
     for (;;) {
         zeal_step_result_t result = zeal_step(machine, true);
-        if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) return false;
-        if (!(result & ZEAL_STEP_FRAME)) continue;
+        if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) {
+            return false;
+        }
+        if (!(result & ZEAL_STEP_FRAME)) {
+            continue;
+        }
 
         const double profile_start = fltk_profile_frame_begin();
         const zvb_frame_t frame = zvb_frame(&machine->zvb);
@@ -100,22 +110,42 @@ static bool run_frame(zeal_t* machine)
 
 int frontend_run(zeal_t* machine)
 {
-    if (machine == NULL) return -1;
+    if (machine == NULL) {
+        return -1;
+    }
 
     uint64_t host_epoch = SDL_GetTicksNS();
     uint64_t emulated_epoch = vtimer_now_ns(&machine->cpu.clock);
 
+    uint64_t paused_present_ns = 0;
     while (!machine->should_exit && !ui_closed()) {
-        if (!fltk_debug_keep_running(machine)) break;
-        const bool was_paused = fltk_debug_paused(machine);
-        if (!run_frame(machine)) break;
-
-        const uint64_t emulated_now = vtimer_now_ns(&machine->cpu.clock);
-        if (was_paused || fltk_debug_paused(machine) || emulated_now < emulated_epoch) {
-            /* A paused debugger only redraws the UI at a steady rate. */
-            ui_wait(PAUSED_FRAME_SECONDS);
+        if (!fltk_debug_keep_running(machine)) {
+            break;
+        }
+        if (fltk_debug_paused(machine)) {
+            /* The paused machine executes nothing; only present when due so a
+             * sleeping debugger does not burn a core re-rendering. */
+            const uint64_t now = SDL_GetTicksNS();
+            if (now - paused_present_ns >= PAUSED_PRESENT_NS) {
+                if (!run_frame(machine)) {
+                    break;
+                }
+                paused_present_ns = now;
+            }
+            ui_wait(PAUSED_WAIT_SECONDS);
             host_epoch = SDL_GetTicksNS();
             emulated_epoch = vtimer_now_ns(&machine->cpu.clock);
+            continue;
+        }
+        if (!run_frame(machine)) {
+            break;
+        }
+
+        const uint64_t emulated_now = vtimer_now_ns(&machine->cpu.clock);
+        if (emulated_now < emulated_epoch) {
+            /* The machine clock was reset: restart the pacing reference. */
+            host_epoch = SDL_GetTicksNS();
+            emulated_epoch = emulated_now;
             continue;
         }
 
@@ -137,7 +167,9 @@ int frontend_run(zeal_t* machine)
 
     config_window_update();
     frontend_close(machine);
-    if (machine->compactflash.failed) return 1;
+    if (machine->compactflash.failed) {
+        return 1;
+    }
     config_save();
     return 0;
 }

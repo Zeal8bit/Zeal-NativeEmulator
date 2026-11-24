@@ -40,7 +40,11 @@ void SplitPane::collapse(bool collapsed)
 {
     m_collapsed = collapsed;
     if (m_b) {
-        if (collapsed) m_b->hide(); else m_b->show();
+        if (collapsed) {
+            m_b->hide();
+        } else {
+            m_b->show();
+        }
     }
     layout();
     redraw();
@@ -55,7 +59,9 @@ void SplitPane::squeeze_second(int size)
 
 void SplitPane::fixed_size(int size)
 {
-    if (size > 0) m_fixed = size;
+    if (size > 0) {
+        m_fixed = size;
+    }
     layout();
     redraw();
 }
@@ -73,7 +79,9 @@ int SplitPane::extent() const
 
 void SplitPane::layout()
 {
-    if (!m_a || !m_b) return;
+    if (m_a == nullptr || m_b == nullptr) {
+        return;
+    }
     if (m_collapsed) {
         m_a->resize(x(), y(), w(), h());
         return;
@@ -99,8 +107,12 @@ void SplitPane::layout()
         const int sum = min_fixed + min_other;
         fixed = sum > 0 ? (int) ((long) total * min_fixed / sum) : total / 2;
     } else {
-        if (fixed > total - min_other) fixed = total - min_other;
-        if (fixed < min_fixed) fixed = min_fixed;
+        if (fixed > total - min_other) {
+            fixed = total - min_other;
+        }
+        if (fixed < min_fixed) {
+            fixed = min_fixed;
+        }
     }
     const int size_a = m_fixed_second ? total - fixed : fixed;
     const int size_b = total - size_a;
@@ -115,7 +127,9 @@ void SplitPane::layout()
 
 bool SplitPane::over_divider(int ex, int ey) const
 {
-    if (m_collapsed || m_squeeze > 0 || !m_a) return false;
+    if (m_collapsed || m_squeeze > 0 || m_a == nullptr) {
+        return false;
+    }
     if (m_horizontal) {
         const int d = m_a->x() + m_a->w();
         return ex >= d && ex < d + GAP && ey >= y() && ey < y() + h();
@@ -134,7 +148,9 @@ int SplitPane::handle(int event)
                 window()->cursor(over ? (m_horizontal ? FL_CURSOR_WE : FL_CURSOR_NS) : FL_CURSOR_DEFAULT);
                 m_cursor_set = over;
             }
-            if (over) return 1;
+            if (over) {
+                return 1;
+            }
             break;
         }
         case FL_LEAVE:
@@ -155,7 +171,9 @@ int SplitPane::handle(int event)
                 m_fixed = m_fixed_second ? extent() - pos - GAP / 2 : pos - GAP / 2;
                 layout();
                 redraw();
-                if (m_changed) m_changed();
+                if (m_changed) {
+                    m_changed();
+                }
                 return 1;
             }
             break;
@@ -174,7 +192,9 @@ int SplitPane::handle(int event)
 void SplitPane::draw()
 {
     Fl_Group::draw();
-    if (m_collapsed || !m_a) return;
+    if (m_collapsed || m_a == nullptr) {
+        return;
+    }
     /* A subtle grip in the middle of the divider */
     fl_color(COLOR_BORDER);
     if (m_horizontal) {

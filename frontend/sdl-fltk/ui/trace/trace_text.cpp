@@ -36,7 +36,9 @@ const char* event_name(uint8_t kind)
 void event_text(char* out, size_t size, const zeal_trace_entry_t& e, const SymbolIndex& syms)
 {
     const char* name = event_name(e.kind);
-    if (name == nullptr) name = "?";
+    if (name == nullptr) {
+        name = "?";
+    }
     switch (e.kind) {
         case ZEAL_TRACE_RESET:
             snprintf(out, size, "-- RESET --");
@@ -57,7 +59,9 @@ void event_text(char* out, size_t size, const zeal_trace_entry_t& e, const Symbo
 
 void bytes_text(char* out, size_t size, const zeal_trace_entry_t& e, int length)
 {
-    if (length < 1 || length > 4) length = 4;
+    if (length < 1 || length > 4) {
+        length = 4;
+    }
     size_t used = 0;
     out[0] = 0;
     if (e.skipped_prefixes && size > 3) {
@@ -116,7 +120,9 @@ void save_trace_dialog(const std::vector<zeal_trace_entry_t>& newest_first, cons
     chooser.type(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
     chooser.options(Fl_Native_File_Chooser::SAVEAS_CONFIRM | Fl_Native_File_Chooser::NEW_FOLDER);
     chooser.preset_file("trace.txt");
-    if (chooser.show() != 0 || chooser.filename() == nullptr) return;
+    if (chooser.show() != 0 || chooser.filename() == nullptr) {
+        return;
+    }
 
     FILE* f = fopen(chooser.filename(), "w");
     if (f == nullptr) {

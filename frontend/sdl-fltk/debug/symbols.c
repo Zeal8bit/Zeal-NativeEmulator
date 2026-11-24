@@ -40,12 +40,16 @@ static map_file_t* new_file(const char* path)
 
 static void seed(void)
 {
-    if (s_seeded || !fltk_machine) return;
+    if (s_seeded || fltk_machine == NULL) {
+        return;
+    }
     s_seeded = true;
     if (config.arguments.map_file) {
         s_files = new_file(config.arguments.map_file);
         /* The common app already attempted the -m map before binding. */
-        if (s_files) s_files->loaded = fltk_machine->dbg.symbol_generation != 0;
+        if (s_files) {
+            s_files->loaded = fltk_machine->dbg.symbol_generation != 0;
+        }
     }
 }
 
@@ -92,7 +96,9 @@ bool fz_map_loaded(int index)
 
 static bool open_map(const char* path, bool append, bool restoring)
 {
-    if (!fltk_machine || !path) return false;
+    if (fltk_machine == NULL || path == NULL) {
+        return false;
+    }
     seed();
     map_file_t** end = &s_files;
     int count = 0;
@@ -104,10 +110,14 @@ static bool open_map(const char* path, bool append, bool restoring)
             count++;
             end = &(*end)->next;
         }
-        if (count >= FZ_MAP_MAX && !restoring) return false;
+        if (count >= FZ_MAP_MAX && !restoring) {
+            return false;
+        }
     }
     map_file_t* file = new_file(path);
-    if (!file) return false;
+    if (file == NULL) {
+        return false;
+    }
     file->loaded = count < FZ_MAP_MAX && debugger_load_symbols(&fltk_machine->dbg, path, append);
     if (!file->loaded && !restoring) {
         free(file);
@@ -133,27 +143,35 @@ bool fz_map_restore(const char* path)
 
 int fz_map_reload(void)
 {
-    if (!fltk_machine) return 0;
+    if (fltk_machine == NULL) {
+        return 0;
+    }
     seed();
     debugger_clear_symbols(&fltk_machine->dbg);
     int loaded = 0;
     for (map_file_t* file = s_files; file; file = file->next) {
         file->loaded = loaded < FZ_MAP_MAX && debugger_load_symbols(&fltk_machine->dbg, file->path, true);
-        if (file->loaded) loaded++;
+        if (file->loaded) {
+            loaded++;
+        }
     }
     return loaded;
 }
 
 void fz_map_clear(void)
 {
-    if (fltk_machine) debugger_clear_symbols(&fltk_machine->dbg);
+    if (fltk_machine) {
+        debugger_clear_symbols(&fltk_machine->dbg);
+    }
     fz_map_forget();
     s_seeded = true;
 }
 
 int fz_symbol_count(void)
 {
-    if (fltk_machine == NULL) return 0;
+    if (fltk_machine == NULL) {
+        return 0;
+    }
     int n = 0;
     for (const symbols_t* b = &fltk_machine->dbg.symbols; b; b = b->next) n += (int) b->count;
     return n;

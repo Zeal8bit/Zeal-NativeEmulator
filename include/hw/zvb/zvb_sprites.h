@@ -23,6 +23,11 @@
 /**
  * @brief Define the sprite organization as they are in the hardware
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint16_t y;
     uint16_t x;
@@ -49,7 +54,6 @@ typedef struct {
     } extra_flags;
 } zvb_sprite_t;
 
-_Static_assert(sizeof(zvb_sprite_t) == 8, "Sprite structure must have a size of 8 bytes");
 
 
 /**
@@ -60,11 +64,35 @@ typedef struct {
     int             wr_latch;
 } zvb_sprites_t;
 
+#define ZVB_SPRITE_TILE_W       16
+#define ZVB_SPRITE_TILE_H       16
+#define ZVB_SPRITE_TILE_BYTES   (ZVB_SPRITE_TILE_W * ZVB_SPRITE_TILE_H)
+
+/* Height in pixels: sprites are 16x16 or 16x32. */
+static inline int zvb_sprite_height(const zvb_sprite_t* sp)
+{
+    return sp->extra_flags.bitmap.height_32 ? 32 : 16;
+}
+
+/* Tileset index, including the high bank used by 4-bit modes. */
+static inline uint32_t zvb_sprite_tile(const zvb_sprite_t* sp, bool color_4bit)
+{
+    const uint32_t tile = sp->flags.bitmap.tile_number;
+    return tile + ((sp->flags.bitmap.tileset_idx && color_4bit) ? 256 : 0);
+}
+
 
 /**
  * @brief Initialize the sprites, must be called before using it.
  */
 void zvb_sprites_init(zvb_sprites_t* sprites, bool rendering_enabled);
+
+/**
+ * @brief Colour index of a sprite pixel at local coordinates, after flipping.
+ * @return 0 for a transparent pixel, otherwise the tileset colour index
+ */
+uint8_t zvb_sprite_pixel(const zvb_sprite_t* sp, bool color_4bit,
+                         const uint8_t* tileset, int x, int y);
 
 
 /**
@@ -90,3 +118,7 @@ uint8_t zvb_sprites_read(zvb_sprites_t* sprites, uint32_t addr);
  * @returns Number of sprites visible on the scanline, and fills the `out_sprites` array with the visible sprites.
  */
 int zvb_sprites_get_visible_sprites(zvb_sprites_t* sprites, int scanline, uint8_t sprites_idx[ZVB_SPRITES_COUNT]);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

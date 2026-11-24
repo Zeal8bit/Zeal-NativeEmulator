@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -27,7 +27,9 @@ static uint16_t le16(uint16_t v)
 static uint8_t io_read(device_t* dev, uint32_t addr)
 {
     compactflash_t* cf = (compactflash_t*) dev;
-    if (!cf->master) return 0;
+    if (!cf->master) {
+        return 0;
+    }
     switch (addr) {
         case IDE_REG_STATUS:  return cf->status;
         case IDE_REG_ERROR:   return cf->error;
@@ -58,7 +60,7 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
             cf->lba_mode = (value & 0x40) != 0; // Bit 6 indicates LBA mode
             break;
         default:
-            hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
+            hw_log_info(cf->parent.host, "[COMPACTFLASH] Unsupported write, reg: 0x%02x, data: 0x%02x\n", addr, value);
             break;
         }
 }
@@ -66,17 +68,17 @@ static void io_write(device_t* dev, uint32_t addr, uint8_t value)
 static uint32_t compactflash_data_ofs(compactflash_t* cf)
 {
     if (!cf->master) {
-        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Slave device does not support data access.\n");
+        hw_log_info(cf->parent.host, "[COMPACTFLASH] Slave device does not support data access.\n");
         return -1;
     }
     if (!cf->lba_mode) {
-        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] CHS mode not supported.\n");
+        hw_log_info(cf->parent.host, "[COMPACTFLASH] CHS mode not supported.\n");
         return -1;
     }
     uint32_t sector = ((cf->lba_24 & 0xF) << 24) | (cf->lba_16 << 16)
         | (cf->lba_8 << 8) | (cf->lba_0 << 0);
     if (sector + cf->sec_cnt >= cf->total_sectors) {
-        hw_log(cf->parent.host, false, 0, "[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
+        hw_log_info(cf->parent.host, "[COMPACTFLASH] Sector out of bounds: %u, cnt %u\n", sector, cf->sec_cnt);
         return -1;
     }
     return sector*512;
@@ -106,18 +108,23 @@ static void data_state(compactflash_t* cf, compactflash_state_t state)
 
 static void compactflash_read_sector_buffer(compactflash_t* cf)
 {
-    if (!cf->read_sector || !cf->read_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) cf->failed = true;
+    if (cf->read_sector == NULL || !cf->read_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) {
+        cf->failed = true;
+    }
 }
 
 static void compactflash_write_sector_buffer(compactflash_t* cf)
 {
-    if (!cf->write_sector || !cf->write_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) cf->failed = true;
+    if (cf->write_sector == NULL || !cf->write_sector(cf->userdata, cf->data_ofs, cf->sector_buffer)) {
+        cf->failed = true;
+    }
 }
 
 static uint8_t compactflash_read_data(compactflash_t* cf)
 {
-    if (cf->state != IDE_DATA_IN)
+    if (cf->state != IDE_DATA_IN) {
         return 0;
+    }
     uint8_t data = cf->sector_buffer[cf->sector_buffer_idx];
     cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
     if (cf->sector_buffer_idx == 0) {
@@ -133,8 +140,9 @@ static uint8_t compactflash_read_data(compactflash_t* cf)
 
 static void compactflash_write_data(compactflash_t* cf, uint8_t value)
 {
-    if (cf->state != IDE_DATA_OUT)
+    if (cf->state != IDE_DATA_OUT) {
         return;
+    }
     cf->sector_buffer[cf->sector_buffer_idx] = value;
     cf->sector_buffer_idx = (cf->sector_buffer_idx + 1) % 512;
     if (cf->sector_buffer_idx == 0) {
@@ -169,8 +177,9 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
 
         // Fall-through
         case IDE_CMD_READ_BUFFER:
-            if (cf->data_ofs == -1)
+            if (cf->data_ofs == -1) {
                 return data_state(cf, IDE_DATA_ERROR);
+            }
             compactflash_read_sector_buffer(cf);
             data_state(cf, IDE_DATA_IN);
             break;
@@ -181,8 +190,9 @@ static void compactflash_process_command(compactflash_t* cf, uint8_t cmd)
 
         // Fall-through
         case IDE_CMD_WRITE_BUFFER:
-            if (cf->data_ofs == -1)
+            if (cf->data_ofs == -1) {
                 return data_state(cf, IDE_DATA_ERROR);
+            }
             data_state(cf, IDE_DATA_OUT);
             break;
     }

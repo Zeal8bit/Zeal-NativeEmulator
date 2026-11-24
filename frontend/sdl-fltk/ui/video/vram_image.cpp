@@ -51,25 +51,33 @@ void VramImage::update(dbg_vram_t v, int z)
     }
     if (w() != W || h() != H) {
         size(W, H);
-        if (parent()) parent()->redraw();
+        if (parent()) {
+            parent()->redraw();
+        }
     }
     redraw();
 }
 
 int VramImage::cell_count() const
 {
-    if (!valid) return 0;
+    if (!valid) {
+        return 0;
+    }
     return img.columns * (img.height / (img.cell_height + 1));
 }
 
 int VramImage::cell_at(int ex, int ey) const
 {
-    if (!valid) return -1;
+    if (!valid) {
+        return -1;
+    }
     const int px = (ex - x()) / zoom;
     const int py = (ey - y()) / zoom;
     const int cx = px / (img.cell_width + 1);
     const int cy = py / (img.cell_height + 1);
-    if (px < 0 || py < 0 || cx >= img.columns) return -1;
+    if (px < 0 || py < 0 || cx >= img.columns) {
+        return -1;
+    }
     const int cell = cy * img.columns + cx;
     return cell < cell_count() ? cell : -1;
 }
@@ -86,7 +94,9 @@ void VramImage::draw()
     }
     fl_draw_image(m_scaled.data(), x(), y(), w(), h(), 3);
     for (int sel : { hover_cell, pinned_cell }) {
-        if (sel < 0) continue;
+        if (sel < 0) {
+            continue;
+        }
         const int cx = sel % img.columns;
         const int cy = sel / img.columns;
         fl_color(sel == pinned_cell ? COLOR_AMBER : COLOR_CYAN);
@@ -103,14 +113,18 @@ int VramImage::handle(int event)
         case FL_LEAVE:
             hover_cell = -1;
             redraw();
-            if (inspector) inspector->redraw();
+            if (inspector) {
+                inspector->redraw();
+            }
             return 1;
         case FL_MOVE: {
             const int cell = cell_at(Fl::event_x(), Fl::event_y());
             if (cell != hover_cell) {
                 hover_cell = cell;
                 redraw();
-                if (inspector) inspector->redraw();
+                if (inspector) {
+                    inspector->redraw();
+                }
             }
             return 1;
         }
@@ -118,7 +132,9 @@ int VramImage::handle(int event)
             const int cell = cell_at(Fl::event_x(), Fl::event_y());
             pinned_cell = (cell == pinned_cell) ? -1 : cell;
             redraw();
-            if (inspector) inspector->redraw();
+            if (inspector) {
+                inspector->redraw();
+            }
             return 1;
         }
         default:

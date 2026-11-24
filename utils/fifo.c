@@ -53,7 +53,7 @@ void fifo_deinit(fifo_t *fifo) {
 
 
 bool fifo_push(fifo_t *fifo, uint8_t value) {
-    if (!fifo || !fifo->array) return false;
+    if (fifo == NULL || fifo->array == NULL) return false;
 
     /* Check if the FIFO is full */
     if (!fifo->empty && fifo->rd == fifo->wr) {
@@ -71,7 +71,7 @@ bool fifo_push(fifo_t *fifo, uint8_t value) {
 
 // Pop function to retrieve an element from the FIFO.
 bool fifo_pop(fifo_t *fifo, uint8_t *value) {
-    if (!fifo || !fifo->array || !value) return false;
+    if (fifo == NULL || fifo->array == NULL || !value) return false;
 
     /* Make sure the FIFO is not empty */
     if (fifo->empty) {

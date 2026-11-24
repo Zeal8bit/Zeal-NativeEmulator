@@ -14,11 +14,7 @@ namespace zui::widgets {
 
 using namespace zui::theme;
 
-namespace {
-
 constexpr int TAB_PAD = 10;
-
-} // namespace
 
 TabbedPanel::TabbedPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "")
@@ -33,11 +29,19 @@ void TabbedPanel::add_tab(Panel* panel)
 
 void TabbedPanel::select(int index)
 {
-    if (m_tabs.empty()) return;
-    if (index < 0 || index >= (int) m_tabs.size()) index = 0;
+    if (m_tabs.empty()) {
+        return;
+    }
+    if (index < 0 || index >= (int) m_tabs.size()) {
+        index = 0;
+    }
     m_current = index;
     for (size_t i = 0; i < m_tabs.size(); i++) {
-        if ((int) i == index && !content_hidden()) m_tabs[i]->show(); else m_tabs[i]->hide();
+        if ((int) i == index && !content_hidden()) {
+            m_tabs[i]->show();
+        } else {
+            m_tabs[i]->hide();
+        }
     }
     resize(x(), y(), w(), h());
     redraw();
@@ -46,7 +50,9 @@ void TabbedPanel::select(int index)
 void TabbedPanel::set_collapsed(bool collapsed)
 {
     Panel::set_collapsed(collapsed);
-    if (!collapsed) select(m_current); /* only the current tab is shown */
+    if (!collapsed) {
+        select(m_current); /* only the current tab is shown */
+    }
 }
 
 void TabbedPanel::refresh(bool paused, bool force)
@@ -67,8 +73,11 @@ void TabbedPanel::label(int index, char* out, size_t size) const
 {
     const Panel* tab = m_tabs[(size_t) index];
     const char* extra = tab->extra_text();
-    if (extra && *extra) snprintf(out, size, "%s %s", tab->title(), extra);
-    else snprintf(out, size, "%s", tab->title());
+    if (extra && *extra) {
+        snprintf(out, size, "%s %s", tab->title(), extra);
+    } else {
+        snprintf(out, size, "%s", tab->title());
+    }
 }
 
 void TabbedPanel::tab_rect(int index, int& tx, int& tw) const
@@ -79,17 +88,23 @@ void TabbedPanel::tab_rect(int index, int& tx, int& tw) const
     for (int i = 0; i <= index; i++) {
         label(i, text, sizeof(text));
         tw = (int) fl_width(text) + 2 * TAB_PAD;
-        if (i < index) tx += tw + 2;
+        if (i < index) {
+            tx += tw + 2;
+        }
     }
 }
 
 int TabbedPanel::tab_at(int ex, int ey) const
 {
-    if (ey < y() || ey >= y() + HEADER_H) return -1;
+    if (ey < y() || ey >= y() + HEADER_H) {
+        return -1;
+    }
     for (int i = 0; i < (int) m_tabs.size(); i++) {
         int tx, tw;
         tab_rect(i, tx, tw);
-        if (ex >= tx && ex < tx + tw) return i;
+        if (ex >= tx && ex < tx + tw) {
+            return i;
+        }
     }
     return -1;
 }
@@ -120,10 +135,14 @@ int TabbedPanel::handle(int event)
         const int tab = tab_at(Fl::event_x(), Fl::event_y());
         if (tab >= 0) {
             /* A tab of a collapsed panel opens it on that tab */
-            if (collapsed() && on_collapse) on_collapse(this);
+            if (collapsed() && on_collapse) {
+                on_collapse(this);
+            }
             if (tab != m_current) {
                 select(tab);
-                if (on_select) on_select(tab);
+                if (on_select) {
+                    on_select(tab);
+                }
             }
             return 1;
         }

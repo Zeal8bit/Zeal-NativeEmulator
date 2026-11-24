@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,6 +30,11 @@
 /**
  * @brief DMA clock register type
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef union {
     struct {
         uint8_t rd_cycle : 4;
@@ -49,7 +54,6 @@ typedef union {
     uint8_t raw;
 } dma_flags_t;
 
-_Static_assert(sizeof(dma_flags_t) == 1, "DMA flags must be 1 byte big");
 
 /**
  * @brief DMA descriptors array pointed by the `desc_addr` field in the controller
@@ -62,7 +66,6 @@ typedef struct {
     uint32_t reserved   : 24; // Padding/future use
 } __attribute__((packed)) zvb_dma_descriptor_t;
 
-_Static_assert(sizeof(zvb_dma_descriptor_t) == 12, "DMA descriptors must be 12 bytes big");
 
 
 typedef struct {
@@ -124,3 +127,7 @@ uint8_t zvb_dma_read(zvb_dma_t* dma, uint32_t port);
  * @param value Value of the register
  */
 void zvb_dma_write(zvb_dma_t* dma, uint32_t port, uint8_t value);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

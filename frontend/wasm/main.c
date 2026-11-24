@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -57,7 +57,9 @@ void zeal_flush_storage_web(void)
 void zeal_service_web(void)
 {
     const int request = web_storage_request;
-    if (!request) return;
+    if (!request) {
+        return;
+    }
     web_storage_request = 0;
     int error = 0;
     if (flash_save_to_file(&machine.rom, config.images.rom) < 0) {
@@ -121,7 +123,7 @@ int main(void)
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }
-    if (config.images.eeprom && !frontend_media.eeprom) {
+    if (config.images.eeprom && frontend_media.eeprom == NULL) {
         log_err_printf("Could not open configured EEPROM image for persistence\n");
         goto deinit;
     }
@@ -138,9 +140,13 @@ int main(void)
 
     web_ready();
     code = frontend_run(&machine);
-    if (machine.compactflash.failed) goto deinit;
+    if (machine.compactflash.failed) {
+        goto deinit;
+    }
 
-    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) code = 1;
+    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) {
+        code = 1;
+    }
 
 deinit:
     frontend_deinit(&machine);

@@ -55,14 +55,20 @@ void Inspector::draw()
     const int sx0 = cx * (img.cell_width + 1);
     const int sy0 = cy * (img.cell_height + 1);
     int scale = (w() - 24) / cw;
-    if (scale * ch > 200) scale = 200 / ch;
-    if (scale < 1) scale = 1;
+    if (scale * ch > 200) {
+        scale = 200 / ch;
+    }
+    if (scale < 1) {
+        scale = 1;
+    }
     const int bx = x() + (w() - cw * scale) / 2;
     const int by = y() + HEADER_H + 12;
     for (int yy = 0; yy < ch; yy++) {
         for (int xx = 0; xx < cw; xx++) {
             const int sx = sx0 + xx, sy = sy0 + yy;
-            if (sx >= img.width || sy >= img.height) continue;
+            if (sx >= img.width || sy >= img.height) {
+                continue;
+            }
             const uint8_t* p = img.pixels + ((size_t) sy * img.width + sx) * 3;
             fl_color(fl_rgb_color(p[0], p[1], p[2]));
             fl_rectf(bx + xx * scale, by + yy * scale, scale, scale);

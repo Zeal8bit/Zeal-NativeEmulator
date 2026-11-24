@@ -40,7 +40,9 @@ int frontend_eeprom_init(frontend_media_t* media, at24c512_t* eeprom, const char
 {
     media->eeprom_device = eeprom;
     int err = at24c512_init(eeprom);
-    if (err) return err;
+    if (err) {
+        return err;
+    }
     if (filename) {
         FILE* file = fopen(filename, "rb+");
         if (file) {
@@ -50,8 +52,7 @@ int frontend_eeprom_init(frontend_media_t* media, at24c512_t* eeprom, const char
                 log_err_printf("[EEPROM] Warning: image size is smaller than EEPROM size\n");
             }
             media->eeprom = file;
-            eeprom->userdata = file;
-            eeprom->persist = eeprom_persist;
+            at24c512_set_persist(eeprom, eeprom_persist, file);
         } else {
             log_err_printf("[EEPROM] Could not open image %s\n", filename);
         }
@@ -63,8 +64,7 @@ int frontend_eeprom_init(frontend_media_t* media, at24c512_t* eeprom, const char
 void frontend_eeprom_close(frontend_media_t* media)
 {
     if (media->eeprom_device) {
-        media->eeprom_device->persist = NULL;
-        media->eeprom_device->userdata = NULL;
+        at24c512_set_persist(media->eeprom_device, NULL, NULL);
         media->eeprom_device = NULL;
     }
     if (media->eeprom) {
@@ -86,7 +86,9 @@ static bool cf_read_sector(void* userdata, uint64_t offset, uint8_t* data)
         log_perror("[COMPACTFLASH] ERROR '%s' %s\n", media->cf_name, "read()");
         return false;
     }
-    if (count < 512) memset(data + count, 0, 512 - count);
+    if (count < 512) {
+        memset(data + count, 0, 512 - count);
+    }
     return true;
 }
 
@@ -172,7 +174,9 @@ static size_t tf_write(void* userdata, const uint8_t* data)
 static int tf_flush(void* userdata)
 {
     int result = fflush(userdata);
-    if (result != 0) log_perror("[TF] Could not flush completed sector");
+    if (result != 0) {
+        log_perror("[TF] Could not flush completed sector");
+    }
     return result;
 }
 
@@ -208,7 +212,9 @@ int frontend_tf_load(frontend_media_t* media, zvb_spi_t* spi, const char* filena
         .flush = tf_flush,
     };
     zvb_spi_bind_tf(spi, &backend);
-    if (media->tf) fclose(media->tf);
+    if (media->tf) {
+        fclose(media->tf);
+    }
     media->tf = image;
     media->tf_device = spi;
     log_printf("[TF] %s loaded successfully\n", filename);

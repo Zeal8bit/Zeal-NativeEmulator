@@ -23,11 +23,8 @@ namespace zui::memtools {
 
 using namespace zui::app;
 using namespace zui::theme;
-using namespace zui::widgets;
 
-namespace {
-
-void place_over_main(Fl_Window* win)
+static void place_over_main(Fl_Window* win)
 {
     MainWindow* mw = main_window();
     if (mw && mw->shown()) {
@@ -37,7 +34,7 @@ void place_over_main(Fl_Window* win)
     }
 }
 
-void select_all(Fl_Input* in)
+static void select_all(Fl_Input* in)
 {
 #if FL_API_VERSION >= 10400
     in->insert_position(in->size(), 0);
@@ -45,8 +42,6 @@ void select_all(Fl_Input* in)
     in->position(in->size(), 0);
 #endif
 }
-
-} // namespace
 
 FormDialog::FormDialog(const char* title, const char* ok_label, const std::vector<const char*>& labels, const char* note)
     : Fl_Double_Window(W, 100, title), m_title(title)
@@ -137,7 +132,9 @@ void FormDialog::message(const char* text, Fl_Color c)
 void FormDialog::cb_ok(Fl_Widget*, void* data)
 {
     FormDialog* self = static_cast<FormDialog*>(data);
-    if (self->m_accept && !(*self->m_accept)(*self)) return;
+    if (self->m_accept && !(*self->m_accept)(*self)) {
+        return;
+    }
     self->m_result = true;
     self->hide();
 }

@@ -44,7 +44,9 @@ static void profile_render(void* userdata, double start)
     const double elapsed = fltk_seconds() - start;
     last_core_seconds = elapsed;
     s_render_profile.zvb_total += elapsed;
-    if (elapsed > s_render_profile.zvb_max) s_render_profile.zvb_max = elapsed;
+    if (elapsed > s_render_profile.zvb_max) {
+        s_render_profile.zvb_max = elapsed;
+    }
     s_render_profile.zvb_calls++;
 }
 

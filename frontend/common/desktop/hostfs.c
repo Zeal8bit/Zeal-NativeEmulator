@@ -1,8 +1,13 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+/* Desktop (POSIX) implementation of the HostFS backend: the core device only
+ * exposes registers and a dispatch callback (hw/hostfs.h); this file maps the
+ * guest operations to the host filesystem. The WASM frontend provides its own
+ * backend in frontend/wasm/hostfs.c. */
 
 
 #ifndef _DEFAULT_SOURCE
@@ -129,7 +134,9 @@ static void zos_format_name(const char* input_name, char* output_name)
 
 static char* resolve_path(const char* path, int prefix_len)
 {
-    if (path == NULL || strlen(path) == 0) return NULL;
+    if (path == NULL || strlen(path) == 0) {
+        return NULL;
+    }
 
     // Allocate a buffer for the resolved path
     char* resolved = calloc(1, PATH_MAX);
@@ -138,7 +145,7 @@ static char* resolve_path(const char* path, int prefix_len)
     }
 
     char* copy = strdup(path);
-    if (!copy) {
+    if (copy == NULL) {
         free(resolved);
         return NULL;
     }
@@ -155,7 +162,9 @@ static char* resolve_path(const char* path, int prefix_len)
                 resolved[len - 1] = '\0';
             }
             char* last_slash = strrchr(resolved, '/');
-            if (last_slash != NULL) *last_slash = '\0';
+            if (last_slash != NULL) {
+                *last_slash = '\0';
+            }
         } else if (strcmp(token, ".") != 0) {
             strcat(resolved, "/");
             strcat(resolved, token);
@@ -240,17 +249,21 @@ static FILE* fopen_with_flags(const char* path, int zos_flags)
     }
 
     // Add extra behavior flags
-    if (zos_flags & ZOS_FL_CREAT)
+    if (zos_flags & ZOS_FL_CREAT) {
         open_flags |= O_CREAT;
-    if (zos_flags & ZOS_FL_TRUNC)
+    }
+    if (zos_flags & ZOS_FL_TRUNC) {
         open_flags |= O_TRUNC;
-    if (zos_flags & ZOS_FL_APPEND)
+    }
+    if (zos_flags & ZOS_FL_APPEND) {
         open_flags |= O_APPEND;
+    }
 
     // Open file with appropriate mode
     int fd = open(path, open_flags | OPEN_BINARY, 0644);
-    if (fd == -1)
+    if (fd == -1) {
         return NULL;
+    }
 
     // Map zos_flags to fdopen mode string
     const char* mode_str = NULL;
@@ -266,7 +279,7 @@ static FILE* fopen_with_flags(const char* path, int zos_flags)
     }
 
     FILE* file = fdopen(fd, mode_str);
-    if (!file) {
+    if (file == NULL) {
         close(fd);
         return NULL;
     }
@@ -278,7 +291,7 @@ static void populate_opendir(frontend_hostfs_t* host, char* path)
 {
     DIR *dir = opendir(path);
 
-    if (!dir) {
+    if (dir == NULL) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
     }
@@ -330,7 +343,7 @@ static void fs_open(frontend_hostfs_t* host)
     }
 
     FILE* file = fopen_with_flags(path, flags);
-    if (!file) {
+    if (file == NULL) {
         set_status(host, ZOS_NO_SUCH_ENTRY);
         return;
     }
@@ -341,7 +354,9 @@ static void fs_open(frontend_hostfs_t* host)
             fd->file = file;
             fd->is_dir = 0;
             /* If file was just created, st may be uninitialized, so stat again */
-            if (!exists) stat(path, &st);
+            if (!exists) {
+                stat(path, &st);
+            }
             host->core->registers[0] = (st.st_size >> 0) & 0xFF;
             host->core->registers[1] = (st.st_size >> 8) & 0xFF;
             host->core->registers[2] = (st.st_size >> 16) & 0xFF;
@@ -611,7 +626,7 @@ static void fs_readdir(frontend_hostfs_t* host)
     /* Look for a valid entry */
     while (1) {
         entry = readdir(dir);
-        if (!entry) {
+        if (entry == NULL) {
             set_status(host, ZOS_NO_MORE_ENTRIES);
             return;
         }
@@ -720,7 +735,9 @@ int frontend_hostfs_load_path(const char* root_path)
 
 #ifdef _WIN32
     for (char* p = final_path; *p; ++p) {
-        if (*p == '\\') *p = '/';
+        if (*p == '\\') {
+            *p = '/';
+        }
     }
 #endif
 
@@ -755,8 +772,11 @@ void frontend_hostfs_close(void)
     for (int i = 0; i < MAX_OPENED_FILES; i++) {
         hostfs_fd_t* fd = &host->descriptors[i];
         if (fd->raw) {
-            if (fd->is_dir) closedir(fd->dir);
-            else fclose(fd->file);
+            if (fd->is_dir) {
+                closedir(fd->dir);
+            } else {
+                fclose(fd->file);
+            }
             fd->raw = NULL;
         }
     }

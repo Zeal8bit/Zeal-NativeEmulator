@@ -24,7 +24,6 @@ namespace zui::debugger {
 
 using namespace zui::common;
 using namespace zui::theme;
-using namespace zui::widgets;
 
 StackView::StackView(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "STACK")
@@ -43,8 +42,11 @@ void StackView::refresh(bool paused, bool force)
     char text[32];
     char sp[8];
     hex16(sp, sizeof(sp), m_regs.sp);
-    if (m_first > 0) snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
-    else snprintf(text, sizeof(text), "SP $%s", sp);
+    if (m_first > 0) {
+        snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
+    } else {
+        snprintf(text, sizeof(text), "SP $%s", sp);
+    }
     extra(text);
     redraw();
 }
@@ -52,7 +54,9 @@ void StackView::refresh(bool paused, bool force)
 void StackView::draw()
 {
     Panel::draw();
-    if (!dbg_ready() || content_hidden()) return;
+    if (!dbg_ready() || content_hidden()) {
+        return;
+    }
     const int lh = data_line_height();
     const int cw = char_width();
     const int asc = text_baseline(lh);
@@ -63,7 +67,9 @@ void StackView::draw()
     const int limit = stack_limit();
     clamp_first(rows, limit);
     int count = rows < 128 ? rows : 128;
-    if (m_first + count > limit) count = limit - m_first;
+    if (m_first + count > limit) {
+        count = limit - m_first;
+    }
     m_count = count > 0 ? count : 0;
     if (limit <= 0) {
         fl_font(FL_HELVETICA, 11);
@@ -72,7 +78,9 @@ void StackView::draw()
                 FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_CLIP);
         return;
     }
-    if (count <= 0) return;
+    if (count <= 0) {
+        return;
+    }
     uint8_t mem[256 + 64];
     if (fz_paused()) {
         debugger_read_memory(fz_debugger(), (m_regs.sp + m_first * 2) & 0xFFFF, count * 2, mem);
@@ -92,7 +100,9 @@ void StackView::draw()
         const int index = m_first + i;
         const unsigned addr = (m_regs.sp + index * 2) & 0xFFFF;
         const unsigned word = mem[i * 2] | (mem[i * 2 + 1] << 8);
-        if (i < (int) (sizeof(m_words) / sizeof(m_words[0]))) m_words[i] = (uint16_t) word;
+        if (i < (int) (sizeof(m_words) / sizeof(m_words[0]))) {
+            m_words[i] = (uint16_t) word;
+        }
         if (i == m_hover) {
             fl_color(COLOR_HOVER);
             fl_rectf(x(), ry, w(), lh);
@@ -127,7 +137,9 @@ void StackView::draw()
 
 int StackView::handle(int event)
 {
-    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) return Panel::handle(event);
+    if (content_hidden() || (event == FL_PUSH && Fl::event_y() < y() + HEADER_H)) {
+        return Panel::handle(event);
+    }
     switch (event) {
         case FL_ENTER:
             return 1;
@@ -149,15 +161,20 @@ int StackView::handle(int event)
             {
                 char text[32], sp[8];
                 hex16(sp, sizeof(sp), m_regs.sp);
-                if (m_first > 0) snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
-                else snprintf(text, sizeof(text), "SP $%s", sp);
+                if (m_first > 0) {
+                    snprintf(text, sizeof(text), "SP $%s  +%X", sp, m_first * 2);
+                } else {
+                    snprintf(text, sizeof(text), "SP $%s", sp);
+                }
                 extra(text);
             }
             redraw();
             return 1;
         case FL_PUSH: {
             const int r = row_at(Fl::event_y());
-            if (r < 0 || !dbg_ready()) return 1;
+            if (r < 0 || !dbg_ready()) {
+                return 1;
+            }
             const hwaddr addr = (m_regs.sp + (m_first + r) * 2) & 0xFFFF;
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 context_menu(addr, m_words[r]);
@@ -182,14 +199,22 @@ int StackView::stack_limit() const
 void StackView::clamp_first(int rows, int limit)
 {
     int max_first = limit - (rows < limit ? rows : limit);
-    if (max_first < 0) max_first = 0;
-    if (m_first > max_first) m_first = max_first;
-    if (m_first < 0) m_first = 0;
+    if (max_first < 0) {
+        max_first = 0;
+    }
+    if (m_first > max_first) {
+        m_first = max_first;
+    }
+    if (m_first < 0) {
+        m_first = 0;
+    }
 }
 
 int StackView::row_at(int ey) const
 {
-    if (ey < top() + 4) return -1;
+    if (ey < top() + 4) {
+        return -1;
+    }
     const int r = (ey - top() - 4) / data_line_height();
     return r < m_count ? r : -1;
 }
@@ -205,7 +230,9 @@ void StackView::context_menu(hwaddr slot, uint16_t value)
         { nullptr, 0, nullptr, nullptr, 0, 0, 0, 0, 0 },
     };
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     char text[8];
     switch ((int) (picked - items)) {
         case 0: goto_memory(slot); break;

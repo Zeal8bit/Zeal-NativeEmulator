@@ -11,6 +11,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     THEME_SYSTEM,
     THEME_LIGHT,
@@ -78,3 +83,7 @@ extern config_t config;
 
 void config_debug(void);
 void config_resolve_images(void);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

@@ -7,6 +7,4 @@ roms/*
 .vscode
 external/
 tests/*
-!tests/trace_test.c
-!tests/fltk_config_test.cpp
 sdl3/

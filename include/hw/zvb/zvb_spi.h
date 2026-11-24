@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -38,6 +38,11 @@
 #define SPI_REG_RAM_FROM    8
 #define SPI_REG_RAM_TO      15
 
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef union {
     struct {
@@ -81,7 +86,8 @@ static inline int zvb_tf_is_write(zvb_tf_state_t st) {
 }
 
 
-/* Borrowed media callbacks. A successful seek selects one complete sector;
+/* Media callbacks supplied by the frontend. A successful seek selects one
+ * complete sector;
  * completed writes are flushed before the guest receives its response.
  * Supply all callbacks for a connected card, or an all-zero backend to detach.
  * Reads/writes span 512 bytes and return a byte count; flush returns zero on
@@ -173,3 +179,7 @@ uint8_t zvb_spi_peek(const zvb_spi_t* spi, uint32_t addr);
 
 
 void zvb_spi_bind_tf(zvb_spi_t* spi, const zvb_tf_backend_t* backend);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

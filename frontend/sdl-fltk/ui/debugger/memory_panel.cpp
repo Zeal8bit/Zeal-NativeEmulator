@@ -37,9 +37,7 @@
 namespace zui::debugger {
 
 using namespace zui::common;
-using namespace zui::memtools;
 using namespace zui::theme;
-using namespace zui::widgets;
 
 int MemoryPanel::preferred_width()
 {
@@ -210,8 +208,11 @@ void MemoryPanel::show_find(bool show)
     m_find_shown = show;
     Fl_Widget* row[] = { m_find, m_prev_btn, m_next_btn, m_close_btn, m_find_status };
     for (Fl_Widget* wd : row) {
-        if (show) wd->show();
-        else wd->hide();
+        if (show) {
+            wd->show();
+        } else {
+            wd->hide();
+        }
     }
     resize(x(), y(), w(), h());
     if (show) {
@@ -224,7 +225,9 @@ void MemoryPanel::show_find(bool show)
         cb_find_changed(nullptr, this);
     } else {
         m_view->highlight(memtools::Pattern());
-        if (Fl::focus() == m_find) m_view->take_focus();
+        if (Fl::focus() == m_find) {
+            m_view->take_focus();
+        }
     }
     redraw();
 }
@@ -238,7 +241,9 @@ void MemoryPanel::find_status(const char* text, Fl_Color c)
 
 void MemoryPanel::find(bool forward)
 {
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     memtools::Pattern p;
     std::string err;
     if (!memtools::parse_pattern(m_find->value(), p, &err)) {
@@ -280,8 +285,11 @@ void MemoryPanel::cb_go(Fl_Widget*, void* data)
 {
     MemoryPanel* self = static_cast<MemoryPanel*>(data);
     hwaddr addr;
-    if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_DATA)) self->go(addr);
-    else fl_beep();
+    if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_DATA)) {
+        self->go(addr);
+    } else {
+        fl_beep();
+    }
 }
 
 void MemoryPanel::cb_follow(Fl_Widget*, void* data)
@@ -312,7 +320,9 @@ void MemoryPanel::cb_find_changed(Fl_Widget*, void* data)
 {
     MemoryPanel* self = static_cast<MemoryPanel*>(data);
     memtools::Pattern p;
-    if (!memtools::parse_pattern(self->m_find->value(), p, nullptr)) p = memtools::Pattern();
+    if (!memtools::parse_pattern(self->m_find->value(), p, nullptr)) {
+        p = memtools::Pattern();
+    }
     self->m_view->highlight(p);
     self->find_status(self->m_find->size() ? "Enter: next  Shift+Enter: previous" : "", COLOR_DIM);
 }

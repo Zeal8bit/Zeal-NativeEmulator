@@ -21,14 +21,18 @@ bool fz_input_keyboard(fz_keyboard_state_t* out)
 {
     memset(out, 0, sizeof(*out));
     out->held_count = fltk_keyboard_held(out->held, FZ_KEYS_HELD_MAX);
-    if (fltk_machine == NULL) return false;
+    if (fltk_machine == NULL) {
+        return false;
+    }
 
     const keyboard_t* kb = &fltk_machine->keyboard;
     const fifo_t* q = &kb->queue;
     out->fifo_size = (int) q->size;
     if (!q->empty && q->array && q->size > 0) {
         int count = (q->wr - q->rd + (int) q->size) % (int) q->size;
-        if (count == 0) count = (int) q->size;
+        if (count == 0) {
+            count = (int) q->size;
+        }
         out->fifo_count = count;
         for (int i = 0; i < count && i < FZ_KB_FIFO_SHOWN; i++) {
             out->fifo[i] = q->array[(q->rd + i) % (int) q->size];
@@ -129,7 +133,9 @@ bool fz_input_snes_port(int port, fz_snes_port_t* out)
     memset(out, 0, sizeof(*out));
     out->latched = 0xFFFFFFFF;
     out->gamepad = -1;
-    if (port < 0 || port >= SNES_CONTROLLER_COUNT || frontend_snes.core == NULL) return false;
+    if (port < 0 || port >= SNES_CONTROLLER_COUNT || frontend_snes.core == NULL) {
+        return false;
+    }
 
     const snes_port_assignment_t* a = &frontend_snes.ports[port];
     out->latched = frontend_snes.last_packets[port];
@@ -180,7 +186,9 @@ void fz_input_snes_mouse(fz_snes_mouse_t* out)
 {
     memset(out, 0, sizeof(*out));
     out->port = SNES_PORT_DETACHED;
-    if (frontend_snes.core == NULL) return;
+    if (frontend_snes.core == NULL) {
+        return;
+    }
     const snes_mouse_t* m = &frontend_snes.mouse;
     out->port = snes_adapter_get_mouse_port(&frontend_snes);
     out->left = m->button_left;
@@ -188,7 +196,9 @@ void fz_input_snes_mouse(fz_snes_mouse_t* out)
     out->captured = m->captured;
     out->hovered = m->hovered;
     out->scale = m->delta_scale;
-    if (out->port < 0 || frontend_snes.latch_count == 0) return;
+    if (out->port < 0 || frontend_snes.latch_count == 0) {
+        return;
+    }
     out->latched = true;
     const uint32_t p = frontend_snes.last_packets[out->port];
     out->dx = mouse_axis(p, SNES_MOUSE_X_SIGN_BIT, SNES_MOUSE_X_MAG_SHIFT);

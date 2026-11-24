@@ -26,7 +26,9 @@ void DockLayout::set_root(Fl_Widget* root, std::function<void(bool)> expand)
 {
     m_root = root;
     m_expand = std::move(expand);
-    if (root->parent() != this) add(root);
+    if (root->parent() != this) {
+        add(root);
+    }
     root->resize(x(), y(), w(), h());
     docks_visible(m_docks);
 }
@@ -34,15 +36,21 @@ void DockLayout::set_root(Fl_Widget* root, std::function<void(bool)> expand)
 void DockLayout::docks_visible(bool visible)
 {
     m_docks = visible && m_expand;
-    if (m_expand) m_expand(m_docks);
-    if (m_root) m_root->resize(x(), y(), w(), h());
+    if (m_expand) {
+        m_expand(m_docks);
+    }
+    if (m_root) {
+        m_root->resize(x(), y(), w(), h());
+    }
     redraw();
 }
 
 void DockLayout::resize(int nx, int ny, int nw, int nh)
 {
     Fl_Widget::resize(nx, ny, nw, nh);
-    if (m_root) m_root->resize(nx, ny, nw, nh);
+    if (m_root) {
+        m_root->resize(nx, ny, nw, nh);
+    }
 }
 
 } // namespace zui::widgets

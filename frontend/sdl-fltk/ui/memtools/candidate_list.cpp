@@ -125,7 +125,9 @@ int CandidateList::handle(int event)
         }
         case FL_PUSH: {
             const int i = index_at(Fl::event_y());
-            if (i >= 0 && source && source->go) source->go((*items)[(size_t) i]);
+            if (i >= 0 && source && source->go) {
+                source->go((*items)[(size_t) i]);
+            }
             return 1;
         }
         case FL_MOUSEWHEEL:
@@ -147,15 +149,21 @@ void CandidateList::resize(int X, int Y, int W, int H)
 int CandidateList::index_at(int ey) const
 {
     const int r = (ey - y() - 2) / data_line_height();
-    if (ey < y() + 2 || r >= rows()) return -1;
+    if (ey < y() + 2 || r >= rows()) {
+        return -1;
+    }
     const int i = m_top + r;
     return i < count() ? i : -1;
 }
 
 void CandidateList::clamp()
 {
-    if (m_top > count() - rows()) m_top = count() - rows();
-    if (m_top < 0) m_top = 0;
+    if (m_top > count() - rows()) {
+        m_top = count() - rows();
+    }
+    if (m_top < 0) {
+        m_top = 0;
+    }
 }
 
 } // namespace zui::memtools

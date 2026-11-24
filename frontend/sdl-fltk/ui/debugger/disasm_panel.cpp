@@ -21,7 +21,6 @@
 namespace zui::debugger {
 
 using namespace zui::theme;
-using namespace zui::widgets;
 
 DisasmPanel::DisasmPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "DISASSEMBLY")
@@ -47,7 +46,9 @@ DisasmPanel::DisasmPanel(int X, int Y, int W, int H)
 
 void DisasmPanel::refresh(bool paused, bool force)
 {
-    if (paused && force && m_follow->value()) m_view->follow(current_regs().pc);
+    if (paused && force && m_follow->value()) {
+        m_view->follow(current_regs().pc);
+    }
     m_view->redraw();
 }
 
@@ -80,8 +81,11 @@ void DisasmPanel::cb_go(Fl_Widget*, void* data)
 {
     DisasmPanel* self = static_cast<DisasmPanel*>(data);
     hwaddr addr;
-    if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_CODE)) self->go(addr);
-    else fl_beep();
+    if (lookup_address(self->m_input, self->m_input->value(), &addr, SYM_KIND_CODE)) {
+        self->go(addr);
+    } else {
+        fl_beep();
+    }
 }
 
 void DisasmPanel::cb_pc(Fl_Widget*, void* data)

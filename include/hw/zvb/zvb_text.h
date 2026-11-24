@@ -51,6 +51,11 @@
 /**
  * @brief Type for the 2D position of the cursor
  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef union {
     struct {
         uint8_t x;
@@ -156,3 +161,7 @@ bool zvb_text_update(zvb_text_t* text, zvb_text_info_t* info);
 
 /* Snapshot cursor/scroll without advancing the once-per-frame blink. */
 bool zvb_text_get_info(const zvb_text_t* text, zvb_text_info_t* info);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

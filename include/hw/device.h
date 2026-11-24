@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,9 +9,15 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include "hw/host.h"
 
 #define DEVICE(dev) &((dev)->parent)
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct device_t device_t;
 
@@ -43,11 +49,10 @@ static inline void device_init_io(device_t* dev, const char* name, uint8_t (*rea
                                   void (*write)(device_t*, uint32_t, uint8_t), int size)
 {
     dev->name = name;
-    dev->io_region = (region_t) {
-        .size  = size,
-        .read  = read,
-        .write = write,
-    };
+    memset(&dev->io_region, 0, sizeof(dev->io_region));
+    dev->io_region.size  = size;
+    dev->io_region.read  = read;
+    dev->io_region.write = write;
 }
 
 
@@ -55,11 +60,10 @@ static inline void device_init_mem(device_t* dev, const char* name, uint8_t (*re
                                    void (*write)(device_t*, uint32_t, uint8_t), int size)
 {
     dev->name = name;
-    dev->mem_region = (region_t) {
-        .size  = size,
-        .read  = read,
-        .write = write,
-    };
+    memset(&dev->mem_region, 0, sizeof(dev->mem_region));
+    dev->mem_region.size  = size;
+    dev->mem_region.read  = read;
+    dev->mem_region.write = write;
 }
 
 static inline void device_init_mem_debug(device_t* dev, const char* name,
@@ -69,12 +73,11 @@ static inline void device_init_mem_debug(device_t* dev, const char* name,
                                          int size)
 {
     dev->name = name;
-    dev->mem_region = (region_t) {
-        .size  = size,
-        .read  = read,
-        .write = write,
-        .debug_read = dbg_read,
-    };
+    memset(&dev->mem_region, 0, sizeof(dev->mem_region));
+    dev->mem_region.size       = size;
+    dev->mem_region.read       = read;
+    dev->mem_region.write      = write;
+    dev->mem_region.debug_read = dbg_read;
 }
 
 static inline void device_register_reset(device_t* dev, void (*reset)(device_t* dev))
@@ -88,3 +91,7 @@ static inline void device_reset(device_t* dev)
         dev->reset(dev);
     }
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

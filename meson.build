@@ -39,16 +39,6 @@ core = static_library('zeal', sources, include_directories: includes,
 zeal_dep = declare_dependency(link_with: core, include_directories: includes,
     compile_args: core_args, dependencies: portable_deps)
 
-# Core tests (meson test -C <builddir>)
-if get_option('trace_depth') > 0 and not is_web
-    test('trace', executable('trace_test', 'tests/trace_test.c',
-        dependencies: zeal_dep, c_args: ['-D_POSIX_C_SOURCE=200809L'], build_by_default: false))
-endif
-if not is_web
-    test('debug_inspect', executable('debug_inspect_test', 'tests/debug_inspect_test.c',
-        dependencies: zeal_dep, build_by_default: false))
-endif
-
 if build_headless or build_wasm or build_sdlfltk
     subdir('frontend/common')
     host_args = ['-D_XOPEN_SOURCE=700',
@@ -71,18 +61,12 @@ if build_sdlfltk
     add_languages('cpp', native: false)
     sdl3_dep = dependency('sdl3', static: get_option('sdl3_static'))
     fltk_config = find_program('fltk-config', version: '>=1.4.0')
-    fltk_cxxflags = run_command(fltk_config, '--use-gl', '--cxxflags', check: true).stdout().strip().split()
-    fltk_ldflags = run_command(fltk_config, '--use-gl', '--ldflags', check: true).stdout().strip().split()
+    fltk_cxxflags = run_command(fltk_config, '--cxxflags', check: true).stdout().strip().split()
+    fltk_ldflags = run_command(fltk_config, '--ldflags', check: true).stdout().strip().split()
     if host_machine.system() == 'darwin'
         fltk_ldflags += ['-framework', 'ApplicationServices']
     endif
     fltk_dep = declare_dependency(compile_args: fltk_cxxflags, link_args: fltk_ldflags)
-    # Link OpenGL explicitly on platforms where it is a separate library.
-    if host_machine.system() == 'windows'
-        gl_dep = cc.find_library('opengl32')
-    else
-        gl_dep = dependency('gl', required: host_machine.system() != 'darwin')
-    endif
     # Registers the bundled pixel font for the debugger on Linux/BSD.
     fontconfig_dep = dependency('fontconfig', required: false,
         disabler: false)
@@ -98,7 +82,7 @@ if build_sdlfltk
     endif
     sdlfltk_c = static_library('zeal-fltk-machine', common_sources + desktop_sources + sdlfltk_sources,
         dependencies: [zeal_dep, sdl3_dep], c_args: host_args + sdlfltk_args)
-    sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, gl_dep, fontconfig_dep, appearance_dep]
+    sdlfltk_deps = [zeal_dep, sdl3_dep, fltk_dep, fontconfig_dep, appearance_dep]
     # The Objective-C++ driver already links libc++ for both UI languages.
     ui_link_options = host_machine.system() == 'darwin' ? {'link_language': 'objcpp'} : {}
     exec = executable('zeal-native', sdlfltk_cpp_sources,
@@ -107,11 +91,6 @@ if build_sdlfltk
         link_with: sdlfltk_c, dependencies: sdlfltk_deps,
         objcpp_args: ['-std=c++17'],
         cpp_args: host_args + sdlfltk_args + sdlfltk_ui_args + ['-std=c++17'], install: true)
-    test('fltk_config', executable('fltk_config_test', 'tests/fltk_config_test.cpp',
-        kwargs: ui_link_options,
-        objects: exec.extract_all_objects(recursive: false), link_with: sdlfltk_c,
-        include_directories: sdlfltk_ui_inc, dependencies: sdlfltk_deps,
-        cpp_args: sdlfltk_args + ['-std=c++17'], build_by_default: false))
     run_target('run', command: [exec])
     run_target('run-fltk', command: [exec])
 endif

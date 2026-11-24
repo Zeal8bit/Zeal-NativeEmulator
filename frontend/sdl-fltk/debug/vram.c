@@ -356,11 +356,15 @@ static void render_layer(zvb_t* zvb, bool layer1)
 
 bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out)
 {
-    if (view < 0 || view >= DBG_VIEW_TOTAL || out == NULL) return false;
+    if (view < 0 || view >= DBG_VIEW_TOTAL || out == NULL) {
+        return false;
+    }
     dbg_img_t* img = &s_images[view];
     if (img->data == NULL) {
         img->data = calloc((size_t) s_widths[view] * s_heights[view], sizeof(dbg_color_t));
-        if (img->data == NULL) return false;
+        if (img->data == NULL) {
+            return false;
+        }
         img->width = s_widths[view];
         img->height = s_heights[view];
     }
@@ -391,52 +395,28 @@ bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out)
 #define SPRITE_TILE_BYTES   256
 #define SPRITE_HIGH_BANK    256
 
-bool fltk_debug_sprite(zvb_t* zvb, int index, fz_sprite_t* info, uint8_t* rgb, uint8_t* mask)
+bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask)
 {
-    if (index < 0 || index >= ZVB_SPRITES_COUNT || info == NULL) return false;
+    if (zvb == NULL || index < 0 || index >= ZVB_SPRITES_COUNT) {
+        return false;
+    }
     const zvb_sprite_t* sp = &zvb->sprites.data[index];
-    const bool color_4bit = zvb->mode == MODE_GFX_640_4BIT || zvb->mode == MODE_GFX_320_4BIT;
-    const bool mode_320 = zvb->mode == MODE_GFX_320_8BIT || zvb->mode == MODE_GFX_320_4BIT;
-    const int scr_w = mode_320 ? 320 : 640;
-    const int scr_h = mode_320 ? 240 : 480;
+    const bool color_4bit = zvb_is_4bit_mode(zvb);
+    const int height = zvb_sprite_height(sp);
+    const int palette = sp->flags.bitmap.palette;
 
-    info->x = sp->x;
-    info->y = sp->y;
-    info->screen_x = (int) sp->x - TILE_W;
-    info->screen_y = (int) sp->y - TILE_H;
-    info->height = sp->extra_flags.bitmap.height_32 ? 32 : 16;
-    info->bank = sp->flags.bitmap.tileset_idx;
-    info->tile = sp->flags.bitmap.tile_number + ((info->bank && color_4bit) ? SPRITE_HIGH_BANK : 0);
-    info->palette = sp->flags.bitmap.palette;
-    info->flip_x = sp->flags.bitmap.flip_x;
-    info->flip_y = sp->flags.bitmap.flip_y;
-    info->behind_fg = sp->flags.bitmap.behind_fg;
-    info->raw_flags = sp->flags.raw;
-    info->raw_extra = sp->extra_flags.raw;
-    info->on_screen = zvb_is_gfx_mode(zvb) &&
-        info->screen_x < scr_w && info->screen_x + TILE_W > 0 &&
-        info->screen_y < scr_h && info->screen_y + info->height > 0;
-
-    if (rgb == NULL && mask == NULL) return true;
+    if (rgb == NULL && mask == NULL) {
+        return true;
+    }
     for (int oy = 0; oy < FZ_SPRITE_MAX_H; oy++) {
         for (int ox = 0; ox < FZ_SPRITE_W; ox++) {
             const int out = oy * FZ_SPRITE_W + ox;
             uint8_t opaque = 0;
             dbg_color_t c = { 0, 0, 0 };
-            if (oy < info->height) {
-                const int sy = info->flip_y ? info->height - 1 - oy : oy;
-                const int sx = info->flip_x ? TILE_W - 1 - ox : ox;
-                const int offset = sy * TILE_W + sx;
-                int color_idx;
-                if (color_4bit) {
-                    const int byte_idx = info->tile * SPRITE_TILE_BYTES + offset;
-                    const uint8_t byte = zvb->tileset.raw[(byte_idx / 2) & (ZVB_TILESET_SIZE - 1)];
-                    color_idx = (byte_idx & 1) ? (byte & 0x0f) : (byte >> 4);
-                } else {
-                    color_idx = zvb->tileset.raw[(info->tile * SPRITE_TILE_BYTES + offset) & (ZVB_TILESET_SIZE - 1)];
-                }
+            if (oy < height) {
+                const uint8_t color_idx = zvb_sprite_pixel(sp, color_4bit, zvb->tileset.raw, ox, oy);
                 if (color_idx != 0) {
-                    const int final_idx = color_4bit ? ((info->palette << 4) | color_idx) : color_idx;
+                    const int final_idx = color_4bit ? ((palette << 4) | color_idx) : color_idx;
                     c = palette_color(zvb, final_idx & 0xff);
                     opaque = 1;
                 }
@@ -446,11 +426,14 @@ bool fltk_debug_sprite(zvb_t* zvb, int index, fz_sprite_t* info, uint8_t* rgb, u
                 rgb[out * 3 + 1] = c.g;
                 rgb[out * 3 + 2] = c.b;
             }
-            if (mask) mask[out] = opaque;
+            if (mask) {
+                mask[out] = opaque;
+            }
         }
     }
     return true;
 }
+
 
 void fltk_debug_video_free(void)
 {

@@ -25,7 +25,7 @@ public:
 
 private:
     void map_rect(int& mx, int& my, int& mw, int& mh) const;
-    void sprite_rect(const fz_sprite_t& sp, int& rx, int& ry, int& rw, int& rh) const;
+    void sprite_rect(int index, int& rx, int& ry, int& rw, int& rh) const;
 
     SpriteData* m_data;
     std::vector<uint8_t> m_buf;

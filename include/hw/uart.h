@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
+ * SPDX-FileCopyrightText: 2025-2026 Zeal 8-bit Computer <contact@zeal8bit.com>; David Higgins <zoul0813@me.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,6 +19,11 @@
 
 #define BAUDRATE_US 17.361
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     const hw_host_t* host;
         // device_t
@@ -29,3 +34,7 @@ typedef struct {
 } uart_t;
 
 int uart_init(uart_t* uart, pio_t* pio);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

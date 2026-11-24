@@ -37,7 +37,9 @@ void WatchList::draw()
 {
     fl_color(COLOR_SURFACE);
     fl_rectf(x(), y(), w(), h());
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     std::vector<Watch>& list = watches();
     const int lh = data_line_height();
     const int cw = char_width();
@@ -57,12 +59,18 @@ void WatchList::draw()
     int hex_chars = 2, dec_chars = 3;
     for (const Watch& wt : list) {
         format(wt, hex, sizeof(hex), dec, sizeof(dec));
-        if (wt.type != W_STR && (int) strlen(hex) > hex_chars) hex_chars = (int) strlen(hex);
-        if ((int) strlen(dec) > dec_chars) dec_chars = (int) strlen(dec);
+        if (wt.type != W_STR && (int) strlen(hex) > hex_chars) {
+            hex_chars = (int) strlen(hex);
+        }
+        if ((int) strlen(dec) > dec_chars) {
+            dec_chars = (int) strlen(dec);
+        }
     }
     int dec_w = dec_chars * cw;
     for (const Watch& wt : list) {
-        if (wt.type == W_BITS && bits_width() > dec_w) dec_w = bits_width();
+        if (wt.type == W_BITS && bits_width() > dec_w) {
+            dec_w = bits_width();
+        }
     }
     const int right = x() + w() - 6;
     const int dec_x = right - dec_w;
@@ -115,8 +123,11 @@ void WatchList::draw()
         /* Type tag (and break kind), right-aligned in the name column */
         fl_font(FL_HELVETICA, 10);
         char tag[16];
-        if (wt.type == W_STR) snprintf(tag, sizeof(tag), "str%d", wt.len);
-        else snprintf(tag, sizeof(tag), "%s", WATCH_TYPES[wt.type].tag);
+        if (wt.type == W_STR) {
+            snprintf(tag, sizeof(tag), "str%d", wt.len);
+        } else {
+            snprintf(tag, sizeof(tag), "%s", WATCH_TYPES[wt.type].tag);
+        }
         const char* kind = wt.brk ? watch_type_short((watchpoint_type_t) wt.brk) : "";
         const int kind_w = wt.brk ? (int) fl_width(kind) + 4 : 0;
         const int tag_w = (int) fl_width(tag) + kind_w;
@@ -153,7 +164,9 @@ void WatchList::draw()
             fl_color(vc);
             fl_draw(hex, hex_x, ry + asc);
             fl_draw(dec, right - (int) strlen(dec) * cw, ry + asc);
-            if (wt.type == W_BITS && wt.valid) draw_bits(wt, right - bits_width(), ry + asc);
+            if (wt.type == W_BITS && wt.valid) {
+                draw_bits(wt, right - bits_width(), ry + asc);
+            }
         }
     }
     fl_pop_clip();
@@ -174,11 +187,15 @@ int WatchList::handle(int event)
             m_first += Fl::event_dy();
             clamp_first();
             set_hover(row_at(Fl::event_y()));
-            if (changed) changed(); /* header shows the scroll offset */
+            if (changed) {
+                changed(); /* header shows the scroll offset */
+            }
             redraw();
             return 1; /* never let the wheel fall through */
         case FL_PUSH: {
-            if (!dbg_ready()) return 1;
+            if (!dbg_ready()) {
+                return 1;
+            }
             const int r = row_at(Fl::event_y());
             if (Fl::event_button() == FL_RIGHT_MOUSE) {
                 context_menu(r);
@@ -235,23 +252,35 @@ int WatchList::visible_rows() const
 void WatchList::clamp_first()
 {
     int max_first = (int) watches().size() - visible_rows();
-    if (max_first < 0) max_first = 0;
-    if (m_first > max_first) m_first = max_first;
-    if (m_first < 0) m_first = 0;
+    if (max_first < 0) {
+        max_first = 0;
+    }
+    if (m_first > max_first) {
+        m_first = max_first;
+    }
+    if (m_first < 0) {
+        m_first = 0;
+    }
 }
 
 int WatchList::row_at(int ey) const
 {
-    if (ey < rows_y()) return -1;
+    if (ey < rows_y()) {
+        return -1;
+    }
     const int i = (ey - rows_y()) / data_line_height();
-    if (i >= visible_rows()) return -1;
+    if (i >= visible_rows()) {
+        return -1;
+    }
     const int r = m_first + i;
     return r < (int) watches().size() ? r : -1;
 }
 
 void WatchList::set_hover(int r)
 {
-    if (r == m_hover) return;
+    if (r == m_hover) {
+        return;
+    }
     m_hover = r;
     redraw();
 }
@@ -272,7 +301,9 @@ void WatchList::toggle_break(int row)
         w.brk_on = !w.brk_on;
     }
     watch_breaks_sync();
-    if (changed) changed();
+    if (changed) {
+        changed();
+    }
 }
 
 void WatchList::context_menu(int row)
@@ -296,10 +327,13 @@ void WatchList::context_menu(int row)
         return FL_MENU_RADIO | brk_ok | ((wt && wt->brk == type) ? FL_MENU_VALUE : 0);
     };
     char brk_title[96];
-    if (!wt) snprintf(brk_title, sizeof(brk_title), "Break");
-    else if (!can_break && wt->brk) snprintf(brk_title, sizeof(brk_title), "Break: not armed, %s", why);
-    else if (!can_break) snprintf(brk_title, sizeof(brk_title), "Break: not available, %s", why);
-    else {
+    if (wt == nullptr) {
+        snprintf(brk_title, sizeof(brk_title), "Break");
+    } else if (!can_break && wt->brk) {
+        snprintf(brk_title, sizeof(brk_title), "Break: not armed, %s", why);
+    } else if (!can_break) {
+        snprintf(brk_title, sizeof(brk_title), "Break: not available, %s", why);
+    } else {
         char range[24];
         watch_range_text(range, sizeof(range), lo, hi);
         snprintf(brk_title, sizeof(brk_title), "Break on %s%s", range, ptr ? " (the pointer)" : "");
@@ -359,7 +393,9 @@ void WatchList::context_menu(int row)
     };
     static_assert(sizeof(items) / sizeof(items[0]) == M_REMOVE_ALL + 2, "menu layout");
     const Fl_Menu_Item* picked = items->popup(Fl::event_x(), Fl::event_y());
-    if (picked == nullptr) return;
+    if (picked == nullptr) {
+        return;
+    }
     const int id = (int) (picked - items);
     if (id >= M_TYPE_FIRST && id < M_TYPE_END) {
         list[(size_t) row].type = id - M_TYPE_FIRST;
@@ -370,7 +406,9 @@ void WatchList::context_menu(int row)
                 char def[8];
                 snprintf(def, sizeof(def), "%d", list[(size_t) row].len);
                 const char* answer = fl_input("String length in characters (1-64, decimal):", def);
-                if (answer == nullptr) return;
+                if (answer == nullptr) {
+                    return;
+                }
                 const int len = atoi(answer);
                 if (len < 1 || len > MAX_STR) {
                     fl_beep();
@@ -399,7 +437,9 @@ void WatchList::context_menu(int row)
     watch_breaks_sync();
     m_hover = -1;
     clamp_first();
-    if (changed) changed();
+    if (changed) {
+        changed();
+    }
 }
 
 } // namespace zui::debugger

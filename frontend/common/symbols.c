@@ -29,9 +29,13 @@ static char* trim(char* s)
 static bool is_hex_address(const char* s)
 {
     size_t n = strlen(s);
-    if (n < 4) return false;
+    if (n < 4) {
+        return false;
+    }
     for (size_t i = 0; i < n; i++) {
-        if (!isxdigit((unsigned char) s[i])) return false;
+        if (!isxdigit((unsigned char) s[i])) {
+            return false;
+        }
     }
     return true;
 }
@@ -40,7 +44,9 @@ static bool contains_nocase(const char* s, const char* what)
 {
     const size_t n = strlen(what);
     for (; *s; s++) {
-        if (strncasecmp(s, what, n) == 0) return true;
+        if (strncasecmp(s, what, n) == 0) {
+            return true;
+        }
     }
     return false;
 }
@@ -50,7 +56,9 @@ static bool contains_nocase(const char* s, const char* what)
  * data_user, bss_compiler, rodata_user, TEXT, DATA, BSS... */
 static uint8_t section_kind(const char* section)
 {
-    if (section == NULL || section[0] == '\0') return SYM_KIND_UNKNOWN;
+    if (section == NULL || section[0] == '\0') {
+        return SYM_KIND_UNKNOWN;
+    }
     if (contains_nocase(section, "rodata") || contains_nocase(section, "const") ||
         contains_nocase(section, "initializer")) {
         return SYM_KIND_CONST;
@@ -70,13 +78,13 @@ static uint8_t section_kind(const char* section)
 
 bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
 {
-    if (!dbg || !filename) {
+    if (dbg == NULL || filename == NULL) {
         log_perror("[MAP] No debugger or filename");
         return false;
     }
 
     FILE* file = fopen(filename, "r");
-    if (!file) {
+    if (file == NULL) {
         log_perror("[MAP] Could not open file to load");
         return false;
     }
@@ -86,7 +94,9 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
     /* Parse in isolation so a failed read or allocation leaves live symbols intact. */
     symbols_t* first = calloc(1, sizeof(*first));
     symbols_t* current = first;
-    if (!first) goto failed;
+    if (first == NULL) {
+        goto failed;
+    }
 
     char line[MAX_LINE_LENGTH];
     char name[MAX_LINE_LENGTH];
@@ -113,12 +123,15 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
         }
         if (strstr(line, " bytes (")) {
             /* Area line: "_CODE   00004000   00000020 =   32. bytes (REL,CON)" */
-            if (strstr(line, ".ABS.")) strcpy(area, ".ABS.");
-            else if (sscanf(line, "%255s", area) != 1) area[0] = '\0';
+            if (strstr(line, ".ABS.")) {
+                strcpy(area, ".ABS.");
+            } else if (sscanf(line, "%255s", area) != 1) {
+                area[0] = '\0';
+            }
             continue;
         }
         if (sdcc_table) {
-            /* "     000094F5  _sound_init     sounds" */
+            /* Example line: "     000094F5  _sound_init     sounds" */
             if (strcmp(area, ".ABS.") != 0 && sscanf(line, " %255s %255s", value, name) == 2 &&
                 is_hex_address(value)) {
                 address = (unsigned int) strtoul(value, NULL, 16);
@@ -132,7 +145,7 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
             for (char* p = value; n < 6; n++) {
                 fields[n] = p;
                 char* comma = strchr(p, ',');
-                if (!comma) { n++; break; }
+                if (comma == NULL) { n++; break; }
                 *comma = '\0';
                 p = comma + 1;
             }
@@ -145,12 +158,16 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
         if (found) {
             if (current->count == DBG_SYM_COUNT) {
                 current->next = calloc(1, sizeof(*current));
-                if (!current->next) goto failed;
+                if (current->next == NULL) {
+                    goto failed;
+                }
                 current = current->next;
             }
             symbol_t* sym = &current->array[current->count];
             sym->name = strdup(name);
-            if (!sym->name) goto failed;
+            if (sym->name == NULL) {
+                goto failed;
+            }
             sym->addr = (hwaddr) address;
             sym->kind = kind;
             sym->local = local;
@@ -158,10 +175,14 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
             total++;
         }
     }
-    if (ferror(file)) goto failed;
+    if (ferror(file)) {
+        goto failed;
+    }
     fclose(file);
 
-    if (!append) debugger_clear_symbols(dbg);
+    if (!append) {
+        debugger_clear_symbols(dbg);
+    }
     if (dbg->symbols.count == 0) {
         dbg->symbols = *first;
         free(first);

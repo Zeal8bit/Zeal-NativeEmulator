@@ -28,7 +28,6 @@ namespace zui::debugger {
 
 using namespace zui::common;
 using namespace zui::theme;
-using namespace zui::widgets;
 
 BreakpointsPanel::BreakpointsPanel(int X, int Y, int W, int H)
     : Panel(X, Y, W, H, "BREAKPOINTS")
@@ -54,15 +53,20 @@ void BreakpointsPanel::refresh(bool paused, bool force)
 {
     (void) paused;
     (void) force;
-    if (!dbg_ready()) return;
+    if (!dbg_ready()) {
+        return;
+    }
     hwaddr bps[DBG_MAX_POINTS];
     const int count = debugger_get_breakpoints(fz_debugger(), bps, DBG_MAX_POINTS);
     m_list->addrs.assign(bps, bps + (count > 0 ? count : 0));
     int off = 0;
     for (hwaddr a : m_list->addrs) off += !debugger_is_breakpoint_enabled(fz_debugger(), a);
     char text[48];
-    if (off > 0) snprintf(text, sizeof(text), "%d  (%d OFF)", count, off);
-    else snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
+    if (off > 0) {
+        snprintf(text, sizeof(text), "%d  (%d OFF)", count, off);
+    } else {
+        snprintf(text, sizeof(text), "%d", count > 0 ? count : 0);
+    }
     extra(text);
     m_list->sync_bar();
     m_list->redraw();
@@ -98,8 +102,11 @@ void BreakpointsPanel::cb_add(Fl_Widget*, void* data)
         self->m_input->value("");
         char text[16];
         hex16(text, sizeof(text), addr);
-        if (name.empty()) notif_show("Breakpoint at $%s", text);
-        else notif_show("Breakpoint at %s ($%s)", name.c_str(), text);
+        if (name.empty()) {
+            notif_show("Breakpoint at $%s", text);
+        } else {
+            notif_show("Breakpoint at %s ($%s)", name.c_str(), text);
+        }
         request_refresh();
         self->m_list->reveal(addr);
     } else {
