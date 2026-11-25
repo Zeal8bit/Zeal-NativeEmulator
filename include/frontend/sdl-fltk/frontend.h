@@ -79,10 +79,6 @@ void fltk_sampler_unbind(void);
 /* Statistical PC profiler for the Hot Functions view (debug/pcprof.c) */
 void fltk_pcprof_bind(zeal_t* machine);
 void fltk_pcprof_unbind(void);
-/* VRAM debug rasteriser (debug/vram.c) */
-bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out);
-bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask);
-void fltk_debug_video_free(void);
 
 #ifdef __cplusplus
 } /* extern "C" */

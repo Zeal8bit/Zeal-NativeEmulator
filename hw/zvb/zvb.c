@@ -781,6 +781,7 @@ static void zvb_fsm_next(void* userdata)
         if (zvb->current_scanline == ZVB_MAX_RES_HEIGHT) {
             zvb->need_render = true;
             zvb->status.v_blank = 1;
+            zvb->vblank_count++;
             zvb->blank_latches |= ZVB_VBLANK_LATCH;
             zvb_text_info_t info;
             zvb_text_update(&zvb->text, &info);

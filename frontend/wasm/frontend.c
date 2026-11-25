@@ -85,6 +85,9 @@ int frontend_run(zeal_t* machine)
         if (result & ZEAL_STEP_DEBUG_STOP) {
             web_debug_after_step(machine);
         }
+        if (debug && (result & ZEAL_STEP_FRAME)) {
+            web_debug_on_frame(machine);
+        }
 #endif
         if (result & ZEAL_STEP_FATAL) {
             return 1;
@@ -141,6 +144,9 @@ int frontend_bind_output(zeal_t* machine)
 
 void frontend_close(zeal_t* machine)
 {
+#if CONFIG_ENABLE_DEBUGGER
+    web_debug_close();
+#endif
     if (frontend_snes.core) {
         snes_adapter_detach(&frontend_snes);
         frontend_snes.core = NULL;

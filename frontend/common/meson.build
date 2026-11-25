@@ -12,3 +12,5 @@ endif
 
 # SDL3 playback shared by the graphical frontends.
 common_audio_sources = files('audio.c')
+
+video_inspect_sources = files('video_inspect.c')

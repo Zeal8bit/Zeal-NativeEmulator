@@ -11,3 +11,5 @@ bool web_debug_requested(void);
 void web_debug_start(zeal_t* machine);
 bool web_debug_service(zeal_t* machine);
 void web_debug_after_step(zeal_t* machine);
+void web_debug_on_frame(zeal_t* machine);
+void web_debug_close(void);

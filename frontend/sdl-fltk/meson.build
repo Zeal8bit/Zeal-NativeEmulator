@@ -18,9 +18,8 @@ sdlfltk_sources = files(
     'debug/sampler.c',
     'debug/symbols.c',
     'debug/trace.c',
-    'debug/vram.c',
 )
-sdlfltk_sources += common_audio_sources
+sdlfltk_sources += common_audio_sources + video_inspect_sources
 
 if get_option('profile_render')
     sdlfltk_sources += files('profile/render_profile.c')
