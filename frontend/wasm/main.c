@@ -17,6 +17,9 @@
 #include "frontend/common/app.h"
 #include "frontend.h"
 #include "snes_adapter.h"
+#if CONFIG_ENABLE_DEBUGGER
+#include "web_debug.h"
+#endif
 #include "utils/log.h"
 #include "utils/config.h"
 
@@ -119,7 +122,11 @@ int main(void)
     config.images.tf = web_path("tf");
     config.arguments.uprog_filename = web_path("userProgram");
 
-    if (frontend_init(&machine, true, false)) {
+    bool debug = false;
+#if CONFIG_ENABLE_DEBUGGER
+    debug = web_debug_requested();
+#endif
+    if (frontend_init(&machine, true, debug)) {
         log_err_printf("Error initializing the machine\n");
         goto deinit;
     }
@@ -138,6 +145,9 @@ int main(void)
         goto deinit;
     }
 
+#if CONFIG_ENABLE_DEBUGGER
+    web_debug_start(&machine);
+#endif
     web_ready();
     code = frontend_run(&machine);
     if (machine.compactflash.failed) {
