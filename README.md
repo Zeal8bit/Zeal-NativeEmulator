@@ -205,7 +205,7 @@ Explicit paths take precedence even if the file is missing. Relative TOML paths 
 
 ```sh
 $ build/zeal-native -h
-Zeal Native Emulator 1.0.1
+Zeal Native Emulator 2.0.0-rc1
 Usage: build/zeal-native [OPTIONS]
 
 Options:
