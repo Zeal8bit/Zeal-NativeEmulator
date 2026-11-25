@@ -23,7 +23,7 @@ void fltk_debug_unbind(zeal_t* machine)
     (void) machine;
     fltk_sampler_unbind();
     fltk_pcprof_unbind();
-    fltk_debug_video_free();
+    video_inspect_free();
 }
 
 void fltk_debug_start(zeal_t* machine)
@@ -82,5 +82,5 @@ bool fz_vram_render(dbg_vram_t view, fz_image_t* out)
     if (fltk_machine == NULL) {
         return false;
     }
-    return fltk_debug_video_render(&fltk_machine->zvb, view, out);
+    return video_inspect_render(&fltk_machine->zvb, view, out);
 }

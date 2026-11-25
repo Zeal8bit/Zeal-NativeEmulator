@@ -21,7 +21,7 @@ void SpriteData::update()
     color_4bit = zvb_is_4bit_mode(zvb);
     for (int i = 0; i < FZ_SPRITE_COUNT; i++) {
         info[i] = zvb->sprites.data[i];
-        if (!fltk_debug_sprite(zvb, i, rgb[i], mask[i])) {
+        if (!video_inspect_sprite(zvb, i, rgb[i], mask[i])) {
             memset(&info[i], 0, sizeof(info[i]));
         }
     }

@@ -8,6 +8,7 @@
 #include <emscripten.h>
 #include "debugger/zeal_debugger.h"
 #include "frontend/common/symbols.h"
+#include "frontend/common/video_inspect.h"
 #include "utils/helpers.h"
 #include "web_debug.h"
 
@@ -24,6 +25,8 @@ enum web_debug_command {
     WEB_DEBUG_FIND_SYMBOL,
     WEB_DEBUG_INSPECT_MEMORY,
     WEB_DEBUG_WRITE_MEMORY,
+    WEB_DEBUG_BREAK_ON_VBLANK,
+    WEB_DEBUG_INSPECT_VIDEO,
 };
 
 enum web_debug_reason {
@@ -35,6 +38,7 @@ enum web_debug_reason {
     WEB_DEBUG_BREAKPOINT,
     WEB_DEBUG_WATCHPOINT,
     WEB_DEBUG_STEPPED_OVER,
+    WEB_DEBUG_VBLANK,
 };
 
 /* The JS entry point only sets the mailbox. CPU and device operations run on
@@ -50,6 +54,8 @@ static bool available;
 static bool step_pending;
 static bool stepping_over;
 static bool before_first_run;
+static bool break_on_vblank;
+static uint64_t last_vblank;
 static uint8_t memory_bytes[UINT16_MAX + 1u];
 
 // clang-format off
@@ -58,7 +64,7 @@ EM_JS(bool, web_debug_requested, (), { return Boolean(Module.debuggerEnabled); }
 EM_JS(void, web_debug_state, (int reason, const uint16_t* regs, uint32_t hi, uint32_t lo), {
     const base = regs >>> 1;
     const [a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r] = HEAPU16.subarray(base, base + 14);
-    const reasons = ['startup', 'running', 'pause', 'step', 'reset', 'breakpoint', 'watchpoint', 'step-over'];
+    const reasons = ['startup', 'running', 'pause', 'step', 'reset', 'breakpoint', 'watchpoint', 'step-over', 'vblank'];
     Module.onDebugState?.({
         paused: reason !== 1,
         reason: reasons[reason],
@@ -103,6 +109,32 @@ EM_JS(void, web_debug_memory_complete,
 });
 EM_JS(void, web_debug_write_complete, (const uint8_t* data, unsigned count), {
     Module.onDebugComplete?.(0, HEAPU8.slice(data, data + count));
+});
+
+EM_JS(void, web_debug_preview_complete, (const uint8_t* pixels, int width, int height,
+      int cell_width, int cell_height, int columns, int item_count), {
+    Module.onDebugComplete?.(0, {
+        pixels: HEAPU8.slice(pixels, pixels + width * height * 3),
+        width, height, cellWidth: cell_width, cellHeight: cell_height, columns, itemCount: item_count,
+    });
+});
+
+EM_JS(void, web_debug_sprites_start, (), { Module.debugSprites = []; });
+EM_JS(void, web_debug_sprite_row, (int index, int tile, int x, int y, int palette,
+      int flip_x, int flip_y, int behind_fg, int width, int height,
+      const uint8_t* rgb, const uint8_t* mask), {
+    const size = width * height;
+    Module.debugSprites.push({
+        index, tile, x, y, palette, flipX: Boolean(flip_x), flipY: Boolean(flip_y),
+        behindForeground: Boolean(behind_fg), width, height,
+        pixels: HEAPU8.slice(rgb, rgb + size * 3),
+        mask: HEAPU8.slice(mask, mask + size),
+    });
+});
+EM_JS(void, web_debug_sprites_complete, (), {
+    const sprites = Module.debugSprites;
+    delete Module.debugSprites;
+    Module.onDebugComplete?.(0, sprites);
 });
 // clang-format on
 
@@ -176,6 +208,24 @@ static bool inspect_memory(dbg_t* dbg, unsigned address, unsigned count)
     }
     web_debug_memory_complete(memory_bytes, count, bases, devices, ZEAL_DBG_MMU_PAGES);
     return true;
+}
+
+static void inspect_sprites(zvb_t* zvb)
+{
+    const bool color_4bit = zvb_is_4bit_mode(zvb);
+    uint8_t rgb[VIDEO_INSPECT_SPRITE_WIDTH * VIDEO_INSPECT_SPRITE_HEIGHT * 3];
+    uint8_t mask[VIDEO_INSPECT_SPRITE_WIDTH * VIDEO_INSPECT_SPRITE_HEIGHT];
+
+    web_debug_sprites_start();
+    for (int index = 0; index < ZVB_SPRITES_COUNT; index++) {
+        const zvb_sprite_t* sprite = &zvb->sprites.data[index];
+        video_inspect_sprite(zvb, index, rgb, mask);
+        web_debug_sprite_row(index, zvb_sprite_tile(sprite, color_4bit), sprite->x, sprite->y,
+            sprite->flags.bitmap.palette, sprite->flags.bitmap.flip_x,
+            sprite->flags.bitmap.flip_y, sprite->flags.bitmap.behind_fg,
+            VIDEO_INSPECT_SPRITE_WIDTH, zvb_sprite_height(sprite), rgb, mask);
+    }
+    web_debug_sprites_complete();
 }
 
 void web_debug_start(zeal_t* machine)
@@ -310,6 +360,25 @@ bool web_debug_service(zeal_t* machine)
             debugger_read_memory(dbg, request.address, (int)request.length, memory_bytes);
             web_debug_write_complete(memory_bytes, request.length);
             return true;
+        case WEB_DEBUG_BREAK_ON_VBLANK:
+            break_on_vblank = request.count != 0;
+            last_vblank = machine->zvb.vblank_count;
+            break;
+        case WEB_DEBUG_INSPECT_VIDEO: {
+            if (request.address == DBG_VIEW_TOTAL) {
+                inspect_sprites(&machine->zvb);
+                return false;
+            }
+            video_inspect_image_t image;
+            if (request.address >= DBG_VIEW_TOTAL ||
+                !video_inspect_render(&machine->zvb, (dbg_vram_t)request.address, &image)) {
+                error = EINVAL;
+                break;
+            }
+            web_debug_preview_complete(image.pixels, image.width, image.height, image.cell_width,
+                                       image.cell_height, image.columns, image.items);
+            return false;
+        }
         default:
             error = EINVAL;
             break;
@@ -333,4 +402,20 @@ void web_debug_after_step(zeal_t* machine)
         step_pending = false;
         web_debug_complete(0);
     }
+}
+
+void web_debug_on_frame(zeal_t* machine)
+{
+    const uint64_t vblank = machine->zvb.vblank_count;
+    if (break_on_vblank && vblank != last_vblank && machine->dbg_state == ST_RUNNING) {
+        debugger_pause(&machine->dbg);
+        publish_state(machine, WEB_DEBUG_VBLANK);
+    }
+    last_vblank = vblank;
+}
+
+void web_debug_close(void)
+{
+    available = false;
+    video_inspect_free();
 }

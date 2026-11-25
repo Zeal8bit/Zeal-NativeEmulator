@@ -212,6 +212,7 @@ typedef struct {
     vtimer_node_t    timer;
     int              current_scanline;
     uint64_t         frame_count;     /* frames started since reset */
+    uint64_t         vblank_count;    /* vertical blank edges since initialization */
     int              current_hpos;
     vtimer_node_t    sound_event;
     uint64_t         line_start_ns;

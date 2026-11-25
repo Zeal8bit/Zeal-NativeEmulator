@@ -10,6 +10,8 @@
  * functions run on the single UI/emulation thread. */
 #pragma once
 
+#include "frontend/common/video_inspect.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include "debugger/debugger_types.h"
@@ -102,23 +104,14 @@ int  fz_semihost_counter_count(void);
 bool fz_semihost_counter(int index, fz_counter_t* out);
 void fz_semihost_toggle_break(int index);
 
-/* VRAM debug views (dbg_vram_t), rendered on demand as packed 8-bit RGB. */
-typedef struct {
-    const uint8_t* pixels;
-    int width;
-    int height;
-    /* Size of one grid cell, excluding the 1px grid line */
-    int cell_width;
-    int cell_height;
-    int columns;
-} fz_image_t;
+typedef video_inspect_image_t fz_image_t;
 bool fz_vram_render(dbg_vram_t view, fz_image_t* out);
 
 /* Hardware sprite table sizes (ZVB sprite attribute table). The UI reads
  * zvb_sprite_t entries directly and derives positions/pixels on demand. */
-#define FZ_SPRITE_COUNT     128
-#define FZ_SPRITE_W         16
-#define FZ_SPRITE_MAX_H     32
+#define FZ_SPRITE_COUNT     ZVB_SPRITES_COUNT
+#define FZ_SPRITE_W         VIDEO_INSPECT_SPRITE_WIDTH
+#define FZ_SPRITE_MAX_H     VIDEO_INSPECT_SPRITE_HEIGHT
 bool fz_gfx_screen(int* width, int* height);
 
 /* ------------------------------------------------------------------ */

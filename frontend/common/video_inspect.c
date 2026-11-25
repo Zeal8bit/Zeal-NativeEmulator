@@ -6,7 +6,7 @@
 /* VRAM debugger views rasterised into plain RGB buffers for FLTK images. */
 
 #include <stdlib.h>
-#include "frontend/sdl-fltk/frontend.h"
+#include "frontend/common/video_inspect.h"
 
 #define CHAR_W 8
 #define CHAR_H 12
@@ -354,9 +354,9 @@ static void render_layer(zvb_t* zvb, bool layer1)
     }
 }
 
-bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out)
+bool video_inspect_render(zvb_t* zvb, dbg_vram_t view, video_inspect_image_t* out)
 {
-    if (view < 0 || view >= DBG_VIEW_TOTAL || out == NULL) {
+    if (zvb == NULL || view < 0 || view >= DBG_VIEW_TOTAL || out == NULL) {
         return false;
     }
     dbg_img_t* img = &s_images[view];
@@ -385,6 +385,7 @@ bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out)
     out->cell_width = g.cell_w - 1;
     out->cell_height = g.cell_h - 1;
     out->columns = g.columns;
+    out->items = view == DBG_TILESET && !zvb_is_4bit_mode(zvb) ? 256 : g.columns * g.rows;
     return true;
 }
 
@@ -392,10 +393,7 @@ bool fltk_debug_video_render(zvb_t* zvb, dbg_vram_t view, fz_image_t* out)
 /*  Sprites (decoded like zvb_blitter_sprites_scanline)                */
 /* ------------------------------------------------------------------ */
 
-#define SPRITE_TILE_BYTES   256
-#define SPRITE_HIGH_BANK    256
-
-bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask)
+bool video_inspect_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask)
 {
     if (zvb == NULL || index < 0 || index >= ZVB_SPRITES_COUNT) {
         return false;
@@ -408,9 +406,9 @@ bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask)
     if (rgb == NULL && mask == NULL) {
         return true;
     }
-    for (int oy = 0; oy < FZ_SPRITE_MAX_H; oy++) {
-        for (int ox = 0; ox < FZ_SPRITE_W; ox++) {
-            const int out = oy * FZ_SPRITE_W + ox;
+    for (int oy = 0; oy < VIDEO_INSPECT_SPRITE_HEIGHT; oy++) {
+        for (int ox = 0; ox < VIDEO_INSPECT_SPRITE_WIDTH; ox++) {
+            const int out = oy * VIDEO_INSPECT_SPRITE_WIDTH + ox;
             uint8_t opaque = 0;
             dbg_color_t c = { 0, 0, 0 };
             if (oy < height) {
@@ -435,7 +433,7 @@ bool fltk_debug_sprite(zvb_t* zvb, int index, uint8_t* rgb, uint8_t* mask)
 }
 
 
-void fltk_debug_video_free(void)
+void video_inspect_free(void)
 {
     for (int i = 0; i < DBG_VIEW_TOTAL; i++) {
         free(s_images[i].data);

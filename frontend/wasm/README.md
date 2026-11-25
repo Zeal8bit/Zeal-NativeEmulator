@@ -210,9 +210,9 @@ mouse button toggles capture and the wheel adjusts SNES mouse sensitivity.
 
 Emscripten builds select `frontend/wasm/` (`-Dfrontend=wasm`, or `auto`). It owns
 the SDL3 canvas renderer, browser input/audio, loop, Emscripten exports,
-OPFS startup, and HostFS bridge. It does not compile or link FLTK, debugger
-panels, or debugger textures. `-Denable_debugger=true` enables only the emulator
-core API. The desktop debugger remains in `frontend/sdl-fltk/`.
+OPFS startup, and HostFS bridge. With `-Denable_debugger=true`, it also exposes
+the emulator debugger and video previews to JavaScript. The desktop debugger
+panels remain in `frontend/sdl-fltk/`.
 
 The native web template no longer offers a debugger button. For compatibility
 with existing embedding code, `toggleDebugger()` remains callable and returns
@@ -246,3 +246,10 @@ end of 16-bit address space. Pass zero to get the mappings alone. Use
 `readMemory(address, count)` for just the bytes. `writeMemory(address, bytes)`
 requires a paused machine and returns what the mapped devices report back
 after the write.
+
+`inspectVideo(view)` returns a packed RGB preview and its geometry for
+`layer0`, `layer1`, `tileset`, `palette`, or `font`. For `sprites`, it returns
+the sprite attributes and individual RGB previews with transparency masks.
+These previews use the same renderer as the desktop debugger. Enable
+`setBreakOnVBlank(true)` to pause at each subsequent emulated vertical
+blank edge while running.
