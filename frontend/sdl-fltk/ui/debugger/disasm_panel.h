@@ -8,10 +8,14 @@
 
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Check_Button.H>
+#include <FL/Fl_Group.H>
 #include <FL/Fl_Input.H>
+#include <FL/Fl_Scrollbar.H>
+#include <FL/Fl_Tabs.H>
 #include <FL/Fl_Widget.H>
 #include "common/machine.h"
 #include "debugger/disasm_view.h"
+#include "debugger/rpu_disasm_view.h"
 #include "widgets/panel.h"
 
 namespace zui::debugger {
@@ -28,11 +32,17 @@ public:
 private:
     static void cb_go(Fl_Widget*, void* data);
     static void cb_pc(Fl_Widget*, void* data);
+    static void cb_rpu_scroll(Fl_Widget*, void* data);
 
+    Fl_Tabs* m_tabs;
+    Fl_Group* m_cpu;
+    Fl_Group* m_rpu;
     Fl_Input* m_input;
     Fl_Button* m_pc;
     Fl_Check_Button* m_follow;
     DisasmView* m_view;
+    RpuDisasmView* m_rpu_view;
+    Fl_Scrollbar* m_rpu_bar;
 };
 
 } // namespace zui::debugger
