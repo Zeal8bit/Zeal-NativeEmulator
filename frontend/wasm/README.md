@@ -239,3 +239,10 @@ and uses the native debugger's temporary breakpoint. Watch for the next
 `disassemble(address, count = 20)` returns instruction rows with addresses,
 labels, assembly text, and copied opcode bytes. Supply map bytes to
 `loadSymbols(bytes)` and resolve names with `findSymbol(name)`.
+
+`inspectMemory(address, count)` returns copied logical memory bytes and four
+current MMU mappings from the same instruction boundary. The read wraps at the
+end of 16-bit address space. Pass zero to get the mappings alone. Use
+`readMemory(address, count)` for just the bytes. `writeMemory(address, bytes)`
+requires a paused machine and returns what the mapped devices report back
+after the write.

@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <errno.h>
+#include <string.h>
 #include <emscripten.h>
+#include "debugger/zeal_debugger.h"
 #include "frontend/common/symbols.h"
 #include "utils/helpers.h"
 #include "web_debug.h"
@@ -20,6 +22,8 @@ enum web_debug_command {
     WEB_DEBUG_DISASSEMBLE,
     WEB_DEBUG_LOAD_SYMBOLS,
     WEB_DEBUG_FIND_SYMBOL,
+    WEB_DEBUG_INSPECT_MEMORY,
+    WEB_DEBUG_WRITE_MEMORY,
 };
 
 enum web_debug_reason {
@@ -46,6 +50,7 @@ static bool available;
 static bool step_pending;
 static bool stepping_over;
 static bool before_first_run;
+static uint8_t memory_bytes[UINT16_MAX + 1u];
 
 // clang-format off
 EM_JS(bool, web_debug_requested, (), { return Boolean(Module.debuggerEnabled); });
@@ -81,6 +86,23 @@ EM_JS(void, web_debug_disassembly_complete, (), {
 });
 EM_JS(void, web_debug_symbol_complete, (int address), {
     Module.onDebugComplete?.(0, address >= 0 ? address : null);
+});
+EM_JS(void, web_debug_memory_complete,
+      (const uint8_t* data, unsigned count, const uint32_t* bases,
+       const char* const* devices, unsigned pages), {
+    const mmu = [];
+    for (let index = 0; index < pages; index++) {
+        const device = HEAPU32[(devices >>> 2) + index];
+        mmu.push({
+            logical: index * 0x4000,
+            physical: HEAPU32[(bases >>> 2) + index],
+            device: device ? UTF8ToString(device) : null,
+        });
+    }
+    Module.onDebugComplete?.(0, {bytes: HEAPU8.slice(data, data + count), mmu});
+});
+EM_JS(void, web_debug_write_complete, (const uint8_t* data, unsigned count), {
+    Module.onDebugComplete?.(0, HEAPU8.slice(data, data + count));
 });
 // clang-format on
 
@@ -135,6 +157,25 @@ static bool load_symbols(dbg_t* dbg, const uint8_t* data, unsigned length)
     const bool loaded = debugger_load_symbols_stream(dbg, file, "browser map", false);
     fclose(file);
     return loaded;
+}
+
+static bool inspect_memory(dbg_t* dbg, unsigned address, unsigned count)
+{
+    dbg_mmu_t mmu;
+    if (!debugger_custom(dbg, ZEAL_DBG_OP_GET_MMU, &mmu)) {
+        return false;
+    }
+    uint32_t bases[ZEAL_DBG_MMU_PAGES];
+    const char* devices[ZEAL_DBG_MMU_PAGES];
+    for (unsigned i = 0; i < ZEAL_DBG_MMU_PAGES; i++) {
+        bases[i] = mmu.entries[i].phys_addr;
+        devices[i] = mmu.entries[i].device;
+    }
+    if (count) {
+        debugger_read_memory(dbg, address, (int)count, memory_bytes);
+    }
+    web_debug_memory_complete(memory_bytes, count, bases, devices, ZEAL_DBG_MMU_PAGES);
+    return true;
 }
 
 void web_debug_start(zeal_t* machine)
@@ -244,6 +285,31 @@ bool web_debug_service(zeal_t* machine)
             web_debug_symbol_complete(found && address <= UINT16_MAX ? (int)address : -1);
             return false;
         }
+        case WEB_DEBUG_INSPECT_MEMORY:
+            if (request.address > UINT16_MAX || request.count > sizeof(memory_bytes)) {
+                error = EINVAL;
+                break;
+            }
+            if (!inspect_memory(dbg, request.address, request.count)) {
+                error = EIO;
+                break;
+            }
+            return false;
+        case WEB_DEBUG_WRITE_MEMORY:
+            if (machine->dbg_state != ST_PAUSED) {
+                error = EBUSY;
+                break;
+            }
+            if (request.address > UINT16_MAX || !request.data ||
+                request.length == 0 || request.length > sizeof(memory_bytes)) {
+                error = EINVAL;
+                break;
+            }
+            memcpy(memory_bytes, request.data, request.length);
+            debugger_write_memory(dbg, request.address, (int)request.length, memory_bytes);
+            debugger_read_memory(dbg, request.address, (int)request.length, memory_bytes);
+            web_debug_write_complete(memory_bytes, request.length);
+            return true;
         default:
             error = EINVAL;
             break;
