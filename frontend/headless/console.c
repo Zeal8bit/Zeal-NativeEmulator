@@ -24,6 +24,7 @@
 #include "frontend/headless/console.h"
 #include "frontend/headless/console_debug.h"
 #include "frontend/headless/console_keys.h"
+#include "frontend/headless/console_screenshot.h"
 #include "utils/helpers.h"
 #include "utils/log.h"
 
@@ -73,6 +74,7 @@ static void console_print_help(zeal_t* machine)
     log_printf("  run <tstates>         Advance the emulation by N Z80 T-states\n");
     log_printf("  reset                 Reset the emulator\n");
     log_printf("  quit                  Exit the emulator\n");
+    log_printf("  screenshot <file.ppm> Save the current video frame (PPM)\n");
     log_printf("\nDebugger commands:\n");
     log_printf("  c, continue           Continue until breakpoint\n");
     log_printf("  s, step               Single step\n");
@@ -129,6 +131,7 @@ static const console_cmd_t CONSOLE_COMMANDS[] = {
     { "wb",       console_debug_wb },
     { "u",        console_debug_disasm },
     { "mmu",      console_debug_mmu },
+    { "screenshot", console_screenshot },
 };
 
 
