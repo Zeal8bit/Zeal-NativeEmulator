@@ -27,6 +27,7 @@ enum web_debug_command {
     WEB_DEBUG_WRITE_MEMORY,
     WEB_DEBUG_BREAK_ON_VBLANK,
     WEB_DEBUG_INSPECT_VIDEO,
+    WEB_DEBUG_CAPTURE_SCREEN,
 };
 
 enum web_debug_reason {
@@ -135,6 +136,14 @@ EM_JS(void, web_debug_sprites_complete, (), {
     const sprites = Module.debugSprites;
     delete Module.debugSprites;
     Module.onDebugComplete?.(0, sprites);
+});
+
+EM_JS(void, web_debug_screen_complete, (const uint16_t* pixels, int width, int height, int stride), {
+    const start = pixels >>> 1;
+    Module.onDebugComplete?.(0, {
+        pixels: HEAPU16.slice(start, start + height * stride),
+        width, height, stride,
+    });
 });
 // clang-format on
 
@@ -377,6 +386,11 @@ bool web_debug_service(zeal_t* machine)
             }
             web_debug_preview_complete(image.pixels, image.width, image.height, image.cell_width,
                                        image.cell_height, image.columns, image.items);
+            return false;
+        }
+        case WEB_DEBUG_CAPTURE_SCREEN: {
+            const zvb_frame_t frame = zvb_frame(&machine->zvb);
+            web_debug_screen_complete(frame.pixels, frame.width, frame.height, ZVB_MAX_RES_WIDTH);
             return false;
         }
         default:
