@@ -8,3 +8,6 @@ roms/*
 external/
 tests/*
 sdl3/
+/worktree/
+/.claude/
+/.agents/
