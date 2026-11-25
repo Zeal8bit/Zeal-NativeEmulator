@@ -253,3 +253,7 @@ the sprite attributes and individual RGB previews with transparency masks.
 These previews use the same renderer as the desktop debugger. Enable
 `setBreakOnVBlank(true)` to pause at each subsequent emulated vertical
 blank edge while running.
+
+`captureScreen()` returns the last rendered guest frame as copied RGB565
+pixels, with its width, height, and row stride. Capturing leaves execution
+and the main canvas state intact.
