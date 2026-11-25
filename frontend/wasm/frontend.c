@@ -12,6 +12,9 @@
 #include "mouse.h"
 #include "audio.h"
 #include "video.h"
+#if CONFIG_ENABLE_DEBUGGER
+#include "web_debug.h"
+#endif
 #include "utils/log.h"
 
 EMSCRIPTEN_KEEPALIVE volatile bool show_fps =
@@ -60,17 +63,36 @@ int frontend_run(zeal_t* machine)
             break;
         }
         poll_input(machine);
-        zeal_step_result_t result;
-        do {
-            result = zeal_step(machine, false);
-        } while (!(result & (ZEAL_STEP_FRAME | ZEAL_STEP_FATAL | ZEAL_STEP_STOP)));
+        zeal_step_result_t result = ZEAL_STEP_NONE;
+        bool debug = false;
+#if CONFIG_ENABLE_DEBUGGER
+        debug = machine->dbg_enabled;
+        if (debug && web_debug_service(machine)) {
+            zvb_force_render(&machine->zvb);
+            result = ZEAL_STEP_FRAME;
+        }
+        if (!debug || machine->dbg_state != ST_PAUSED)
+#endif
+        {
+            const uint64_t start = machine->cpu.clock.now_ns;
+            do {
+                result = zeal_step(machine, debug);
+            } while (!(result & (ZEAL_STEP_FRAME | ZEAL_STEP_FATAL |
+                                ZEAL_STEP_STOP | ZEAL_STEP_DEBUG_STOP)) &&
+                     (!debug || machine->cpu.clock.now_ns - start < 20000000));
+        }
+#if CONFIG_ENABLE_DEBUGGER
+        if (result & ZEAL_STEP_DEBUG_STOP) {
+            web_debug_after_step(machine);
+        }
+#endif
         if (result & ZEAL_STEP_FATAL) {
             return 1;
         }
         if (result & ZEAL_STEP_STOP) {
             break;
         }
-        if (!wasm_video_draw(&machine->zvb, show_fps)) {
+        if ((result & ZEAL_STEP_FRAME) && !wasm_video_draw(&machine->zvb, show_fps)) {
             log_err_printf("[SDL] Render failed: %s\n", SDL_GetError());
             return 1;
         }

@@ -12,6 +12,7 @@
 
 #define KB         1024
 #define CPUFREQ    10000000UL
+#define TSTATE_NS  (1000000000UL / CPUFREQ)
 #define TSTATES_US (1.0 / CPUFREQ * 1000000)
 
 #define ONE_MILLIS us_to_tstates(1000)

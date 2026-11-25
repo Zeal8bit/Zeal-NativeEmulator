@@ -8,8 +8,6 @@
 #include "hw/host.h"
 #include "utils/helpers.h"
 
-#define TSTATE_NS (1000000000UL / CPUFREQ)
-
 #define CHECK_ERR(err)  \
     do {                \
         if (err)        \

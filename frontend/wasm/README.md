@@ -218,3 +218,14 @@ The native web template no longer offers a debugger button. For compatibility
 with existing embedding code, `toggleDebugger()` remains callable and returns
 `false`; the old C toggle export is a no-op. FPS, virtual SNES controls, Save,
 reload, exit, and storage APIs retain their behavior and export names.
+
+### Browser debugger session
+
+Build with `-Denable_debugger=true` and construct `ZealNative` with
+`debugger: true` to start a paused session. The instance's `debugger` property
+provides asynchronous `pause()`, `continue()`, `step()`, and `reset()` methods.
+Listen to its `statechange` event for the execution state, stop reason, current
+registers, and T-states. The newest snapshot is also available as `state`.
+A step resolves after its instruction completes. Debugger commands are handled
+on the emulator loop between instructions. Sessions created with default
+options continue to boot and run automatically.
