@@ -33,24 +33,33 @@ jobs:
     name: Build WebAssembly
     uses: ./.github/workflows/build-wasm.yml
 
-  deploy-pages:
-    name: Deploy to GitHub Pages
+  upload-pages:
+    name: Upload Pages artifact
     needs: build-wasm
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v6
-
       - name: Download WASM Artifacts
         uses: actions/download-artifact@v8
         with:
           name: zeal-native-wasm
           path: ./wasm-build
 
-      - name: Deploy to GitHub Pages
-        uses: ./.github/actions/deploy-pages
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          deploy-path: ./wasm-build
+          path: ./wasm-build
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: upload-pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
   create-release:
     name: Create Draft Release
