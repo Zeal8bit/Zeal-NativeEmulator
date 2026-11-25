@@ -76,16 +76,9 @@ static uint8_t section_kind(const char* section)
     return SYM_KIND_UNKNOWN;
 }
 
-bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
+bool debugger_load_symbols_stream(dbg_t* dbg, FILE* file, const char* source, bool append)
 {
-    if (dbg == NULL || filename == NULL) {
-        log_perror("[MAP] No debugger or filename");
-        return false;
-    }
-
-    FILE* file = fopen(filename, "r");
-    if (file == NULL) {
-        log_perror("[MAP] Could not open file to load");
+    if (dbg == NULL || file == NULL) {
         return false;
     }
 
@@ -178,7 +171,6 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
     if (ferror(file)) {
         goto failed;
     }
-    fclose(file);
 
     if (!append) {
         debugger_clear_symbols(dbg);
@@ -194,12 +186,11 @@ bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
         free(first);
     }
     dbg->symbol_generation++;
-    log_printf("[MAP] %s loaded successfully (%u symbols)\n", filename, total);
+    log_printf("[MAP] %s loaded successfully (%u symbols)\n", source, total);
     return true;
 
 failed:
     log_perror("[MAP] Could not load symbols");
-    fclose(file);
     while (first) {
         symbols_t* next = first->next;
         for (unsigned i = 0; i < first->count; i++) free((void*) first->array[i].name);
@@ -207,4 +198,22 @@ failed:
         first = next;
     }
     return false;
+}
+
+bool debugger_load_symbols(dbg_t* dbg, const char* filename, bool append)
+{
+    if (dbg == NULL || filename == NULL) {
+        log_perror("[MAP] No debugger or filename");
+        return false;
+    }
+
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        log_perror("[MAP] Could not open file to load");
+        return false;
+    }
+
+    const bool loaded = debugger_load_symbols_stream(dbg, file, filename, append);
+    fclose(file);
+    return loaded;
 }
