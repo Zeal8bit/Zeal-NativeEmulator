@@ -1,4 +1,4 @@
-project('Zeal-NativeEmulator', 'c', version: '1.0.1', license: 'Apache-2.0',
+project('Zeal-NativeEmulator', 'c', version: '2.0.0-rc1', license: 'Apache-2.0',
     default_options: ['buildtype=debugoptimized', 'c_std=c99', 'warning_level=2'])
 
 cc = meson.get_compiler('c')
