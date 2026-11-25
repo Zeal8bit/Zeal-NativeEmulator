@@ -229,3 +229,13 @@ registers, and T-states. The newest snapshot is also available as `state`.
 A step resolves after its instruction completes. Debugger commands are handled
 on the emulator loop between instructions. Sessions created with default
 options continue to boot and run automatically.
+
+Add or enable a user breakpoint with `setBreakpoint(address, enabled = true)`
+and remove it with `removeBreakpoint(address)`. Set breakpoints before the
+first `continue()` to catch the entry instruction. `stepOver()` starts execution
+and uses the native debugger's temporary breakpoint. Watch for the next
+`statechange` to observe where it stopped.
+
+`disassemble(address, count = 20)` returns instruction rows with addresses,
+labels, assembly text, and copied opcode bytes. Supply map bytes to
+`loadSymbols(bytes)` and resolve names with `findSymbol(name)`.

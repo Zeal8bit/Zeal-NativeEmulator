@@ -175,8 +175,10 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         /* A step-over request sets a temporary breakpoint past the call. */
         if (machine->dbg_state == ST_REQ_STEP_OVER) {
             int size = z80_instruction_size(&machine->cpu);
-            debugger_set_temporary_breakpoint(&machine->dbg, machine->cpu.pc + size);
-            machine->dbg_state = ST_RUNNING;
+            const uint16_t target = (uint16_t)(machine->cpu.pc + size);
+            const bool stop_at_target = debugger_is_breakpoint_set(&machine->dbg, target) ||
+                debugger_set_temporary_breakpoint(&machine->dbg, target);
+            machine->dbg_state = stop_at_target ? ST_RUNNING : ST_REQ_STEP;
         }
     }
 #endif
