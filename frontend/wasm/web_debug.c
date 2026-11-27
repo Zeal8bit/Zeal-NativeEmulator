@@ -28,6 +28,8 @@ enum web_debug_command {
     WEB_DEBUG_BREAK_ON_VBLANK,
     WEB_DEBUG_INSPECT_VIDEO,
     WEB_DEBUG_CAPTURE_SCREEN,
+    WEB_DEBUG_SAMPLE_STATE,
+    WEB_DEBUG_SET_WATCHPOINT,
 };
 
 enum web_debug_reason {
@@ -40,6 +42,7 @@ enum web_debug_reason {
     WEB_DEBUG_WATCHPOINT,
     WEB_DEBUG_STEPPED_OVER,
     WEB_DEBUG_VBLANK,
+    WEB_DEBUG_SAMPLE = -1,
 };
 
 /* The JS entry point only sets the mailbox. CPU and device operations run on
@@ -62,16 +65,24 @@ static uint8_t memory_bytes[UINT16_MAX + 1u];
 // clang-format off
 EM_JS(bool, web_debug_requested, (), { return Boolean(Module.debuggerEnabled); });
 
-EM_JS(void, web_debug_state, (int reason, const uint16_t* regs, uint32_t hi, uint32_t lo), {
+EM_JS(void, web_debug_state, (int reason, const uint16_t* regs, uint32_t hi, uint32_t lo,
+      unsigned stop_address, unsigned access, unsigned value, unsigned access_pc), {
     const base = regs >>> 1;
-    const [a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r] = HEAPU16.subarray(base, base + 14);
+    const [a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r, afAlt, bcAlt, deAlt, hlAlt] = HEAPU16.subarray(base, base + 18);
     const reasons = ['startup', 'running', 'pause', 'step', 'reset', 'breakpoint', 'watchpoint', 'step-over', 'vblank'];
-    Module.onDebugState?.({
-        paused: reason !== 1,
-        reason: reasons[reason],
+    const sampled = reason < 0;
+    const state = {
+        paused: !sampled && reason !== 1,
+        reason: sampled ? 'running' : reasons[reason],
         tstates: (hi >>> 0) * 0x100000000 + (lo >>> 0),
-        registers: {a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r},
-    });
+        registers: {a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r, afAlt, bcAlt, deAlt, hlAlt},
+    };
+    if (state.reason === 'breakpoint') state.breakpointAddress = stop_address;
+    if (state.reason === 'watchpoint') {
+        state.watchpoint = {address: stop_address, type: access === 1 ? 'read' : 'write', value, pc: access_pc};
+    }
+    if (sampled) Module.debugSample = state;
+    else Module.onDebugState?.(state);
 });
 
 EM_JS(void, web_debug_complete, (int error), { Module.onDebugComplete?.(error); });
@@ -96,7 +107,7 @@ EM_JS(void, web_debug_symbol_complete, (int address), {
 });
 EM_JS(void, web_debug_memory_complete,
       (const uint8_t* data, unsigned count, const uint32_t* bases,
-       const char* const* devices, unsigned pages), {
+       const char* const* devices, unsigned pages, bool sampled), {
     const mmu = [];
     for (let index = 0; index < pages; index++) {
         const device = HEAPU32[(devices >>> 2) + index];
@@ -106,7 +117,15 @@ EM_JS(void, web_debug_memory_complete,
             device: device ? UTF8ToString(device) : null,
         });
     }
-    Module.onDebugComplete?.(0, {bytes: HEAPU8.slice(data, data + count), mmu});
+    const result = {bytes: HEAPU8.slice(data, data + count), mmu};
+    if (sampled) Module.debugSample.memory = result;
+    else Module.onDebugComplete?.(0, result);
+});
+EM_JS(void, web_debug_sample_complete, (const uint8_t* stack, unsigned size), {
+    const sample = Module.debugSample;
+    delete Module.debugSample;
+    sample.stack = HEAPU8.slice(stack, stack + size);
+    Module.onDebugComplete?.(0, sample);
 });
 EM_JS(void, web_debug_write_complete, (const uint8_t* data, unsigned count), {
     Module.onDebugComplete?.(0, HEAPU8.slice(data, data + count));
@@ -152,9 +171,18 @@ static void publish_state(zeal_t* machine, enum web_debug_reason reason)
     regs_t regs;
     debugger_get_registers(&machine->dbg, &regs);
     const uint16_t values[] = { regs.a, regs.f, regs.b, regs.c, regs.d, regs.e,
-        regs.h, regs.l, regs.ix, regs.iy, regs.pc, regs.sp, regs.i, regs.r };
+        regs.h, regs.l, regs.ix, regs.iy, regs.pc, regs.sp, regs.i, regs.r,
+        regs.af_, regs.bc_, regs.de_, regs.hl_ };
     const uint64_t tstates = machine->cpu.clock.now_ns / TSTATE_NS;
-    web_debug_state(reason, values, tstates >> 32, (uint32_t)tstates);
+    watchpoint_hit_t hit = {0};
+    unsigned stop_address = regs.pc;
+    if (reason == WEB_DEBUG_WATCHPOINT && debugger_get_watchpoint_hit(&machine->dbg, &hit)) {
+        stop_address = hit.addr;
+    } else if (reason == WEB_DEBUG_BREAKPOINT && machine->dbg.breakpoint_stopped) {
+        stop_address = machine->dbg.breakpoint_hit_addr;
+    }
+    web_debug_state(reason, values, tstates >> 32, (uint32_t)tstates,
+                    stop_address, hit.type, hit.value, hit.pc);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -200,7 +228,7 @@ static bool load_symbols(dbg_t* dbg, const uint8_t* data, unsigned length)
     return loaded;
 }
 
-static bool inspect_memory(dbg_t* dbg, unsigned address, unsigned count)
+static bool inspect_memory(dbg_t* dbg, unsigned address, unsigned count, bool sampled)
 {
     dbg_mmu_t mmu;
     if (!debugger_custom(dbg, ZEAL_DBG_OP_GET_MMU, &mmu)) {
@@ -215,7 +243,7 @@ static bool inspect_memory(dbg_t* dbg, unsigned address, unsigned count)
     if (count) {
         debugger_read_memory(dbg, address, (int)count, memory_bytes);
     }
-    web_debug_memory_complete(memory_bytes, count, bases, devices, ZEAL_DBG_MMU_PAGES);
+    web_debug_memory_complete(memory_bytes, count, bases, devices, ZEAL_DBG_MMU_PAGES, sampled);
     return true;
 }
 
@@ -349,7 +377,7 @@ bool web_debug_service(zeal_t* machine)
                 error = EINVAL;
                 break;
             }
-            if (!inspect_memory(dbg, request.address, request.count)) {
+            if (!inspect_memory(dbg, request.address, request.count, false)) {
                 error = EIO;
                 break;
             }
@@ -386,6 +414,45 @@ bool web_debug_service(zeal_t* machine)
             }
             web_debug_preview_complete(image.pixels, image.width, image.height, image.cell_width,
                                        image.cell_height, image.columns, image.items);
+            return false;
+        }
+        case WEB_DEBUG_SET_WATCHPOINT: {
+            const bool enabled = !(request.count & 4u);
+            const watchpoint_type_t type = request.count & WATCHPOINT_RW;
+            if (request.address > UINT16_MAX || request.count > 7u || (request.count && !type)) {
+                error = EINVAL;
+                break;
+            }
+            if (!type) {
+                debugger_remove_watchpoint(dbg, request.address);
+                break;
+            }
+            watchpoint_t point;
+            if (debugger_find_watchpoint(dbg, request.address, &point) && point.addr == request.address) {
+                if (point.type != type) debugger_set_watchpoint_type(dbg, request.address, type);
+                if (point.disabled == enabled) debugger_enable_watchpoint(dbg, request.address, enabled);
+            } else if (!debugger_add_watchpoint(dbg, (watchpoint_t){
+                    .addr = request.address, .end = request.address, .type = type })) {
+                error = ENOSPC;
+            } else if (!enabled) {
+                debugger_enable_watchpoint(dbg, request.address, false);
+            }
+            break;
+        }
+        case WEB_DEBUG_SAMPLE_STATE: {
+            if (request.address > UINT16_MAX || request.count > sizeof(memory_bytes)) {
+                error = EINVAL;
+                break;
+            }
+            publish_state(machine, WEB_DEBUG_SAMPLE);
+            if (request.count) {
+                inspect_memory(dbg, request.address, request.count, true);
+            }
+            uint8_t stack[64];
+            unsigned size = (UINT16_MAX + 1u - machine->cpu.sp) & ~1u;
+            if (size > sizeof(stack)) size = sizeof(stack);
+            if (size) debugger_read_memory(dbg, machine->cpu.sp, (int)size, stack);
+            web_debug_sample_complete(stack, size);
             return false;
         }
         case WEB_DEBUG_CAPTURE_SCREEN: {
