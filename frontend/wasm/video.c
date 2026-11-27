@@ -106,6 +106,8 @@ bool wasm_video_init(zvb_t* zvb)
     SDL_SetHint(SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR, selector);
     SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, selector);
     free(selector);
+    /* The browser frame callback yields after presenting. */
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
     wasm_window = SDL_CreateWindow(NULL, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT, 0);
     if (wasm_window == NULL) {
         return false;
@@ -115,6 +117,7 @@ bool wasm_video_init(zvb_t* zvb)
     if (wasm_renderer == NULL) {
         return false;
     }
+    if (!SDL_SetRenderVSync(wasm_renderer, 1)) return false;
     if (!SDL_SetRenderLogicalPresentation(wasm_renderer, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT,
                                           SDL_LOGICAL_PRESENTATION_LETTERBOX)) return false;
     texture = SDL_CreateTexture(wasm_renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,

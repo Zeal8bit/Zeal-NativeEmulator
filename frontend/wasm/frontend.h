@@ -5,4 +5,5 @@
  */
 #pragma once
 #include "hw/zeal.h"
-void zeal_service_web(void);
+zeal_step_result_t wasm_frame(zeal_t* machine);
+bool wasm_present(zeal_t* machine);

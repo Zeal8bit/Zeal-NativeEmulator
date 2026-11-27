@@ -54,59 +54,43 @@ static void poll_input(zeal_t* machine)
     snes_adapter_update(&frontend_snes);
 }
 
-int frontend_run(zeal_t* machine)
+zeal_step_result_t wasm_frame(zeal_t* machine)
 {
-    double deadline = emscripten_get_now();
-    while (!machine->should_exit) {
-        zeal_service_web();
-        if (machine->should_exit) {
-            break;
-        }
-        poll_input(machine);
-        zeal_step_result_t result = ZEAL_STEP_NONE;
-        bool debug = false;
+    poll_input(machine);
+    zeal_step_result_t result = ZEAL_STEP_NONE;
+    bool debug = false;
 #if CONFIG_ENABLE_DEBUGGER
-        debug = machine->dbg_enabled;
-        if (debug && web_debug_service(machine)) {
-            zvb_force_render(&machine->zvb);
-            result = ZEAL_STEP_FRAME;
-        }
-        if (!debug || machine->dbg_state != ST_PAUSED)
-#endif
-        {
-            const uint64_t start = machine->cpu.clock.now_ns;
-            do {
-                result = zeal_step(machine, debug);
-            } while (!(result & (ZEAL_STEP_FRAME | ZEAL_STEP_FATAL |
-                                ZEAL_STEP_STOP | ZEAL_STEP_DEBUG_STOP)) &&
-                     (!debug || machine->cpu.clock.now_ns - start < 20000000));
-        }
-#if CONFIG_ENABLE_DEBUGGER
-        if (result & ZEAL_STEP_DEBUG_STOP) {
-            web_debug_after_step(machine);
-        }
-        if (debug && (result & ZEAL_STEP_FRAME)) {
-            web_debug_on_frame(machine);
-        }
-#endif
-        if (result & ZEAL_STEP_FATAL) {
-            return 1;
-        }
-        if (result & ZEAL_STEP_STOP) {
-            break;
-        }
-        if ((result & ZEAL_STEP_FRAME) && !wasm_video_draw(&machine->zvb, show_fps)) {
-            log_err_printf("[SDL] Render failed: %s\n", SDL_GetError());
-            return 1;
-        }
-        double now = emscripten_get_now();
-        deadline += 1000.0 / 60.0;
-        if (deadline < now) {
-            deadline = now;
-        }
-        emscripten_sleep((unsigned)(deadline - now));
+    debug = machine->dbg_enabled;
+    if (debug && web_debug_service(machine)) {
+        zvb_force_render(&machine->zvb);
+        result = ZEAL_STEP_FRAME;
     }
-    return machine->compactflash.failed ? 1 : 0;
+    if (!debug || machine->dbg_state != ST_PAUSED)
+#endif
+    {
+        const uint64_t start = machine->cpu.clock.now_ns;
+        do {
+            result = zeal_step(machine, debug);
+        } while (!(result & (ZEAL_STEP_FRAME | ZEAL_STEP_FATAL |
+                            ZEAL_STEP_STOP | ZEAL_STEP_DEBUG_STOP)) &&
+                 (!debug || machine->cpu.clock.now_ns - start < 20000000));
+    }
+#if CONFIG_ENABLE_DEBUGGER
+    if (result & ZEAL_STEP_DEBUG_STOP) {
+        web_debug_after_step(machine);
+    }
+    if (debug && (result & ZEAL_STEP_FRAME)) {
+        web_debug_on_frame(machine);
+    }
+#endif
+    return result;
+}
+
+bool wasm_present(zeal_t* machine)
+{
+    if (wasm_video_draw(&machine->zvb, show_fps)) return true;
+    log_err_printf("[SDL] Render failed: %s\n", SDL_GetError());
+    return false;
 }
 
 void frontend_reset_input(zeal_t* machine)

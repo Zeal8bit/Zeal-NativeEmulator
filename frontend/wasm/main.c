@@ -26,8 +26,7 @@
 config_t config;
 static zeal_t machine;
 
-/* Only request work from JS. File I/O must run on the main Asyncify stack,
- * rather than re-entering it while the main loop is sleeping between frames. */
+/* Run file I/O from the frame callback so a JS request cannot re-enter Asyncify. */
 #define WEB_STORAGE_FLUSH 1
 #define WEB_STORAGE_EXIT 2
 
@@ -57,7 +56,7 @@ void zeal_flush_storage_web(void)
     web_storage_request = WEB_STORAGE_FLUSH;
 }
 
-void zeal_service_web(void)
+static void service_storage(void)
 {
     const int request = web_storage_request;
     if (!request) {
@@ -107,9 +106,45 @@ void zeal_snes_clear_web(void)
     snes_adapter_clear_virtual_buttons(&frontend_snes);
 }
 
+static void cleanup(void)
+{
+    frontend_deinit(&machine);
+    free((void*)config.images.rom);
+    free((void*)config.images.eeprom);
+    free((void*)config.images.tf);
+    free((void*)config.arguments.uprog_filename);
+}
+
+static void browser_frame(void)
+{
+    static double next_frame;
+    const double period = 1000.0 / 60.0;
+    service_storage();
+    const double now = emscripten_get_now();
+
+    /* Browser refresh rates vary. Discard a suspended tab's backlog and
+     * allow up to four emulated frames per callback on slower displays. */
+    if (next_frame == 0 || now - next_frame >= 4 * period) next_frame = now;
+    zeal_step_result_t result = ZEAL_STEP_NONE;
+    while (!machine.should_exit && now >= next_frame) {
+        next_frame += period;
+        result |= wasm_frame(&machine);
+        if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) break;
+    }
+    if (!machine.should_exit && !(result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP))) {
+        if (!(result & ZEAL_STEP_FRAME) || wasm_present(&machine)) return;
+        result |= ZEAL_STEP_FATAL;
+    }
+
+    int code = (result & ZEAL_STEP_FATAL) || machine.compactflash.failed;
+    if (!machine.compactflash.failed && flash_save_to_file(&machine.rom, config.images.rom) < 0) code = 1;
+    cleanup();
+    emscripten_cancel_main_loop();
+    exit(code);
+}
+
 int main(void)
 {
-    int code = 1;
     if (web_uses_opfs()) {
         const backend_t backend = wasmfs_create_opfs_backend();
         if (wasmfs_create_directory("/opfs", 0777, backend) != 0) {
@@ -149,20 +184,10 @@ int main(void)
     web_debug_start(&machine);
 #endif
     web_ready();
-    code = frontend_run(&machine);
-    if (machine.compactflash.failed) {
-        goto deinit;
-    }
-
-    if (flash_save_to_file(&machine.rom, config.images.rom) < 0) {
-        code = 1;
-    }
+    emscripten_set_main_loop(browser_frame, 0, false);
+    return 0;
 
 deinit:
-    frontend_deinit(&machine);
-    free((void*)config.images.rom);
-    free((void*)config.images.eeprom);
-    free((void*)config.images.tf);
-    free((void*)config.arguments.uprog_filename);
-    return code;
+    cleanup();
+    return 1;
 }
