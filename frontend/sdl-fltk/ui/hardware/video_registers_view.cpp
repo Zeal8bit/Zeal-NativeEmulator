@@ -82,7 +82,9 @@ void VideoRegistersView::build()
     chips("LATCHED", { { "HBL", (v.blank_latches & 1) != 0 }, { "VBL", (v.blank_latches & 2) != 0 } });
     chips("IRQ", { { "GP", gp_irq }, { "SND", (ext_irq & 1) != 0 }, { "RPU", (ext_irq & 2) != 0 },
                    { "TMR", (ext_irq & 4) != 0 } });
+#if ZVB_SCANLINE_RENDERING
     chips("RENDERER", { { "SCANLINE", v.scanline_rendering } });
+#endif
 
     section("LAYERS");
     u16("L0 SCROLL X", v.ctrl.l0_scroll_x);

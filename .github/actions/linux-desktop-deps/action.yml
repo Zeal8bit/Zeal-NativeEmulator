@@ -28,12 +28,19 @@ runs:
         sudo cmake --install "$RUNNER_TEMP/fltk-build"
 
     # Ubuntu 22.04/24.04 have no SDL3 package: build the pinned release.
+    - name: Identify Linux release for SDL3 cache
+      id: distro
+      shell: bash
+      run: |
+        source /etc/os-release
+        echo "release=$ID-$VERSION_ID" >> "$GITHUB_OUTPUT"
+
     - name: Cache SDL3 (Linux)
       id: sdl3-cache
       uses: actions/cache@v4
       with:
         path: sdl3/linux
-        key: sdl3-${{ env.ImageOS }}-${{ hashFiles('tools/build_sdl3.py') }}
+        key: sdl3-${{ steps.distro.outputs.release }}-${{ runner.arch }}-${{ hashFiles('tools/build_sdl3.py') }}
 
     - name: Build SDL3 (Linux)
       if: steps.sdl3-cache.outputs.cache-hit != 'true'
