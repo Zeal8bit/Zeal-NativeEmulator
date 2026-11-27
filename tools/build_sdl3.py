@@ -133,6 +133,8 @@ def main():
                 "-DSDL_EXAMPLES=OFF",
                 # zeal-native uses SDL only for audio and gamepads (FLTK owns the
                 # windows), so do not require X11/Wayland development files.
+                "-DSDL_X11=OFF",
+                "-DSDL_WAYLAND=OFF",
                 "-DSDL_UNIX_CONSOLE_BUILD=ON",
             ],
             check=True,
