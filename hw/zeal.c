@@ -249,7 +249,8 @@ zeal_step_result_t zeal_step(zeal_t* machine, bool debug)
         result |= ZEAL_STEP_FRAME;
     }
 #if CONFIG_ENABLE_DEBUGGER
-    else if (debug && machine->dbg_state == ST_PAUSED && machine->zvb.rendering_enabled) {
+    else if (debug && machine->dbg_state == ST_PAUSED && machine->zvb.rendering_enabled &&
+             !machine->preserve_scanout_on_pause) {
         zvb_force_render(&machine->zvb);
         result |= ZEAL_STEP_FRAME;
     }

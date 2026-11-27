@@ -60,9 +60,10 @@ zeal_step_result_t wasm_frame(zeal_t* machine)
     zeal_step_result_t result = ZEAL_STEP_NONE;
     bool debug = false;
 #if CONFIG_ENABLE_DEBUGGER
+    static bool was_paused;
     debug = machine->dbg_enabled;
     if (debug && web_debug_service(machine)) {
-        zvb_force_render(&machine->zvb);
+        if (!machine->preserve_scanout_on_pause) zvb_force_render(&machine->zvb);
         result = ZEAL_STEP_FRAME;
     }
     if (!debug || machine->dbg_state != ST_PAUSED)
@@ -82,13 +83,23 @@ zeal_step_result_t wasm_frame(zeal_t* machine)
     if (debug && (result & ZEAL_STEP_FRAME)) {
         web_debug_on_frame(machine);
     }
+    const bool paused = debug && machine->dbg_state == ST_PAUSED;
+    if (machine->preserve_scanout_on_pause && paused &&
+        (!was_paused || (result & ZEAL_STEP_DEBUG_STOP))) {
+        result |= ZEAL_STEP_FRAME;
+    }
+    was_paused = paused;
 #endif
     return result;
 }
 
 bool wasm_present(zeal_t* machine)
 {
-    if (wasm_video_draw(&machine->zvb, show_fps)) return true;
+    bool preview = false;
+#if CONFIG_ENABLE_DEBUGGER
+    preview = machine->preserve_scanout_on_pause && machine->dbg_state == ST_PAUSED;
+#endif
+    if (wasm_video_draw(&machine->zvb, show_fps, preview)) return true;
     log_err_printf("[SDL] Render failed: %s\n", SDL_GetError());
     return false;
 }

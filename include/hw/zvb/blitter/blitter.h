@@ -24,6 +24,9 @@ void zvb_blitter_render_bitmap_mode(zvb_t* zvb);
 
 void zvb_blitter_render_gfx_mode(zvb_t* zvb);
 
+/* Caller supplies maximum-resolution RGB565 storage with stride in pixels. */
+void zvb_blitter_preview(zvb_t* zvb, uint16_t* pixels, int stride, int* width, int* height);
+
 /* Present black at the maximum resolution (VGA output disabled). */
 void zvb_blitter_fill_black(zvb_t* zvb);
 

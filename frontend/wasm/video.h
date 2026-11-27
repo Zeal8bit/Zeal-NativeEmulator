@@ -10,5 +10,5 @@
 extern SDL_Window* wasm_window;
 extern SDL_Renderer* wasm_renderer;
 bool wasm_video_init(zvb_t* zvb);
-bool wasm_video_draw(zvb_t* zvb, bool show_fps);
+bool wasm_video_draw(zvb_t* zvb, bool show_fps, bool preview);
 void wasm_video_deinit(void);

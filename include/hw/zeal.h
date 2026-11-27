@@ -70,6 +70,7 @@ struct zeal_t {
     /* Debugger related */
 #if CONFIG_ENABLE_DEBUGGER
     bool             dbg_enabled;
+    bool             preserve_scanout_on_pause;  /* Frontend composes its own paused preview. */
     dbg_state_t      dbg_state;
     dbg_t            dbg;
     uint8_t        (*dbg_read_memory)(struct zeal_t*, hwaddr addr);

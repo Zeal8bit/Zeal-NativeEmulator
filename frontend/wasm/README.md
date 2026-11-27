@@ -230,6 +230,11 @@ A step resolves after its instruction completes. Debugger commands are handled
 on the emulator loop between instructions. Sessions created with default
 options continue to boot and run automatically.
 
+Pass `previewOnPause: true` with `debugger: true` to show current video memory,
+registers, and sprites on the canvas at each stop, even before the first VBlank.
+This preview uses the requested video enable and leaves the raster framebuffer
+and emulated clock intact. Running resumes normal scanout.
+
 Add or enable a user breakpoint with `setBreakpoint(address, enabled = true)`
 and remove it with `removeBreakpoint(address)`. Set breakpoints before the
 first `continue()` to catch the entry instruction. `stepOver()` starts execution
