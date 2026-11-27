@@ -65,6 +65,8 @@ static uint8_t memory_bytes[UINT16_MAX + 1u];
 // clang-format off
 EM_JS(bool, web_debug_requested, (), { return Boolean(Module.debuggerEnabled); });
 
+EM_JS(bool, preview_on_pause, (), { return Boolean(Module.previewOnPause); });
+
 EM_JS(void, web_debug_state, (int reason, const uint16_t* regs, uint32_t hi, uint32_t lo,
       unsigned stop_address, unsigned access, unsigned value, unsigned access_pc), {
     const base = regs >>> 1;
@@ -269,6 +271,7 @@ void web_debug_start(zeal_t* machine)
 {
     available = machine->dbg_enabled;
     if (available) {
+        machine->preserve_scanout_on_pause = preview_on_pause();
         debugger_pause(&machine->dbg);
         before_first_run = true;
 #if CONFIG_TRACE_DEPTH > 0

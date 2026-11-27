@@ -190,6 +190,7 @@
             eepromPath = '/roms/eeprom.img',
             tfPath = '/roms/tf.img',
             debugger: enableDebugger = false,
+            previewOnPause = false,
             imageStorage = 'opfs',
             storageNamespace,
             diskImages = {},
@@ -208,6 +209,7 @@
             }
 
             this.canvas = canvas;
+            this.previewOnPause = previewOnPause;
             this.debugger = enableDebugger ? new DebuggerSession(this) : null;
             this.moduleFactory = moduleFactory;
             this.romdisk = romdisk;
@@ -328,6 +330,7 @@
                     imagePaths,
                     imageStorage: this.imageStorage,
                     debuggerEnabled: Boolean(this.debugger),
+                    previewOnPause: this.previewOnPause,
                     onDebugState(state) {
                         owner.debugger?.update(state);
                     },

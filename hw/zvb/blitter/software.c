@@ -423,9 +423,8 @@ static void render_gfx_8bit_scanline(const zvb_t* zvb, const gfx_scanline_params
 }
 
 
-static void render_scanline(zvb_t* zvb, int y)
+static void render_scanline(zvb_t* zvb, int y, uint16_t* output)
 {
-    uint16_t* output = zvb->blitter.framebuffer + y * FB_WIDTH;
     if (zvb_is_text_mode(zvb)) {
         render_text_scanline(zvb, y, output);
     } else if (zvb_is_bitmap_mode(zvb)) {
@@ -452,6 +451,22 @@ static void render_scanline(zvb_t* zvb, int y)
     }
 }
 
+/* Compose the requested display state without touching scanout or its latches. */
+void zvb_blitter_preview(zvb_t* zvb, uint16_t* pixels, int stride, int* width, int* height)
+{
+    const bool lowres = low_resolution(zvb);
+    *width = lowres ? LOWRES_WIDTH : FB_WIDTH;
+    *height = lowres ? LOWRES_HEIGHT : FB_HEIGHT;
+    for (int y = 0; y < *height; y++) {
+        if (zvb->status.vid_ena) {
+            render_scanline(zvb, y, pixels);
+        } else {
+            memset(pixels, 0, *width * sizeof(*pixels));
+        }
+        pixels += stride;
+    }
+}
+
 #if ZVB_SCANLINE_RENDERING
 void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
 {
@@ -468,7 +483,7 @@ void zvb_blitter_render_scanline(zvb_t* zvb, int scanline)
     const int width = lowres ? LOWRES_WIDTH : FB_WIDTH;
     zvb->blitter.raster_frame = true;
     if (zvb->screen_enabled) {
-        render_scanline(zvb, y);
+        render_scanline(zvb, y, zvb->blitter.framebuffer + y * FB_WIDTH);
     } else {
         memset(zvb->blitter.framebuffer + y * FB_WIDTH, 0, width * sizeof(uint16_t));
     }
@@ -482,7 +497,7 @@ static void render_frame(zvb_t* zvb)
 #endif
         const int height = low_resolution(zvb) ? LOWRES_HEIGHT : FB_HEIGHT;
         for (int y = 0; y < height; y++) {
-            render_scanline(zvb, y);
+            render_scanline(zvb, y, zvb->blitter.framebuffer + y * FB_WIDTH);
         }
 #if ZVB_SCANLINE_RENDERING
     }

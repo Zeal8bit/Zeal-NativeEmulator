@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "video.h"
+#include "hw/zvb/blitter/blitter.h"
 #include "utils/log.h"
 #include <string.h>
 
@@ -131,7 +132,7 @@ bool wasm_video_init(zvb_t* zvb)
     return texture && SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 }
 
-bool wasm_video_draw(zvb_t* zvb, bool show_fps)
+bool wasm_video_draw(zvb_t* zvb, bool show_fps, bool preview)
 {
     static Uint64 fps_start;
     static unsigned frames, fps;
@@ -145,11 +146,22 @@ bool wasm_video_draw(zvb_t* zvb, bool show_fps)
 #if CONFIG_PROFILE_RENDER
     double start = emscripten_get_now();
 #endif
-    const zvb_frame_t frame = zvb_frame(zvb);
-    const SDL_Rect region = {0, 0, frame.width, frame.height};
-    const SDL_FRect src = {0, 0, frame.width, frame.height};
-    if (!SDL_UpdateTexture(texture, &region, frame.pixels, ZVB_MAX_RES_WIDTH * sizeof(uint16_t)) ||
-        !SDL_SetRenderDrawColor(wasm_renderer, 0, 0, 0, 255) || !SDL_RenderClear(wasm_renderer) ||
+    int width, height;
+    if (preview) {
+        void* pixels;
+        int pitch;
+        if (!SDL_LockTexture(texture, NULL, &pixels, &pitch)) return false;
+        zvb_blitter_preview(zvb, pixels, pitch / sizeof(uint16_t), &width, &height);
+        SDL_UnlockTexture(texture);
+    } else {
+        const zvb_frame_t frame = zvb_frame(zvb);
+        width = frame.width;
+        height = frame.height;
+        const SDL_Rect region = {0, 0, width, height};
+        if (!SDL_UpdateTexture(texture, &region, frame.pixels, frame.stride_bytes)) return false;
+    }
+    const SDL_FRect src = {0, 0, width, height};
+    if (!SDL_SetRenderDrawColor(wasm_renderer, 0, 0, 0, 255) || !SDL_RenderClear(wasm_renderer) ||
         !SDL_RenderTexture(wasm_renderer, texture, &src, NULL)) return false;
     notif_render(ZVB_MAX_RES_WIDTH - notif_estimate_width() - 10, 10);
     if (show_fps) {
