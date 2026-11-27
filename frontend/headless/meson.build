@@ -6,3 +6,10 @@ headless_sources = files(
     'frontend.c',
     'main.c',
 )
+
+headless_sources += custom_target('headless-skill',
+    input: 'SKILL.md',
+    output: 'skill.inc',
+    command: [import('python').find_installation(), files('../../tools/file_to_string.py'), '@INPUT@'],
+    capture: true,
+)

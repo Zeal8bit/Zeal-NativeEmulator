@@ -234,6 +234,8 @@ Pass `--no-dma` to disable DMA transfers while keeping the CPU and other ZVB fea
 
 ## Headless Console
 
+For Codex and Claude Code skill installation prompts, see the [headless README](frontend/headless/README.md).
+
 `--console` reads one command per line from `stdin`, which makes it easy to drive the emulator deterministically from scripts and CI. Supported commands:
 
 | Command            | Description                                        |
