@@ -118,9 +118,13 @@ bool wasm_video_init(zvb_t* zvb)
     if (wasm_renderer == NULL) {
         return false;
     }
-    if (!SDL_SetRenderVSync(wasm_renderer, 1)) return false;
+    if (!SDL_SetRenderVSync(wasm_renderer, 1)) {
+        return false;
+    }
     if (!SDL_SetRenderLogicalPresentation(wasm_renderer, ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT,
-                                          SDL_LOGICAL_PRESENTATION_LETTERBOX)) return false;
+                                          SDL_LOGICAL_PRESENTATION_LETTERBOX)) {
+        return false;
+    }
     texture = SDL_CreateTexture(wasm_renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,
                                 ZVB_MAX_RES_WIDTH, ZVB_MAX_RES_HEIGHT);
 #if CONFIG_PROFILE_RENDER
@@ -150,7 +154,9 @@ bool wasm_video_draw(zvb_t* zvb, bool show_fps, bool preview)
     if (preview) {
         void* pixels;
         int pitch;
-        if (!SDL_LockTexture(texture, NULL, &pixels, &pitch)) return false;
+        if (!SDL_LockTexture(texture, NULL, &pixels, &pitch)) {
+            return false;
+        }
         zvb_blitter_preview(zvb, pixels, pitch / sizeof(uint16_t), &width, &height);
         SDL_UnlockTexture(texture);
     } else {
@@ -158,11 +164,15 @@ bool wasm_video_draw(zvb_t* zvb, bool show_fps, bool preview)
         width = frame.width;
         height = frame.height;
         const SDL_Rect region = {0, 0, width, height};
-        if (!SDL_UpdateTexture(texture, &region, frame.pixels, frame.stride_bytes)) return false;
+        if (!SDL_UpdateTexture(texture, &region, frame.pixels, frame.stride_bytes)) {
+            return false;
+        }
     }
     const SDL_FRect src = {0, 0, width, height};
     if (!SDL_SetRenderDrawColor(wasm_renderer, 0, 0, 0, 255) || !SDL_RenderClear(wasm_renderer) ||
-        !SDL_RenderTexture(wasm_renderer, texture, &src, NULL)) return false;
+        !SDL_RenderTexture(wasm_renderer, texture, &src, NULL)) {
+        return false;
+    }
     notif_render(ZVB_MAX_RES_WIDTH - notif_estimate_width() - 10, 10);
     if (show_fps) {
         SDL_SetRenderDrawColor(wasm_renderer, 255, 255, 255, 255);

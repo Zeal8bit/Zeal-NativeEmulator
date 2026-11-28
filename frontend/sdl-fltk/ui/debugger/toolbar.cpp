@@ -100,10 +100,18 @@ void Toolbar::cb_run(Fl_Widget*, void*)
 }
 
 void Toolbar::cb_step(Fl_Widget*, void*)
-{ if (dbg_ready()) debugger_step(fz_debugger()); }
+{
+    if (dbg_ready()) {
+        debugger_step(fz_debugger());
+    }
+}
 
 void Toolbar::cb_step_over(Fl_Widget*, void*)
-{ if (dbg_ready()) debugger_step_over(fz_debugger()); }
+{
+    if (dbg_ready()) {
+        debugger_step_over(fz_debugger());
+    }
+}
 
 void Toolbar::cb_reset(Fl_Widget*, void*)
 {

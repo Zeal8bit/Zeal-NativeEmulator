@@ -124,8 +124,18 @@ static void cb_hex_upper(Fl_Widget* w, void*)
     }
 }
 
-static void cb_scale_up(Fl_Widget*, void*)   { if (main_window()) main_window()->scale_screen(1.0f); }
-static void cb_scale_down(Fl_Widget*, void*) { if (main_window()) main_window()->scale_screen(-1.0f); }
+static void cb_scale_up(Fl_Widget*, void*)
+{
+    if (main_window()) {
+        main_window()->scale_screen(1.0f);
+    }
+}
+static void cb_scale_down(Fl_Widget*, void*)
+{
+    if (main_window()) {
+        main_window()->scale_screen(-1.0f);
+    }
+}
 static void cb_scale_preset(Fl_Widget*, void* data)
 {
     if (main_window()) {
@@ -151,7 +161,12 @@ static void cb_theme(Fl_Widget*, void* data)
     }
 }
 
-static void cb_fullscreen(Fl_Widget*, void*) { if (main_window()) main_window()->toggle_fullscreen(); }
+static void cb_fullscreen(Fl_Widget*, void*)
+{
+    if (main_window()) {
+        main_window()->toggle_fullscreen();
+    }
+}
 
 static void cb_show_fps(Fl_Widget* w, void*)
 {

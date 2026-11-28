@@ -10,8 +10,9 @@
 
 #define CHECK_ERR(err)  \
     do {                \
-        if (err)        \
+        if (err) {      \
             return err; \
+        }               \
     } while (0)
 
 #if CONFIG_ENABLE_DEBUGGER

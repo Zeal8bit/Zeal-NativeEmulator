@@ -79,11 +79,15 @@ EM_JS(void, web_debug_state, (int reason, const uint16_t* regs, uint32_t hi, uin
         tstates: (hi >>> 0) * 0x100000000 + (lo >>> 0),
         registers: {a, f, b, c, d, e, h, l, ix, iy, pc, sp, i, r, afAlt, bcAlt, deAlt, hlAlt},
     };
-    if (state.reason === 'breakpoint') state.breakpointAddress = stop_address;
+    if (state.reason === 'breakpoint') {
+        state.breakpointAddress = stop_address;
+    }
     if (state.reason === 'watchpoint') {
         state.watchpoint = {address: stop_address, type: access === 1 ? 'read' : 'write', value, pc: access_pc};
     }
-    if (sampled) Module.debugSample = state;
+    if (sampled) {
+        Module.debugSample = state;
+    }
     else Module.onDebugState?.(state);
 });
 
@@ -120,7 +124,9 @@ EM_JS(void, web_debug_memory_complete,
         });
     }
     const result = {bytes: HEAPU8.slice(data, data + count), mmu};
-    if (sampled) Module.debugSample.memory = result;
+    if (sampled) {
+        Module.debugSample.memory = result;
+    }
     else Module.onDebugComplete?.(0, result);
 });
 EM_JS(void, web_debug_sample_complete, (const uint8_t* stack, unsigned size), {
@@ -432,8 +438,12 @@ bool web_debug_service(zeal_t* machine)
             }
             watchpoint_t point;
             if (debugger_find_watchpoint(dbg, request.address, &point) && point.addr == request.address) {
-                if (point.type != type) debugger_set_watchpoint_type(dbg, request.address, type);
-                if (point.disabled == enabled) debugger_enable_watchpoint(dbg, request.address, enabled);
+                if (point.type != type) {
+                    debugger_set_watchpoint_type(dbg, request.address, type);
+                }
+                if (point.disabled == enabled) {
+                    debugger_enable_watchpoint(dbg, request.address, enabled);
+                }
             } else if (!debugger_add_watchpoint(dbg, (watchpoint_t){
                     .addr = request.address, .end = request.address, .type = type })) {
                 error = ENOSPC;
@@ -453,8 +463,12 @@ bool web_debug_service(zeal_t* machine)
             }
             uint8_t stack[64];
             unsigned size = (UINT16_MAX + 1u - machine->cpu.sp) & ~1u;
-            if (size > sizeof(stack)) size = sizeof(stack);
-            if (size) debugger_read_memory(dbg, machine->cpu.sp, (int)size, stack);
+            if (size > sizeof(stack)) {
+                size = sizeof(stack);
+            }
+            if (size) {
+                debugger_read_memory(dbg, machine->cpu.sp, (int)size, stack);
+            }
             web_debug_sample_complete(stack, size);
             return false;
         }

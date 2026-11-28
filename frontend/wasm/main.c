@@ -124,20 +124,28 @@ static void browser_frame(void)
 
     /* Browser refresh rates vary. Discard a suspended tab's backlog and
      * allow up to four emulated frames per callback on slower displays. */
-    if (next_frame == 0 || now - next_frame >= 4 * period) next_frame = now;
+    if (next_frame == 0 || now - next_frame >= 4 * period) {
+        next_frame = now;
+    }
     zeal_step_result_t result = ZEAL_STEP_NONE;
     while (!machine.should_exit && now >= next_frame) {
         next_frame += period;
         result |= wasm_frame(&machine);
-        if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) break;
+        if (result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP)) {
+            break;
+        }
     }
     if (!machine.should_exit && !(result & (ZEAL_STEP_FATAL | ZEAL_STEP_STOP))) {
-        if (!(result & ZEAL_STEP_FRAME) || wasm_present(&machine)) return;
+        if (!(result & ZEAL_STEP_FRAME) || wasm_present(&machine)) {
+            return;
+        }
         result |= ZEAL_STEP_FATAL;
     }
 
     int code = (result & ZEAL_STEP_FATAL) || machine.compactflash.failed;
-    if (!machine.compactflash.failed && flash_save_to_file(&machine.rom, config.images.rom) < 0) code = 1;
+    if (!machine.compactflash.failed && flash_save_to_file(&machine.rom, config.images.rom) < 0) {
+        code = 1;
+    }
     cleanup();
     emscripten_cancel_main_loop();
     exit(code);
